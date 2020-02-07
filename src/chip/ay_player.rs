@@ -2,14 +2,14 @@ use core::num::NonZeroU16;
 use core::marker::PhantomData;
 use core::num::Wrapping;
 
-// use z80emu::{*, host::{Result, cycles::M1_CYCLE_TS}};
 use z80emu::{Cpu, Clock, Io, Memory, CpuDebug, CpuDebugFn, BreakCause, opconsts, host::{
         TsCounter, Result, cycles::M1_CYCLE_TS
     }};
-use crate::audio::{AudioFrame, Blep, AmpLevels, MARGIN_TSTATES, sample::{SampleDelta, SampleTime}};
+use crate::audio::*;
+use crate::audio::sample::{SampleDelta, SampleTime};
 use crate::audio::ay::*;
 use crate::io::ay::*;
-use crate::clock::FTs;
+use crate::clock::{FTs, FTsData2};
 use crate::memory::{ZxMemory, Memory48k};
 use crate::bus::{BusDevice, NullDevice};
 use crate::chip::{ControlUnit, nanos_from_frame_tc_cpu_hz};
@@ -24,6 +24,9 @@ pub struct AyPlayer<P> {
     pub memory: Memory48k,
     pub ay_sound: Ay3_8891xAudio,
     pub ay_io: Ay3_8891N<FTs>,
+    pub earmic_changes: Vec<FTsData2>,
+    pub last_earmic: u8,
+    pub prev_earmic: u8,
     bus: NullDevice<FTs>,
     _port_decode: PhantomData<P>
 }
@@ -104,6 +107,20 @@ where A: Blep<SampleDelta=L, SampleTime=FT>,
     }
 }
 
+impl<P,A,L,FT> EarMicOutAudioFrame<A> for AyPlayer<P>
+where A: Blep<SampleDelta=L, SampleTime=FT>,
+      L: SampleDelta,
+      FT: SampleTime
+{
+    #[inline(always)]
+    fn render_earmic_out_audio_frame<V: AmpLevels<L>>(&self, blep: &mut A, time_rate: FT, channel: usize) {
+        render_audio_frame_ts::<V,L,A,FT,_>(self.prev_earmic,
+                                         None,
+                                         &self.earmic_changes,
+                                         blep, time_rate, channel)
+    }
+}
+
 impl<P: AyPortDecode> ControlUnit for AyPlayer<P> {
     type TsCounter = TsCounter<FTs>;
     type BusDevice = NullDevice<FTs>;
@@ -177,6 +194,8 @@ impl<P: AyPortDecode> ControlUnit for AyPlayer<P> {
         if ts >= FRAME_TSTATES {
             self.frames += Wrapping(1);
             self.ay_io.recorder.clear();
+            self.earmic_changes.clear();
+            self.prev_earmic = self.last_earmic;
             self.tsc.0 = Wrapping(ts) - Wrapping(FRAME_TSTATES);
         }
         self.tsc
@@ -225,14 +244,23 @@ impl<P> Io for AyPlayer<P> where P: AyPortDecode {
     }
 
     fn write_io(&mut self, port: u16, data: u8, ts: FTs) -> (Option<()>, Option<NonZeroU16>) {
-        match port & P::PORT_MASK {
-            p if p == P::PORT_SELECT => {
-                self.ay_io.select_port(data)
+        if port & 1 == 0 {
+            let earmic = data >> 3 & 3;
+            if self.last_earmic != earmic {
+                self.last_earmic = earmic;
+                self.earmic_changes.push((ts, earmic).into());
             }
-            p if p == P::PORT_DATA_WRITE => {
-                self.ay_io.data_port_write(data, ts)
+        }
+        else {
+            match port & P::PORT_MASK {
+                p if p == P::PORT_SELECT => {
+                    self.ay_io.select_port(data)
+                }
+                p if p == P::PORT_DATA_WRITE => {
+                    self.ay_io.data_port_write(data, ts)
+                }
+                _ => {}
             }
-            _ => {}
         }
         (None, None)
     }

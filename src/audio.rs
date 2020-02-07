@@ -6,10 +6,10 @@ pub mod music;
 
 pub(crate) const MARGIN_TSTATES: FTs = 2 * 23;
 
+use core::marker::PhantomData;
 use core::num::NonZeroU32;
 use crate::clock::{FTs, VideoTs, VFrameTsCounter};
 use crate::video::VideoFrame;
-pub use synth::BandLimited;
 pub use sample::{SampleDelta, SampleTime, MulNorm, FromSample};
 
 /// A trait interfacing a Bandwidth-Limited Pulse Buffer implementation.
@@ -69,9 +69,11 @@ pub trait AudioFrame<B: Blep> {
     }
 }
 
-pub trait EarMicAudioFrame<B: Blep> {
-    /// Returns the current frame's `time_end` for the blep buffer to end with for the given sample_rate.
+pub trait EarMicOutAudioFrame<B: Blep> {
     fn render_earmic_out_audio_frame<V: AmpLevels<B::SampleDelta>>(&self, blep: &mut B, time_rate: B::SampleTime, channel: usize);
+}
+
+pub trait EarInAudioFrame<B: Blep> {
     fn render_ear_in_audio_frame<V: AmpLevels<B::SampleDelta>>(&self, blep: &mut B, time_rate: B::SampleTime, channel: usize);
 }
 
@@ -84,6 +86,59 @@ pub trait EarIn {
     fn purge_ear_in_changes(&mut self, ear_in: bool);
 }
 
+/*
+Value output to bit: 4  3  |  Iss 2  Iss 3   Iss 2 V    Iss 3 V
+                     1  1  |    1      1       3.79       3.70
+                     1  0  |    1      1       3.66       3.56
+                     0  1  |    1      0       0.73       0.66
+                     0  0  |    0      0       0.39       0.34
+*/
+pub const AMPS_EAR_MIC: [f32; 4] = [0.34/3.70, 0.66/3.70, 3.56/3.70, 3.70/3.70];
+pub const AMPS_EAR_OUT: [f32; 4] = [0.34/3.70, 0.34/3.70, 3.70/3.70, 3.70/3.70];
+pub const AMPS_EAR_IN:  [f32; 2] = [0.34/3.70, 3.70/3.70];
+
+pub const AMPS_EAR_MIC_I32: [i32; 4] = [0x0bc31d10, 0x16d51a60, 0x7b2820ff, 0x7fffffff];
+pub const AMPS_EAR_OUT_I32: [i32; 4] = [0x0bc31d10, 0x0bc31d10, 0x7fffffff, 0x7fffffff];
+pub const AMPS_EAR_IN_I32:  [i32; 2] = [0x0bc31d10, 0x7fffffff];
+
+pub const AMPS_EAR_MIC_I16: [i16; 4] = [0x0bc3, 0x16d5, 0x7b27, 0x7fff];
+pub const AMPS_EAR_OUT_I16: [i16; 4] = [0x0bc3, 0x0bc3, 0x7fff, 0x7fff];
+pub const AMPS_EAR_IN_I16:  [i16; 2] = [0x0bc3, 0x7fff];
+
+#[derive(Clone, Default, Debug)]
+pub struct EarMicAmps4<T>(PhantomData<T>);
+#[derive(Clone, Default, Debug)]
+pub struct EarOutAmps4<T>(PhantomData<T>);
+#[derive(Clone, Default, Debug)]
+pub struct EarInAmps2<T>(PhantomData<T>);
+
+macro_rules! impl_amp_levels {
+    ($([$ty:ty, $ear_mic:ident, $ear_out:ident, $ear_in:ident]),*) => { $(
+        impl AmpLevels<$ty> for EarMicAmps4<$ty> {
+            #[inline(always)]
+            fn amp_level(level: u32) -> $ty {
+                $ear_mic[(level & 3) as usize]
+            }
+        }
+
+        impl AmpLevels<$ty> for EarOutAmps4<$ty> {
+            #[inline(always)]
+            fn amp_level(level: u32) -> $ty {
+                $ear_out[(level & 3) as usize]
+            }
+        }
+
+        impl AmpLevels<$ty> for EarInAmps2<$ty> {
+            #[inline(always)]
+            fn amp_level(level: u32) -> $ty {
+                $ear_in[(level & 1) as usize]
+            }
+        }
+    )* };
+}
+impl_amp_levels!([f32, AMPS_EAR_MIC, AMPS_EAR_OUT, AMPS_EAR_IN],
+                 [i32, AMPS_EAR_MIC_I32, AMPS_EAR_OUT_I32, AMPS_EAR_IN_I32],
+                 [i16, AMPS_EAR_MIC_I16, AMPS_EAR_OUT_I16, AMPS_EAR_IN_I16]);
 
 impl <B, T> BlepAmpFilter<B, T> {
     pub fn new(blep: B, filter: T) -> Self {
@@ -131,7 +186,7 @@ impl<B> Blep for BlepAmpFilter<B, B::SampleDelta> where B: Blep, B::SampleDelta:
     }
 }
 
-pub(crate) fn render_audio_frame<VF,VL,L,A,FT,T>(prev_state: u8,
+pub(crate) fn render_audio_frame_vts<VF,VL,L,A,FT,T>(prev_state: u8,
                                                 end_ts: Option<VideoTs>,
                                                 changes: &[T],
                                                 blep: &mut A, time_rate: FT, channel: usize)
@@ -146,13 +201,41 @@ where VF: VideoFrame,
     for &tsd in changes.iter() {
         let (ts, state) = tsd.into();
         if let Some(end_ts) = end_ts {
-            if ts > end_ts {
+            if ts >= end_ts { // TODO >= or >
                 break
             }
         }
         let next_vol = VL::amp_level(state.into());
         if let Some(delta) = last_vol.sample_delta(next_vol) {
             let time = time_rate.at_timestamp(VFrameTsCounter::<VF>::from(ts).as_tstates());
+            blep.add_step(channel, time, delta);
+            last_vol = next_vol;
+        }
+    }
+}
+
+pub(crate) fn render_audio_frame_ts<VL,L,A,FT,T>(prev_state: u8,
+                                                end_ts: Option<FTs>,
+                                                changes: &[T],
+                                                blep: &mut A, time_rate: FT, channel: usize)
+where VL: AmpLevels<L>,
+      L: SampleDelta,
+      A: Blep<SampleDelta=L, SampleTime=FT>,
+      FT: SampleTime,
+      T: Copy, (FTs, u8): From<T>,
+{
+    let mut last_vol = VL::amp_level(prev_state.into());
+    for &tsd in changes.iter() {
+        let (ts, state) = tsd.into();
+        if let Some(end_ts) = end_ts {
+            if ts >= end_ts { // TODO >= or >
+                break
+            }
+        }
+        // print!("{}:{}  ", state, ts);
+        let next_vol = VL::amp_level(state.into());
+        if let Some(delta) = last_vol.sample_delta(next_vol) {
+            let time = time_rate.at_timestamp(ts);
             blep.add_step(channel, time, delta);
             last_vol = next_vol;
         }

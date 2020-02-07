@@ -6,11 +6,12 @@ use core::time::Duration;
 
 use audio_cpal::*;
 
-use z80emu::{Cpu, Z80NMOS};
+use z80emu::Z80NMOS;
 use zxspecemu::memory::ZxMemory;
 use zxspecemu::audio::carousel::*;
 use zxspecemu::audio::sample::*;
 use zxspecemu::audio::*;
+use zxspecemu::audio::synth::*;
 use zxspecemu::audio::ay::*;
 use zxspecemu::formats::sna::*;
 use zxspecemu::chip::*;
@@ -21,11 +22,16 @@ use zxspecemu::chip::ay_player::*;
 type Ay128kPlayer = AyPlayer<Ay128kPortDecode>;
 type WavWriter = hound::WavWriter<std::io::BufWriter<std::fs::File>>;
 
-fn produce<T: 'static + FromSample<f32> + AudioSample + Send, R: Read>(mut audio: Audio<T>, rd: R, mut writer: WavWriter)
-where i16: IntoSample<T>
+fn produce<T, R: Read>(mut audio: Audio<T>, rd: R, _writer: WavWriter)
+where T: 'static + FromSample<f32> + AudioSample + Send,
+      i16: IntoSample<T>, f32: FromSample<T>,
 {
     let output_channels = audio.channels as usize;
-    let mut bandlim: BandLimited<f32> = BandLimited::new(3);
+    // BandLimHiFi
+    // BandLimLowTreb
+    // BandLimLowBass
+    // BandLimNarrow
+    let mut bandlim: BandLimited<f32, BandLimHiFi> = BandLimited::new(3);
     let time_rate = Ay128kPlayer::ensure_audio_frame_time(&mut bandlim, audio.sample_rate);
     let mut cpu = Z80NMOS::default();
     let mut player = Ay128kPlayer::default();
@@ -37,8 +43,10 @@ where i16: IntoSample<T>
     println!("CPU: {:?}", cpu);
     // render frames
     loop {
+        // println!("frame_tstates: {}", player.frame_tstate());
         player.execute_next_frame(&mut cpu);
-        player.render_ay_audio_frame::<AyAmpLevels<f32>>(&mut bandlim, time_rate, [0, 1, 2]);
+        player.render_ay_audio_frame::<AyAmps<f32>>(&mut bandlim, time_rate, [0, 1, 2]);
+        player.render_earmic_out_audio_frame::<EarOutAmps4<f32>>(&mut bandlim, time_rate, 2);
         // close current frame
         let frame_sample_count = player.end_audio_frame(&mut bandlim, time_rate);
         // render BLEP frame into the sample buffer
@@ -52,10 +60,11 @@ where i16: IntoSample<T>
             // render each sample
             for (chans, samples) in vec.chunks_mut(output_channels).zip(sample_iter) {
                 // write to the wav file
-                // writer.write_sample(sample).unwrap();
+                // writer.write_sample(f32::from_sample(sample)).unwrap();
                 // convert sample type
-                // let sample = T::from_sample(sample);
+                // let sample = T::from_sample(samples);
                 // write sample to each channel
+                // for p in chans.iter_mut() {
                 for (p, sample) in chans.iter_mut().zip(samples.iter()) {
                     *p = *sample;
                 }
@@ -76,8 +85,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let spec = hound::WavSpec {
         channels: 1,
         sample_rate: adf.format.sample_rate.0,
-        bits_per_sample: 16,
-        sample_format: hound::SampleFormat::Int,
+        bits_per_sample: 32,
+        sample_format: hound::SampleFormat::Float,
     };
 
     let file_name = std::env::args().nth(1).unwrap_or_else(|| "tests/DeathWish3.sna".into());
@@ -89,6 +98,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let writer = WavWriter::create(wav_name, spec)?;
 
     let frame_duration = Duration::from_nanos(Ay128kPlayer::FRAME_TIME_NANOS.into());
+    println!("frame_duration: {:?}", frame_duration.as_secs_f64());
     let latency = if cfg!(debug_assertions) { 3 } else { 1 };
     let audio = adf.play(latency, frame_duration.as_secs_f64())?;
 

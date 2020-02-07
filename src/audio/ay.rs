@@ -1,3 +1,4 @@
+use core::marker::PhantomData;
 use super::*;
 use crate::io::ay::{AyRegister, AyRegChange};
 
@@ -21,7 +22,7 @@ pub const AMPS_I16: [i16;16] = [0x0000, 0x0100, 0x016a, 0x01ff,
                                 0x0b50, 0x0fff, 0x16a0, 0x1fff,
                                 0x2d40, 0x3fff, 0x5a81, 0x7fff];
 
-pub struct LogAmpLevels16<T>(core::marker::PhantomData<T>);
+pub struct LogAmpLevels16<T>(PhantomData<T>);
 impl<T: Copy + FromSample<f32>> AmpLevels<T> for LogAmpLevels16<T> {
     fn amp_level(level: u32) -> T {
         const A: f32 = 3.1623e-3;
@@ -38,10 +39,10 @@ impl<T: Copy + FromSample<f32>> AmpLevels<T> for LogAmpLevels16<T> {
     }
 }
 
-pub struct AyAmpLevels<T>(core::marker::PhantomData<T>);
+pub struct AyAmps<T>(PhantomData<T>);
 macro_rules! impl_ay_amp_levels {
     ($([$ty:ty, $amps:ident]),*) => { $(
-        impl AmpLevels<$ty> for AyAmpLevels<$ty> {
+        impl AmpLevels<$ty> for AyAmps<$ty> {
             #[inline(always)]
             fn amp_level(level: u32) -> $ty {
                 $amps[(level & 15) as usize]
@@ -95,7 +96,7 @@ impl Mixer {
     }
     #[inline]
     pub fn has_noise(self) -> bool {
-        self.0 & 0x08 == 0
+        self.0 & 8 == 0
     }
     #[inline]
     pub fn next_chan(&mut self) {
@@ -103,6 +104,7 @@ impl Mixer {
     }
 }
 
+// TODO: make bitflags
 pub const ENV_SHAPE_CONT_MASK:   u8 = 0b00001000;
 pub const ENV_SHAPE_ATTACK_MASK: u8 = 0b00000100;
 pub const ENV_SHAPE_ALT_MASK:    u8 = 0b00000010;

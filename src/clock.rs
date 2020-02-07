@@ -91,6 +91,64 @@ video_ts_packed_data! { VideoTsData1, 1 }
 video_ts_packed_data! { VideoTsData2, 2 }
 video_ts_packed_data! { VideoTsData3, 3 }
 
+macro_rules! fts_packed_data {
+    ($name:ident, $bits:literal) => {
+        /// A T-states timestamp with packed N-bits data.
+        #[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Debug)]
+        pub struct $name(FTs);
+
+        impl From<(FTs, u8)> for $name {
+            fn from(tuple: (FTs, u8)) -> Self {
+                let (ts, data) = tuple;
+                $name::new(ts, data)
+            }
+        }
+
+        impl From<$name> for (FTs, u8) {
+            fn from(ftsd: $name) -> Self {
+                let $name(pack) = ftsd;
+                let data = (pack as u8) & ((1 << $bits) - 1);
+                (pack >> $bits, data)
+            }
+        }
+
+        impl From<$name> for FTs {
+            fn from(ftsd: $name) -> Self {
+                let $name(pack) = ftsd;
+                pack >> $bits
+            }
+        }
+
+        impl $name {
+            const DATA_MASK: FTs = (1 << $bits) - 1;
+            #[inline]
+            pub const fn new(fts: FTs, data: u8) -> Self {
+                let pack = (fts << $bits) | (data as FTs & Self::DATA_MASK);
+                Self(pack)
+            }
+
+            #[inline]
+            pub fn into_data(self) -> u8 {
+                (self.0 & Self::DATA_MASK) as u8
+            }
+
+            #[inline]
+            pub fn data(&self) -> u8 {
+                (self.0 & Self::DATA_MASK) as u8
+            }
+
+            #[inline]
+            pub fn set_data(&mut self, data: u8) {
+                self.0 = (self.0 & !Self::DATA_MASK) | (data as FTs & Self::DATA_MASK);
+            }
+        }
+    }
+}
+
+fts_packed_data! { FTsData1, 1 }
+fts_packed_data! { FTsData2, 2 }
+fts_packed_data! { FTsData3, 3 }
+
 /// V/H T-states counter for the specific VideoFrame.
 #[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct VFrameTsCounter<V: VideoFrame>  {

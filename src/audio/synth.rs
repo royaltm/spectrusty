@@ -14,24 +14,52 @@ use core::ops::{AddAssign, Add};
 use core::convert::TryFrom;
 use super::{SampleDelta, Blep, sample::{IntoSample, FromSample, MulNorm}};
 
-const LOW_PASS: f64 = 0.999; // lower values filter more high frequency
-const HIGH_PASS: f32 = 0.999; // lower values filter more low frequency
+// const LOW_PASS: f64 = 0.999; // lower values filter more high frequency
+// const HIGH_PASS: f32 = 0.999; // lower values filter more low frequency
 const PI2: f64 = core::f64::consts::PI * 2.0;
-const PHASE_COUNT: usize = 32; // number of phase offsets to sample band-limited step at
-const STEP_WIDTH: usize  = 16; // number of samples in each final band-limited step
+/// number of phase offsets to sample band-limited step at
+const PHASE_COUNT: usize = 32;
+/// number of samples in each final band-limited step
+const STEP_WIDTH: usize = 24;
 
-// #[derive(Clone)] TODO implement manually
-pub struct BandLimited<T> {
+pub trait BandLimOpt {
+    /// lower values filter more high frequency
+    const LOW_PASS: f64 = 0.999;
+    /// lower values filter more low frequency
+    const HIGH_PASS: f32 = 0.999;
+}
+
+pub struct BandLimHiFi;
+impl BandLimOpt for BandLimHiFi {}
+
+pub struct BandLimLowTreb;
+impl BandLimOpt for BandLimLowTreb {
+    const LOW_PASS: f64 = 0.899;
+}
+
+pub struct BandLimLowBass;
+impl BandLimOpt for BandLimLowBass {
+    const HIGH_PASS: f32 = 0.899;
+}
+
+pub struct BandLimNarrow;
+impl BandLimOpt for BandLimNarrow {
+    const LOW_PASS: f64 = 0.899;
+    const HIGH_PASS: f32 = 0.899;
+}
+
+pub struct BandLimited<T, O=BandLimHiFi> {
     steps: [[T; STEP_WIDTH]; PHASE_COUNT],
     diffs: Vec<T>,
     channels: NonZeroUsize,
     frame_time: f64,
     start_time: f64,
     sums: Box<[(T, Cell<Option<T>>)]>,
-    last_nsamples: Option<usize>
+    last_nsamples: Option<usize>,
+    _options: PhantomData<O>
 }
 
-impl<T: Copy + Default> BandLimited<T> {
+impl<T: Copy + Default, O> BandLimited<T, O> {
     pub fn reset(&mut self) {
         for d in self.diffs.iter_mut() { *d = T::default(); }
         for s in self.sums.iter_mut() { *s = (T::default(), Cell::default()); }
@@ -82,8 +110,10 @@ impl<T: Copy + Default> BandLimited<T> {
     }
 }
 
-impl<T: Copy + Default + AddAssign + MulNorm + FromSample<f32>> BandLimited<T>
-// where f32: FromSample<T>, T: std::fmt::Debug + std::cmp::Ord + std::fmt::Display
+impl<T,O> BandLimited<T,O>
+where T: Copy + Default + AddAssign + MulNorm + FromSample<f32>,
+      O: BandLimOpt,
+      // f32: FromSample<T>,
 {
     /// Panics if channels is 0.
     pub fn new(channels: usize) -> Self {
@@ -93,17 +123,17 @@ impl<T: Copy + Default + AddAssign + MulNorm + FromSample<f32>> BandLimited<T>
         const MASTER_SIZE: usize = STEP_WIDTH * PHASE_COUNT;
         let mut master = [0.5f64;MASTER_SIZE];
         let mut gain: f64 = 0.5 / 0.777; // adjust normal square wave's amplitude of ~0.777 to 0.5
-        const SINE_SIZE: usize = 256 * PHASE_COUNT + 2;
-        const MAX_HARMONIC: usize = SINE_SIZE / 2 / PHASE_COUNT;
-        for h in (1..=MAX_HARMONIC).step_by(2) {
+        let sine_size: usize = 256 * PHASE_COUNT + 2;
+        let max_harmonic: usize = sine_size / 2 / PHASE_COUNT;
+        for h in (1..=max_harmonic).step_by(2) {
             let amplitude: f64 = gain / h as f64;
-            let to_angle: f64 = PI2 / SINE_SIZE as f64 * h as f64;
+            let to_angle: f64 = PI2 / sine_size as f64 * h as f64;
             // println!("h: {} amp: {} ang: {}", h, amplitude, to_angle);
 
             for (i, m) in master.iter_mut().enumerate() {
                 *m += ( (i as isize - MASTER_SIZE as isize / 2) as f64 * to_angle ).sin() * amplitude;
             }
-            gain = gain * LOW_PASS;
+            gain = gain * O::LOW_PASS;
         }
         // Sample master step at several phases
         for (phase, step) in steps.iter_mut().enumerate() {
@@ -145,6 +175,7 @@ impl<T: Copy + Default + AddAssign + MulNorm + FromSample<f32>> BandLimited<T>
             start_time: 0.0,
             sums: vec![(T::default(), Cell::default()); channels.get()].into_boxed_slice(),
             last_nsamples: None,
+            _options: PhantomData
         }
     }
 
@@ -159,7 +190,7 @@ impl<T: Copy + Default + AddAssign + MulNorm + FromSample<f32>> BandLimited<T>
                     let mut sum = *sum_tgt;
                     for diff in self.diffs[..num_samples*channels].iter().skip(channel).step_by(channels) {
                         sum = sum.saturating_add(*diff)
-                                 .mul_norm(T::from_sample(HIGH_PASS));
+                                 .mul_norm(T::from_sample(O::HIGH_PASS));
                     }
                     sum
                 }
@@ -169,7 +200,10 @@ impl<T: Copy + Default + AddAssign + MulNorm + FromSample<f32>> BandLimited<T>
     }
 }
 
-impl<T: Copy + MulNorm + FromSample<f32>> BandLimited<T> {
+impl<T,O> BandLimited<T,O>
+where T: Copy + MulNorm + FromSample<f32>,
+      O: BandLimOpt
+{
     // pub fn sum_iter<'a>(&'a mut self, channel: usize) -> BandLimitedSumIter<'a, StepBy<Skip<Iter<'a, f32>>>> {
     // pub fn sum_iter<'a>(&'a mut self, channel: usize) -> BandLimitedSumIter<'a, impl Iterator<Item=&'a f32>> {
     pub fn sum_iter<'a, S: 'a>(&'a self, channel: usize) -> impl Iterator<Item=S> + ExactSizeIterator + 'a
@@ -185,22 +219,26 @@ impl<T: Copy + MulNorm + FromSample<f32>> BandLimited<T> {
             diffs,
             sum_end: &self.sums[channel].1,
             sum: self.sums[channel].0,
-            output: PhantomData
+            _output: PhantomData::<S>,
+            _options: PhantomData::<O>,
         }
     }
 }
 
 struct BandLimitedSumIter<'a, T: Copy + MulNorm + IntoSample<S> + FromSample<f32>,
+                              O: BandLimOpt,
                               I: Iterator<Item=&'a T>,
                               S> {
     diffs: I,
     sum_end: &'a Cell<Option<T>>,
     sum: T,
-    output: PhantomData<S>
+    _output: PhantomData<S>,
+    _options: PhantomData<O>,
 }
 
-impl<'a, T, I, S> Drop for BandLimitedSumIter<'a, T, I, S>
+impl<'a, T, O, I, S> Drop for BandLimitedSumIter<'a, T, O, I, S>
 where I: Iterator<Item=&'a T>,
+      O: BandLimOpt,
       T: Copy + MulNorm + IntoSample<S> + FromSample<f32>
 {
     fn drop(&mut self) {
@@ -211,31 +249,33 @@ where I: Iterator<Item=&'a T>,
     }
 }
 
-impl<'a, T, I, S> std::iter::ExactSizeIterator for BandLimitedSumIter<'a, T, I, S>
+impl<'a, T, O, I, S> std::iter::ExactSizeIterator for BandLimitedSumIter<'a, T, O, I, S>
 where I: Iterator<Item=&'a T> + ExactSizeIterator,
-      T: Copy + MulNorm + IntoSample<S> + FromSample<f32>
+      T: Copy + MulNorm + IntoSample<S> + FromSample<f32>,
+      O: BandLimOpt
 {
     fn len(&self) -> usize {
         self.diffs.len()
     }
 }
 
-impl<'a, T, I, S> Iterator for BandLimitedSumIter<'a, T, I, S>
+impl<'a, T, O, I, S> Iterator for BandLimitedSumIter<'a, T, O, I, S>
 where I: Iterator<Item=&'a T>,
-      T: Copy + MulNorm + IntoSample<S> + FromSample<f32>
+      T: Copy + MulNorm + IntoSample<S> + FromSample<f32>,
+      O: BandLimOpt
 {
     type Item = S;
 
     fn next(&mut self) -> Option<S> {
         self.diffs.next().map(|&delta| {
             let sum = self.sum.saturating_add(delta);
-            self.sum = sum.mul_norm(T::from_sample(HIGH_PASS));
+            self.sum = sum.mul_norm(T::from_sample(O::HIGH_PASS));
             sum.into_sample()
         })
     }
 }
 
-impl<T> Blep for BandLimited<T>
+impl<T,O> Blep for BandLimited<T,O>
 where T: Copy + Default + SampleDelta + MulNorm
 {
     type SampleDelta = T;

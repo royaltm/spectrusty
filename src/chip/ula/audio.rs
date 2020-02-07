@@ -11,56 +11,6 @@ use super::{Ula, UlaTsCounter, CPU_HZ};
 // TODO put this on some trait
 // const TSTATES_FRAME: f64 = 69888.0;
 // const FRAME_TIME: f64 = TSTATES_FRAME / CPU_HZ;
-/*
-Value output to bit: 4  3  |  Iss 2  Iss 3   Iss 2 V    Iss 3 V
-                     1  1  |    1      1       3.79       3.70
-                     1  0  |    1      1       3.66       3.56
-                     0  1  |    1      0       0.73       0.66
-                     0  0  |    0      0       0.39       0.34
-*/
-pub const AMPS_EAR_MIC: [f32; 4] = [0.34/3.70, 0.66/3.70, 3.56/3.70, 3.70/3.70];
-pub const AMPS_EAR_OUT: [f32; 4] = [0.34/3.70, 0.34/3.70, 3.70/3.70, 3.70/3.70];
-pub const AMPS_EAR_IN:  [f32; 2] = [0.34/3.70, 3.70/3.70];
-
-pub const AMPS_EAR_MIC_I32: [i32; 4] = [0x0bc31d10, 0x16d51a60, 0x7b2820ff, 0x7fffffff];
-pub const AMPS_EAR_OUT_I32: [i32; 4] = [0x0bc31d10, 0x0bc31d10, 0x7fffffff, 0x7fffffff];
-pub const AMPS_EAR_IN_I32:  [i32; 2] = [0x0bc31d10, 0x7fffffff];
-
-pub const AMPS_EAR_MIC_I16: [i16; 4] = [0x0bc3, 0x16d5, 0x7b27, 0x7fff];
-pub const AMPS_EAR_OUT_I16: [i16; 4] = [0x0bc3, 0x0bc3, 0x7fff, 0x7fff];
-pub const AMPS_EAR_IN_I16:  [i16; 2] = [0x0bc3, 0x7fff];
-
-pub struct EarMicAmps4<T>(PhantomData<T>);
-pub struct EarOutAmps4<T>(PhantomData<T>);
-pub struct EarInAmps2<T>(PhantomData<T>);
-
-macro_rules! impl_amp_levels {
-    ($([$ty:ty, $ear_mic:ident, $ear_out:ident, $ear_in:ident]),*) => { $(
-        impl AmpLevels<$ty> for EarMicAmps4<$ty> {
-            #[inline(always)]
-            fn amp_level(level: u32) -> $ty {
-                $ear_mic[(level & 3) as usize]
-            }
-        }
-
-        impl AmpLevels<$ty> for EarOutAmps4<$ty> {
-            #[inline(always)]
-            fn amp_level(level: u32) -> $ty {
-                $ear_out[(level & 3) as usize]
-            }
-        }
-
-        impl AmpLevels<$ty> for EarInAmps2<$ty> {
-            #[inline(always)]
-            fn amp_level(level: u32) -> $ty {
-                $ear_in[(level & 1) as usize]
-            }
-        }
-    )* };
-}
-impl_amp_levels!([f32, AMPS_EAR_MIC, AMPS_EAR_OUT, AMPS_EAR_IN],
-                 [i32, AMPS_EAR_MIC_I32, AMPS_EAR_OUT_I32, AMPS_EAR_IN_I32],
-                 [i16, AMPS_EAR_MIC_I16, AMPS_EAR_OUT_I16, AMPS_EAR_IN_I16]);
 
 impl<M, B, A, FT> AudioFrame<A> for Ula<M, B>
 where M: ZxMemory, B: BusDevice<Timestamp=VideoTs>,
@@ -79,23 +29,31 @@ where M: ZxMemory, B: BusDevice<Timestamp=VideoTs>,
     }
 }
 
-impl<M, B, A, L, FT> EarMicAudioFrame<A> for Ula<M, B>
+impl<M, B, A, L, FT> EarMicOutAudioFrame<A> for Ula<M, B>
 where M: ZxMemory, B: BusDevice<Timestamp=VideoTs>,
       A: Blep<SampleDelta=L, SampleTime=FT>,
-      L: Copy + SampleDelta,
+      L: SampleDelta,
       FT: SampleTime
 {
     #[inline(always)]
     fn render_earmic_out_audio_frame<V: AmpLevels<L>>(&self, blep: &mut A, time_rate: FT, channel: usize) {
-        render_audio_frame::<Self,V,L,A,FT,_>(self.prev_earmic,
+        render_audio_frame_vts::<Self,V,L,A,FT,_>(self.prev_earmic,
                                          None,
                                          &self.earmic_out_changes,
                                          blep, time_rate, channel)
     }
+}
+
+impl<M, B, A, L, FT> EarInAudioFrame<A> for Ula<M, B>
+where M: ZxMemory, B: BusDevice<Timestamp=VideoTs>,
+      A: Blep<SampleDelta=L, SampleTime=FT>,
+      L: SampleDelta,
+      FT: SampleTime
+{
 
     #[inline(always)]
     fn render_ear_in_audio_frame<V: AmpLevels<L>>(&self, blep: &mut A, time_rate: FT, channel: usize) {
-        render_audio_frame::<Self,V,L,A,FT,_>(self.prev_ear_in,
+        render_audio_frame_vts::<Self,V,L,A,FT,_>(self.prev_ear_in,
                                          Some(self.tsc),
                                          &self.ear_in_changes,
                                          blep, time_rate, channel)
