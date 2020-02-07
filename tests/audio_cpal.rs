@@ -2,6 +2,9 @@ use std::convert::TryInto;
 use std::thread::JoinHandle;
 use std::thread;
 
+#[allow(unused_imports)]
+use log::{error, warn, info, debug, trace};
+
 use cpal::traits::{DeviceTrait, EventLoopTrait, HostTrait};
 use cpal::{UnknownTypeOutputBuffer, Format, SampleFormat, Sample, SampleRate};
 
@@ -49,24 +52,24 @@ impl_unwrap_unknown_type_output_buffer!(f32, F32);
 
 impl AudioDeviceFormat {
     pub fn find_default() -> Result<Self, Box<dyn std::error::Error>> {
-        println!("{:?}", cpal::available_hosts());
+        debug!("{:?}", cpal::available_hosts());
         let host = cpal::default_host();
         for device in host.output_devices()? {
-            println!("device: {}", device.name()?);
+            debug!("device: {}", device.name()?);
             let supported_formats_range = device.supported_output_formats()?;
             for format in supported_formats_range {
-                println!("  output: {:?}", format);
+                debug!("  output: {:?}", format);
             }
             let supported_formats_range = device.supported_input_formats()?;
             for format in supported_formats_range {
-                println!("  input: {:?}", format);
+                debug!("  input: {:?}", format);
             }
         }
         let device = host.default_output_device().ok_or("failed to find a default output device")?;
-        println!("Default device: {}", device.name()?);
+        debug!("Default device: {}", device.name()?);
 
         let format = device.default_output_format()?;
-        println!("Default format: {:?}", format);
+        debug!("Default format: {:?}", format);
         Ok(AudioDeviceFormat { host, device, format })
     }
 
@@ -115,7 +118,7 @@ where T: 'static + Sample + AudioSample + Send + UnwrapUnknownTypeOutputBuffer
             let mut data = match result {
                 Ok(data) => data,
                 Err(err) => {
-                    println!("an error occurred on stream {:?}: {}", stream_id, err);
+                    debug!("an error occurred on stream {:?}: {}", stream_id, err);
                     return;
                 }
             };
@@ -129,11 +132,11 @@ where T: 'static + Sample + AudioSample + Send + UnwrapUnknownTypeOutputBuffer
             match res {
                 Ok(unfilled) => {
                     if unfilled.len() != 0 {
-                        println!("missing buffer");
+                        debug!("missing buffer");
                     }
                 }
                 Err(_) => {
-                    println!("no remote, terminating stream");
+                    debug!("no remote, terminating stream");
                     event_loop.destroy_stream(stream_id);
                 }
             }

@@ -221,6 +221,10 @@ impl<P: AyPortDecode> AyPlayer<P>
         self.tsc = tsc;
         res
     }
+
+    pub fn reset_frames(&mut self) {
+        self.frames.0 = 0;
+    }
 }
 
 impl<P> Io for AyPlayer<P> where P: AyPortDecode {

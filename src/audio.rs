@@ -6,6 +6,7 @@ pub mod music;
 
 pub(crate) const MARGIN_TSTATES: FTs = 2 * 23;
 
+use core::ops::{Deref, DerefMut};
 use core::marker::PhantomData;
 use core::num::NonZeroU32;
 use crate::clock::{FTs, VideoTs, VFrameTsCounter};
@@ -140,9 +141,52 @@ impl_amp_levels!([f32, AMPS_EAR_MIC, AMPS_EAR_OUT, AMPS_EAR_IN],
                  [i32, AMPS_EAR_MIC_I32, AMPS_EAR_OUT_I32, AMPS_EAR_IN_I32],
                  [i16, AMPS_EAR_MIC_I16, AMPS_EAR_OUT_I16, AMPS_EAR_IN_I16]);
 
-impl <B, T> BlepAmpFilter<B, T> {
+impl<B, T> BlepAmpFilter<B, T> {
     pub fn new(blep: B, filter: T) -> Self {
         BlepAmpFilter { blep, filter }
+    }
+}
+
+impl<B, T> Deref for BlepAmpFilter<B, T> {
+    type Target = B;
+    fn deref(&self) -> &B {
+        &self.blep
+    }
+}
+
+impl<B, T> DerefMut for BlepAmpFilter<B, T> {
+    fn deref_mut(&mut self) -> &mut B {
+        &mut self.blep
+    }
+}
+
+impl<B, T> Deref for BlepStereo<B, T> {
+    type Target = B;
+    fn deref(&self) -> &B {
+        &self.blep
+    }
+}
+
+impl<B, T> DerefMut for BlepStereo<B, T> {
+    fn deref_mut(&mut self) -> &mut B {
+        &mut self.blep
+    }
+}
+
+impl<B> Blep for BlepAmpFilter<B, B::SampleDelta> where B: Blep, B::SampleDelta: MulNorm + SampleDelta {
+    type SampleDelta = B::SampleDelta;
+    type SampleTime = B::SampleTime;
+    #[inline]
+    fn ensure_frame_time(&mut self, frame_time: Self::SampleTime, margin_time: Self::SampleTime) {
+        self.blep.ensure_frame_time(frame_time, margin_time)
+    }
+    #[inline]
+    fn end_frame(&mut self, time: Self::SampleTime) -> usize {
+        self.blep.end_frame(time)
+    }
+    #[inline]
+    fn add_step(&mut self, channel: usize, time: Self::SampleTime, delta: Self::SampleDelta) {
+        self.blep.add_step(channel, time, delta.mul_norm(self.filter))
     }
 }
 
@@ -166,23 +210,6 @@ impl<B> Blep for BlepStereo<B, B::SampleDelta> where B: Blep, B::SampleDelta: Mu
                 self.blep.add_step(1, time, delta.mul_norm(self.mono_filter));
             }
         }
-    }
-}
-
-impl<B> Blep for BlepAmpFilter<B, B::SampleDelta> where B: Blep, B::SampleDelta: MulNorm + SampleDelta {
-    type SampleDelta = B::SampleDelta;
-    type SampleTime = B::SampleTime;
-    #[inline]
-    fn ensure_frame_time(&mut self, frame_time: Self::SampleTime, margin_time: Self::SampleTime) {
-        self.blep.ensure_frame_time(frame_time, margin_time)
-    }
-    #[inline]
-    fn end_frame(&mut self, time: Self::SampleTime) -> usize {
-        self.blep.end_frame(time)
-    }
-    #[inline]
-    fn add_step(&mut self, channel: usize, time: Self::SampleTime, delta: Self::SampleDelta) {
-        self.blep.add_step(channel, time, delta.mul_norm(self.filter))
     }
 }
 

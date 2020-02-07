@@ -14,8 +14,6 @@ use core::ops::{AddAssign, Add};
 use core::convert::TryFrom;
 use super::{SampleDelta, Blep, sample::{IntoSample, FromSample, MulNorm}};
 
-// const LOW_PASS: f64 = 0.999; // lower values filter more high frequency
-// const HIGH_PASS: f32 = 0.999; // lower values filter more low frequency
 const PI2: f64 = core::f64::consts::PI * 2.0;
 /// number of phase offsets to sample band-limited step at
 const PHASE_COUNT: usize = 32;
@@ -123,11 +121,11 @@ where T: Copy + Default + AddAssign + MulNorm + FromSample<f32>,
         const MASTER_SIZE: usize = STEP_WIDTH * PHASE_COUNT;
         let mut master = [0.5f64;MASTER_SIZE];
         let mut gain: f64 = 0.5 / 0.777; // adjust normal square wave's amplitude of ~0.777 to 0.5
-        let sine_size: usize = 256 * PHASE_COUNT + 2;
-        let max_harmonic: usize = sine_size / 2 / PHASE_COUNT;
+        const SINE_SIZE: usize = 256 * PHASE_COUNT + 2;
+        let max_harmonic: usize = SINE_SIZE / 2 / PHASE_COUNT;
         for h in (1..=max_harmonic).step_by(2) {
             let amplitude: f64 = gain / h as f64;
-            let to_angle: f64 = PI2 / sine_size as f64 * h as f64;
+            let to_angle: f64 = PI2 / SINE_SIZE as f64 * h as f64;
             // println!("h: {} amp: {} ang: {}", h, amplitude, to_angle);
 
             for (i, m) in master.iter_mut().enumerate() {

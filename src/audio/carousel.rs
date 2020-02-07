@@ -134,8 +134,13 @@ impl<T> AudioFrameConsumer<T> {
 }
 
 impl<T: 'static + Copy + Send> AudioFrameConsumer<T> {
+    /// Receives the next frame waiting for it up to given `wait_max_ms`.
+    /// On `Ok(true)` replaces the current frame with the new one and sends back the old one.
+    /// If waiting for a new frame times out returns `Ok(false)`.
+    /// Returns `Err(AudioFrameError)` only when sending or reveiving failed,
+    /// which is possible only when the remote end has disconnected.
     #[inline]
-    fn next_buffer(&mut self, wait_max_ms: u16) -> AudioFrameResult<bool> {
+    pub fn next_frame(&mut self, wait_max_ms: u16) -> AudioFrameResult<bool> {
         match self.rx.recv_timeout(Duration::from_millis(wait_max_ms as u64)) {
             Ok(mut buffer) => {
                 swap(&mut self.buffer, &mut buffer);
@@ -147,14 +152,26 @@ impl<T: 'static + Copy + Send> AudioFrameConsumer<T> {
         }
     }
 
-    /// On success returns the unfilled part of the target buffer in case missing buffer was encountered and ignore_missing was false
+    /// Exposes current frame as a slice.
+    #[inline]
+    pub fn current_frame(&self) -> &[T] {
+        &self.buffer
+    }
+
+    /// Fills `target_buffer` with the received audio frames repeating the process until the whole
+    /// buffer is filled or optionally when the waiting for the next frame times out.
+    /// On success returns the unfilled part of the target buffer in case there was a missing frame
+    /// and `ignore_missing` was `false`. If the whole buffer has been filled returns an empty slice.
+    /// In case `ignore_missing` is `true` the last audio frame will be rendered again.
+    /// Returns `Err(AudioFrameError)` only when sending or reveiving failed,
+    /// which is possible only when the remote end has disconnected.
     pub fn fill_buffer<'a>(&mut self, mut target_buffer: &'a mut[T],
                                       wait_max_ms: u16,
                                       ignore_missing: bool) -> AudioFrameResult<&'a mut[T]> {
         let mut cursor = self.cursor;
         while !target_buffer.is_empty() {
             if cursor >= self.buffer.sampled_size() {
-                if !(self.next_buffer(wait_max_ms)? || ignore_missing) {
+                if !(self.next_frame(wait_max_ms)? || ignore_missing) {
                     break
                 }
                 cursor = 0;
