@@ -10,20 +10,20 @@ use crate::audio::sample::{SampleDelta, SampleTime};
 use crate::audio::ay::*;
 use crate::io::ay::*;
 use crate::clock::{FTs, FTsData2};
-use crate::memory::{ZxMemory, Memory48k};
+use crate::memory::{ZxMemory, Memory64k};
 use crate::bus::{BusDevice, NullDevice};
 use crate::chip::{ControlUnit, nanos_from_frame_tc_cpu_hz};
 
-const FRAME_TSTATES: FTs = 70908;
-const CPU_HZ: u32 = 3_546_900;
+pub const FRAME_TSTATES: FTs = 70908;
+pub const CPU_HZ: u32 = 3_546_900;
 
 #[derive(Clone, Default)]
 pub struct AyPlayer<P> {
     pub frames: Wrapping<u64>,
     pub tsc: TsCounter<FTs>,
-    pub memory: Memory48k,
-    pub ay_sound: Ay3_8891xAudio,
-    pub ay_io: Ay3_8891N<FTs>,
+    pub memory: Memory64k,
+    pub ay_sound: Ay3_891xAudio,
+    pub ay_io: Ay3_891N<FTs>,
     pub earmic_changes: Vec<FTsData2>,
     pub last_earmic: u8,
     pub prev_earmic: u8,

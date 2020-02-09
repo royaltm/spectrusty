@@ -1,3 +1,4 @@
+//! AY-3-891x sound chip emulation.
 use core::marker::PhantomData;
 use super::*;
 use crate::io::ay::{AyRegister, AyRegChange};
@@ -7,6 +8,16 @@ pub const INTERNAL_CLOCK_DIVISOR: FTs = 16;
 /* host clock ratio */
 pub const HOST_CLOCK_RATIO: FTs = 2;
 
+/// Amplitude levels for AY-3-891x.
+///
+/// These levels are closest to the specs.
+///
+/// Original comment from Game_Music_Emu:
+/// ```text
+///    // With channels tied together and 1K resistor to ground (as datasheet recommends),
+///    // output nearly matches logarithmic curve as claimed. Approx. 1.5 dB per step.
+/// ```
+/// [AyAmps] struct implements `AMPS` for [AmpLevels]. See also [FUSE_AMPS].
 pub const AMPS: [f32;16] = [0.000000,0.007813,0.011049,0.015625,
                             0.022097,0.031250,0.044194,0.062500,
                             0.088388,0.125000,0.176777,0.250000,
@@ -22,9 +33,34 @@ pub const AMPS_I16: [i16;16] = [0x0000, 0x0100, 0x016a, 0x01ff,
                                 0x0b50, 0x0fff, 0x16a0, 0x1fff,
                                 0x2d40, 0x3fff, 0x5a81, 0x7fff];
 
+/// These AY-3-891x amplitude levels are being used in the Zx Spectrum Fuse emulator.
+///
+/// The original comment below:
+/// ```text
+///  /* AY output doesn't match the claimed levels; these levels are based
+///   * on the measurements posted to comp.sys.sinclair in Dec 2001 by
+///   * Matthew Westcott, adjusted as I described in a followup to his post,
+///   * then scaled to 0..0xffff.
+///   */
+/// ```
+/// These are more linear than [AMPS].
+/// [AyFuseAmps] struct implements `FUSE_AMPS` for [AmpLevels].
+pub const FUSE_AMPS: [f32;16] = [0.000000000, 0.0137483785, 0.020462349, 0.029053178,
+                                 0.042343784, 0.0618448150, 0.084718090, 0.136903940,
+                                 0.169131000, 0.2646677500, 0.352712300, 0.449942770,
+                                 0.570382240, 0.6872816000, 0.848172700, 1.000000000];
+
+pub const FUSE_AMPS_I16: [i16;16] = [0x0000, 0x01c2, 0x029e, 0x03b8,
+                                     0x056b, 0x07ea, 0x0ad8, 0x1186,
+                                     0x15a6, 0x21e0, 0x2d25, 0x3997,
+                                     0x4902, 0x57f8, 0x6c90, 0x7fff];
+
+/// This may be used to calculate other levels, but I would discourage from using it in the player
+/// as it uses expensive float calculations.
 pub struct LogAmpLevels16<T>(PhantomData<T>);
 impl<T: Copy + FromSample<f32>> AmpLevels<T> for LogAmpLevels16<T> {
     fn amp_level(level: u32) -> T {
+        // as proposed by https://www.dr-lex.be/info-stuff/volumecontrols.html
         const A: f32 = 3.1623e-3;
         const B: f32 = 5.757;
         let y: f32 = match level & 0xF {
@@ -39,10 +75,13 @@ impl<T: Copy + FromSample<f32>> AmpLevels<T> for LogAmpLevels16<T> {
     }
 }
 
+/// A struct implementing [AmpLevels] for Ay-3-891x sound chip. See also [AMPS].
 pub struct AyAmps<T>(PhantomData<T>);
+/// A struct implementing alternative [AmpLevels] for Ay-3-891x sound chip. See also [FUSE_AMPS].
+pub struct AyFuseAmps<T>(PhantomData<T>);
 macro_rules! impl_ay_amp_levels {
-    ($([$ty:ty, $amps:ident]),*) => { $(
-        impl AmpLevels<$ty> for AyAmps<$ty> {
+    ($([$name:ident, $ty:ty, $amps:ident]),*) => { $(
+        impl AmpLevels<$ty> for $name<$ty> {
             #[inline(always)]
             fn amp_level(level: u32) -> $ty {
                 $amps[(level & 15) as usize]
@@ -50,15 +89,24 @@ macro_rules! impl_ay_amp_levels {
         }
     )* };
 }
-impl_ay_amp_levels!([f32, AMPS], [i32, AMPS_I32], [i16, AMPS_I16]);
+impl_ay_amp_levels!(
+    [AyAmps, f32, AMPS], [AyAmps, i32, AMPS_I32], [AyAmps, i16, AMPS_I16],
+    [AyFuseAmps, f32, FUSE_AMPS], [AyFuseAmps, i16, FUSE_AMPS_I16]);
 
+/// A trait for rendering audio pulses from AY-3-891x.
 pub trait AyAudioFrame<B: Blep> {
+    /// Renders square-wave pulses via [Blep] interface.
+    ///
+    /// Provide [AmpLevels] that can handle `level` values from 0 to 15 (4-bits).
+    /// `time_rate` may be optained from calling [AudioFrame::ensure_audio_frame_time].
+    /// `channels` - target [Blep] audio channels for `[A, B, C]` AY-3-891x channels.
     fn render_ay_audio_frame<V: AmpLevels<B::SampleDelta>>(
-        &mut self, blep: &mut B, time_rate: B::SampleTime, chans: [usize; 3]);
+        &mut self, blep: &mut B, time_rate: B::SampleTime, channels: [usize; 3]);
 }
 
+/// Implements AY-3-8910/8912 programmable sound generator.
 #[derive(Default, Clone, Debug)]
-pub struct Ay3_8891xAudio {
+pub struct Ay3_891xAudio {
     current_ts: FTs,
     last_levels: [u8; 3],
     amp_levels: [AmpLevel; 3],
@@ -68,6 +116,7 @@ pub struct Ay3_8891xAudio {
     mixer: Mixer,
 }
 
+/// A type for AY-3-891x amplitude level register values.
 #[derive(Default, Clone, Copy, Debug)]
 pub struct AmpLevel(pub u8);
 
@@ -86,6 +135,7 @@ impl AmpLevel {
     }
 }
 
+/// A type for AY-3-891x mixer controller register values.
 #[derive(Default, Clone, Copy, Debug)]
 pub struct Mixer(pub u8);
 
@@ -114,6 +164,7 @@ const ENV_LEVEL_MOD_MASK:    u8 = 0b01000000;
 const ENV_LEVEL_MASK:        u8 = 0x0F;
 const ENV_CYCLE_MASK:        u8 = 0xF0;
 
+/// A type implementing AY-3-891x volume envelope progression.
 #[derive(Clone, Copy, Debug)]
 pub struct EnvelopeControl {
     period: u16,
@@ -206,6 +257,7 @@ impl EnvelopeControl {
 
 const NOISE_PERIOD_MASK: u8 = 0x1F;
 
+/// A type implementing AY-3-891x noise progression.
 #[derive(Clone, Copy, Debug)]
 pub struct NoiseControl {
     rng: i32,
@@ -252,6 +304,7 @@ impl NoiseControl {
 const TONE_GEN_MIN_THRESHOLD: u16 = 5;
 const TONE_PERIOD_MASK: u16 = 0xFFF;
 
+/// A type implementing AY-3-891x tone progression.
 #[derive(Default, Clone, Copy, Debug)]
 pub struct ToneControl {
     period: u16,
@@ -297,6 +350,7 @@ impl ToneControl {
     }
 }
 
+/// A type implementing timestamp iterator.
 #[derive(Clone, Copy, Debug)]
 pub struct Ticker {
     pub current: FTs,
@@ -327,7 +381,8 @@ impl Iterator for Ticker {
     }
 }
 
-impl Ay3_8891xAudio {
+/// Use [Default] trait to create instances of this struct.
+impl Ay3_891xAudio {
     pub fn reset(&mut self) {
         *self = Default::default()
     }
@@ -467,9 +522,9 @@ mod tests {
         use super::music::*;
         let clock_hz = 3_546_900.0/2.0f32;
         let mut notes: Vec<u16> = Vec::new();
-        assert_eq!(252, Ay3_8891xAudio::freq_to_tone_period(clock_hz, 440.0));
-        assert_eq!(5, Ay3_8891xAudio::freq_to_tone_period(clock_hz, 24000.0));
-        notes.extend(Ay3_8891xAudio::tone_periods(clock_hz, 0, 7, equal_tempered_scale_note_freqs(440.0, 0, 12)));
+        assert_eq!(252, Ay3_891xAudio::freq_to_tone_period(clock_hz, 440.0));
+        assert_eq!(5, Ay3_891xAudio::freq_to_tone_period(clock_hz, 24000.0));
+        notes.extend(Ay3_891xAudio::tone_periods(clock_hz, 0, 7, equal_tempered_scale_note_freqs(440.0, 0, 12)));
         assert_eq!(
             vec![4031, 3804, 3591, 3389, 3199, 3020, 2850, 2690, 2539, 2397, 2262, 2135,
                  2015, 1902, 1795, 1695, 1600, 1510, 1425, 1345, 1270, 1198, 1131, 1068,
@@ -483,8 +538,8 @@ mod tests {
 
     #[test]
     fn ay_3_889x_env_works() {
-        // println!("Ay3_8891xAudio {:?}", core::mem::size_of::<Ay3_8891xAudio>());
-        let mut ay = Ay3_8891xAudio::default();
+        // println!("Ay3_891xAudio {:?}", core::mem::size_of::<Ay3_891xAudio>());
+        let mut ay = Ay3_891xAudio::default();
 
         for shape in [0, ENV_SHAPE_ALT_MASK,
                          ENV_SHAPE_HOLD_MASK,

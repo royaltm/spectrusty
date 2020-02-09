@@ -2,6 +2,7 @@
 #[path = "../tests/audio_cpal.rs"]
 mod audio_cpal;
 
+use zxspecemu::memory::SinglePageMemory;
 use core::num::NonZeroU32;
 use std::io::{Read};
 use core::time::Duration;
@@ -46,7 +47,13 @@ where T: 'static + FromSample<f32> + AudioSample + Send,
     let rom_file = std::fs::File::open("resources/48k.rom").unwrap();
     player.memory.load_into_rom_page(0, rom_file).unwrap();
     // read_sna(rd, &mut cpu, &mut player.memory).unwrap();
-    let ay_file = read_ay(rd).unwrap();
+    let ay_file = match read_ay(rd) {
+        Ok(f) => f,
+        Err(e) => {
+            eprintln!("{}", e);
+            panic!("ay loading error")
+        }
+    };
     debug!("{:?}", ay_file);
     println!("Author: {}", ay_file.meta.author);
     println!("Misc: {}", ay_file.meta.misc);
@@ -72,9 +79,10 @@ where T: 'static + FromSample<f32> + AudioSample + Send,
         println!("Playing: {:?}", song_length * frame_time);
         player.reset(&mut cpu, true);
         player.reset_frames();
-        ay_file.initialize(&mut cpu, &mut player.memory, song_index);
+        ay_file.initialize_player(&mut cpu, &mut player.memory, song_index);
         debug!("CPU: {:?}", cpu);
         let mut tsync = ThreadSyncTimer::new();
+        let start_time = tsync.time;
         // render frames
         // debug!("CURRENT FRAME: {} song_length: {}", player.current_frame(), song_length);
         while player.current_frame() <= song_length.into() {
@@ -82,6 +90,7 @@ where T: 'static + FromSample<f32> + AudioSample + Send,
             // debug!("frame_tstates: {}", player.frame_tstate());
             player.execute_next_frame(&mut cpu);
             player.render_ay_audio_frame::<AyAmps<f32>>(&mut bandlim, time_rate, [0, 1, 2]);
+            // player.render_ay_audio_frame::<AyFuseAmps<f32>>(&mut bandlim, time_rate, [0, 1, 2]);
             player.render_earmic_out_audio_frame::<EarOutAmps4<f32>>(&mut bandlim, time_rate, 2);
             // close current frame
             let frame_sample_count = player.end_audio_frame(&mut bandlim, time_rate);
@@ -92,7 +101,7 @@ where T: 'static + FromSample<f32> + AudioSample + Send,
                                     .zip(bandlim.sum_iter::<T>(2)))
                                 .map(|(a,(b,c))| [a,b,c]);
                 // set sample buffer size so to the size of the BLEP frame
-                vec.resize(frame_sample_count * output_channels, T::zero());
+                vec.resize(frame_sample_count * output_channels, T::center());
                 // render each sample
                 for (chans, samples) in vec.chunks_mut(output_channels).zip(sample_iter) {
                     // write to the wav file
@@ -114,6 +123,7 @@ where T: 'static + FromSample<f32> + AudioSample + Send,
                 warn!("frame too long");
             }
         }
+        println!("Played: {:?}", start_time.elapsed());
     }
 }
 
@@ -150,7 +160,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let frame_duration = Duration::from_nanos(Ay128kPlayer::FRAME_TIME_NANOS.into());
     debug!("frame duration: {:?} rate: {}", frame_duration, 1.0 / frame_duration.as_secs_f64());
-    let latency = if cfg!(debug_assertions) { 3 } else { 2 };
+    let latency = 5;
     let audio = adf.play(latency, frame_duration.as_secs_f64())?;
 
     match audio {

@@ -32,7 +32,7 @@ pub const REG_MASKS: [u8;16] = [
     0x1f, 0x1f, 0x1f, 0xff, 0xff, 0x0f, 0xff, 0xff
 ];
 
-/// Used by Ay3_8891xAudio
+/// Used by Ay3_891xAudio
 #[derive(Clone, Copy, Debug)]
 pub struct AyRegChange {
     pub time: FTs,
@@ -55,12 +55,12 @@ pub trait AyRegRecorder {
     fn record_ay_reg_change(&mut self, reg: AyRegister, val: u8, timestamp: Self::Timestamp);
 }
 
-pub type Ay3_8891N<T> = Ay3_8891xIo<T, AyRegVecRecorder<T>, AyIoNullPort<T>, AyIoNullPort<T>>;
-pub type Ay3_88910<T,A,B> = Ay3_8891xIo<T, AyRegVecRecorder<T>, A, B>;
-pub type Ay3_88912<T,A> = Ay3_8891xIo<T, AyRegVecRecorder<T>, A, AyIoNullPort<T>>;
+pub type Ay3_891N<T> = Ay3_891xIo<T, AyRegVecRecorder<T>, AyIoNullPort<T>, AyIoNullPort<T>>;
+pub type Ay3_8910<T,A,B> = Ay3_891xIo<T, AyRegVecRecorder<T>, A, B>;
+pub type Ay3_8912<T,A> = Ay3_891xIo<T, AyRegVecRecorder<T>, A, AyIoNullPort<T>>;
 
 #[derive(Default, Clone, Debug)]
-pub struct Ay3_8891xIo<T,R,A,B> {
+pub struct Ay3_891xIo<T,R,A,B> {
     pub recorder: R,
     pub port_a: A,
     pub port_b: B,
@@ -72,7 +72,7 @@ pub struct Ay3_8891xIo<T,R,A,B> {
 #[derive(Default, Clone, Debug)]
 pub struct AyRegVecRecorder<T>(pub Vec<(T,AyRegister,u8)>);
 
-impl<T,R,A,B> Ay3_8891xIo<T,R,A,B>
+impl<T,R,A,B> Ay3_891xIo<T,R,A,B>
 where A: AyIoPort<Timestamp=T>,
       B: AyIoPort<Timestamp=T>,
       R: AyRegRecorder<Timestamp=T>

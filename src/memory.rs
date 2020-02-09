@@ -143,6 +143,11 @@ pub struct Memory48k {
     mem: Box<[u8;0x10000]>
 }
 
+#[derive(Clone)]
+pub struct Memory64k {
+    mem: Box<[u8;0x10000]>
+}
+
 impl Default for Memory16k {
     fn default() -> Self {
         Memory16k { mem: Box::new([0; 0x8000]) }
@@ -152,6 +157,12 @@ impl Default for Memory16k {
 impl Default for Memory48k {
     fn default() -> Self {
         Memory48k { mem: Box::new([0;0x10000]) }
+    }
+}
+
+impl Default for Memory64k {
+    fn default() -> Self {
+        Memory64k { mem: Box::new([0;0x10000]) }
     }
 }
 
@@ -220,6 +231,29 @@ impl SinglePageMemory for Memory48k {
     }
 }
 
+impl SinglePageMemory for Memory64k {
+    const ROMSIZE: u16 = 0x4000;
+    const ROMTOP: u16 = Self::ROMSIZE-1;
+    const RAMBOT: u16 = 0x0000;
+    const RAMTOP: u16 = 0xFFFF;
+
+    fn as_slice(&self) -> &[u8] {
+        &*self.mem
+    }
+
+    fn as_mut_slice(&mut self) -> &mut[u8] {
+        &mut *self.mem
+    }
+
+    fn mem(&self) -> *const u8 {
+        self.mem.as_ptr()
+    }
+
+    fn mem_mut(&mut self) -> *mut u8 {
+        self.mem.as_mut_ptr()
+    }
+}
+
 impl<M: SinglePageMemory> ZxMemory for M {
     const RAMTOP: u16 = M::RAMTOP;
     const FEATURES: MemoryFeatures = MemoryFeatures::NONE;
@@ -255,7 +289,7 @@ impl<M: SinglePageMemory> ZxMemory for M {
 
     #[inline(always)]
     fn write(&mut self, addr: u16, val: u8) {
-        if (Self::RAMBOT..=Self::RAMTOP).contains(&addr)  {
+        if addr >= Self::RAMBOT && addr <= Self::RAMTOP  {
             unsafe {
                 self.mem_mut().offset(addr as isize).write(val);
             }
@@ -275,6 +309,7 @@ impl<M: SinglePageMemory> ZxMemory for M {
             }
             a if a == Self::RAMTOP => {
                 self.write(a, val as u8);
+                self.write(a.wrapping_add(1), (val >> 8) as u8);
             }
             _ => {}
         }

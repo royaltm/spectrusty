@@ -1,32 +1,50 @@
+//! Various traits for types being used as audio samples.
 use crate::clock::FTs;
 
+/// Various sample methods.
 pub trait AudioSample: Copy + Default {
+    /// Creates a centered sample value (with zero amplitude). Usefull for filling buffers.
     #[inline(always)]
-    fn zero() -> Self {
+    fn center() -> Self {
         Self::default()
     }
 }
 
+/// Sample conversion between types.
 pub trait FromSample<S> {
+    /// Convert to Self sample type from `other`.
     fn from_sample(other: S) -> Self;
 }
 
+/// Sample conversion between types.
 pub trait IntoSample<S> {
+    /// Convert to S sample type from `self`.
     fn into_sample(self) -> S;
 }
 
+/// This trait is being used to calculate sample time for [Blep][crate::audio::Blep] trait.
 pub trait SampleTime: Copy {
+    /// Calculates a time rate from the given sample rate and cpu cycles (T-states) per second.
     fn time_rate(sample_rate: u32, ts_per_second: u32) -> Self;
+    /// Calculates sample time from `self` as a time rate and the given `timestamp` in T-states.
     fn at_timestamp(self, timestamp: FTs) -> Self;
 }
 
+/// This trait is being used to calculate sample amplitude differences (∆).
 pub trait SampleDelta: Copy {
-    /// The difference between `after` and `before`.
+    /// Returns the difference (if any) between `after` and `self` (before).
     fn sample_delta(self, after: Self) -> Option<Self>;
 }
 
+/// This trait is being used for scaling sample amplitudes.
 pub trait MulNorm {
+    /// Saturating addition. Computes self + other, saturating at the normalized bounds instead of overflowing.
+    ///
+    /// Float samples operates in range: [-1.0, 1.0], integer: [min, max]
     fn saturating_add(self, other: Self) -> Self;
+    /// Multiplies `self` with `other` in the normalized sample amplitude range.
+    ///
+    /// Float samples operates in range: [-1.0, 1.0], integer: [min, max]
     fn mul_norm(self, other: Self) -> Self;
 }
 
@@ -54,31 +72,38 @@ impl SampleDelta for f32 {
     }
 }
 
-impl SampleDelta for i16 {
-    #[inline]
-    fn sample_delta(self, after: i16) -> Option<i16> {
-        let delta = after - self;
-        if delta != 0 {
-            Some(delta)
+macro_rules! impl_sample_delta_int {
+    ($ty:ty) => {
+        impl SampleDelta for $ty {
+            #[inline]
+            fn sample_delta(self, after: $ty) -> Option<$ty> {
+                let delta = after - self;
+                if delta != 0 {
+                    Some(delta)
+                }
+                else {
+                    None
+                }
+            }
         }
-        else {
-            None
-        }
-    }
+    };
 }
+
+impl_sample_delta_int!(i16);
+impl_sample_delta_int!(i32);
 
 impl AudioSample for f32 {}
 impl AudioSample for i16 {}
 impl AudioSample for i8 {}
 impl AudioSample for u16 {
     #[inline(always)]
-    fn zero() -> Self {
+    fn center() -> Self {
         0x8000
     }    
 }
 impl AudioSample for u8 {
     #[inline(always)]
-    fn zero() -> Self {
+    fn center() -> Self {
         0x80
     }
 }

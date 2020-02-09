@@ -56,7 +56,7 @@ impl<T> DerefMut for AudioBuffer<T> {
 impl<T: AudioSample> AudioBuffer<T> {
     fn new(frame_samples: usize, channels: u8) -> Self {
         let size = frame_samples * channels as usize;
-        AudioBuffer(vec![T::zero();size])
+        AudioBuffer(vec![T::center();size])
     }
 }
 

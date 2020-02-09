@@ -12,3 +12,6 @@ Thumbs.db
 *.sublime-workspace
 sftp-config.json
 *.sna
+*.wav
+*.tap
+*.ay

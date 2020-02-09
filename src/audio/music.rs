@@ -1,6 +1,7 @@
 //! Music related functions
 use core::convert::TryInto;
-/// Returns an iterator of equal tempered scale frequencies (in a single octave) from a given base frequency.
+/// Returns an iterator of equal tempered scale frequencies (in a single octave) obtained from a given base frequency.
+///
 /// `hz` base frequency is in Hz (use 440.0 as a good default).
 /// `n0` an index from the base frequency to the first note in the table: 0 is for "A" note, -9 for "C".
 /// `steps` determines how many half tones will be rendered, (12 is the usual number).
@@ -12,7 +13,8 @@ pub fn equal_tempered_scale_note_freqs(hz: f32, n0: i16, steps: i16)
     })
 }
 
-/// Renders an array of equal tempered scale frequencies (in a single octave) from a given base frequency.
+/// Renders an array of equal tempered scale frequencies (in a single octave) obtained from a given base frequency.
+///
 /// `hz` base frequency is in Hz (use 440.0 as a good default).
 /// `n0` an index from the base frequency to the first note in the table: 0 is for "A" note, -9 for "C".
 /// The size of `target` determines how many half tones will be rendered, (12 is the usual number).
@@ -27,7 +29,6 @@ pub fn render_equal_tempered_scale_note_freqs(hz: f32, n0: i16, target: &mut [f3
 #[cfg(test)]
 mod tests {
     use super::*;
-    // use std::error;
 
     #[test]
     fn music_works() {

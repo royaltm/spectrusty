@@ -8,10 +8,6 @@ use crate::memory::ZxMemory;
 use crate::video::VideoFrame;
 use super::{Ula, UlaTsCounter, CPU_HZ};
 
-// TODO put this on some trait
-// const TSTATES_FRAME: f64 = 69888.0;
-// const FRAME_TIME: f64 = TSTATES_FRAME / CPU_HZ;
-
 impl<M, B, A, FT> AudioFrame<A> for Ula<M, B>
 where M: ZxMemory, B: BusDevice<Timestamp=VideoTs>,
       A: Blep<SampleTime=FT>, FT: SampleTime

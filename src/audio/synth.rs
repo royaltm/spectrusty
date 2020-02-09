@@ -295,7 +295,7 @@ where T: Copy + Default + SampleDelta + MulNorm
         let channels = self.channels.get();
         debug_assert!(channel < channels);
         let index = time.trunc() as usize * channels + channel;
-        let phase = (time.fract() * PHASE_COUNT as f64).trunc() as usize;
+        let phase = ((time.fract() * PHASE_COUNT as f64).trunc() as usize).rem_euclid(PHASE_COUNT);
         for (dp, phase) in self.diffs[index..index + STEP_WIDTH*channels]
                           .iter_mut().step_by(channels)
                           .zip(self.steps[phase].iter()) {

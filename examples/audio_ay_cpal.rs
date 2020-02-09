@@ -59,7 +59,7 @@ where i16: IntoSample<T>
                                 .zip(bandlim.sum_iter::<T>(2)))
                             .map(|(a,(b,c))| [a,b,c]);
             // set sample buffer size so to the size of the BLEP frame
-            vec.resize(frame_sample_count * channels, T::zero());
+            vec.resize(frame_sample_count * channels, T::center());
             // render each sample
             for (chans, samples) in vec.chunks_mut(channels).zip(sample_iter) {
                 // write to the wav file

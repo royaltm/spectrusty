@@ -1,3 +1,28 @@
+/*!
+# Audio API
+```text
+                     /---- ensure_audio_frame_time ----\
+  +----------------------+                         +--------+
+  |      AudioFrame      |  render_*_audio_frame   |        |
+  | EarMicOutAudioFrame  | ======================> |  Blep  |
+  |   EarInAudioFrame    |     end_audio_frame     |        |
+  |   [ AyAudioFrame ]   |                         |        |
+  +----------------------+                         +--------+
+  |      AmpLevels       |                             |     
+  +----------------------+        /----------------- (sum)   
+                                  |                    v       
+                                  v                 carousel 
+                           +-------------+   +--------------------+
+                           | (WavWriter) |   | AudioFrameProducer |
+                           +-------------+   +--------------------+
+                                               || (AudioBuffer) ||
+                                             +====================+
+                                             |  * audio thread *  |
+                                             |                    |
+                                             | AudioFrameConsumer |
+                                             +====================+
+```
+*/
 pub mod synth;
 pub mod carousel;
 pub mod sample;
@@ -13,77 +38,129 @@ use crate::clock::{FTs, VideoTs, VFrameTsCounter};
 use crate::video::VideoFrame;
 pub use sample::{SampleDelta, SampleTime, MulNorm, FromSample};
 
-/// A trait interfacing a Bandwidth-Limited Pulse Buffer implementation.
-/// All square-waveish sound is being created via this interface.
+/// A trait for interfacing Bandwidth-Limited Pulse Buffer implementations by audio generators.
+///
+/// The digitalization of square-waveish sound is being performed via this interface.
 pub trait Blep {
-    /// A type for delta pulses.
+    /// A type for sample ∆ amplitudes (pulse height).
     type SampleDelta: SampleDelta;
     /// A type for sample time indices.
     type SampleTime: SampleTime;
-    /// `frame_time` is the frame time in samples (1.0 is one sample),
-    /// `margin_time` is the margin time of the frame duration fluctuations.
+    /// Ensures that the `Blep` implementation has enough memory reserved for the whole audio frame and then some.
+    ///
+    /// `frame_time` is the frame time measured in samples.
+    /// `margin_time` is the required margin time of the frame duration fluctuations.
     fn ensure_frame_time(&mut self, frame_time: Self::SampleTime, margin_time: Self::SampleTime);
-    /// `time` is the time in samples when the frame should be finalized.
-    /// The caller must ensure that no delta should be rendered past this time.
-    /// Returns the number of samples (in a single channel) rendered.
+    /// Finalizes audio frame.
+    ///
+    /// `time` (measured in samples) is being provided when the frame should be finalized.
+    /// The caller must ensure that no pulse should be generated within this frame past given `time` here.
+    /// The implementation may panic if this requirement is not uphold.
+    /// Returns the number of samples ready to be rendered, independent from the number of channels.
     fn end_frame(&mut self, time: Self::SampleTime) -> usize;
-    /// `time` is the time in samples, delta should be a normalized [-1.0, 1.0] float or an integer.
+    /// This method is being used to generate square pulses.
+    ///
+    /// `time` is the time of the pulse measured in samples, `delta` is the pulse height (∆ amplitude).
     fn add_step(&mut self, channel: usize, time: Self::SampleTime, delta: Self::SampleDelta);
 }
 
-/// A wrapper Blep implementation that filters delta value before sending it downstream.
-/// You may use it to adjust generated audio volume dynamically.
+/// A wrapper [Blep] implementation that modifies ∆ amplitude of pulses before sending it to the
+/// underlying implementation.
+///
+/// `BlepAmpFilter` may be used to adjust generated audio volume dynamically.
 pub struct BlepAmpFilter<B, T> {
-    /// A downstream Blep implementation.
+    /// A downstream [Blep] implementation.
     pub blep: B,
     /// A normalized filter value in the range [0.0, 1.0] (floats) or [0, int::max_value()] (integers).
     pub filter: T
 }
 
-/// A wrapper Blep implementation that redirects channels to a stereo Blep.
-/// Requires a downstream Blep implementation that implements at least 2 channels.
-/// Channel 0 and 1 are redirected downstream but any other channel is being filtered before being redirected to both channels (0 and 1).
+/// A wrapper [Blep] implementation that redirects channels to a stereo [Blep].
+///
+/// Requires a downstream [Blep] implementation to provide at least 2 audio channels.
+///
+/// Channel 0 and 1 are redirected downstream but any other channel pulses are being
+/// filtered before being redirected to both channels (0 and 1).
 pub struct BlepStereo<B, T> {
-    /// A downstream Blep implementation.
+    /// A downstream [Blep] implementation.
     pub blep: B,
     /// A monophonic filter value in the range [0.0, 1.0] (floats) or [0, int::max_value()] (integers).
     pub mono_filter: T
 }
 
-/// A digital level to sound amplitude convertion trait.
+/// A digital level to a sample amplitude convertion trait.
 pub trait AmpLevels<T: Copy> {
-    /// Should return the appropriate sound sample amplitude for the given `level`.
-    /// The best approximation is a*(x/max_level*b).exp().
-    /// Most callbacks uses only limited number of bits of the level.
+    /// This method should return the appropriate digital sample amplitude for the given `level`.
+    ///
+    /// The best approximation is `a*(level/max_level*b).exp()` according to [this document](https://www.dr-lex.be/info-stuff/volumecontrols.html).
+    ///
+    /// *Please note* that most callbacks use only a limited number of bits in the `level`.
     fn amp_level(level: u32) -> T;
 }
 
+/// A common trait for controllers rendering square-wave audio pulses.
+/// 
+/// This trait defines common methods to interface [Blep] implementations.
 pub trait AudioFrame<B: Blep> {
-    /// Ensures Blep frame size and returns `time_rate` to be passed to `render_*_audio_frame` methods.
+    /// Ensures [Blep] has enough space for the audio frame and returns `time_rate` to be passed
+    /// to `render_*_audio_frame` methods.
     fn ensure_audio_frame_time(blep: &mut B, sample_rate: u32) -> B::SampleTime;
-    /// Returns a sample time to be passed to Blep to end the frame.
+    /// Returns a sample time to be passed to [Blep] to end the frame.
     fn get_audio_frame_end_time(&self, time_rate: B::SampleTime) -> B::SampleTime;
-    /// Calls blep.end_frame(..) to finalize the frame and prepare it to be rendered.
+    /// Calls [Blep::end_frame] to finalize the frame and prepare it for rendition.
+    ///
+    /// Returns a number of samples ready to be rendered in a single channel.
     #[inline]
     fn end_audio_frame(&self, blep: &mut B, time_rate: B::SampleTime) -> usize {
         blep.end_frame(self.get_audio_frame_end_time(time_rate))
     }
 }
 
+/// A trait for controllers generating audio pulses from the EAR/MIC output.
 pub trait EarMicOutAudioFrame<B: Blep> {
+    /// Renders EAR/MIC output as square-wave pulses via [Blep] interface.
+    ///
+    /// Provide [AmpLevels] that can handle `level` values from 0 to 3 (2-bits).
+    /// ```text
+    ///   EAR  MIC  level
+    ///    0    0     0
+    ///    0    1     1
+    ///    1    0     2
+    ///    1    1     3
+    ///```
+    /// `time_rate` may be optained from calling [AudioFrame::ensure_audio_frame_time].
+    /// `channel` - target [Blep] audio channel.
     fn render_earmic_out_audio_frame<V: AmpLevels<B::SampleDelta>>(&self, blep: &mut B, time_rate: B::SampleTime, channel: usize);
 }
 
+/// A trait for controllers generating audio pulses from the EAR input.
 pub trait EarInAudioFrame<B: Blep> {
+    /// Renders EAR input as square-wave pulses via [Blep] interface.
+    ///
+    /// Provide [AmpLevels] that can handle `level` values from 0 to 1 (1-bit).
+    /// `time_rate` may be optained from calling [AudioFrame::ensure_audio_frame_time].
+    /// `channel` - target [Blep] audio channel.
     fn render_ear_in_audio_frame<V: AmpLevels<B::SampleDelta>>(&self, blep: &mut B, time_rate: B::SampleTime, channel: usize);
 }
 
+/// A trait for feeding EAR input frame buffer.
 pub trait EarIn {
-    /// Sets `ear_in` bit state for the provided delta T-states from the last ear_in change or current counter's value.
+    /// Sets `EAR in` bit state for the provided ∆ T-States counted from the last recorded change.
     fn set_ear_in(&mut self, ear_in: bool, delta_fts: u32);
-    /// Feeds the `ear_in` buffer with changes propagated as T-state deltas via iterator.
+    /// Feeds the `EAR in` buffer with changes.
+    ///
+    /// The provided iterator should yield T-state ∆ differences after which the state of the `EAR in` bit
+    /// should be alternated.
+    ///
+    /// `max_frames_threshold` may be optionally provided as a number of frames to limit the buffered changes.
+    /// This is usefull if the given iterator provides data largely exceeding the duration of a single frame.
     fn feed_ear_in<I: Iterator<Item=NonZeroU32>>(&mut self, fts_deltas: &mut I, max_frames_threshold: Option<usize>);
-    /// Removes all buffered ear in changes.
+    /// Removes all buffered so far `EAR in` changes.
+    ///
+    /// Changes are usually consumed only when a call is made to [crate::chip::ControlUnit::ensure_next_frame].
+    /// Provide the current value of `EAR in` bit as `ear_in`.
+    ///
+    /// This may be usefull when tape data is already buffered but the user decided to stop the tape playback immediately.
     fn purge_ear_in_changes(&mut self, ear_in: bool);
 }
 

@@ -1,11 +1,13 @@
+//! AY-FILE format related stuff. https://www.worldofspectrum.org/projectay/
 #![allow(unused_imports)]
-use core::fmt;
+use core::fmt::{self, Write};
 use core::num::NonZeroI16;
 use core::convert::TryFrom;
 use core::ptr::NonNull;
 use core::marker::{PhantomPinned, PhantomData};
 use std::borrow::Cow;
 use std::pin::Pin;
+use std::io;
 
 #[allow(unused_imports)]
 use log::{error, warn, info, debug, trace};
@@ -14,7 +16,7 @@ use memchr::memchr;
 use nom::bytes::complete::{tag, take_till, take_while};
 use nom::character::is_alphabetic;
 use nom::combinator::{iterator, map};
-use nom::error::{ErrorKind, VerboseErrorKind};
+use nom::error::{ErrorKind, VerboseError, context, convert_error, ParseError};
 use nom::multi::many1;
 use nom::number::complete::{be_i16, be_u16, be_u8};
 use nom::sequence::tuple;
@@ -24,6 +26,8 @@ use z80emu::{Cpu, Prefix, Reg8, CpuFlags, InterruptMode};
 // use crate::cpu_debug::print_debug_memory;
 use crate::memory::{ZxMemory, SinglePageMemory};
 
+/// This struct is being ever created only as Pin<Box<AyFile>>, because it uses self-referenced pointers.
+/// See also: AyFile::initialize_player.
 pub struct AyFile {
     pub raw: Box<[u8]>,
     pub meta: AyMeta,
@@ -92,7 +96,6 @@ impl fmt::Debug for AyFile {
 }
 
 
-
 impl AyBlob {
     fn new(slice: &[u8]) -> Self {
         AyBlob(NonNull::from(slice))
@@ -121,11 +124,11 @@ impl AyString {
     }
 
     pub fn to_str(&self) -> Result<&str, core::str::Utf8Error> {
-        core::str::from_utf8(self.as_slice()) // creating of this type is private so it will be only made pinned
+        core::str::from_utf8(self.as_slice())
     }
 
     pub fn to_str_lossy(&self) -> Cow<str> {
-        String::from_utf8_lossy(self.as_slice()) // creating of this type is private so it will be only made pinned
+        String::from_utf8_lossy(self.as_slice())
     }
 
     pub fn to_string(&self) -> String {
@@ -148,14 +151,14 @@ static PLAYER_TWO: &[u8] = &[
 /* 0006:*/ 0xFB,           /* ei                      */
 /* 0007:*/ 0x76,           /* halt                    */
 /* 0008:*/ 0xCD,0x00,0x00, /* call 0000H -> interrupt */
-// /* 000B:*/ 0x18,0xF7,      /* jr   0004H -> loop1     */
 /* 000B:*/ 0x18,0xF7,      /* jr   0004H -> loop1     */
 ];
 const PLAYER_INIT_OFFSET: usize = 2;
 const PLAYER_TWO_INTERRUPT_OFFSET: usize = 9;
 
 impl AyFile {
-    pub fn initialize<C, M>(&self, cpu: &mut C, mem: &mut M, song_index: usize)
+    /// Creates player routines and loads a song data into memory and cpu registers.
+    pub fn initialize_player<C, M>(&self, cpu: &mut C, mem: &mut M, song_index: usize)
     where C: Cpu, M: ZxMemory + SinglePageMemory
     {
         if self.meta.special_player {
@@ -202,7 +205,7 @@ impl AyFile {
             rawmem[address..address+data.len()].copy_from_slice(&data);
         }
         debug!("STACK: ${:x}", song.stack);
-        // print_debug_memory(0x0000, &rawmem[0x0000..player.len()]);
+        // debug_memory(0x0000, &rawmem[0x0000..player.len()]);
         cpu.reset();
         cpu.set_i(self.meta.player_version);
         cpu.set_reg(Reg8::H, None, song.hi_reg);
@@ -234,24 +237,154 @@ impl AyFile {
     }
 }
 
-fn c_string(inp: &[u8]) -> IResult<&[u8], &[u8]> {
-    match memchr(0, inp) {
-        Some(offs) => Ok((&inp[offs..], &inp[..offs])),
-        None => Err(Err::Error((inp, ErrorKind::Eof)))
+/****************************************************************************/
+/*                        OM NOM NOM NOM NOM NOM NOM                        */
+/****************************************************************************/
+#[derive(Clone, Debug, PartialEq)]
+pub struct AyParseError<'a> {
+  /// list of errors accumulated by `VerboseError`, containing the affected
+  /// part of input data, and some context
+  pub errors: Vec<(&'a [u8], AyParseErrorKind)>,
+}
+
+trait UnwrapErr<E> {
+    fn unwrap(self) -> E;
+}
+
+impl<E> UnwrapErr<E> for Err<E> {
+    fn unwrap(self) -> E {
+        match self {
+            Err::Failure(e)|Err::Error(e) => e,
+            Err::Incomplete(..) => panic!("can't unwrap an incomplete error")
+        }
     }
 }
 
-fn parse_ay_file(raw: &[u8]) -> IResult<&[u8], (AyMeta, Box<[AySong]>)> {
-    // let raw = vec_in.into_boxed_slice();
+impl<'a> AyParseError<'a> {
+    fn describe(&self, input: &'a[u8]) -> String {
+        let mut res = String::new();
+        for (i, (subs, kind)) in self.errors.iter().enumerate() {
+            let offset = input.offset(subs);
+            match kind {
+                AyParseErrorKind::Context(s) => write!(&mut res,
+                    "{i}: at byte {offset} of {len}, {context}\n",
+                    i = i,
+                    context = s,
+                    len = input.len(),
+                    offset = offset
+                ),
+                AyParseErrorKind::Nom(e) => write!(&mut res,
+                    "{i}: at byte {offset} of {len}, in {nom_err:?}:\n",
+                    i = i,
+                    len = input.len(),
+                    offset = offset,
+                    nom_err = e
+                ),
+            }.unwrap()
+        }
+        res
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+/// error context for `AyParseError`
+pub enum AyParseErrorKind {
+  /// static string added by the `context` function
+  Context(&'static str),
+  /// error kind given by various nom parsers
+  Nom(ErrorKind),
+}
+
+impl<'a> ParseError<&'a[u8]> for AyParseError<'a> {
+  fn from_error_kind(input: &'a[u8], kind: ErrorKind) -> Self {
+    AyParseError {
+      errors: vec![(input, AyParseErrorKind::Nom(kind))],
+    }
+  }
+
+  fn append(input: &'a[u8], kind: ErrorKind, mut other: Self) -> Self {
+    other.errors.push((input, AyParseErrorKind::Nom(kind)));
+    other
+  }
+
+  fn add_context(input: &'a[u8], ctx: &'static str, mut other: Self) -> Self {
+    other.errors.push((input, AyParseErrorKind::Context(ctx)));
+    other
+  }
+}
+
+fn c_string<'a, E: ParseError<&'a [u8]>>() -> impl Fn(&'a[u8]) -> IResult<&'a[u8], &'a[u8], E>
+{
+    move |input| {
+        match memchr(0, input) {
+            Some(offs) => Ok((&input[offs..], &input[..offs])),
+            None => Err(Err::Error(E::from_error_kind(input, ErrorKind::Eof)))
+        }
+    }
+}
+
+fn parse_at<'a, T: 'a, E: ParseError<&'a[u8]>, F>(
+        offset: usize, f: F
+    ) -> impl FnOnce(&'a[u8]) -> Result<T, Err<E>>
+where F: FnOnce(&'a[u8])->Result<T, Err<E>>
+{
+    move |input| {
+        input.get(offset..).ok_or_else(|| Err::Failure(E::from_error_kind(input, ErrorKind::Eof)))
+        .and_then(f)
+    }
+}
+
+fn fail_err<I: Clone, O, E: ParseError<I>, F>(
+        f: F
+    ) -> impl Fn(I) -> IResult<I, O, E> 
+where F: Fn(I) -> IResult<I, O, E>
+{
+    move |input: I| {
+        f(input).map_err(|e| e.into_failure())
+    }
+}
+
+trait IntoFailure<E> {
+    fn into_failure(self) -> Self;
+}
+
+impl<E> IntoFailure<E> for Err<E> {
+    fn into_failure(self) -> Self {
+        if let Err::Error(e) = self {
+            Err::Failure(e)
+        }
+        else {
+            self
+        }
+    }
+}
+
+fn parse_ay_raw<'a, E: Clone + ParseError<&'a [u8]>>(
+        raw: &'a [u8]
+    ) -> Result<(AyMeta, Box<[AySong]>), Err<E>>
+{
 
     let ay_blob = |offset: usize, len: usize| {
-        AyBlob::new(&raw[offset..offset+len])
+        if offset+len > raw.len() {
+            debug!("truncating data off: {} len: {} end: {} > {}", offset, len, offset+len, raw.len());
+            raw.get(offset..)
+        }
+        else {
+            raw.get(offset..offset+len)
+        }.map(|blob| {
+            AyBlob::new(&blob)
+        }).ok_or_else(|| {
+            let (inp, context) = (&raw[raw.len()..], "data offset exceeding file size");
+            Err::Failure(E::add_context(inp, context, E::from_error_kind(inp, ErrorKind::Eof)))
+        })
     };
 
-    let ay_string = |offset: Option<usize>| {
+    let ay_string = |ctx, offset: Option<usize>| {
         offset.map(|offset|
-            c_string(&raw[offset..]).map(|(_,s)| AyString::new(s))
-        ).unwrap_or_else(|| Ok(AyString::new(b"")))
+            parse_at(offset,  context(ctx, c_string()))( raw )
+        ).unwrap_or_else(||
+            Ok( (raw, b"") )
+        ).map(|(_,s)| AyString::new(s))
     };
 
     let maybe_offs_to = |inp| {
@@ -264,38 +397,49 @@ fn parse_ay_file(raw: &[u8]) -> IResult<&[u8], (AyMeta, Box<[AySong]>)> {
     let offset_to = |inp| {
         let (inp, offs) = maybe_offs_to(inp)?;
         match offs {
-            None => Err(Err::Error((inp, ErrorKind::NonEmpty))),
+            None => Err(Err::Error(E::add_context(inp, "offset",
+                        E::from_error_kind(inp, ErrorKind::NonEmpty)
+                    ))),
             Some(offs) => Ok((inp, offs))
         }
     };
 
-    let parse_address = |inp| -> IResult<_,_,_> {
-        let (inp, address) = be_u16(inp)?;//.map_err(|e| nom::Err::Failure((inp, ErrorKind::Eof)))?;
+    let parse_address = |inp| {
+        let (inp, address) = context("address", fail_err(be_u16))(inp)?;
         if address == 0 {
-            Err(Err::Error((inp, ErrorKind::Complete)))
+            Err(Err::Error(E::from_error_kind(inp, ErrorKind::Complete)))
         }
         else {
-            let (inp, (len, offset)) = tuple((be_u16, offset_to))(inp).map_err(|_| nom::Err::Failure((inp, ErrorKind::Eof)))?;
+            let (inp, (len, offset)) = fail_err(tuple(
+                (context("data length", be_u16), offset_to)
+            ))( inp )?;
             Ok((inp, AySongData {
-                address, data: ay_blob(offset, len.into())
+                address, data: ay_blob(offset, len.into())?
             }))
         }
     };
 
     let parse_song_data = |data_offs| {
-        map(many1(parse_address), |vec| vec.into_boxed_slice())(&raw[data_offs..]).map(|(_,s)| s)
+        parse_at(data_offs, 
+            context("song data", 
+                map(many1(parse_address), |vec| vec.into_boxed_slice()))
+        )( raw ).map(|(_,s)| s)
     };
 
     let parse_song_info = |info_offs, name: AyString| {
         let (_, (chan_a, chan_b, chan_c, noise,
         song_length, fade_length,
         hi_reg, lo_reg,
-        init_offs, data_offs)) = tuple(
+        init_offs, data_offs)) = parse_at(info_offs, context("song metadata", tuple(
             (be_u8, be_u8, be_u8, be_u8,
              be_u16, be_u16,
              be_u8, be_u8,
-             offset_to, offset_to))( &raw[info_offs..] )?;
-        let (_, (stack, init, interrupt)) = tuple((be_u16, be_u16, be_u16))( &raw[init_offs..] )?;
+             offset_to, offset_to))
+        ))( raw )?;
+
+        let (_, (stack, init, interrupt)) = parse_at(init_offs, context("play routines",
+            tuple((context("stack", be_u16), be_u16, be_u16)))
+        )( raw )?;
         let blocks = parse_song_data(data_offs)?;
         Ok(AySong {
             name, chan_a, chan_b, chan_c, noise,
@@ -308,62 +452,64 @@ fn parse_ay_file(raw: &[u8]) -> IResult<&[u8], (AyMeta, Box<[AySong]>)> {
 
     let parse_song = |inp| {
         let (inp, (name_offs, info_offs)) = tuple((maybe_offs_to, offset_to))(inp)?;
-        let name = ay_string(name_offs)?;
+        let name = ay_string("song name", name_offs)?;
         let song = parse_song_info(info_offs, name)?;
         Ok((inp, song))
     };
 
     let parse_songs = |songs_offs, num| {
-        let mut it = iterator(&raw[songs_offs..], parse_song);
-        let songs = it.take(num).collect::<Box<[_]>>();
-        let (_,_) = it.finish()?;
-        Ok(songs)
+        parse_at(songs_offs, |inp| {
+            let mut it = iterator(inp, parse_song);
+            let songs = it.take(num).collect::<Box<[_]>>();
+            let (_,_) = it.finish()?;
+            Ok(songs)
+        })( raw )
     };
 
 
     let (_, (
-        _, _, file_version, player_version,
+        _tag1, _tag2, file_version, player_version,
         special_player_offs, author_offs, misc_offs,
         num_of_songs, first_song,
         songs_offs)
-    ) = tuple((tag(b"ZXAY"), tag(b"EMUL"), be_u8, be_u8,
-             maybe_offs_to, maybe_offs_to, maybe_offs_to,
-             be_u8, be_u8, 
-             offset_to))( raw.as_ref() )?;
+    ) = context("header",
+            tuple((tag(b"ZXAY"), tag(b"EMUL"), be_u8, be_u8,
+                maybe_offs_to, maybe_offs_to, maybe_offs_to,
+                be_u8, be_u8, 
+                offset_to))
+    )( raw.as_ref() )?;
     let special_player = special_player_offs.is_some();
-    let author = ay_string(author_offs)?;
-    let misc = ay_string(misc_offs)?;
+    let author = ay_string("author", author_offs)?;
+    let misc = ay_string("misc", misc_offs)?;
     let songs = parse_songs(songs_offs, num_of_songs as usize + 1)?;
     let meta = AyMeta {
         file_version, player_version,
         special_player, author, misc, first_song
     };
 
-    Ok((&raw[raw.len()..], (meta, songs)))
+    Ok((meta, songs))
 }
 
-pub fn parse_ay<B: Into<Box<[u8]>>>(data: B) -> Result<Pin<Box<AyFile>>, &'static str> {
+/// Parses data and returns a pinned AyFile struct owning data.
+pub fn parse_ay<B: Into<Box<[u8]>>>(data: B) -> Result<Pin<Box<AyFile>>, String> {
     let raw: Box<_> = data.into();
-
-    let (meta, songs) = match parse_ay_file(&raw) {
-        Ok((_, ok)) => ok,
-        Err(e) => {
-            debug!("error parsing: {:?}", e);
-            Err("error parsing ay file")?
-        }
-    };
+    let (meta, songs) = parse_ay_raw::<AyParseError>(&raw).map_err(|e| e.unwrap().describe(&raw))?;
 
     Ok(Box::pin(AyFile {
-        raw, meta, songs, _pin: PhantomPinned }))
+        raw, meta, songs,
+        _pin: PhantomPinned 
+    }))
 }
 
-
-pub fn read_ay<R: std::io::Read>(mut rd: R) -> std::io::Result<Pin<Box<AyFile>>> {
+/// Reads, parses and returns a pinned AyFile struct owning data.
+pub fn read_ay<R: io::Read>(mut rd: R) -> io::Result<Pin<Box<AyFile>>> {
     let mut data = Vec::new();
     rd.read_to_end(&mut data)?;
-    parse_ay(data).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
+    parse_ay(data).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
 }
 /*
+Kudos to Sergey Bulba.
+
 struct AYFileHeader {
     // file_id:          [u8;4], // b"ZXAY"
     // type_id:          [u8;4], // b"EMUL"
@@ -377,13 +523,11 @@ struct AYFileHeader {
     songs_info_offs:  AYOffset<[Song]>, // i16
 }
 
-#[repr(packed)]
 struct Song {
     song_name_offs:        AYOffset, // i16
     song_data_offs:        AYOffset<[SongInfo]>, // i16
 }
 
-#[repr(packed)]
 struct SongInfo {
     chan_a: u8,
     chan_b: u8,
@@ -397,14 +541,12 @@ struct SongInfo {
     addresses_offs: AYOffset<[AYWord]>, // i16, // SongData
 }
 
-#[repr(packed)]
 struct Pointers {
     stack: AYWord,
     init: AYWord,
     interrupt: AYWord
 }
 
-#[repr(packed)]
 struct SongData {
     address: AYWord,
     length:  AYWord,

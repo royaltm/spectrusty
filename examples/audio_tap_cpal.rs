@@ -88,7 +88,7 @@ where i16: IntoSample<T>
         audio.producer.render_frame(|ref mut vec| {
             let sample_iter = bandlim.sum_iter::<i16>(0); // channel 0
             // set sample buffer size so to the size of the BLEP frame
-            vec.resize(sample_iter.len() * channels, T::zero());
+            vec.resize(sample_iter.len() * channels, T::center());
             // render each sample
             for (chans, sample) in vec.chunks_mut(channels).zip(sample_iter) {
                 // write to the wav file
