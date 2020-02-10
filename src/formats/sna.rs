@@ -1,3 +1,4 @@
+//! **SNA** file format utilities.
 use std::convert::{TryInto};
 use std::io::{ErrorKind, Error, Read, Result};
 use z80emu::{Cpu, Prefix, StkReg16, CpuFlags};
@@ -46,7 +47,8 @@ union SnaHeaderUnion {
    header: SnaHeader
 }
 
-/// Returns border color
+/// Reads a *SNA* file and inserts its content into provided memory and configures the `Cpu`.
+/// Returns border color on success.
 pub fn read_sna<R: Read, M: ZxMemory, C: Cpu>(mut rd: R, cpu: &mut C, mem: &mut M) -> Result<u8> {
    let mut sna = SnaHeaderUnion { bytes: Default::default() };
    rd.read_exact(unsafe { &mut sna.bytes })?;

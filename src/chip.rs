@@ -63,6 +63,7 @@ pub struct ThreadSyncTimer {
     pub time: Instant
 }
 
+#[allow(clippy::new_without_default)]
 impl ThreadSyncTimer {
     pub fn new() -> Self {
         ThreadSyncTimer { time: Instant::now() }

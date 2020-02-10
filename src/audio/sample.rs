@@ -8,6 +8,8 @@ pub trait AudioSample: Copy + Default {
     fn center() -> Self {
         Self::default()
     }
+    fn max_pos_amplitude() -> Self;
+    fn max_neg_amplitude() -> Self;
 }
 
 /// Sample conversion between types.
@@ -92,20 +94,33 @@ macro_rules! impl_sample_delta_int {
 impl_sample_delta_int!(i16);
 impl_sample_delta_int!(i32);
 
-impl AudioSample for f32 {}
-impl AudioSample for i16 {}
-impl AudioSample for i8 {}
+impl AudioSample for f32 {
+    #[inline(always)] fn max_pos_amplitude() -> Self {  1.0 }
+    #[inline(always)] fn max_neg_amplitude() -> Self { -1.0 }
+}
+impl AudioSample for i16 {
+    #[inline(always)] fn max_pos_amplitude() -> Self { i16::max_value() }
+    #[inline(always)] fn max_neg_amplitude() -> Self { i16::min_value() }
+}
+impl AudioSample for i8 {
+    #[inline(always)] fn max_pos_amplitude() -> Self { i8::max_value() }
+    #[inline(always)] fn max_neg_amplitude() -> Self { i8::min_value() }
+}
 impl AudioSample for u16 {
     #[inline(always)]
     fn center() -> Self {
         0x8000
     }    
+    #[inline(always)] fn max_pos_amplitude() -> Self { u16::max_value() }
+    #[inline(always)] fn max_neg_amplitude() -> Self { 0 }
 }
 impl AudioSample for u8 {
     #[inline(always)]
     fn center() -> Self {
         0x80
     }
+    #[inline(always)] fn max_pos_amplitude() -> Self { u8::max_value() }
+    #[inline(always)] fn max_neg_amplitude() -> Self { 0 }
 }
 
 impl<S: FromSample<T>, T> IntoSample<S> for T {

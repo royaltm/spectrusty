@@ -1,7 +1,7 @@
 use core::num::NonZeroU16;
 use z80emu::{Io, Memory};
 use crate::bus::BusDevice;
-use crate::clock::{VideoTs, VFrameTsCounter};
+use crate::clock::VideoTs;
 use crate::io::keyboard::{KeyboardInterface, ZXKeyboardMap};
 use crate::memory::ZxMemory;
 use crate::video::{VideoFrame, pixel_line_offset, color_line_offset};
@@ -22,10 +22,11 @@ impl<M, B> Io for Ula<M, B> where M: ZxMemory, B: BusDevice<Timestamp=VideoTs>
 
     fn read_io(&mut self, port: u16, ts: VideoTs) -> (u8, Option<NonZeroU16>) {
         let val = if port & 1 == 0 {
-            self.keyboard.read_keyboard((port >> 8) as u8) & ((self.read_ear_in(ts) << 6) | 0b10111111)
+            self.keyboard.read_keyboard((port >> 8) as u8) & ((self.read_ear_in(ts) << 6) | 0b1011_1111)
         }
         else {
-            self.bus.read_io(port, ts).unwrap_or(self.floating_bus(ts))
+            self.bus.read_io(port, ts)
+                    .unwrap_or_else(|| self.floating_bus(ts))
         };
         (val, None)
     }

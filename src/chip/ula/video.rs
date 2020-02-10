@@ -76,9 +76,9 @@ fn pixel_address_coords(addr: u16) -> Option<Coords> {
     match addr {
         0x4000..=0x57FF => {
             let column = addr & 0b11111;
-            let line = (addr >> 5 & 0b11000000 |
-                        addr >> 2 & 0b00111000 |
-                        addr >> 8 & 0b00000111) as i16;
+            let line = (addr >> 5 & 0b1100_0000 |
+                        addr >> 2 & 0b0011_1000 |
+                        addr >> 8 & 0b0000_0111) as i16;
             Some(Coords { column, line })
         }
         _ => None
@@ -89,7 +89,7 @@ fn color_address_coords(addr: u16) -> Option<Coords> {
     match addr {
         0x5800..=0x5AFF => {
             let column = addr & 0b11111;
-            let line = (addr >> 5 & 0b00011111) as i16;
+            let line = (addr >> 5 & 0b0001_1111) as i16;
             Some(Coords { column, line })
         }
         _ => None
@@ -97,7 +97,7 @@ fn color_address_coords(addr: u16) -> Option<Coords> {
 }
 
 impl<M: ZxMemory, B: BusDevice<Timestamp=VideoTs>> Ula<M,B> {
-    pub fn create_renderer<'a>(&'a mut self, border_size: BorderSize) -> Renderer<'a, std::vec::Drain<'a, VideoTsData3>> {
+    pub fn create_renderer(&mut self, border_size: BorderSize) -> Renderer<'_, std::vec::Drain<'_, VideoTsData3>> {
         let border = self.border as usize;
         Renderer {
             frame_pixels: &self.frame_pixels,

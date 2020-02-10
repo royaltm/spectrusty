@@ -135,7 +135,7 @@ impl<M, B> Ula<M, B> where M: ZxMemory, B: BusDevice<Timestamp=VideoTs>
 
     pub (super) fn read_ear_in(&mut self, ts: VideoTs) -> u8 {
         match self.ear_in_changes.get(self.ear_in_last_index..) {
-            Some(changes) if changes.len() != 0 => {
+            Some(changes) if !changes.is_empty() => {
                 let maybe_index = match changes.binary_search(&(ts, 1).into()) {
                     Err(0) => None,
                     Ok(index) => Some(index),

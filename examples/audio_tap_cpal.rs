@@ -1,4 +1,4 @@
-//! ZX Spectrum tape sound PORN!!!!
+//! ZX Spectrum TAPE sound P0RN!
 #[path = "../tests/audio_cpal.rs"]
 mod audio_cpal;
 use std::io::{Seek, Read, Cursor};
@@ -8,8 +8,7 @@ use audio_cpal::*;
 use zxspecemu::audio::carousel::*;
 use zxspecemu::audio::sample::*;
 use zxspecemu::audio::*;
-use zxspecemu::audio::ay::*;
-use zxspecemu::audio::music::*;
+use zxspecemu::audio::synth::*;
 use zxspecemu::formats::read_ear::*;
 use zxspecemu::formats::tap::*;
 /****************************************************************************/
@@ -57,7 +56,7 @@ where i16: IntoSample<T>
                 }
                 None => {
                     // forward reader to the next tap chunk
-                    if tap_reader.next_chunk().unwrap() != 0 {
+                    if tap_reader.next_chunk().unwrap().is_some() {
                         let cursor = tap_pulse_iter.get_mut();
                         // reset cursor
                         cursor.set_position(0);

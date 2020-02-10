@@ -1,11 +1,11 @@
-//! AY-3-891x sound chip emulation.
+//! The emulation of the AY-3-8910/8912/8913 sound generator.
 use core::marker::PhantomData;
 use super::*;
 use crate::io::ay::{AyRegister, AyRegChange};
 
-/* processor clock divisor */
+/// Internal clock divisor.
 pub const INTERNAL_CLOCK_DIVISOR: FTs = 16;
-/* host clock ratio */
+/// Cpu clock ratio.
 pub const HOST_CLOCK_RATIO: FTs = 2;
 
 /// Amplitude levels for AY-3-891x.
@@ -18,15 +18,16 @@ pub const HOST_CLOCK_RATIO: FTs = 2;
 ///    // output nearly matches logarithmic curve as claimed. Approx. 1.5 dB per step.
 /// ```
 /// [AyAmps] struct implements `AMPS` for [AmpLevels]. See also [FUSE_AMPS].
-pub const AMPS: [f32;16] = [0.000000,0.007813,0.011049,0.015625,
-                            0.022097,0.031250,0.044194,0.062500,
-                            0.088388,0.125000,0.176777,0.250000,
-                            0.353553,0.500000,0.707107,1.000000];
+#[allow(clippy::approx_constant,clippy::excessive_precision)]
+pub const AMPS: [f32;16] = [0.000_000, 0.007_813, 0.011_049, 0.015_625,
+                            0.022_097, 0.031_250, 0.044_194, 0.062_500,
+                            0.088_388, 0.125_000, 0.176_777, 0.250_000,
+                            0.353_553, 0.500_000, 0.707_107, 1.000_000];
 
-pub const AMPS_I32: [i32;16] = [0x00000000, 0x01000431, 0x016a0db9, 0x01ffffff,
-                                0x02d41313, 0x03ffffff, 0x05a82627, 0x07ffffff,
-                                0x0b504c4f, 0x0fffffff, 0x16a0a0ff, 0x1fffffff,
-                                0x2d41397f, 0x3fffffff, 0x5a827b7f, 0x7fffffff];
+pub const AMPS_I32: [i32;16] = [0x0000_0000, 0x0100_0431, 0x016a_0db9, 0x01ff_ffff,
+                                0x02d4_1313, 0x03ff_ffff, 0x05a8_2627, 0x07ff_ffff,
+                                0x0b50_4c4f, 0x0fff_ffff, 0x16a0_a0ff, 0x1fff_ffff,
+                                0x2d41_397f, 0x3fff_ffff, 0x5a82_7b7f, 0x7fff_ffff];
 
 pub const AMPS_I16: [i16;16] = [0x0000, 0x0100, 0x016a, 0x01ff,
                                 0x02d4, 0x03ff, 0x05a8, 0x07ff,
@@ -45,6 +46,7 @@ pub const AMPS_I16: [i16;16] = [0x0000, 0x0100, 0x016a, 0x01ff,
 /// ```
 /// These are more linear than [AMPS].
 /// [AyFuseAmps] struct implements `FUSE_AMPS` for [AmpLevels].
+#[allow(clippy::unreadable_literal,clippy::excessive_precision)]
 pub const FUSE_AMPS: [f32;16] = [0.000000000, 0.0137483785, 0.020462349, 0.029053178,
                                  0.042343784, 0.0618448150, 0.084718090, 0.136903940,
                                  0.169131000, 0.2646677500, 0.352712300, 0.449942770,
@@ -93,18 +95,20 @@ impl_ay_amp_levels!(
     [AyAmps, f32, AMPS], [AyAmps, i32, AMPS_I32], [AyAmps, i16, AMPS_I16],
     [AyFuseAmps, f32, FUSE_AMPS], [AyFuseAmps, i16, FUSE_AMPS_I16]);
 
-/// A trait for rendering audio pulses from AY-3-891x.
+/// A trait for interfacing controllers to render square-wave audio pulses from an AY-3-891x emulator.
 pub trait AyAudioFrame<B: Blep> {
     /// Renders square-wave pulses via [Blep] interface.
     ///
     /// Provide [AmpLevels] that can handle `level` values from 0 to 15 (4-bits).
-    /// `time_rate` may be optained from calling [AudioFrame::ensure_audio_frame_time].
+    /// `time_rate` may be obtained from calling [AudioFrame::ensure_audio_frame_time].
     /// `channels` - target [Blep] audio channels for `[A, B, C]` AY-3-891x channels.
     fn render_ay_audio_frame<V: AmpLevels<B::SampleDelta>>(
         &mut self, blep: &mut B, time_rate: B::SampleTime, channels: [usize; 3]);
 }
 
-/// Implements AY-3-8910/8912 programmable sound generator.
+/// Implements AY-3-8910/8912/8913 programmable sound generator.
+///
+/// For the implementation of I/O ports see [crate::io::ay].
 #[derive(Default, Clone, Debug)]
 pub struct Ay3_891xAudio {
     current_ts: FTs,
@@ -118,7 +122,7 @@ pub struct Ay3_891xAudio {
 
 /// A type for AY-3-891x amplitude level register values.
 #[derive(Default, Clone, Copy, Debug)]
-pub struct AmpLevel(pub u8);
+struct AmpLevel(pub u8);
 
 impl AmpLevel {
     #[inline]
@@ -137,7 +141,7 @@ impl AmpLevel {
 
 /// A type for AY-3-891x mixer controller register values.
 #[derive(Default, Clone, Copy, Debug)]
-pub struct Mixer(pub u8);
+struct Mixer(pub u8);
 
 impl Mixer {
     #[inline]
@@ -155,18 +159,18 @@ impl Mixer {
 }
 
 // TODO: make bitflags
-pub const ENV_SHAPE_CONT_MASK:   u8 = 0b00001000;
-pub const ENV_SHAPE_ATTACK_MASK: u8 = 0b00000100;
-pub const ENV_SHAPE_ALT_MASK:    u8 = 0b00000010;
-pub const ENV_SHAPE_HOLD_MASK:   u8 = 0b00000001;
-const ENV_LEVEL_REV_MASK:    u8 = 0b10000000;
-const ENV_LEVEL_MOD_MASK:    u8 = 0b01000000;
+const ENV_SHAPE_CONT_MASK:   u8 = 0b0000_1000;
+const ENV_SHAPE_ATTACK_MASK: u8 = 0b0000_0100;
+const ENV_SHAPE_ALT_MASK:    u8 = 0b0000_0010;
+const ENV_SHAPE_HOLD_MASK:   u8 = 0b0000_0001;
+const ENV_LEVEL_REV_MASK:    u8 = 0b1000_0000;
+const ENV_LEVEL_MOD_MASK:    u8 = 0b0100_0000;
 const ENV_LEVEL_MASK:        u8 = 0x0F;
 const ENV_CYCLE_MASK:        u8 = 0xF0;
 
 /// A type implementing AY-3-891x volume envelope progression.
 #[derive(Clone, Copy, Debug)]
-pub struct EnvelopeControl {
+struct EnvelopeControl {
     period: u16,
     tick: u16,
     // c c c c CT AT AL HO
@@ -231,19 +235,16 @@ impl EnvelopeControl {
                     if cycle & ENV_SHAPE_CONT_MASK == 0 {
                         level = 0;
                     }
-                    else {
-                        if cycle & ENV_SHAPE_HOLD_MASK != 0 {
-                            if cycle & ENV_SHAPE_ALT_MASK == 0 {
-                                level ^= ENV_LEVEL_MOD_MASK|ENV_LEVEL_MASK;
-                            }
-                            else {
-                                level ^= ENV_LEVEL_MOD_MASK;
-                            }
-                        } else {
-                            if cycle & ENV_SHAPE_ALT_MASK != 0 {
-                                level ^= ENV_LEVEL_REV_MASK|ENV_LEVEL_MASK;
-                            }
+                    else if cycle & ENV_SHAPE_HOLD_MASK != 0 {
+                        if cycle & ENV_SHAPE_ALT_MASK == 0 {
+                            level ^= ENV_LEVEL_MOD_MASK|ENV_LEVEL_MASK;
                         }
+                        else {
+                            level ^= ENV_LEVEL_MOD_MASK;
+                        }
+                    }
+                    else if cycle & ENV_SHAPE_ALT_MASK != 0 {
+                        level ^= ENV_LEVEL_REV_MASK|ENV_LEVEL_MASK;
                     }
                 }
                 self.level = level;
@@ -259,7 +260,7 @@ const NOISE_PERIOD_MASK: u8 = 0x1F;
 
 /// A type implementing AY-3-891x noise progression.
 #[derive(Clone, Copy, Debug)]
-pub struct NoiseControl {
+struct NoiseControl {
     rng: i32,
     period: u8,
     tick: u8,
@@ -306,7 +307,7 @@ const TONE_PERIOD_MASK: u16 = 0xFFF;
 
 /// A type implementing AY-3-891x tone progression.
 #[derive(Default, Clone, Copy, Debug)]
-pub struct ToneControl {
+struct ToneControl {
     period: u16,
     tick: u16,
     low: bool
@@ -352,9 +353,9 @@ impl ToneControl {
 
 /// A type implementing timestamp iterator.
 #[derive(Clone, Copy, Debug)]
-pub struct Ticker {
-    pub current: FTs,
-    pub end_ts: FTs
+struct Ticker {
+    current: FTs,
+    end_ts: FTs
 }
 
 impl Ticker {
@@ -383,12 +384,14 @@ impl Iterator for Ticker {
 
 /// Use [Default] trait to create instances of this struct.
 impl Ay3_891xAudio {
+    /// Resets the internal state to the one initialized with.
     pub fn reset(&mut self) {
         *self = Default::default()
     }
     /// Converts a frequency given in Hz to AY-3-891x tone period value.
     ///
     /// `clock_hz` AY-3-891x clock frequency in Hz. Usually it's CPU_HZ / 2.
+    #[allow(clippy::float_cmp)]
     pub fn freq_to_tone_period(clock_hz: f32, hz: f32) -> u16 {
         let ftp = (clock_hz / (16.0 * hz)).round();
         let utp = ftp as u16;
@@ -418,8 +421,19 @@ impl Ay3_891xAudio {
           })
         })
     }
-
-    /// Render BLEP deltas mutating the internal state. This can be done only once per frame.
+    /// Renders square-wave audio pulses via [Blep] interface while mutating the internal state.
+    ///
+    /// The internal state is being altered every [INTERNAL_CLOCK_DIVISOR] * [HOST_CLOCK_RATIO] Cpu
+    /// clock cycles until `end_ts` is reached. The internal cycle counter is then decremented by the
+    /// value of `end_ts` before returning from this method.
+    ///
+    /// Provide [AmpLevels] that can handle `level` values from 0 to 15 (4-bits).
+    ///
+    /// * `changes` should be ordered by `time` and recorded only with `time` < `end_ts`,
+    ///   otherwise some register changes may be lost - the iterator will be drained anyway.
+    /// * `time_rate` is used to calculate sample time for [Blep].
+    /// * `end_ts` should be a value of an end of frame [Cpu][z80emu::Cpu] cycle (T-state) counter.
+    /// * `channels` - indicate [Blep] audio channels for `[A, B, C]` AY channels.
     pub fn render_audio<V,L,I,A,FT>(&mut self, changes: I, blep: &mut A, time_rate: FT, end_ts: FTs,
                                     chans: [usize; 3])
     where V: AmpLevels<L>,
@@ -432,7 +446,7 @@ impl Ay3_891xAudio {
         let mut ticker = Ticker::new(self.current_ts, end_ts);
         let mut tone_levels: [u8; 3] = self.last_levels;
         let mut vol_levels: [L;3] = Default::default();
-        // println!("current {:?}", ticker);
+
         for (level, tgt_amp) in tone_levels.iter().copied()
                                 .zip(vol_levels.iter_mut()) {
             *tgt_amp = V::amp_level(level.into());
@@ -452,7 +466,7 @@ impl Ay3_891xAudio {
             let env_level = self.env_control.update_level();
             let noise_low = self.noise_control.update_is_low();
             let mut mixer = self.mixer;
-            for ((level, tone_control), tgt_lvl) in self.amp_levels.iter().copied()
+            for ((level, tone_control), tgt_lvl) in self.amp_levels.iter()
                                                   .zip(self.tone_control.iter_mut())
                                                         .zip(tone_levels.iter_mut()) {
                 *tgt_lvl = if (mixer.has_tone() && tone_control.update_is_low()) ||
@@ -480,11 +494,11 @@ impl Ay3_891xAudio {
             }
 
         }
-        while let Some(AyRegChange { reg, val, .. }) = change_iter.next() {
+        for AyRegChange { reg, val, .. } in change_iter {
             self.update_register(reg, val);
         }
+
         self.current_ts = ticker.into_next_frame_ts();
-        // println!("tone_levels {:?}", tone_levels);
         self.last_levels = tone_levels;
     }
 

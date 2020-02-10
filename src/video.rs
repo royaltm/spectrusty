@@ -48,7 +48,7 @@ pub trait VideoFrame {
     fn border_size_pixels(border_size: BorderSize) -> u32 {
         match border_size {
             BorderSize::Full    => MAX_BORDER_SIZE,
-            BorderSize::Large   => MAX_BORDER_SIZE - 1*8,
+            BorderSize::Large   => MAX_BORDER_SIZE -   8,
             BorderSize::Medium  => MAX_BORDER_SIZE - 2*8,
             BorderSize::Small   => MAX_BORDER_SIZE - 3*8,
             BorderSize::Tiny    => MAX_BORDER_SIZE - 4*8,
@@ -102,9 +102,9 @@ pub trait VideoFrame {
 pub(crate) fn pixel_line_offset<T>(y: T) -> T
 where T: Copy + From<u16> + BitAnd<Output=T> + Shl<u16, Output=T> + BitOr<Output=T>
 {
-    (y & T::from(0b00000111) ) << 8 |
-    (y & T::from(0b00111000) ) << 2 |
-    (y & T::from(0b11000000) ) << 5
+    (y & T::from(0b0000_0111) ) << 8 |
+    (y & T::from(0b0011_1000) ) << 2 |
+    (y & T::from(0b1100_0000) ) << 5
 }
 
 /// An offset into attributes memory of the given vertical coordinate y in 0..192 (0 on top).

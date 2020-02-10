@@ -1,7 +1,6 @@
 //! ZX Spectrum tape sound PORN!!!!
 #[path = "../tests/audio_cpal.rs"]
 mod audio_cpal;
-use std::io::{Seek, Read, Cursor};
 
 use audio_cpal::*;
 
@@ -10,9 +9,9 @@ use zxspecemu::audio::sample::*;
 use zxspecemu::audio::*;
 use zxspecemu::audio::ay::*;
 use zxspecemu::audio::music::*;
+use zxspecemu::audio::synth::*;
 use zxspecemu::io::ay::{AyRegister, AyRegChange};
-use zxspecemu::formats::read_ear::*;
-use zxspecemu::formats::tap::*;
+
 /****************************************************************************/
 /*                                   MAIN                                   */
 /****************************************************************************/
@@ -21,7 +20,7 @@ type WavWriter = hound::WavWriter<std::io::BufWriter<std::fs::File>>;
 const FRAME_TSTATES: i32 = 70908;
 const CPU_HZ: u32 = 3_546_900;
 
-fn produce<T: 'static + FromSample<f32> + AudioSample + Send>(mut audio: Audio<T>, mut writer: WavWriter)
+fn produce<T: 'static + FromSample<f32> + AudioSample + Send>(mut audio: Audio<T>, _writer: WavWriter)
 where i16: IntoSample<T>
 {
     // create a band-limited pulse buffer with 1 channel
@@ -32,9 +31,9 @@ where i16: IntoSample<T>
     bandlim.ensure_frame_time(time_rate.at_timestamp(FRAME_TSTATES), time_rate.at_timestamp(0));
     let channels = audio.channels as usize;
 
-    let mut ay = Ay3_8891xAudio::default();
+    let mut ay = Ay3_891xAudio::default();
     let mut notes: Vec<u16> = Vec::new();
-    notes.extend(Ay3_8891xAudio::tone_periods(CPU_HZ as f32/2.0, 0, 7, equal_tempered_scale_note_freqs(440.0, 0, 12)));
+    notes.extend(Ay3_891xAudio::tone_periods(CPU_HZ as f32/2.0, 0, 7, equal_tempered_scale_note_freqs(440.0, 0, 12)));
 
     let mut changes = vec![
         AyRegChange::new(0, AyRegister::MixerControl, 0b00111101),
@@ -48,7 +47,7 @@ where i16: IntoSample<T>
     ];
     // render frames
     loop {
-        ay.render_audio::<AyAmpLevels<f32>,_,_,_,_>(changes.drain(..),
+        ay.render_audio::<AyAmps<f32>,_,_,_,_>(changes.drain(..),
                                                     &mut bandlim, time_rate, FRAME_TSTATES, [0, 1, 2]);
         // close current frame
         let frame_sample_count = bandlim.end_frame(time_rate.at_timestamp(FRAME_TSTATES));

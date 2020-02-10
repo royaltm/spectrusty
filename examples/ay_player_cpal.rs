@@ -2,6 +2,7 @@
 #[path = "../tests/audio_cpal.rs"]
 mod audio_cpal;
 
+use core::any::Any;
 use zxspecemu::memory::SinglePageMemory;
 use core::num::NonZeroU32;
 use std::io::{Read};
@@ -50,6 +51,7 @@ where T: 'static + FromSample<f32> + AudioSample + Send,
     let ay_file = match read_ay(rd) {
         Ok(f) => f,
         Err(e) => {
+            eprintln!("data: {:?}", e.ay_parse_ref().unwrap().data.len());
             eprintln!("{}", e);
             panic!("ay loading error")
         }
@@ -67,15 +69,15 @@ where T: 'static + FromSample<f32> + AudioSample + Send,
         let song_length: u32 = match first_length {
             Some(len) => len.get(),
             None => {
-                let length = ay_file.songs[song_index].song_length as u32;
+                let length = ay_file.songs[song_index].song_duration as u32;
                 if length == 0 { DEFAULT_SONG_LENGTH } else { length }
             }
         };
         first_length = None;
         println!("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^");
         println!("Song name[{}]: {}", song_index, ay_file.songs[song_index].name);
-        println!("Song length: {} frames", ay_file.songs[song_index].song_length);
-        println!("Song fade: {} frames", ay_file.songs[song_index].fade_length);
+        println!("Song length: {} frames", ay_file.songs[song_index].song_duration);
+        println!("Song fade: {} frames", ay_file.songs[song_index].fade_duration);
         println!("Playing: {:?}", song_length * frame_time);
         player.reset(&mut cpu, true);
         player.reset_frames();

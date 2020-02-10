@@ -4,6 +4,7 @@ use crate::clock::{VideoTs, Ts, VideoTsData3};
 use crate::video::*;
 // 0, 0, 0, 21, 21, 201, 202, 33, 33, 203, 38, 203, 44, 203, 44, 47, 204, 204, 205, 205, 53, 205, 205, 205,
 // 0, 0, 0, 27, 27, 251, 252, 41, 41, 252, 47, 252, 55, 253, 55, 59, 254, 254, 255, 255, 65, 255, 255, 255
+#[allow(clippy::unreadable_literal,clippy::excessive_precision)]
 static PALETTE: [(f32,f32,f32);16] = [
     (0.0,0.0,0.0),
     (0.08235294117647059,0.08235294117647059,0.788235294117647),
@@ -23,10 +24,10 @@ static PALETTE: [(f32,f32,f32);16] = [
     (1.0,1.0,1.0)];
 
 const PIXEL_LINES: usize = 192;
-const FLASH_MASK : u8 = 0b10000000;
-const BRIGHT_MASK: u8 = 0b01000000;
-const INK_MASK   : u8 = 0b00000111;
-const PAPER_MASK : u8 = 0b00111000;
+const FLASH_MASK : u8 = 0b1000_0000;
+const BRIGHT_MASK: u8 = 0b0100_0000;
+const INK_MASK   : u8 = 0b0000_0111;
+const PAPER_MASK : u8 = 0b0011_1000;
 
 #[derive(Debug)]
 pub struct Renderer<'a, BI> {
@@ -123,6 +124,8 @@ impl<'a, BI> Renderer<'a, BI> where BI: Iterator<Item=VideoTsData3> {
             B::put_pixels(writer, *brd_pixel, 8);
     }
 
+    #[allow(clippy::too_many_arguments)]
+    #[inline(always)]
     fn render_pixel_line<B: PixelBuffer, C: VideoFrame>(rgb_line: &mut [u8], ink_line: &[u8], attr_line: &[u8],
                                                 frame_pixels: &(u32, [u8;32]),
                                                 frame_colors: &(u32, [u8;32]),

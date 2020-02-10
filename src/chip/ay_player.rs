@@ -23,7 +23,7 @@ pub struct AyPlayer<P> {
     pub tsc: TsCounter<FTs>,
     pub memory: Memory64k,
     pub ay_sound: Ay3_891xAudio,
-    pub ay_io: Ay3_891N<FTs>,
+    pub ay_io: Ay3_8913Io<FTs>,
     pub earmic_changes: Vec<FTsData2>,
     pub last_earmic: u8,
     pub prev_earmic: u8,

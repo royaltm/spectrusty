@@ -111,6 +111,7 @@ impl PixelRgb {
     ///
     /// `hue` should be in the range: `[0, 2)` and will be normalized.
     /// `sat` and `val` should be in the range: `[0, 1]` and won't be normalized.
+    #[allow(clippy::many_single_char_names)]
     #[inline]
     pub fn from_hsv(hue: f32, sat: f32, val: f32) -> PixelRgb {
         let c = val * sat;

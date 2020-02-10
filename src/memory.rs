@@ -66,7 +66,7 @@ pub trait ZxMemory: Sized {
     /// Results in an error when the rom data size is less than the rom page size or invalid page index is given.
     fn load_into_rom_page<R: Read>(&mut self, rom_page: u8, mut rd: R) -> Result<()> {
         let slice = self.rom_page_mut(rom_page)?;
-        rd.read_exact(slice).map_err(|e| ZxMemoryError::Io(e))?;
+        rd.read_exact(slice).map_err(ZxMemoryError::Io)?;
         Ok(())
     }
 
@@ -107,7 +107,7 @@ pub trait ZxMemory: Sized {
     fn load_into_ram<A: RangeBounds<u16>, R: Read>(&mut self, address_range: A, mut rd: R) -> Result<()> {
         self.for_each_page(address_range, |page| match page {
             PageSlice::Ram(slice) => {
-                rd.read_exact(slice).map_err(|e| ZxMemoryError::Io(e))
+                rd.read_exact(slice).map_err(ZxMemoryError::Io)
             },
             PageSlice::Rom(_) => Err(ZxMemoryError::Unwritable)
         })
@@ -270,6 +270,7 @@ impl<M: SinglePageMemory> ZxMemory for M {
         }
     }
 
+    #[allow(clippy::cast_ptr_alignment)]
     #[inline]
     fn read16(&self, addr: u16) -> u16 {
         match addr {
@@ -296,6 +297,7 @@ impl<M: SinglePageMemory> ZxMemory for M {
         }
     }
 
+    #[allow(clippy::cast_ptr_alignment)]
     #[inline]
     fn write16(&mut self, addr: u16, val: u16) {
         match addr {
@@ -317,28 +319,28 @@ impl<M: SinglePageMemory> ZxMemory for M {
 
     fn rom_page_ref(&self, rom_page: u8) -> Result<&[u8]> {
         if rom_page != 0 {
-            Err(ZxMemoryError::PageOutOfRange)?;
+            return Err(ZxMemoryError::PageOutOfRange)
         }
         Ok(&self.as_slice()[0..=Self::ROMTOP as usize])
     }
 
     fn ram_page_ref(&self, ram_page: u8) -> Result<&[u8]> {
         if ram_page != 0 {
-            Err(ZxMemoryError::PageOutOfRange)?;
+            return Err(ZxMemoryError::PageOutOfRange)
         }
         Ok(&self.as_slice()[Self::RAMBOT as usize..=Self::RAMTOP as usize])
     }
 
     fn rom_page_mut(&mut self, rom_page: u8) -> Result<&mut[u8]> {
         if rom_page != 0 {
-            Err(ZxMemoryError::PageOutOfRange)?;
+            return Err(ZxMemoryError::PageOutOfRange)
         }
         Ok(&mut self.as_mut_slice()[0..=Self::ROMTOP as usize])
     }
 
     fn ram_page_mut(&mut self, ram_page: u8) -> Result<&mut[u8]> {
         if ram_page != 0 {
-            Err(ZxMemoryError::PageOutOfRange)?;
+            return Err(ZxMemoryError::PageOutOfRange)
         }
         Ok(&mut self.as_mut_slice()[Self::RAMBOT as usize..=Self::RAMTOP as usize])
     }
@@ -353,31 +355,31 @@ impl<M: SinglePageMemory> ZxMemory for M {
 
     fn screen_ref(&self, screen_page: u8) -> Result<&[u8]> {
         if screen_page != 0 {
-            Err(ZxMemoryError::PageOutOfRange)?;
+            return Err(ZxMemoryError::PageOutOfRange)
         }
         Ok(&self.as_slice()[0x4000..0x5B00])
     }
 
     fn map_ram_page<R: RangeBounds<u16>>(&mut self, ram_page: u8, address_range: R) -> Result<()> {
         if ram_page != 0 {
-            Err(ZxMemoryError::PageOutOfRange)?;
+            return Err(ZxMemoryError::PageOutOfRange)
         }
         let range = normalize_address_range(address_range, Self::RAMBOT, Self::RAMTOP).
                     map_err(|_| ZxMemoryError::AddressRangeNotSupported)?;
         if range != (Self::RAMBOT as usize..Self::RAMTOP as usize) {
-            Err(ZxMemoryError::AddressRangeNotSupported)?;
+            return Err(ZxMemoryError::AddressRangeNotSupported)
         }
         Ok(())
     }
 
     fn map_rom_page<R: RangeBounds<u16>>(&mut self, rom_page: u8, address_range: R) -> Result<()> {
         if rom_page != 0 {
-            Err(ZxMemoryError::PageOutOfRange)?;
+            return Err(ZxMemoryError::PageOutOfRange)
         }
         let range = normalize_address_range(address_range, 0, Self::ROMTOP).
                     map_err(|_| ZxMemoryError::AddressRangeNotSupported)?;
         if range != (0..Self::ROMTOP as usize) {
-            Err(ZxMemoryError::AddressRangeNotSupported)?;
+            return Err(ZxMemoryError::AddressRangeNotSupported)
         }
         Ok(())
     }
@@ -413,19 +415,19 @@ enum AddressRangeError {
 fn normalize_address_range<R: RangeBounds<u16>>(range: R, min_inclusive: u16, max_inclusive: u16) -> core::result::Result<Range<usize>, AddressRangeError> {
     let start = match range.start_bound() {
         Bound::Included(start) => if *start < min_inclusive {
-                Err(AddressRangeError::StartBoundTooLow)?
+                return Err(AddressRangeError::StartBoundTooLow)
             } else { *start as usize },
         Bound::Excluded(start) => if *start < min_inclusive.saturating_sub(1) {
-                Err(AddressRangeError::StartBoundTooLow)?
+                return Err(AddressRangeError::StartBoundTooLow)
             } else { *start as usize + 1 },
         Bound::Unbounded => min_inclusive as usize
     };
     let end = match range.end_bound() {
         Bound::Included(end) => if *end > max_inclusive {
-                Err(AddressRangeError::EndBoundTooHigh)?
+                return Err(AddressRangeError::EndBoundTooHigh)
             } else { *end as usize + 1},
         Bound::Excluded(end) => if *end > max_inclusive.saturating_add(1) {
-                Err(AddressRangeError::EndBoundTooHigh)?
+                return Err(AddressRangeError::EndBoundTooHigh)
             } else { *end as usize },
         Bound::Unbounded => max_inclusive as usize + 1
     };

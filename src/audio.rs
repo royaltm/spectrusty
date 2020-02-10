@@ -23,6 +23,7 @@
                                              +====================+
 ```
 */
+#![allow(clippy::eq_op)]
 pub mod synth;
 pub mod carousel;
 pub mod sample;
@@ -145,12 +146,14 @@ pub trait EarInAudioFrame<B: Blep> {
 
 /// A trait for feeding EAR input frame buffer.
 pub trait EarIn {
-    /// Sets `EAR in` bit state for the provided ∆ T-States counted from the last recorded change.
+    /// Sets `EAR in` bit state after the provided interval in ∆ T-States counted from the last recorded change.
     fn set_ear_in(&mut self, ear_in: bool, delta_fts: u32);
     /// Feeds the `EAR in` buffer with changes.
     ///
-    /// The provided iterator should yield T-state ∆ differences after which the state of the `EAR in` bit
-    /// should be alternated.
+    /// The provided iterator should yield time intervals measured in T-state ∆ differences after which the state
+    /// of the `EAR in` bit should be toggled.
+    ///
+    /// See also [read_ear][crate::formats::read_ear].
     ///
     /// `max_frames_threshold` may be optionally provided as a number of frames to limit the buffered changes.
     /// This is usefull if the given iterator provides data largely exceeding the duration of a single frame.
@@ -175,9 +178,9 @@ pub const AMPS_EAR_MIC: [f32; 4] = [0.34/3.70, 0.66/3.70, 3.56/3.70, 3.70/3.70];
 pub const AMPS_EAR_OUT: [f32; 4] = [0.34/3.70, 0.34/3.70, 3.70/3.70, 3.70/3.70];
 pub const AMPS_EAR_IN:  [f32; 2] = [0.34/3.70, 3.70/3.70];
 
-pub const AMPS_EAR_MIC_I32: [i32; 4] = [0x0bc31d10, 0x16d51a60, 0x7b2820ff, 0x7fffffff];
-pub const AMPS_EAR_OUT_I32: [i32; 4] = [0x0bc31d10, 0x0bc31d10, 0x7fffffff, 0x7fffffff];
-pub const AMPS_EAR_IN_I32:  [i32; 2] = [0x0bc31d10, 0x7fffffff];
+pub const AMPS_EAR_MIC_I32: [i32; 4] = [0x0bc3_1d10, 0x16d5_1a60, 0x7b28_20ff, 0x7fff_ffff];
+pub const AMPS_EAR_OUT_I32: [i32; 4] = [0x0bc3_1d10, 0x0bc3_1d10, 0x7fff_ffff, 0x7fff_ffff];
+pub const AMPS_EAR_IN_I32:  [i32; 2] = [0x0bc3_1d10, 0x7fff_ffff];
 
 pub const AMPS_EAR_MIC_I16: [i16; 4] = [0x0bc3, 0x16d5, 0x7b27, 0x7fff];
 pub const AMPS_EAR_OUT_I16: [i16; 4] = [0x0bc3, 0x0bc3, 0x7fff, 0x7fff];

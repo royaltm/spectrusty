@@ -1,16 +1,7 @@
-#![allow(unused_imports)]
-use core::borrow::Borrow;
-use core::slice;
-use core::ops::Deref;
-use core::num::NonZeroU32;
-use std::borrow::Cow;
-use std::fmt;
-use core::convert::TryFrom;
-use std::io::{ErrorKind, Error, Read, Seek, SeekFrom, Result, Cursor, Take};
-use super::read_ear::{PAUSE_PULSE_LENGTH, EarPulseIter};
-/*
-https://faqwiki.zxnet.co.uk/wiki/TAP_format
+/*! **TAP** file format utilities.
 
+[TAP_format](https://faqwiki.zxnet.co.uk/wiki/TAP_format)
+```text
 A flag byte: this is 0x00 for header blocks and 0xff for data blocks.
 The actual data.
 A checksum byte, calculated such that XORing all the data bytes together (including the flag byte) produces 0x00.
@@ -27,7 +18,7 @@ These 17 bytes are prefixed by the flag byte (0x00) and suffixed by the checksum
 
 For example, SAVE "ROM" CODE 0,2 will produce the following data on tape (the vertical bar denotes the break between blocks):
 
-      |------ Spectrum-generated data -------|       |---------|
+      |-------------- TAP chunk -------------|       |TAP chunk|
 13 00 00 03 52 4f 4d 7x20 02 00 00 00 00 80 f1 04 00 ff f3 af a3
 ^^^^^...... first block is 19 bytes (17 bytes+flag+checksum)
       ^^... flag byte (A reg, 00 for headers, ff for data blocks)
@@ -39,7 +30,19 @@ length of second block ........................^^^^^
 flag byte ...........................................^^
 first two bytes of rom .................................^^^^^
 checksum (checkbittoggle would be a better name!).............^^
-
+```
+*/
+#![allow(unused_imports)]
+use core::borrow::Borrow;
+use core::slice;
+use core::ops::Deref;
+use core::num::NonZeroU32;
+use std::borrow::Cow;
+use std::fmt;
+use core::convert::TryFrom;
+use std::io::{ErrorKind, Error, Read, Seek, SeekFrom, Result, Cursor, Take};
+use super::read_ear::{PAUSE_PULSE_LENGTH, EarPulseIter};
+/*
 let tapfile = File.open()?;
 tapfile.read_to_end(&mut buffer)?;
 for chunk in TapChunkIter::from(&buffer) { TapChunk (deref to slice)
@@ -70,10 +73,13 @@ const HEAD_BLOCK_FLAG: u8 = 0x00;
 const DATA_BLOCK_FLAG: u8 = 0xFF;
 const HEADER_SIZE: usize = 19;
 
+/// Calculates bit-xor checksum from the given iterator of `u8`.
 pub fn checksum<I: IntoIterator<Item=B>, B: Borrow<u8>>(iter: I) -> u8 {
     iter.into_iter().fold(0, |acc, x| acc ^ x.borrow())
 }
 
+/// Calculates bit-xor checksum from the given iterator of result of `u8`.
+/// Usefull with [std::io::Bytes].
 pub fn try_checksum<I: IntoIterator<Item=Result<u8>>>(iter: I) -> Result<u8> {
     iter.into_iter().try_fold(0, |acc, x| {
         match x {
@@ -83,18 +89,21 @@ pub fn try_checksum<I: IntoIterator<Item=Result<u8>>>(iter: I) -> Result<u8> {
     })
 }
 
+/// Creates [TapChunkReader] from the given reader.
 pub fn read_tap<T, R>(rd: T) -> TapChunkReader<R>
 where T: Into<TapChunkReader<R>>
 {
     rd.into()
 }
 
+/// Creates [TapReadInfoIter] from the given reader.
 pub fn read_tap_info_iter<T, R>(rd: T) -> TapReadInfoIter<R>
 where T: Into<TapReadInfoIter<R>>
 {
     rd.into()
 }
 
+/// Creates [TapEarPulseIter] from the given reader.
 pub fn read_tap_ear_pulse_iter<T, R>(rd: T) -> TapEarPulseIter<R>
 where R: Read, T: Into<TapChunkReader<R>>
 {
@@ -104,9 +113,10 @@ where R: Read, T: Into<TapChunkReader<R>>
 
 #[inline(always)]
 fn array_name(c: u8) -> char {
-    (c & 0b00011111 | 0b01000000).into()
+    (c & 0b0001_1111 | 0b0100_0000).into()
 }
 
+/// The *TAP* block type of the next chunk following a [Header].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
 pub enum BlockType {
@@ -116,45 +126,77 @@ pub enum BlockType {
     Code        = 3
 }
 
+/// Represents the *TAP* header block.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Header {
+    /// Length of the data block excluding a block flag and checksum byte.
     pub length: u16,
+    /// The type of the block following this header.
     pub block_type: BlockType,
+    /// The name of this chunk.
     pub name: [u8;10],
+    /// Additional header data.
     pub par1: [u8;2],
+    /// Additional header data.
     pub par2: [u8;2]
 }
 
+/// The *TAP* chunk meta-data.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TapChunkInfo {
+    /// Represents a proper header block.
     Head(Header),
-    Data{ length: u16, checksum: u8 },
-    Unknown{ size: u16, flag: u8 },
+    /// Represents a data block.
+    Data {
+        /// The length of data excluding a block flag and checksum byte.
+        length: u16,
+        /// Checksum of the data, should be 0. Otherwise this block won't load properly.
+        checksum: u8
+    },
+    /// Represents an unkown block.
+    Unknown {
+        /// The size of the whole block including the block flag.
+        size: u16,
+        /// The first byte of the block (a block flag).
+        flag: u8
+    },
+    /// Represents an empty block.
     Empty
 }
 
+/// The *TAP* chunk.
+///
+/// Provides helper methods to interpret the underlying bytes as one of the *TAP* blocks.
+/// This should usually be a [Header] or a data block.
 #[derive(Clone, Copy, Debug)]
 pub struct TapChunk<T> {
     data: T
 }
 
+/// Implements an iterator of [TapChunk] objects over the array of bytes.
 #[derive(Clone, Debug)]
 pub struct TapChunkIter<'a> {
     position: usize,
     data: &'a[u8]
 }
 
+/// Implements a [Reader][Read] of *TAP* chunks data.
+///
+/// Implements reader that reads only up to the size of the current *TAP* chunk.
 #[derive(Debug)]
 pub struct TapChunkReader<R> {
     next_pos: u64,
     inner: Take<R>,
 }
 
+/// Implements an iterator of [TapChunkInfo] over the [TapChunkReader].
 #[derive(Debug)]
 pub struct TapReadInfoIter<R> {
     inner: TapChunkReader<R>,
 }
 
+/// Implements an iterator of T-state pulse intervals over the [TapChunkReader].
+/// See also: [EarPulseIter].
 #[derive(Debug)]
 pub struct TapEarPulseIter<R> {
     ep_iter: EarPulseIter<TapChunkReader<R>>
@@ -222,21 +264,29 @@ impl TryFrom<u8> for BlockType {
 }
 
 impl Header {
+    /// Returns a header name as a string.
     #[inline]
     pub fn name_str(&self) -> Cow<'_, str> {
         String::from_utf8_lossy(&self.name)
     }
 
+    /// Returns a starting address.
+    /// Depending of the type of this header it may be either a starting address of [BlockType::Code]
+    /// or starting line of [BlockType::Program].
     #[inline]
     pub fn start(&self) -> u16 {
         u16::from_le_bytes(self.par1)
     }
 
+    /// Returns an offset to `VARS`. Only valid for headers with [BlockType::Program].
     #[inline]
     pub fn vars(&self) -> u16 {
         u16::from_le_bytes(self.par2)
     }
 
+    /// Returns an array variable name.
+    ///
+    /// Only valid for headers with [BlockType::CharArray] or [BlockType::NumberArray].
     #[inline]
     pub fn array_name(&self) -> char {
         array_name(self.par1[1])
@@ -352,7 +402,7 @@ impl TryFrom<&'_[u8]> for TapChunkInfo {
                 Ok(TapChunkInfo::Data{ length: size as u16 - 2, checksum })
             }
             Some(&[flag, _]) => {
-                return Ok(TapChunkInfo::Unknown { size: size as u16, flag })
+                Ok(TapChunkInfo::Unknown { size: size as u16, flag })
             }
             _ => unreachable!()
         }
@@ -380,20 +430,24 @@ impl<T> AsMut<[u8]> for TapChunk<T> where T: AsMut<[u8]> {
 }
 
 impl<T> TapChunk<T> {
+    /// Returns the underlying bytes container.
     pub fn into_inner(self) -> T {
         self.data
     }
 }
 
 impl<T> TapChunk<T> where T: AsRef<[u8]> {
+    /// Attempts to create [TapChunkInfo] from underlying data.
     pub fn info(&self) -> Result<TapChunkInfo> {
         TapChunkInfo::try_from(self.data.as_ref())
     }
 
+    /// Calculates bit-xor checksum of underlying data.
     pub fn checksum(&self) -> u8 {
         checksum(self.data.as_ref())
     }
 
+    /// Checks if this *TAP* chunk is a [Header] block.
     pub fn is_head(&self) -> bool {
         match self.data.as_ref().get(0..2) {
             Some(&[HEAD_BLOCK_FLAG, t]) if t & 3 == t => true,
@@ -401,6 +455,7 @@ impl<T> TapChunk<T> where T: AsRef<[u8]> {
         }
     }
 
+    /// Checks if this *TAP* chunk is a data block.
     pub fn is_data(&self) -> bool {
         match self.data.as_ref().get(0) {
             Some(&DATA_BLOCK_FLAG) => true,
@@ -408,14 +463,17 @@ impl<T> TapChunk<T> where T: AsRef<[u8]> {
         }
     }
 
+    /// Checks if this *TAP* chunk is a valid data or [Header] block.
     pub fn is_valid(&self) -> bool {
         self.validate().is_ok()
     }
 
+    /// Validates if this *TAP* chunk is a valid data or [Header] block returning `self` on success.
     pub fn validated(self) -> Result<Self> {
         self.validate().map(|_| self)
     }
 
+    /// Validates if this *TAP* chunk is a valid data or [Header] block.
     pub fn validate(&self) -> Result<()> {
         let data = self.data.as_ref();
         match data.get(0..2) {
@@ -433,26 +491,34 @@ impl<T> TapChunk<T> where T: AsRef<[u8]> {
         Ok(())
     }
 
-    pub fn name(&self) -> Cow<'_,str> {
+    /// Returns a name if the underlying chunk is a [Header]
+    pub fn name(&self) -> Option<Cow<'_,str>> {
         if self.is_head() {
-            String::from_utf8_lossy(&self.data.as_ref()[2..12])
+            Some(String::from_utf8_lossy(&self.data.as_ref()[2..12]))
         }
         else {
-            "".into()
+            None
         }
     }
 
-    pub fn data(&self) -> &[u8] {
+    /// Returns a reference to the underlying data block only if the underlying bytes represents the data block.
+    ///
+    /// The provided reference does not include block flag and checksum bytes.
+    pub fn data(&self) -> Option<&[u8]> {
         let data = self.data.as_ref();
         if self.is_data() {
-            &data[1..data.len()-1]
+            Some(&data[1..data.len()-1])
         }
         else {
-            &[]
+            None
         }
     }
 
-    pub fn block_len(&self) -> Option<u16> {
+    /// Returns a length in bytes of the next chunk's data block only if the underlying bytes represents
+    /// the [Header] block.
+    ///
+    /// The provided length does not include block flag and checksum bytes.
+    pub fn data_block_len(&self) -> Option<u16> {
         if self.is_head() {
             if let [lo, hi] = self.data.as_ref()[12..14] {
                 return Some(u16::from_le_bytes([lo, hi]))
@@ -460,7 +526,10 @@ impl<T> TapChunk<T> where T: AsRef<[u8]> {
         }
         None
     }
-
+    /// Returns a starting address only if the underlying bytes represents the [Header] block.
+    ///
+    /// Depending of the type of this header it may be either a starting address of [BlockType::Code]
+    /// or starting line of [BlockType::Program].
     pub fn start(&self) -> Option<u16> {
         if self.is_head() {
             if let [lo, hi] = self.data.as_ref()[14..16] {
@@ -470,6 +539,9 @@ impl<T> TapChunk<T> where T: AsRef<[u8]> {
         None
     }
 
+    /// Returns an offset to `VARS` only if the underlying bytes represents the [Header] block.
+    ///
+    /// Only valid for headers with [BlockType::Program].
     pub fn vars(&self) -> Option<u16> {
         if self.is_head() {
             if let [lo, hi] = self.data.as_ref()[16..18] {
@@ -479,6 +551,9 @@ impl<T> TapChunk<T> where T: AsRef<[u8]> {
         None
     }
 
+    /// Returns an array variable name only if the underlying bytes represents the [Header] block.
+    ///
+    /// Only valid for headers with [BlockType::CharArray] or [BlockType::NumberArray].
     pub fn array_name(&self) -> Option<char> {
         if self.is_head() {
             return Some(array_name(self.data.as_ref()[15]))
@@ -486,6 +561,7 @@ impl<T> TapChunk<T> where T: AsRef<[u8]> {
         None
     }
 
+    /// Returns a next chunk's data type only if the underlying bytes represents the [Header] block.
     pub fn block_type(&self) -> Option<BlockType> {
         if self.is_head() {
             return BlockType::try_from(self.data.as_ref()[1]).ok()
@@ -493,16 +569,19 @@ impl<T> TapChunk<T> where T: AsRef<[u8]> {
         None
     }
 
+    /// Creates a pulse interval iterator from this *TAP* chunk.
     pub fn ear_pulse_iter(&self) -> EarPulseIter<Cursor<&[u8]>> {
         EarPulseIter::new(Cursor::new(self.as_ref()))
     }
 
+    /// Converts this *TAP* chunk into a pulse interval iterator.
     pub fn into_ear_pulse_iter(self) -> EarPulseIter<Cursor<T>> {
         EarPulseIter::new(Cursor::new(self.into_inner()))
     }
 
     /// Creates a new TapChunk with a specified storage, possibly cloning the data
-    /// (unless the target storage can be converted to without cloning, e.g. Vec<u8> <=> Box<[u8]>).
+    /// unless the target storage can be converted to without cloning,
+    /// e.g. `Vec<u8> <=> Box<[u8]>`.
     pub fn with_storage<D>(self) -> TapChunk<D>
     where D: From<T> + AsRef<[u8]>
     {
@@ -523,7 +602,7 @@ impl<'a> Iterator for TapChunkIter<'a> {
     type Item = TapChunk<&'a[u8]>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let data = self.data.as_ref();
+        let data = self.data;
         let mut position = self.position;
         match data.get(position..position + 2) {
             Some(&[lo, hi]) => {
@@ -539,28 +618,35 @@ impl<'a> Iterator for TapChunkIter<'a> {
 }
 
 impl<R> TapChunkReader<R> {
+    /// Returns the wrapped reader.
     pub fn into_inner(self) -> R {
         self.inner.into_inner()
     }
 }
 
 impl<R: Read> TapChunkReader<R> {
+    /// Returns this chunk's remaining bytes limit to be read.
     pub fn chunk_limit(&self) -> u16 {
         self.inner.limit() as u16
     }
 
+    /// Returns a reference to the chunk's [Take] reader.
     pub fn get_ref(&self) -> &Take<R> {
         &self.inner
     }
 
+    /// Returns a mutable reference to the chunk's [Take] reader.
     pub fn get_mut(&mut self) -> &mut Take<R> {
         &mut self.inner
     }
 }
 
 impl<R: Read + Seek> TapChunkReader<R> {
-    // Ok(0) no more chunks
-    pub fn next_chunk(&mut self) -> Result<u16> {
+    /// Forwards the inner reader to the position of a next *TAP* chunk.
+    /// Returns `Ok(None)` if end of file has been reached.
+    /// On success returns `Ok(size)` in bytes of the next *TAP* chunk
+    /// and limits the inner [Take] reader to that size.
+    pub fn next_chunk(&mut self) -> Result<Option<u16>> {
         let rd = self.inner.get_mut();
         if self.next_pos != rd.seek(SeekFrom::Start(self.next_pos))? {
             return Err(Error::new(ErrorKind::UnexpectedEof, "stream unexpectedly ended"));
@@ -571,7 +657,7 @@ impl<R: Read + Seek> TapChunkReader<R> {
             match rd.read(&mut size) {
                 Ok(0) => {
                     self.inner.set_limit(0);
-                    return Ok(0)
+                    return Ok(None)
                 },
                 Ok(2) => break,
                 Ok(_) => return Err(Error::new(ErrorKind::UnexpectedEof, "failed to fill whole buffer")),
@@ -582,18 +668,24 @@ impl<R: Read + Seek> TapChunkReader<R> {
         let size = u16::from_le_bytes(size);
         self.inner.set_limit(size as u64);
         self.next_pos += size as u64 + 2;
-        Ok(size)
+        Ok(Some(size))
     }
 
-    pub fn skip_chunks(&mut self, skip: usize) -> Result<u16> {
+    /// Forwards the inner reader to the position of a next `skip` + 1 *TAP* chunks.
+    /// Returns `Ok(None)` if end of file has been reached.
+    /// On success returns `Ok(size)` in bytes of the next *TAP* chunk
+    /// and limits the inner [Take] reader to that size.
+    pub fn skip_chunks(&mut self, skip: usize) -> Result<Option<u16>> {
         for _ in 0..skip {
-            if self.next_chunk()? == 0 {
-                return Ok(0)
+            if self.next_chunk()?.is_none() {
+                return Ok(None)
             }
         }
         self.next_chunk()
     }
 
+    /// Repositions the inner reader to the start of a file and sets inner limit to 0.
+    /// To read the first chunk you need to call [TapChunkReader::next_chunk] first.
     pub fn rewind(&mut self) {
         self.inner.set_limit(0);
         self.next_pos = 0;
@@ -631,6 +723,7 @@ where T: Into<TapChunkReader<R>>
 }
 
 impl<R> TapReadInfoIter<R> {
+    /// Returns the wrapped reader.
     #[inline]
     pub fn into_inner(self) -> R {
         self.inner.into_inner()
@@ -642,7 +735,7 @@ impl<R: Read + Seek> Iterator for TapReadInfoIter<R> {
 
     fn next(&mut self) -> Option<Self::Item> {
         let info = match self.inner.next_chunk() {
-            Ok(0) => return None,
+            Ok(None) => return None,
             Ok(_) => TapChunkInfo::try_from(self.inner.get_mut()),
             Err(e) => return Some(Err(e))
         };
@@ -718,8 +811,9 @@ mod tests {
         assert_eq!("Bytes: ROM       ", format!("{}", chunks[0]));
         assert_eq!(true, chunks[0].is_head());
         assert_eq!(false, chunks[0].is_data());
-        assert_eq!("ROM       ", chunks[0].name());
-        assert_eq!(Some(2), chunks[0].block_len());
+        assert_eq!(Some(Cow::Borrowed("ROM       ")), chunks[0].name());
+        assert_eq!(None, chunks[0].data());
+        assert_eq!(Some(2), chunks[0].data_block_len());
         assert_eq!(Some(0), chunks[0].start());
         assert_eq!(Some(32768), chunks[0].vars());
         assert_eq!(Some('@'), chunks[0].array_name());
@@ -738,8 +832,9 @@ mod tests {
         assert_eq!("(data 2)", format!("{}", chunks[1]));
         assert_eq!(false, chunks[1].is_head());
         assert_eq!(true, chunks[1].is_data());
-        assert_eq!("", chunks[1].name());
-        assert_eq!(None, chunks[1].block_len());
+        assert_eq!(None, chunks[1].name());
+        assert_eq!(Some(&[0xf3,0xaf][..]), chunks[1].data());
+        assert_eq!(None, chunks[1].data_block_len());
         assert_eq!(None, chunks[1].start());
         assert_eq!(None, chunks[1].vars());
         assert_eq!(None, chunks[1].array_name());
@@ -760,7 +855,7 @@ mod tests {
         let mut tap_reader = read_tap(file);
         let mut buf = Vec::new();
         let mut res = Vec::new();
-        while tap_reader.next_chunk()? != 0 {
+        while tap_reader.next_chunk()?.is_some() {
             buf.clear();
             tap_reader.read_to_end(&mut buf)?;
             let chunk = TapChunk::from(&buf);

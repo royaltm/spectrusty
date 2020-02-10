@@ -251,6 +251,7 @@ impl<V: VideoFrame> VFrameTsCounter<V> {
 }
 
 impl<V: VideoFrame> AddAssign<u32> for VFrameTsCounter<V> {
+    #[allow(clippy::suspicious_op_assign_impl)]
     fn add_assign(&mut self, delta: u32) {
         let dvc = (delta / V::HTS_COUNT as u32).try_into().expect("delta too large");
         let dhc = (delta % V::HTS_COUNT as u32) as Ts;

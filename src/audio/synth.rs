@@ -131,7 +131,7 @@ where T: Copy + Default + AddAssign + MulNorm + FromSample<f32>,
             for (i, m) in master.iter_mut().enumerate() {
                 *m += ( (i as isize - MASTER_SIZE as isize / 2) as f64 * to_angle ).sin() * amplitude;
             }
-            gain = gain * O::LOW_PASS;
+            gain *= O::LOW_PASS;
         }
         // Sample master step at several phases
         for (phase, step) in steps.iter_mut().enumerate() {
@@ -140,7 +140,7 @@ where T: Copy + Default + AddAssign + MulNorm + FromSample<f32>,
             for (i, s) in step.iter_mut().enumerate() {
                 let cur: f64 = master[i * PHASE_COUNT + (PHASE_COUNT - 1 - phase)];
                 let delta: f64 = cur - prev;
-                error = error - delta;
+                error -= delta;
                 prev = cur;
                 *s = T::from_sample(delta as f32);
             }
