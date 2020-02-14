@@ -46,7 +46,7 @@ union SnaHeaderUnion {
    bytes: [u8;core::mem::size_of::<SnaHeader>()],
    header: SnaHeader
 }
-
+pub const SNA_LENGTH: usize = 49179;
 /// Reads a *SNA* file and inserts its content into provided memory and configures the `Cpu`.
 /// Returns border color on success.
 pub fn read_sna<R: Read, M: ZxMemory, C: Cpu>(mut rd: R, cpu: &mut C, mem: &mut M) -> Result<u8> {

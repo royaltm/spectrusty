@@ -407,8 +407,13 @@ impl Ay3_891xAudio {
     /// `note_freqs` An array of tone frequencies (in Hz) in the 5th octave (0-based: 4).
     ///  To generate frequencies you may want to use audio::music::equal_tempered_scale_note_freqs.
     /// `clock_hz` The AY-3-891x clock frequency in Hz. Usually it's CPU_HZ / 2.
-    pub fn tone_periods<I>(clock_hz: f32, min_octave: i32, max_octave: i32, note_freqs: I) -> impl IntoIterator<Item=u16>
-    where I: Clone + IntoIterator<Item=f32>
+    pub fn tone_periods<I>(
+                clock_hz: f32,
+                min_octave: i32,
+                max_octave: i32,
+                note_freqs: I
+            ) -> impl IntoIterator<Item=u16>
+        where I: Clone + IntoIterator<Item=f32>
     {
         (min_octave..=max_octave).flat_map(move |octave| {
           note_freqs.clone().into_iter().map(move |hz| {
@@ -434,13 +439,18 @@ impl Ay3_891xAudio {
     /// * `time_rate` is used to calculate sample time for [Blep].
     /// * `end_ts` should be a value of an end of frame [Cpu][z80emu::Cpu] cycle (T-state) counter.
     /// * `channels` - indicate [Blep] audio channels for `[A, B, C]` AY channels.
-    pub fn render_audio<V,L,I,A,FT>(&mut self, changes: I, blep: &mut A, time_rate: FT, end_ts: FTs,
-                                    chans: [usize; 3])
-    where V: AmpLevels<L>,
-          L: SampleDelta + Default,
-          I: IntoIterator<Item=AyRegChange>,
-          FT: SampleTime,
-          A: Blep<SampleDelta=L, SampleTime=FT>
+    pub fn render_audio<V,L,I,A,FT>(&mut self,
+                changes: I,
+                blep: &mut A,
+                time_rate: FT,
+                end_ts: FTs,
+                chans: [usize; 3]
+            )
+        where V: AmpLevels<L>,
+              L: SampleDelta + Default,
+              I: IntoIterator<Item=AyRegChange>,
+              FT: SampleTime,
+              A: Blep<SampleDelta=L, SampleTime=FT>
     {
         let mut change_iter = changes.into_iter().peekable();
         let mut ticker = Ticker::new(self.current_ts, end_ts);
@@ -467,7 +477,7 @@ impl Ay3_891xAudio {
             let noise_low = self.noise_control.update_is_low();
             let mut mixer = self.mixer;
             for ((level, tone_control), tgt_lvl) in self.amp_levels.iter()
-                                                  .zip(self.tone_control.iter_mut())
+                                                    .zip(self.tone_control.iter_mut())
                                                         .zip(tone_levels.iter_mut()) {
                 *tgt_lvl = if (mixer.has_tone() && tone_control.update_is_low()) ||
                    (mixer.has_noise() && noise_low) {
@@ -509,18 +519,34 @@ impl Ay3_891xAudio {
         match reg {
             ToneFineA|
             ToneFineB|
-            ToneFineC => self.tone_control[usize::from(reg) >> 1].set_period_fine(val),
+            ToneFineC => {
+                self.tone_control[usize::from(reg) >> 1].set_period_fine(val)
+            }
             ToneCoarseA|
             ToneCoarseB|
-            ToneCoarseC => self.tone_control[usize::from(reg) >> 1].set_period_coarse(val),
-            NoisePeriod => self.noise_control.set_period(val),
-            MixerControl => self.mixer = Mixer(val),
+            ToneCoarseC => {
+                self.tone_control[usize::from(reg) >> 1].set_period_coarse(val)
+            }
+            NoisePeriod => {
+                self.noise_control.set_period(val)
+            }
+            MixerControl => {
+                self.mixer = Mixer(val)
+            }
             AmpLevelA|
             AmpLevelB|
-            AmpLevelC => self.amp_levels[usize::from(reg) - 8].set(val),
-            EnvPerFine => self.env_control.set_period_fine(val),
-            EnvPerCoarse => self.env_control.set_period_coarse(val),
-            EnvShape => self.env_control.set_shape(val),
+            AmpLevelC => {
+                self.amp_levels[usize::from(reg) - 8].set(val)
+            }
+            EnvPerFine => {
+                self.env_control.set_period_fine(val)
+            }
+            EnvPerCoarse => {
+                self.env_control.set_period_coarse(val)
+            }
+            EnvShape => {
+                self.env_control.set_shape(val)
+            }
             _ => ()
         }
     }

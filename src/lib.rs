@@ -4,6 +4,9 @@
 #[macro_use]
 extern crate bitflags;
 
+// #[macro_use]
+// extern crate serde_derive;
+
 pub mod audio;
 pub mod cpu_debug;
 pub mod bus;

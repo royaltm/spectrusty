@@ -131,6 +131,11 @@ where A: AyIoPort<Timestamp=T>,
         let index = usize::from(reg);
         self.regs[index]
     }
+    /// Retrieves a current value of all the registers.
+    #[inline]
+    pub fn registers(&self) -> &[u8;16] {
+        &self.regs
+    }
     /// Sets a current value of the indicated register.
     #[inline]
     pub fn set(&mut self, reg: AyRegister, val: u8) {

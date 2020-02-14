@@ -273,7 +273,7 @@ where I: Iterator<Item=&'a T>,
     }
 }
 
-impl<T,O> Blep for BandLimited<T,O>
+impl<T, O> Blep for BandLimited<T, O>
 where T: Copy + Default + SampleDelta + MulNorm
 {
     type SampleDelta = T;

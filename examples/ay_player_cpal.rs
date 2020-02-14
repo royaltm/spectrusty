@@ -5,7 +5,7 @@ mod audio_cpal;
 use core::any::Any;
 use zxspecemu::memory::SinglePageMemory;
 use core::num::NonZeroU32;
-use std::io::{Read};
+use std::io::Read;
 use core::time::Duration;
 
 #[allow(unused_imports)]
@@ -13,7 +13,7 @@ use log::{error, warn, info, debug, trace, Level};
 
 use audio_cpal::*;
 
-use z80emu::Z80NMOS;
+use z80emu::{Cpu, Z80NMOS};
 // use zxspecemu::cpu_debug::print_debug_memory;
 use zxspecemu::memory::ZxMemory;
 use zxspecemu::audio::carousel::*;
@@ -21,7 +21,10 @@ use zxspecemu::audio::sample::*;
 use zxspecemu::audio::*;
 use zxspecemu::audio::synth::*;
 use zxspecemu::audio::ay::*;
-use zxspecemu::formats::{ay::*, sna::*};
+use zxspecemu::formats::{
+    ay::*,
+    // sna::*
+};
 use zxspecemu::chip::*;
 use zxspecemu::chip::ay_player::*;
 /****************************************************************************/
@@ -40,13 +43,18 @@ where T: 'static + FromSample<f32> + AudioSample + Send,
     // BandLimLowTreb
     // BandLimLowBass
     // BandLimNarrow
-    let mut bandlim: BlepAmpFilter<BandLimited<f32, BandLimHiFi>,f32> = BlepAmpFilter::new(BandLimited::new(3), 0.777);
+    // let mut bandlim = BlepStereo::new(BandLimited::<f32>::new(3), 0.5);
+    // let mut bandlim = BlepAmpFilter::new(0.777, BlepStereo::new(0.5,BandLimited::<f32>::new(2)));
+    let mut bandlim = BlepAmpFilter::build(0.777)(BlepStereo::build(0.5)(BandLimited::<f32>::new(2)));
+    // let mut bandlim = BlepAmpFilter::new(BandLimited::<f32>::new(3), 0.777);
+    // BandLimited::<f32>::new(3).wrap_with(BlepStereo::build(0.5)).wrap_with(BlepAmpFilter::build(0.777));
+    // BlepAmpFilter::build(0.777).wrap(BlepStereo::build(0.5)).wrap(BandLimited::<f32>::new(3));
     let time_rate = Ay128kPlayer::ensure_audio_frame_time(&mut bandlim, audio.sample_rate);
     let mut cpu = Z80NMOS::default();
     let mut player = Ay128kPlayer::default();
     player.reset(&mut cpu, true);
-    let rom_file = std::fs::File::open("resources/48k.rom").unwrap();
-    player.memory.load_into_rom_page(0, rom_file).unwrap();
+    // let rom_file = std::fs::File::open("resources/48k.rom").unwrap();
+    // player.memory.load_into_rom_page(0, rom_file).unwrap();
     // read_sna(rd, &mut cpu, &mut player.memory).unwrap();
     let ay_file = match read_ay(rd) {
         Ok(f) => f,
@@ -100,8 +108,9 @@ where T: 'static + FromSample<f32> + AudioSample + Send,
             audio.producer.render_frame(|ref mut vec| {
                 let sample_iter = bandlim.sum_iter::<T>(0)
                                 .zip(bandlim.sum_iter::<T>(1)
-                                    .zip(bandlim.sum_iter::<T>(2)))
-                                .map(|(a,(b,c))| [a,b,c]);
+                                    // .zip(bandlim.sum_iter::<T>(2))
+                                ).map(|(a,b)| [a,b]);
+                                // .map(|(a,(b,c))| [a,b,c]);
                 // set sample buffer size so to the size of the BLEP frame
                 vec.resize(frame_sample_count * output_channels, T::center());
                 // render each sample
@@ -121,6 +130,13 @@ where T: 'static + FromSample<f32> + AudioSample + Send,
             bandlim.next_frame();
             // send sample buffer to the consumer
             audio.producer.send_frame().unwrap();
+            eprint!("\r{:04x} {:04x} {:04x} {:04x} {:04x} {:02x?} ",
+                    cpu.get_sp(),
+                    cpu.get_reg16(z80emu::StkReg16::HL),
+                    cpu.get_reg16(z80emu::StkReg16::BC),
+                    cpu.get_reg16(z80emu::StkReg16::DE),
+                    cpu.get_reg16(z80emu::StkReg16::AF),
+                    &player.ay_io.registers()[0..14]);
             if let Err(_) = tsync.synchronize_thread_to_frame::<Ay128kPlayer>() {
                 warn!("frame too long");
             }

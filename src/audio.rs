@@ -65,35 +65,43 @@ pub trait Blep {
     fn add_step(&mut self, channel: usize, time: Self::SampleTime, delta: Self::SampleDelta);
 }
 
-/// A wrapper [Blep] implementation that modifies ∆ amplitude of pulses before sending it to the
+/// A wrapper [Blep] implementation that filters pulses' ∆ amplitude before sending them to the
 /// underlying implementation.
 ///
 /// `BlepAmpFilter` may be used to adjust generated audio volume dynamically.
-pub struct BlepAmpFilter<B, T> {
+///
+/// *NOTE*: To emulate a linear volume control, `filter` value should be scaled
+/// [logarithmically](https://www.dr-lex.be/info-stuff/volumecontrols.html).
+pub struct BlepAmpFilter<B: Blep> {
+    /// A normalized filter value in the range `[0.0, 1.0]` (floats) or `[0, int::max_value()]` (integers).
+    pub filter: B::SampleDelta,
     /// A downstream [Blep] implementation.
     pub blep: B,
-    /// A normalized filter value in the range [0.0, 1.0] (floats) or [0, int::max_value()] (integers).
-    pub filter: T
 }
-
-/// A wrapper [Blep] implementation that redirects channels to a stereo [Blep].
+/// A wrapper [Blep] implementation that redirects extra channels to a stereo [Blep]
+/// as a monophonic channel.
 ///
-/// Requires a downstream [Blep] implementation to provide at least 2 audio channels.
-///
-/// Channel 0 and 1 are redirected downstream but any other channel pulses are being
-/// filtered before being redirected to both channels (0 and 1).
-pub struct BlepStereo<B, T> {
+/// Requires a downstream [Blep] implementation that provides at least 2 audio channels.
+/// ```text
+/// BlepStereo channel      Blep impl channel
+///     0 -----------------------> 0
+///     1 -----------------------> 1
+///  >= 2 ---- * mono_filter ----> 0
+///                          \---> 1
+/// ```
+pub struct BlepStereo<B: Blep> {
+    /// A monophonic filter value in the range [0.0, 1.0] (floats) or [0, int::max_value()] (integers).
+    pub mono_filter: B::SampleDelta,
     /// A downstream [Blep] implementation.
     pub blep: B,
-    /// A monophonic filter value in the range [0.0, 1.0] (floats) or [0, int::max_value()] (integers).
-    pub mono_filter: T
 }
 
 /// A digital level to a sample amplitude convertion trait.
 pub trait AmpLevels<T: Copy> {
     /// This method should return the appropriate digital sample amplitude for the given `level`.
     ///
-    /// The best approximation is `a*(level/max_level*b).exp()` according to [this document](https://www.dr-lex.be/info-stuff/volumecontrols.html).
+    /// The best approximation is `a*(level/max_level*b).exp()` according to
+    /// [this document](https://www.dr-lex.be/info-stuff/volumecontrols.html).
     ///
     /// *Please note* that most callbacks use only a limited number of bits in the `level`.
     fn amp_level(level: u32) -> T;
@@ -221,39 +229,66 @@ impl_amp_levels!([f32, AMPS_EAR_MIC, AMPS_EAR_OUT, AMPS_EAR_IN],
                  [i32, AMPS_EAR_MIC_I32, AMPS_EAR_OUT_I32, AMPS_EAR_IN_I32],
                  [i16, AMPS_EAR_MIC_I16, AMPS_EAR_OUT_I16, AMPS_EAR_IN_I16]);
 
-impl<B, T> BlepAmpFilter<B, T> {
-    pub fn new(blep: B, filter: T) -> Self {
+impl<B: Blep> BlepAmpFilter<B> {
+    pub fn build(filter: B::SampleDelta) -> impl FnOnce(B) -> Self
+    // where D: Into<B>
+    {
+        move |blep| Self::new(filter, blep)
+    }
+
+    pub fn new(filter: B::SampleDelta, blep: B) -> Self {
         BlepAmpFilter { blep, filter }
     }
 }
 
-impl<B, T> Deref for BlepAmpFilter<B, T> {
+// let amp_build = BlepAmpFilter::build(0.777);
+// let stereo_build = BlepStereo::build(0.5);
+// let blep = BandLimited::<f32>::build(3);
+// amp_build(stereo_build(blep))
+// BandLimited::<f32>::new(3).wrap_with(BlepStereo::build(0.5)).wrap_with(BlepAmpFilter::build(0.777));
+// BlepAmpFilter::build(0.777)
+// .wrap(BlepStereo::build(0.5))
+// .wrap(BandLimited::<f32>::build(3))
+// .new();
+impl<B: Blep> BlepStereo<B> {
+    pub fn build(mono_filter: B::SampleDelta) -> impl FnOnce(B) -> Self
+    // where D: Into<B>
+    {
+        move |blep| Self::new(mono_filter, blep)
+    }
+
+    pub fn new(mono_filter: B::SampleDelta, blep: B) -> Self {
+        BlepStereo { blep, mono_filter }
+    }
+}
+
+impl<B: Blep> Deref for BlepAmpFilter<B> {
     type Target = B;
     fn deref(&self) -> &B {
         &self.blep
     }
 }
 
-impl<B, T> DerefMut for BlepAmpFilter<B, T> {
+impl<B: Blep> DerefMut for BlepAmpFilter<B> {
     fn deref_mut(&mut self) -> &mut B {
         &mut self.blep
     }
 }
 
-impl<B, T> Deref for BlepStereo<B, T> {
+impl<B: Blep> Deref for BlepStereo<B> {
     type Target = B;
     fn deref(&self) -> &B {
         &self.blep
     }
 }
 
-impl<B, T> DerefMut for BlepStereo<B, T> {
+impl<B: Blep> DerefMut for BlepStereo<B> {
     fn deref_mut(&mut self) -> &mut B {
         &mut self.blep
     }
 }
 
-impl<B> Blep for BlepAmpFilter<B, B::SampleDelta> where B: Blep, B::SampleDelta: MulNorm + SampleDelta {
+impl<B> Blep for BlepAmpFilter<B> where B: Blep, B::SampleDelta: MulNorm + SampleDelta {
     type SampleDelta = B::SampleDelta;
     type SampleTime = B::SampleTime;
     #[inline]
@@ -270,7 +305,7 @@ impl<B> Blep for BlepAmpFilter<B, B::SampleDelta> where B: Blep, B::SampleDelta:
     }
 }
 
-impl<B> Blep for BlepStereo<B, B::SampleDelta> where B: Blep, B::SampleDelta: MulNorm + SampleDelta {
+impl<B> Blep for BlepStereo<B> where B: Blep, B::SampleDelta: MulNorm + SampleDelta {
     type SampleDelta = B::SampleDelta;
     type SampleTime = B::SampleTime;
     #[inline]
@@ -286,8 +321,9 @@ impl<B> Blep for BlepStereo<B, B::SampleDelta> where B: Blep, B::SampleDelta: Mu
         match channel {
             0|1 => self.blep.add_step(channel, time, delta),
             _ => {
-                self.blep.add_step(0, time, delta.mul_norm(self.mono_filter));
-                self.blep.add_step(1, time, delta.mul_norm(self.mono_filter));
+                let delta = delta.mul_norm(self.mono_filter);
+                self.blep.add_step(0, time, delta);
+                self.blep.add_step(1, time, delta);
             }
         }
     }

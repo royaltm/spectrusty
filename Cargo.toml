@@ -19,3 +19,10 @@ derive_more = "0.99.2"
 bitflags = "1.2.1"
 nom = "5.1.0"
 memchr = "2.3.0"
+# serde = { version = "1.0", features = ["derive"] }
+# serde_derive = "1.0.104"
+
+[workspace]
+members = [
+  "examples/web-ay",
+]

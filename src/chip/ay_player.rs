@@ -202,7 +202,10 @@ impl<P: AyPortDecode> ControlUnit for AyPlayer<P> {
     }
     /// Executes a single cpu instruction with the option to pass a debugging function.
     /// Returns true if the frame has ended.
-    fn execute_single_step<C: Cpu, F>(&mut self, cpu: &mut C, debug: Option<F>) -> Result<Self::WrIoBreak, Self::RetiBreak>
+    fn execute_single_step<C: Cpu, F>(&mut self,
+                cpu: &mut C,
+                debug: Option<F>
+            ) -> Result<Self::WrIoBreak, Self::RetiBreak>
         where F: FnOnce(CpuDebug)
     {
         let mut tsc = self.ensure_next_frame();

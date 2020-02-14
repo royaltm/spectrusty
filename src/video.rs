@@ -85,11 +85,11 @@ pub trait VideoFrame {
 
     #[inline]
     fn is_contended_line_mreq(vsl: Ts) -> bool {
-        Self::VSL_PIXELS.contains(&vsl)
+        vsl >= Self::VSL_PIXELS.start && vsl < Self::VSL_PIXELS.end
     }
     #[inline]
     fn is_contended_line_no_mreq(vsl: Ts) -> bool {
-        Self::VSL_PIXELS.contains(&vsl)
+        vsl >= Self::VSL_PIXELS.start && vsl < Self::VSL_PIXELS.end
     }
     #[inline]
     fn is_contended_address(addr: u16) -> bool {

@@ -158,9 +158,6 @@ where Self: VideoFrame, M: ZxMemory, B: BusDevice<Timestamp=VideoTs>
             self.frames += Wrapping(1);
             self.cleanup_video_frame_data();
             self.cleanup_audio_frame_data();
-            // if let Some(read_ear) = &mut self.read_ear.0 {
-            //     read_ear.next_frame(tsc.as_tstates());
-            // }
             tsc.wrap_frame();
             self.tsc = tsc.tsc;
         }

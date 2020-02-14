@@ -53,6 +53,7 @@ impl<M: ZxMemory, B: BusDevice<Timestamp=VideoTs>> VideoFrame for Ula<M,B> {
         (131..155-invborder).step_by(4)
     }
 
+    #[inline]
     fn contention(mut hc: Ts) -> Ts {
         if hc >= -1 && hc < 124 {
             let ct = (hc + 1) & 7;
