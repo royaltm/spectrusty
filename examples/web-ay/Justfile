@@ -1,0 +1,42 @@
+name := 'web_ay'
+target_dir := '../../target/wasm32-unknown-unknown/release/'
+node_env := env_var_or_default('NODE_ENV', "production")
+
+# install npm deps
+install:
+    npm install
+
+# compile and serve
+serve: wasm
+    npx webpack-dev-server
+
+# create distribution files
+webpack:
+    NODE_ENV={{node_env}} npx webpack
+
+# clean cargo build
+clean:
+    cargo clean
+    rm -rf pkg
+    rm -f {{name}}.js
+    rm -f {{name}}.d.ts
+    rm -f {{name}}_bg.d.ts
+    rm -f {{name}}_bg.wasm
+
+# remove all compiled files from dist and an archived tar file
+distclean: clean
+    rm -f {{name}}.tar.bz2
+    rm -rf dist
+
+# gzip all files in dist for distribution
+gzip:
+    for file in dist/*.{css,js,map,html,wasm}; do \
+      gzip -9 -c "$file" >"$file".gz && touch -r "$file" "$file".gz; \
+    done
+
+# prepare a distribution tar file
+pack:
+    tar -cvjf {{name}}.tar.bz2 dist
+
+# create distribution files and pack them
+dist: webpack gzip pack

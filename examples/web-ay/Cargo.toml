@@ -1,0 +1,45 @@
+[package]
+name = "web_ay"
+version = "0.1.0"
+authors = ["Rafal Michalski <royaltm75@gmail.com>"]
+edition = "2018"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wasm-bindgen = {version = "0.2.58", features = ["serde-serialize"]}
+wasm-bindgen-futures = "0.4.8"
+js-sys = "0.3.35"
+z80emu = "0.1"
+serde = "1.0"
+serde_json = "1.0"
+
+[dependencies.web-sys]
+version = "0.3.4"
+features = [
+  'AudioBuffer',
+  'AudioBufferSourceNode',
+  'AudioContext',
+  'AudioContextState',
+  'AudioDestinationNode',
+  'AudioNode',
+  'AudioParam',
+  'Blob',
+  'File',
+  'ProgressEvent',
+  'Event',
+  'EventTarget',
+  'FileReader',
+  'GainNode',
+  'Response',
+  'Window'
+]
+
+[dependencies.rand]
+version = "^0.7"
+features = ["wasm-bindgen"]
+
+[dependencies.zxspecemu]
+version = "*"
+path = "../.."
