@@ -35,9 +35,10 @@ pub(crate) const MARGIN_TSTATES: FTs = 2 * 23;
 use core::ops::{Deref, DerefMut};
 use core::marker::PhantomData;
 use core::num::NonZeroU32;
-use crate::clock::{FTs, VideoTs, VFrameTsCounter};
+use crate::clock::{VideoTs, VFrameTsCounter};
 use crate::video::VideoFrame;
-pub use sample::{SampleDelta, SampleTime, MulNorm, FromSample};
+pub use sample::{SampleDelta, MulNorm, FromSample};
+pub use crate::clock::FTs;
 
 /// A trait for interfacing Bandwidth-Limited Pulse Buffer implementations by audio generators.
 ///
@@ -45,24 +46,31 @@ pub use sample::{SampleDelta, SampleTime, MulNorm, FromSample};
 pub trait Blep {
     /// A type for sample ∆ amplitudes (pulse height).
     type SampleDelta: SampleDelta;
-    /// A type for sample time indices.
-    type SampleTime: SampleTime;
-    /// Ensures that the `Blep` implementation has enough memory reserved for the whole audio frame and then some.
+    /// Calculates a time rate and ensures that the `Blep` implementation has enough memory reserved
+    /// for the whole audio frame with an additional margin.
     ///
-    /// `frame_time` is the frame time measured in samples.
-    /// `margin_time` is the required margin time of the frame duration fluctuations.
-    fn ensure_frame_time(&mut self, frame_time: Self::SampleTime, margin_time: Self::SampleTime);
+    /// There should be no need to call this method again unless any of the provided parameters changes.
+    ///
+    /// * `sample_rate` is a number of audio samples per second.
+    /// * `ts_rate` is a number of units per second which are being used as time units.
+    /// * `frame_ts` is the duration of a single frame measured in time units.
+    /// * `margin_ts` specifies a required margin in time units for frame duration fluctuations.
+    fn ensure_frame_time(&mut self, sample_rate: u32, ts_rate: u32, frame_ts: FTs, margin_ts: FTs);
     /// Finalizes audio frame.
     ///
-    /// `time` (measured in samples) is being provided when the frame should be finalized.
-    /// The caller must ensure that no pulse should be generated within this frame past given `time` here.
-    /// The implementation may panic if this requirement is not uphold.
-    /// Returns the number of samples ready to be rendered, independent from the number of channels.
-    fn end_frame(&mut self, time: Self::SampleTime) -> usize;
-    /// This method is being used to generate square pulses.
+    /// `timestamp` (measured in time units defined with [Blep::ensure_frame_time]) when the frame should
+    /// be finalized.
     ///
-    /// `time` is the time of the pulse measured in samples, `delta` is the pulse height (∆ amplitude).
-    fn add_step(&mut self, channel: usize, time: Self::SampleTime, delta: Self::SampleDelta);
+    /// Returns the number of samples, single channel wise, ready to be rendered.
+    ///
+    /// The caller must ensure that no pulse should be generated within the finalized frame past
+    /// `timestamp` given here.
+    /// The implementation may panic if this requirement is not uphold.
+    fn end_frame(&mut self, timestamp: FTs) -> usize;
+    /// This method is being used to generate square-wave pulses within a single frame.
+    ///
+    /// `timestamp` is the time of the pulse measured in time units, `delta` is the pulse height (∆ amplitude).
+    fn add_step(&mut self, channel: usize, timestamp: FTs, delta: Self::SampleDelta);
 }
 
 /// A wrapper [Blep] implementation that filters pulses' ∆ amplitude before sending them to the
@@ -111,17 +119,16 @@ pub trait AmpLevels<T: Copy> {
 /// 
 /// This trait defines common methods to interface [Blep] implementations.
 pub trait AudioFrame<B: Blep> {
-    /// Ensures [Blep] has enough space for the audio frame and returns `time_rate` to be passed
-    /// to `render_*_audio_frame` methods.
-    fn ensure_audio_frame_time(blep: &mut B, sample_rate: u32) -> B::SampleTime;
-    /// Returns a sample time to be passed to [Blep] to end the frame.
-    fn get_audio_frame_end_time(&self, time_rate: B::SampleTime) -> B::SampleTime;
+    /// Sets up [Blep] time rate and ensures enough space for the audio frame is reserved.
+    fn ensure_audio_frame_time(blep: &mut B, sample_rate: u32);
+    /// Returns a timestamp to be passed to [Blep] to end the frame.
+    fn get_audio_frame_end_time(&self) -> FTs;
     /// Calls [Blep::end_frame] to finalize the frame and prepare it for rendition.
     ///
     /// Returns a number of samples ready to be rendered in a single channel.
     #[inline]
-    fn end_audio_frame(&self, blep: &mut B, time_rate: B::SampleTime) -> usize {
-        blep.end_frame(self.get_audio_frame_end_time(time_rate))
+    fn end_audio_frame(&self, blep: &mut B) -> usize {
+        blep.end_frame(self.get_audio_frame_end_time())
     }
 }
 
@@ -139,7 +146,7 @@ pub trait EarMicOutAudioFrame<B: Blep> {
     ///```
     /// `time_rate` may be optained from calling [AudioFrame::ensure_audio_frame_time].
     /// `channel` - target [Blep] audio channel.
-    fn render_earmic_out_audio_frame<V: AmpLevels<B::SampleDelta>>(&self, blep: &mut B, time_rate: B::SampleTime, channel: usize);
+    fn render_earmic_out_audio_frame<V: AmpLevels<B::SampleDelta>>(&self, blep: &mut B, channel: usize);
 }
 
 /// A trait for controllers generating audio pulses from the EAR input.
@@ -149,7 +156,7 @@ pub trait EarInAudioFrame<B: Blep> {
     /// Provide [AmpLevels] that can handle `level` values from 0 to 1 (1-bit).
     /// `time_rate` may be optained from calling [AudioFrame::ensure_audio_frame_time].
     /// `channel` - target [Blep] audio channel.
-    fn render_ear_in_audio_frame<V: AmpLevels<B::SampleDelta>>(&self, blep: &mut B, time_rate: B::SampleTime, channel: usize);
+    fn render_ear_in_audio_frame<V: AmpLevels<B::SampleDelta>>(&self, blep: &mut B, channel: usize);
 }
 
 /// A trait for feeding EAR input frame buffer.
@@ -231,7 +238,6 @@ impl_amp_levels!([f32, AMPS_EAR_MIC, AMPS_EAR_OUT, AMPS_EAR_IN],
 
 impl<B: Blep> BlepAmpFilter<B> {
     pub fn build(filter: B::SampleDelta) -> impl FnOnce(B) -> Self
-    // where D: Into<B>
     {
         move |blep| Self::new(filter, blep)
     }
@@ -252,7 +258,6 @@ impl<B: Blep> BlepAmpFilter<B> {
 // .new();
 impl<B: Blep> BlepStereo<B> {
     pub fn build(mono_filter: B::SampleDelta) -> impl FnOnce(B) -> Self
-    // where D: Into<B>
     {
         move |blep| Self::new(mono_filter, blep)
     }
@@ -288,57 +293,62 @@ impl<B: Blep> DerefMut for BlepStereo<B> {
     }
 }
 
-impl<B> Blep for BlepAmpFilter<B> where B: Blep, B::SampleDelta: MulNorm + SampleDelta {
+impl<B> Blep for BlepAmpFilter<B>
+    where B: Blep, B::SampleDelta: MulNorm + SampleDelta
+{
     type SampleDelta = B::SampleDelta;
-    type SampleTime = B::SampleTime;
+
     #[inline]
-    fn ensure_frame_time(&mut self, frame_time: Self::SampleTime, margin_time: Self::SampleTime) {
-        self.blep.ensure_frame_time(frame_time, margin_time)
+    fn ensure_frame_time(&mut self, sample_rate: u32, ts_rate: u32, frame_ts: FTs, margin_ts: FTs) {
+        self.blep.ensure_frame_time(sample_rate, ts_rate, frame_ts, margin_ts)
     }
     #[inline]
-    fn end_frame(&mut self, time: Self::SampleTime) -> usize {
-        self.blep.end_frame(time)
+    fn end_frame(&mut self, timestamp: FTs) -> usize {
+        self.blep.end_frame(timestamp)
     }
     #[inline]
-    fn add_step(&mut self, channel: usize, time: Self::SampleTime, delta: Self::SampleDelta) {
-        self.blep.add_step(channel, time, delta.mul_norm(self.filter))
+    fn add_step(&mut self, channel: usize, timestamp: FTs, delta: Self::SampleDelta) {
+        self.blep.add_step(channel, timestamp, delta.mul_norm(self.filter))
     }
 }
 
-impl<B> Blep for BlepStereo<B> where B: Blep, B::SampleDelta: MulNorm + SampleDelta {
+impl<B> Blep for BlepStereo<B>
+    where B: Blep, B::SampleDelta: MulNorm + SampleDelta
+{
     type SampleDelta = B::SampleDelta;
-    type SampleTime = B::SampleTime;
     #[inline]
-    fn ensure_frame_time(&mut self, frame_time: Self::SampleTime, margin_time: Self::SampleTime) {
-        self.blep.ensure_frame_time(frame_time, margin_time)
+
+    fn ensure_frame_time(&mut self, sample_rate: u32, ts_rate: u32, frame_ts: FTs, margin_ts: FTs) {
+        self.blep.ensure_frame_time(sample_rate, ts_rate, frame_ts, margin_ts)
     }
     #[inline]
-    fn end_frame(&mut self, time: Self::SampleTime) -> usize {
-        self.blep.end_frame(time)
+    fn end_frame(&mut self, timestamp: FTs) -> usize {
+        self.blep.end_frame(timestamp)
     }
     #[inline]
-    fn add_step(&mut self, channel: usize, time: Self::SampleTime, delta: B::SampleDelta) {
+    fn add_step(&mut self, channel: usize, timestamp: FTs, delta: B::SampleDelta) {
         match channel {
-            0|1 => self.blep.add_step(channel, time, delta),
+            0|1 => self.blep.add_step(channel, timestamp, delta),
             _ => {
                 let delta = delta.mul_norm(self.mono_filter);
-                self.blep.add_step(0, time, delta);
-                self.blep.add_step(1, time, delta);
+                self.blep.add_step(0, timestamp, delta);
+                self.blep.add_step(1, timestamp, delta);
             }
         }
     }
 }
 
-pub(crate) fn render_audio_frame_vts<VF,VL,L,A,FT,T>(prev_state: u8,
-                                                end_ts: Option<VideoTs>,
-                                                changes: &[T],
-                                                blep: &mut A, time_rate: FT, channel: usize)
-where VF: VideoFrame,
-      VL: AmpLevels<L>,
-      L: SampleDelta,
-      A: Blep<SampleDelta=L, SampleTime=FT>,
-      FT: SampleTime,
-      T: Copy, (VideoTs, u8): From<T>,
+pub(crate) fn render_audio_frame_vts<VF,VL,L,A,T>(
+            prev_state: u8,
+            end_ts: Option<VideoTs>,
+            changes: &[T],
+            blep: &mut A, channel: usize
+        )
+    where VF: VideoFrame,
+          VL: AmpLevels<L>,
+          L: SampleDelta,
+          A: Blep<SampleDelta=L>,
+          T: Copy, (VideoTs, u8): From<T>,
 {
     let mut last_vol = VL::amp_level(prev_state.into());
     for &tsd in changes.iter() {
@@ -350,22 +360,24 @@ where VF: VideoFrame,
         }
         let next_vol = VL::amp_level(state.into());
         if let Some(delta) = last_vol.sample_delta(next_vol) {
-            let time = time_rate.at_timestamp(VFrameTsCounter::<VF>::from(ts).as_tstates());
-            blep.add_step(channel, time, delta);
+            let timestamp = VFrameTsCounter::<VF>::from(ts).as_tstates();
+            blep.add_step(channel, timestamp, delta);
             last_vol = next_vol;
         }
     }
 }
 
-pub(crate) fn render_audio_frame_ts<VL,L,A,FT,T>(prev_state: u8,
-                                                end_ts: Option<FTs>,
-                                                changes: &[T],
-                                                blep: &mut A, time_rate: FT, channel: usize)
-where VL: AmpLevels<L>,
-      L: SampleDelta,
-      A: Blep<SampleDelta=L, SampleTime=FT>,
-      FT: SampleTime,
-      T: Copy, (FTs, u8): From<T>,
+pub(crate) fn render_audio_frame_ts<VL,L,A,T>(
+            prev_state: u8,
+            end_ts: Option<FTs>,
+            changes: &[T],
+            blep: &mut A,
+            channel: usize
+        )
+    where VL: AmpLevels<L>,
+          L: SampleDelta,
+          A: Blep<SampleDelta=L>,
+          T: Copy, (FTs, u8): From<T>,
 {
     let mut last_vol = VL::amp_level(prev_state.into());
     for &tsd in changes.iter() {
@@ -378,8 +390,7 @@ where VL: AmpLevels<L>,
         // print!("{}:{}  ", state, ts);
         let next_vol = VL::amp_level(state.into());
         if let Some(delta) = last_vol.sample_delta(next_vol) {
-            let time = time_rate.at_timestamp(ts);
-            blep.add_step(channel, time, delta);
+            blep.add_step(channel, ts, delta);
             last_vol = next_vol;
         }
     }

@@ -8,56 +8,50 @@ use crate::memory::ZxMemory;
 use crate::video::VideoFrame;
 use super::{Ula, UlaTsCounter, CPU_HZ};
 
-impl<M, B, A, FT> AudioFrame<A> for Ula<M, B>
-where M: ZxMemory, B: BusDevice<Timestamp=VideoTs>,
-      A: Blep<SampleTime=FT>, FT: SampleTime
+impl<M, B, A> AudioFrame<A> for Ula<M, B>
+    where M: ZxMemory, B: BusDevice<Timestamp=VideoTs>,
+          A: Blep
 {
-    fn ensure_audio_frame_time(blep: &mut A, sample_rate: u32) -> FT {
-        let time_rate = FT::time_rate(sample_rate, CPU_HZ);
-        blep.ensure_frame_time(time_rate.at_timestamp(Self::FRAME_TSTATES_COUNT),
-                               time_rate.at_timestamp(MARGIN_TSTATES));
-        time_rate
+    fn ensure_audio_frame_time(blep: &mut A, sample_rate: u32) {
+        blep.ensure_frame_time(sample_rate, CPU_HZ, Self::FRAME_TSTATES_COUNT, MARGIN_TSTATES)
     }
 
     #[inline]
-    fn get_audio_frame_end_time(&self, time_rate: FT) -> FT {
-        time_rate.at_timestamp(UlaTsCounter::<M,B>::from(self.tsc).as_tstates())
+    fn get_audio_frame_end_time(&self) -> FTs {
+        UlaTsCounter::<M,B>::from(self.tsc).as_tstates()
     }
 }
 
-impl<M, B, A, L, FT> EarMicOutAudioFrame<A> for Ula<M, B>
-where M: ZxMemory, B: BusDevice<Timestamp=VideoTs>,
-      A: Blep<SampleDelta=L, SampleTime=FT>,
-      L: SampleDelta,
-      FT: SampleTime
+impl<M, B, A, L> EarMicOutAudioFrame<A> for Ula<M, B>
+    where M: ZxMemory, B: BusDevice<Timestamp=VideoTs>,
+          A: Blep<SampleDelta=L>,
+          L: SampleDelta
 {
     #[inline(always)]
-    fn render_earmic_out_audio_frame<V: AmpLevels<L>>(&self, blep: &mut A, time_rate: FT, channel: usize) {
-        render_audio_frame_vts::<Self,V,L,A,FT,_>(self.prev_earmic,
+    fn render_earmic_out_audio_frame<V: AmpLevels<L>>(&self, blep: &mut A, channel: usize) {
+        render_audio_frame_vts::<Self,V,L,A,_>(self.prev_earmic,
                                          None,
                                          &self.earmic_out_changes,
-                                         blep, time_rate, channel)
+                                         blep, channel)
     }
 }
 
-impl<M, B, A, L, FT> EarInAudioFrame<A> for Ula<M, B>
-where M: ZxMemory, B: BusDevice<Timestamp=VideoTs>,
-      A: Blep<SampleDelta=L, SampleTime=FT>,
-      L: SampleDelta,
-      FT: SampleTime
+impl<M, B, A, L> EarInAudioFrame<A> for Ula<M, B>
+    where M: ZxMemory, B: BusDevice<Timestamp=VideoTs>,
+          A: Blep<SampleDelta=L>,
+          L: SampleDelta
 {
-
     #[inline(always)]
-    fn render_ear_in_audio_frame<V: AmpLevels<L>>(&self, blep: &mut A, time_rate: FT, channel: usize) {
-        render_audio_frame_vts::<Self,V,L,A,FT,_>(self.prev_ear_in,
+    fn render_ear_in_audio_frame<V: AmpLevels<L>>(&self, blep: &mut A, channel: usize) {
+        render_audio_frame_vts::<Self,V,L,A,_>(self.prev_ear_in,
                                          Some(self.tsc),
                                          &self.ear_in_changes,
-                                         blep, time_rate, channel)
+                                         blep, channel)
     }
 }
 
 impl<M, B> EarIn for Ula<M, B>
-where M: ZxMemory, B: BusDevice<Timestamp=VideoTs>
+    where M: ZxMemory, B: BusDevice<Timestamp=VideoTs>
 {
     fn set_ear_in(&mut self, ear_in: bool, delta_fts: u32) {
         if delta_fts == 0 {
@@ -81,7 +75,7 @@ where M: ZxMemory, B: BusDevice<Timestamp=VideoTs>
     /// # Panics
     /// Panics if adding the delta would exceed the TsCounter max_value (Ts::max_value() as u32 * Self::HTS_COUNT as u32).
     fn feed_ear_in<I>(&mut self, fts_deltas: &mut I, max_frames_threshold: Option<usize>)
-    where I: Iterator<Item=NonZeroU32>
+        where I: Iterator<Item=NonZeroU32>
     {
         let (ts, mut ear_in) = self.ear_in_changes.last()
                                        .map(|&ts| ts.into())
@@ -110,7 +104,8 @@ where M: ZxMemory, B: BusDevice<Timestamp=VideoTs>
     }
 }
 
-impl<M, B> Ula<M, B> where M: ZxMemory, B: BusDevice<Timestamp=VideoTs>
+impl<M, B> Ula<M, B>
+    where M: ZxMemory, B: BusDevice<Timestamp=VideoTs>
 {
     // pub const DEFAULT_VOLUME: f32 = 0.1;
 

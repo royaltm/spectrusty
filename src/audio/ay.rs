@@ -81,6 +81,7 @@ impl<T: Copy + FromSample<f32>> AmpLevels<T> for LogAmpLevels16<T> {
 pub struct AyAmps<T>(PhantomData<T>);
 /// A struct implementing alternative [AmpLevels] for Ay-3-891x sound chip. See also [FUSE_AMPS].
 pub struct AyFuseAmps<T>(PhantomData<T>);
+
 macro_rules! impl_ay_amp_levels {
     ($([$name:ident, $ty:ty, $amps:ident]),*) => { $(
         impl AmpLevels<$ty> for $name<$ty> {
@@ -103,7 +104,7 @@ pub trait AyAudioFrame<B: Blep> {
     /// `time_rate` may be obtained from calling [AudioFrame::ensure_audio_frame_time].
     /// `channels` - target [Blep] audio channels for `[A, B, C]` AY-3-891x channels.
     fn render_ay_audio_frame<V: AmpLevels<B::SampleDelta>>(
-        &mut self, blep: &mut B, time_rate: B::SampleTime, channels: [usize; 3]);
+                    &mut self, blep: &mut B, channels: [usize; 3]);
 }
 
 /// Implements AY-3-8910/8912/8913 programmable sound generator.
@@ -436,21 +437,18 @@ impl Ay3_891xAudio {
     ///
     /// * `changes` should be ordered by `time` and recorded only with `time` < `end_ts`,
     ///   otherwise some register changes may be lost - the iterator will be drained anyway.
-    /// * `time_rate` is used to calculate sample time for [Blep].
     /// * `end_ts` should be a value of an end of frame [Cpu][z80emu::Cpu] cycle (T-state) counter.
     /// * `channels` - indicate [Blep] audio channels for `[A, B, C]` AY channels.
-    pub fn render_audio<V,L,I,A,FT>(&mut self,
+    pub fn render_audio<V,L,I,A>(&mut self,
                 changes: I,
                 blep: &mut A,
-                time_rate: FT,
                 end_ts: FTs,
                 chans: [usize; 3]
             )
         where V: AmpLevels<L>,
               L: SampleDelta + Default,
               I: IntoIterator<Item=AyRegChange>,
-              FT: SampleTime,
-              A: Blep<SampleDelta=L, SampleTime=FT>
+              A: Blep<SampleDelta=L>
     {
         let mut change_iter = changes.into_iter().peekable();
         let mut ticker = Ticker::new(self.current_ts, end_ts);
@@ -497,8 +495,7 @@ impl Ay3_891xAudio {
                                                   .zip(vol_levels.iter_mut())) {
                 let vol = V::amp_level(level.into());
                 if let Some(delta) = last_vol.sample_delta(vol) {
-                    let time = time_rate.at_timestamp(tick);
-                    blep.add_step(chan, time, delta);
+                    blep.add_step(chan, tick, delta);
                     *last_vol = vol;
                 }
             }
@@ -514,17 +511,12 @@ impl Ay3_891xAudio {
 
     #[inline]
     fn update_register(&mut self, reg: AyRegister, val: u8) {
-        // println!("update: {:?} {}", reg, val);
         use AyRegister::*;
         match reg {
-            ToneFineA|
-            ToneFineB|
-            ToneFineC => {
+            ToneFineA|ToneFineB|ToneFineC => {
                 self.tone_control[usize::from(reg) >> 1].set_period_fine(val)
             }
-            ToneCoarseA|
-            ToneCoarseB|
-            ToneCoarseC => {
+            ToneCoarseA|ToneCoarseB|ToneCoarseC => {
                 self.tone_control[usize::from(reg) >> 1].set_period_coarse(val)
             }
             NoisePeriod => {
@@ -533,9 +525,7 @@ impl Ay3_891xAudio {
             MixerControl => {
                 self.mixer = Mixer(val)
             }
-            AmpLevelA|
-            AmpLevelB|
-            AmpLevelC => {
+            AmpLevelA|AmpLevelB|AmpLevelC => {
                 self.amp_levels[usize::from(reg) - 8].set(val)
             }
             EnvPerFine => {

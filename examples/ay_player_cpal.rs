@@ -2,8 +2,6 @@
 #[path = "../tests/audio_cpal.rs"]
 mod audio_cpal;
 
-use core::any::Any;
-use zxspecemu::memory::SinglePageMemory;
 use core::num::NonZeroU32;
 use std::io::Read;
 use core::time::Duration;
@@ -15,7 +13,6 @@ use audio_cpal::*;
 
 use z80emu::{Cpu, Z80NMOS};
 // use zxspecemu::cpu_debug::print_debug_memory;
-use zxspecemu::memory::ZxMemory;
 use zxspecemu::audio::carousel::*;
 use zxspecemu::audio::sample::*;
 use zxspecemu::audio::*;
@@ -49,7 +46,7 @@ where T: 'static + FromSample<f32> + AudioSample + Send,
     // let mut bandlim = BlepAmpFilter::new(BandLimited::<f32>::new(3), 0.777);
     // BandLimited::<f32>::new(3).wrap_with(BlepStereo::build(0.5)).wrap_with(BlepAmpFilter::build(0.777));
     // BlepAmpFilter::build(0.777).wrap(BlepStereo::build(0.5)).wrap(BandLimited::<f32>::new(3));
-    let time_rate = Ay128kPlayer::ensure_audio_frame_time(&mut bandlim, audio.sample_rate);
+    Ay128kPlayer::ensure_audio_frame_time(&mut bandlim, audio.sample_rate);
     let mut cpu = Z80NMOS::default();
     let mut player = Ay128kPlayer::default();
     player.reset(&mut cpu, true);
@@ -99,11 +96,11 @@ where T: 'static + FromSample<f32> + AudioSample + Send,
         // loop {
             // debug!("frame_tstates: {}", player.frame_tstate());
             player.execute_next_frame(&mut cpu);
-            player.render_ay_audio_frame::<AyAmps<f32>>(&mut bandlim, time_rate, [0, 1, 2]);
-            // player.render_ay_audio_frame::<AyFuseAmps<f32>>(&mut bandlim, time_rate, [0, 1, 2]);
-            player.render_earmic_out_audio_frame::<EarOutAmps4<f32>>(&mut bandlim, time_rate, 2);
+            player.render_ay_audio_frame::<AyAmps<f32>>(&mut bandlim, [0, 1, 2]);
+            // player.render_ay_audio_frame::<AyFuseAmps<f32>>(&mut bandlim, [0, 1, 2]);
+            player.render_earmic_out_audio_frame::<EarOutAmps4<f32>>(&mut bandlim, 2);
             // close current frame
-            let frame_sample_count = player.end_audio_frame(&mut bandlim, time_rate);
+            let frame_sample_count = player.end_audio_frame(&mut bandlim);
             // render BLEP frame into the sample buffer
             audio.producer.render_frame(|ref mut vec| {
                 let sample_iter = bandlim.sum_iter::<T>(0)

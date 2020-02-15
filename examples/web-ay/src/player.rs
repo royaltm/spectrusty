@@ -82,7 +82,6 @@ pub struct AyFilePlayer<F=BandLimHiFi> {
     cpu: Z80NMOS,
     player: Ay128kPlayer,
     bandlim: BlepAmpFilter<BlepStereo<BandLimited<f32, F>>>,
-    time_rate: f64,
     ay_file: Option<PinAyFile>,
     channels: [usize; 3]
 }
@@ -96,14 +95,14 @@ impl<F: BandLimOpt> AyFilePlayer<F> {
                                 BlepStereo::new(0.5,
                                     BandLimited::<f32,F>::new(2)
                         ));
-        let time_rate = Ay128kPlayer::ensure_audio_frame_time(&mut bandlim, sample_rate);
+        Ay128kPlayer::ensure_audio_frame_time(&mut bandlim, sample_rate);
         let mut cpu = Z80NMOS::default();
         let mut player = Ay128kPlayer::default();
         let channels = AyChannelsMode::default().into();
         player.reset(&mut cpu, true);
         player.reset_frames();
         AyFilePlayer {
-            time_rate, cpu, player, bandlim, channels,
+            cpu, player, bandlim, channels,
             ay_file: None
         }
     }
@@ -171,11 +170,10 @@ impl<F: BandLimOpt> AyFilePlayer<F> {
     }
     /// Runs a single frame, returns a number of samples to be rendered
     pub fn run_frame<V: AmpLevels<f32>>(&mut self) -> usize {
-        let time_rate = self.time_rate;
         self.player.execute_next_frame(&mut self.cpu);
-        self.player.render_ay_audio_frame::<V>(&mut self.bandlim, time_rate, self.channels);
-        self.player.render_earmic_out_audio_frame::<EarOutAmps4<f32>>(&mut self.bandlim, time_rate, 2);
-        let frame_sample_count = self.player.end_audio_frame(&mut self.bandlim, time_rate);
+        self.player.render_ay_audio_frame::<V>(&mut self.bandlim, self.channels);
+        self.player.render_earmic_out_audio_frame::<EarOutAmps4<f32>>(&mut self.bandlim, 2);
+        let frame_sample_count = self.player.end_audio_frame(&mut self.bandlim);
         frame_sample_count
     }
 

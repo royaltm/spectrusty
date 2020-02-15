@@ -12,7 +12,7 @@ use core::num::NonZeroUsize;
 use core::cell::Cell;
 use core::ops::{AddAssign, Add};
 use core::convert::TryFrom;
-use super::{SampleDelta, Blep, sample::{IntoSample, FromSample, MulNorm}};
+use super::{FTs, SampleDelta, Blep, sample::{IntoSample, FromSample, MulNorm}};
 
 const PI2: f64 = core::f64::consts::PI * 2.0;
 /// number of phase offsets to sample band-limited step at
@@ -50,6 +50,7 @@ pub struct BandLimited<T, O=BandLimHiFi> {
     steps: [[T; STEP_WIDTH]; PHASE_COUNT],
     diffs: Vec<T>,
     channels: NonZeroUsize,
+    time_rate: f64,
     frame_time: f64,
     start_time: f64,
     sums: Box<[(T, Cell<Option<T>>)]>,
@@ -169,6 +170,7 @@ where T: Copy + Default + AddAssign + MulNorm + FromSample<f32>,
             steps,
             diffs: Vec::new(),
             channels,
+            time_rate: 0.0,
             frame_time: 0.0,
             start_time: 0.0,
             sums: vec![(T::default(), Cell::default()); channels.get()].into_boxed_slice(),
@@ -277,23 +279,30 @@ impl<T, O> Blep for BandLimited<T, O>
 where T: Copy + Default + SampleDelta + MulNorm
 {
     type SampleDelta = T;
-    type SampleTime = f64;
 
     #[inline]
-    fn ensure_frame_time(&mut self, frame_time: f64, margin_time: f64) {
+    fn ensure_frame_time(&mut self, sample_rate: u32, ts_rate: u32, frame_ts: FTs, margin_ts: FTs) {
+        let time_rate = sample_rate as f64 / ts_rate as f64;
+        assert!(time_rate > 0.0);
+        let frame_time = time_rate * frame_ts as f64;
+        assert!(frame_time > 0.0);
+        let margin_time = time_rate * margin_ts as f64;
+        assert!(margin_time >= 0.0);
+        self.time_rate = time_rate;
         self.set_frame_time(frame_time, margin_time);
     }
 
     #[inline]
-    fn end_frame(&mut self, time: Self::SampleTime) -> usize {
-        self.end_frame(time)
+    fn end_frame(&mut self, timestamp: FTs) -> usize {
+        debug_assert!(timestamp > 0);
+        self.end_frame(self.time_rate * timestamp as f64)
     }
 
     #[inline]
-    fn add_step(&mut self, channel: usize, time: f64, delta: T) {
-        let time = time - self.start_time;
+    fn add_step(&mut self, channel: usize, timestamp: FTs, delta: T) {
         let channels = self.channels.get();
         debug_assert!(channel < channels);
+        let time = self.time_rate * timestamp as f64 - self.start_time;
         let index = time.trunc() as usize * channels + channel;
         let phase = ((time.fract() * PHASE_COUNT as f64).trunc() as usize).rem_euclid(PHASE_COUNT);
         for (dp, phase) in self.diffs[index..index + STEP_WIDTH*channels]

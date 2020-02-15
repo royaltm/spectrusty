@@ -26,9 +26,8 @@ where i16: IntoSample<T>
 {
     // create a band-limited pulse buffer with 1 channel
     let mut bandlim: BandLimited<i16> = BandLimited::new(1);
-    let time_rate = <f64 as SampleTime>::time_rate(audio.sample_rate, CPU_HZ);
     // ensure BLEP has enough space to fit a single audio frame (no margin - our frames will have constant size)
-    bandlim.ensure_frame_time(time_rate.at_timestamp(FRAME_TSTATES), time_rate.at_timestamp(0));
+    bandlim.ensure_frame_time(audio.sample_rate, CPU_HZ, FRAME_TSTATES, 0);
     let channels = audio.channels as usize;
     let mut tstamp: i32 = 0;
     let mut delta: i16 = i16::from_sample(1.0f32);
@@ -42,7 +41,7 @@ where i16: IntoSample<T>
     while !done {
         // add pulses that fits the currently rendered frame
         while tstamp < FRAME_TSTATES {
-            bandlim.add_step(0, time_rate.at_timestamp(tstamp), delta);
+            bandlim.add_step(0, tstamp, delta);
             delta = -delta;
             // EarPulseIter yields delta timestamps (in T-states) between pulses
             match tap_pulse_iter.next() {
@@ -82,7 +81,7 @@ where i16: IntoSample<T>
         }
         tstamp -= FRAME_TSTATES;
         // close current frame
-        bandlim.end_frame(time_rate.at_timestamp(FRAME_TSTATES));
+        Blep::end_frame(&mut bandlim, FRAME_TSTATES);
         // render BLEP frame into the sample buffer
         audio.producer.render_frame(|ref mut vec| {
             let sample_iter = bandlim.sum_iter::<i16>(0); // channel 0

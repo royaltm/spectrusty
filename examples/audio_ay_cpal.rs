@@ -25,10 +25,8 @@ where i16: IntoSample<T>
 {
     // create a band-limited pulse buffer with 1 channel
     let mut bandlim: BandLimited<f32> = BandLimited::new(3);
-    let time_rate = <f64 as SampleTime>::time_rate(audio.sample_rate, CPU_HZ);
-
     // ensure BLEP has enough space to fit a single audio frame (no margin - our frames will have constant size)
-    bandlim.ensure_frame_time(time_rate.at_timestamp(FRAME_TSTATES), time_rate.at_timestamp(0));
+    bandlim.ensure_frame_time(audio.sample_rate, CPU_HZ, FRAME_TSTATES, 0);
     let channels = audio.channels as usize;
 
     let mut ay = Ay3_891xAudio::default();
@@ -47,10 +45,10 @@ where i16: IntoSample<T>
     ];
     // render frames
     loop {
-        ay.render_audio::<AyAmps<f32>,_,_,_,_>(changes.drain(..),
-                                                    &mut bandlim, time_rate, FRAME_TSTATES, [0, 1, 2]);
+        ay.render_audio::<AyAmps<f32>,_,_,_>(changes.drain(..),
+                                                    &mut bandlim, FRAME_TSTATES, [0, 1, 2]);
         // close current frame
-        let frame_sample_count = bandlim.end_frame(time_rate.at_timestamp(FRAME_TSTATES));
+        let frame_sample_count = Blep::end_frame(&mut bandlim, FRAME_TSTATES);
         // render BLEP frame into the sample buffer
         audio.producer.render_frame(|ref mut vec| {
             let sample_iter = bandlim.sum_iter::<T>(0)

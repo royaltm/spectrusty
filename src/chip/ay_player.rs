@@ -6,7 +6,7 @@ use z80emu::{Cpu, Clock, Io, Memory, CpuDebug, CpuDebugFn, BreakCause, opconsts,
         TsCounter, Result, cycles::M1_CYCLE_TS
     }};
 use crate::audio::*;
-use crate::audio::sample::{SampleDelta, SampleTime};
+use crate::audio::sample::SampleDelta;
 use crate::audio::ay::*;
 use crate::io::ay::*;
 use crate::clock::{FTs, FTsData2};
@@ -77,47 +77,41 @@ impl AyPortDecode for AyTC2068PortDecode {
     const PORT_DATA_WRITE: u16 = 0x00f6;
 }
 
-impl<P,A,FT> AudioFrame<A> for AyPlayer<P>
-where A: Blep<SampleTime=FT>, FT: SampleTime
+impl<P, A: Blep> AudioFrame<A> for AyPlayer<P>
 {
-    fn ensure_audio_frame_time(blep: &mut A, sample_rate: u32) -> FT {
-        let time_rate = FT::time_rate(sample_rate, CPU_HZ);
-        blep.ensure_frame_time(time_rate.at_timestamp(FRAME_TSTATES),
-                               time_rate.at_timestamp(MARGIN_TSTATES));
-        time_rate
+    fn ensure_audio_frame_time(blep: &mut A, sample_rate: u32) {
+        blep.ensure_frame_time(sample_rate, CPU_HZ, FRAME_TSTATES, MARGIN_TSTATES)
     }
 
-    fn get_audio_frame_end_time(&self, time_rate: FT) -> FT {
+    fn get_audio_frame_end_time(&self) -> FTs {
         let ts = self.tsc.as_timestamp();
         debug_assert!(ts >= FRAME_TSTATES);
-        time_rate.at_timestamp(ts)
+        ts
     }
 }
 
-impl<P,A,L,FT> AyAudioFrame<A> for AyPlayer<P>
-where A: Blep<SampleDelta=L, SampleTime=FT>,
-      L: SampleDelta + Default,
-      FT: SampleTime
+impl<P, A, L> AyAudioFrame<A> for AyPlayer<P>
+    where A: Blep<SampleDelta=L>,
+          L: SampleDelta + Default
 {
-    fn render_ay_audio_frame<V: AmpLevels<L>>(&mut self, blep: &mut A, time_rate: FT, chans: [usize; 3]) {
+    fn render_ay_audio_frame<V: AmpLevels<L>>(&mut self, blep: &mut A, chans: [usize; 3]) {
         let end_ts = self.tsc.as_timestamp();
         debug_assert!(end_ts >= FRAME_TSTATES);
         let changes = self.ay_io.recorder.drain_ay_reg_changes();
-        self.ay_sound.render_audio::<V,L,_,A,FT>(changes, blep, time_rate, end_ts, chans)
+        self.ay_sound.render_audio::<V,L,_,A>(changes, blep, end_ts, chans)
     }
 }
 
-impl<P,A,L,FT> EarMicOutAudioFrame<A> for AyPlayer<P>
-where A: Blep<SampleDelta=L, SampleTime=FT>,
-      L: SampleDelta,
-      FT: SampleTime
+impl<P, A, L> EarMicOutAudioFrame<A> for AyPlayer<P>
+    where A: Blep<SampleDelta=L>,
+          L: SampleDelta
 {
     #[inline(always)]
-    fn render_earmic_out_audio_frame<V: AmpLevels<L>>(&self, blep: &mut A, time_rate: FT, channel: usize) {
-        render_audio_frame_ts::<V,L,A,FT,_>(self.prev_earmic,
+    fn render_earmic_out_audio_frame<V: AmpLevels<L>>(&self, blep: &mut A, channel: usize) {
+        render_audio_frame_ts::<V,L,A,_>(self.prev_earmic,
                                          None,
                                          &self.earmic_changes,
-                                         blep, time_rate, channel)
+                                         blep, channel)
     }
 }
 

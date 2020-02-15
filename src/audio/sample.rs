@@ -24,14 +24,6 @@ pub trait IntoSample<S> {
     fn into_sample(self) -> S;
 }
 
-/// This trait is being used to calculate sample time for [Blep][crate::audio::Blep] trait.
-pub trait SampleTime: Copy {
-    /// Calculates a time rate from the given sample rate and cpu cycles (T-states) per second.
-    fn time_rate(sample_rate: u32, ts_per_second: u32) -> Self;
-    /// Calculates sample time from `self` as a time rate and the given `timestamp` in T-states.
-    fn at_timestamp(self, timestamp: FTs) -> Self;
-}
-
 /// This trait is being used to calculate sample amplitude differences (∆).
 pub trait SampleDelta: Copy {
     /// Returns the difference (if any) between `after` and `self` (before).
@@ -48,17 +40,6 @@ pub trait MulNorm {
     ///
     /// Float samples operates in range: [-1.0, 1.0], integer: [min, max]
     fn mul_norm(self, other: Self) -> Self;
-}
-
-impl SampleTime for f64 {
-    #[inline]
-    fn at_timestamp(self, timestamp: FTs) -> Self {
-        self * timestamp as f64
-    }
-    #[inline]
-    fn time_rate(sample_rate: u32, ts_per_second: u32) -> Self {
-        sample_rate as f64 / ts_per_second as f64
-    }
 }
 
 impl SampleDelta for f32 {
