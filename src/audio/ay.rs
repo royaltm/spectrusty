@@ -159,10 +159,10 @@ impl Mixer {
 }
 
 // TODO: make bitflags
-const ENV_SHAPE_CONT_MASK:   u8 = 0b0000_1000;
-const ENV_SHAPE_ATTACK_MASK: u8 = 0b0000_0100;
-const ENV_SHAPE_ALT_MASK:    u8 = 0b0000_0010;
-const ENV_SHAPE_HOLD_MASK:   u8 = 0b0000_0001;
+pub const ENV_SHAPE_CONT_MASK:   u8 = 0b0000_1000;
+pub const ENV_SHAPE_ATTACK_MASK: u8 = 0b0000_0100;
+pub const ENV_SHAPE_ALT_MASK:    u8 = 0b0000_0010;
+pub const ENV_SHAPE_HOLD_MASK:   u8 = 0b0000_0001;
 const ENV_LEVEL_REV_MASK:    u8 = 0b1000_0000;
 const ENV_LEVEL_MOD_MASK:    u8 = 0b0100_0000;
 const ENV_LEVEL_MASK:        u8 = 0x0F;
