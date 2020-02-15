@@ -36,9 +36,9 @@ features = [
   'Window'
 ]
 
-[dependencies.rand]
-version = "^0.7"
-features = ["wasm-bindgen"]
+# [dependencies.rand]
+# version = "^0.7"
+# features = ["wasm-bindgen"]
 
 [dependencies.zxspecemu]
 version = "*"

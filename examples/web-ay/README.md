@@ -21,3 +21,6 @@ To build a distribution files in a `dist` folder:
 ```
 npm run build
 ```
+
+Open http://localhost:8080
+

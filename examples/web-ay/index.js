@@ -14,7 +14,9 @@ import('./pkg')
         ayPlayer.free();
       }
       songIndex >>>= 0;
-      ayPlayer = new rust_module.AyPlayerHandle();
+      ayPlayer = new rust_module.AyPlayerHandle(0.125); // a single buffer duration
+      ayPlayer.setAmps(JSON.stringify(ampsSelect.value));
+      ayPlayer.setChannels(JSON.stringify(channelsSelect.value));
       ayPlayer.setGain(gainControl.value / 100);
       ayPlayer.load(file).then(info => {
         info.file = filename;
@@ -27,8 +29,10 @@ import('./pkg')
     const filesInput = document.getElementById("files");
     const pauseButton = document.getElementById("pause");
     const replayButton = document.getElementById("replay");
+    const channelsSelect = document.getElementById("channels");
     const ejectButton = document.getElementById("eject");
     const musicSelect = document.getElementById("music");
+    const ampsSelect = document.getElementById("amps");
     const songsElem = document.getElementById("songs");
 
     function showInfo(info, songIndex) {
@@ -120,6 +124,14 @@ import('./pkg')
 
     gainElem.addEventListener("input", event => {
       ayPlayer && ayPlayer.setGain(parseFloat(event.target.value/100));
+    }, false);
+
+    channelsSelect.addEventListener("change", event => {
+      ayPlayer && ayPlayer.setChannels(JSON.stringify(event.target.value));
+    }, false);
+
+    ampsSelect.addEventListener("change", event => {
+      ayPlayer && ayPlayer.setAmps(JSON.stringify(event.target.value));
     }, false);
   })
 .catch(console.error);

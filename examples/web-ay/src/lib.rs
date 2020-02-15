@@ -1,9 +1,9 @@
-#![allow(unused_imports)]
 mod player;
-use std::ops::Deref;
+use core::mem;
+use core::cell::RefCell;
 use core::ops::Range;
-use core::cell::{RefCell, RefMut};
-use std::rc::{Rc, Weak};
+use std::rc::Rc;
+
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::*;
 use js_sys::{self, Promise, Uint8Array, Function};
@@ -11,20 +11,12 @@ use web_sys::{
     window,
     ProgressEvent,
     Response,
-    Event,
     File,
     FileReader,
     AudioBuffer,
-    // AudioBufferSourceNode,
     AudioContext,
     AudioContextState,
-    // AudioDestinationNode,
-    // AudioNode,
-    // AudioParam,
-    // AudioScheduledSourceNode,
-    // BaseAudioContext,
-    // GainNode,
-    // OscillatorType,
+    GainNode,
 };
 use wasm_bindgen_futures::{JsFuture, future_to_promise};
 use serde_json::json;
@@ -47,21 +39,24 @@ extern "C" {
     fn log_f64(a: f64);
 }
 
-pub struct AyPlayer {
+/// This struct is wrapped inside the reference pointer in a AyPlayerHandle
+pub struct AyWebPlayer {
     player: AyFilePlayer,
     buffer0: Vec<f32>,
     buffer1: Vec<f32>,
     cursor: Range<usize>,
     buffer_sourced: AudioBuffer,
     buffer_next: AudioBuffer,
+    curr_end_closure: OnEndClosure,
+    next_end_closure: OnEndClosure,
     buffer_length: u32,
     buffer_duration: f64,
-    start_time: f64,
     ctx: AudioContext,
-    gain: web_sys::GainNode,
+    gain: GainNode,
+    ay_amp_select: AyAmpSelect
 }
 
-impl Drop for AyPlayer {
+impl Drop for AyWebPlayer {
     fn drop(&mut self) {
         log("closing");
         let _ = self.ctx.close();
@@ -75,114 +70,119 @@ enum PlayerStatus {
     Playing
 }
 
+/// This is the main class being instantiated in javascript.
 #[wasm_bindgen]
 pub struct AyPlayerHandle {
-    player_closure: Rc<RefCell<(AyPlayer, OnEndClosure)>>,
+    player: Rc<RefCell<AyWebPlayer>>,
     status: PlayerStatus
 }
 
 #[wasm_bindgen]
 impl AyPlayerHandle {
+    /// Creates a new instance of [AyPlayerHandle], may throw errors.
     #[wasm_bindgen(constructor)]
-    pub fn new() -> Result<AyPlayerHandle, JsValue> {
-        let player = AyPlayer::new()?;
-        let closure = Closure::once(move || -> Result<(), JsValue> { Ok(()) });
-        let player_closure = Rc::new(RefCell::new((player, closure)));
+    pub fn new(buffer_duration: f32) -> Result<AyPlayerHandle, JsValue> {
+        let player = Rc::new(RefCell::new( AyWebPlayer::new(buffer_duration)? ));
         Ok(AyPlayerHandle {
-            player_closure,
+            player,
             status: PlayerStatus::Idle
         })
     }
-
+    /// Plays the song at `song_index`. On success returns the optional JSON object
+    /// with the information about the played song.
+    /// The song should be loaded prior to calling `play`. It may be called only once per each instance.
+    /// May throw errors.
     #[wasm_bindgen]
     pub fn play(&mut self, song_index: u32) -> Result<JsValue, JsValue> {
         if let PlayerStatus::Playing = self.status {
             Err("Playing already.")?;
         }
         let song_info;
-        {
-            let player = &mut self.player_closure.borrow_mut().0;
+        let (time, duration) = {
+            let mut player = self.player.borrow_mut();
             song_info = match player.player.set_song(song_index as usize) {
                 Some(info) => info,
                 None if song_index != 0 => return Err("No song at a given index.".into()),
                 None => json!(null)
             };
-            player.start_time = player.ctx.current_time();
-        }
-        Self::play_next_frame(&self.player_closure)
-            .map(|_| {
-                self.status = PlayerStatus::Playing;
-                JsValue::from_serde(&song_info).unwrap()
-            })
+            (player.ctx.current_time(), player.buffer_duration)
+        };
+        Self::play_next_frame(time, &self.player)?;
+        Self::play_next_frame(time + duration, &self.player)
+        .map(|_| {
+            self.status = PlayerStatus::Playing;
+            JsValue::from_serde(&song_info).unwrap()
+        })
     }
 
-    /// `file` can be an instance of `File` or an url string.
+    fn play_next_frame(
+                time: f64,
+                player_rc: &Rc<RefCell<AyWebPlayer>>
+            ) -> Result<(), JsValue>
+    {
+        let mut player = player_rc.borrow_mut();
+        let source = {
+            { // swap buffers and create a new source for the next buffer
+                let pl = &mut *player; // direct mutable reference for a mutable split call
+                mem::swap(&mut pl.buffer_sourced, &mut pl.buffer_next);
+                mem::swap(&mut pl.curr_end_closure, &mut pl.next_end_closure);
+            }
+            let source = player.ctx.create_buffer_source()?;
+            source.set_buffer(Some(&player.buffer_next));
+            source.connect_with_audio_node(&player.gain)?;
+            source
+        };
+        source.start_with_when(time)?;
+        // schedule next audio play with `buffer_next` after the end of play of `buffer_sourced`
+        let time = time + 2.0 * player.buffer_duration;
+        // keep only a weak reference in a closure, otherwise the drop of
+        // AyPlayerHandle wouldn't drop AyWebPlayer
+        let weakref = Rc::downgrade(player_rc);
+        // overwrite prevous closure
+        let closure = Closure::once(move || -> Result<(), JsValue> {
+            if let Some(rc) = weakref.upgrade() {
+                return Self::play_next_frame(time, &rc);
+            }
+            Ok(())
+        });
+        source.set_onended(Some( closure.as_ref().unchecked_ref() ));
+        player.next_end_closure = closure;
+        // when audio is scheduled, we have a whole duration of
+        // `buffer_sourced` to render the next one
+        match player.ay_amp_select {
+            AyAmpSelect::Spec => player.render_frames::<AyAmps<f32>>(),
+            AyAmpSelect::Fuse => player.render_frames::<AyFuseAmps<f32>>()
+        }
+    }
+    /// Loads a song from the given `file`.
+    /// `file` can be an instance of a WEBAPI `File` object or a remote url to the file as a string.
+    /// On success returns a JSON object with information about the file.
+    /// May throw errors.
     #[wasm_bindgen]
     pub fn load(&mut self, file: JsValue) -> Promise {
         if let PlayerStatus::Playing = self.status {
             return Promise::reject(&"Can't load, already playing.".into());
         }
-        let player_closure = Rc::clone(&self.player_closure);
+        let player = Rc::clone(&self.player);
         let url = match file.dyn_into::<File>() {
-            Ok(file) => return Self::load_file(player_closure, file),
+            Ok(file) => return Self::load_file(player, file),
             Err(other) => other
         };
         if url.is_string() {
             if let Some(url) = url.as_string() {
                 return future_to_promise(
-                    Self::load_url_async(player_closure, url)
+                    Self::load_url_async(player, url)
                 );
             }
         }
         Promise::reject(&"Only url string or File instances please.".into())
     }
 
-    /// Return true if paused, false if unpaused, null if not playing
-    #[wasm_bindgen(js_name = togglePause)]
-    pub fn toggle_pause(&self) -> Promise {
-        match self.status {
-            PlayerStatus::Idle => Promise::resolve(&JsValue::NULL),
-            PlayerStatus::Playing => {
-                let player_closure = Rc::clone(&self.player_closure);
-                future_to_promise(
-                    Self::toggle_pause_async(player_closure)
-                )
-            }
-        }
-    }
-
-    async fn toggle_pause_async(
-                player_closure: Rc<RefCell<(AyPlayer, OnEndClosure)>>
-            ) -> Result<JsValue, JsValue>
-    {
-        let mut resumed = false;
-        let promise = {
-            let ctx = &player_closure.borrow().0.ctx;
-            match ctx.state() {
-                AudioContextState::Suspended => {
-                    resumed = true;
-                    ctx.resume()?
-                }
-                AudioContextState::Running => ctx.suspend()?,
-                _ => Err("Audio context closed")?
-            }
-        };
-        let _ = JsFuture::from(promise).await?;
-        if resumed {
-            // let ay_player = &mut player_closure.borrow_mut().0;
-            // ay_player.start_time = ay_player.ctx.current_time();
-            Ok(JsValue::FALSE)
-        }
-        else {
-            Ok(JsValue::TRUE)
-        }
-    }
-
     fn load_file(
-                player_closure: Rc<RefCell<(AyPlayer, OnEndClosure)>>,
+                player: Rc<RefCell<AyWebPlayer>>,
                 file: File
             ) -> Promise
-    {
+    {   // Using an older event-based FileReader api.
         Promise::new(&mut move |resolve: Function, reject: Function| {
             let reject = move |err: JsValue| {
                 let _ = reject.call1(&JsValue::NULL, &err);
@@ -194,7 +194,7 @@ impl AyPlayerHandle {
             if let Err(jserr) = file_reader.read_as_array_buffer(&file) {
                 return reject(jserr)
             }
-            let player_closure = Rc::clone(&player_closure);
+            let player = Rc::clone(&player);
             let cb = Closure::once_into_js(move |event: ProgressEvent| {
                 let target = event.target().unwrap();
                 let file_reader: FileReader = match target.dyn_into() {
@@ -206,7 +206,7 @@ impl AyPlayerHandle {
                     Err(jserr) => return reject(jserr)
                 };
                 let data = Uint8Array::new(&array_buffer).to_vec();
-                let info = match player_closure.borrow_mut().0.player.load_file(data) {
+                let info = match player.borrow_mut().player.load_file(data) {
                     Ok(info) => info,
                     Err(err) => return reject(err.into())
                 };
@@ -217,10 +217,10 @@ impl AyPlayerHandle {
     }
 
     async fn load_url_async(
-                player_closure: Rc<RefCell<(AyPlayer, OnEndClosure)>>,
+                player: Rc<RefCell<AyWebPlayer>>,
                 url: String
             ) -> Result<JsValue, JsValue>
-    {
+    { // using fetch api
         let response = window().unwrap().fetch_with_str(&url);
         let response = JsFuture::from(response).await?.dyn_into::<Response>()?;
         if !response.ok() {
@@ -228,52 +228,84 @@ impl AyPlayerHandle {
         }
         let array_buffer = JsFuture::from(response.array_buffer()?).await?;
         let data = Uint8Array::new(&array_buffer).to_vec();
-        let info = player_closure.borrow_mut().0.player.load_file(data)?;
+        let info = player.borrow_mut().player.load_file(data)?;
         Ok(JsValue::from_serde(&info).unwrap())
     }
-
-    fn play_next_frame(
-                player_cb: &Rc<RefCell<(AyPlayer, OnEndClosure)>>
-            ) -> Result<(), JsValue>
-    {
-        let (mut player, mut closure) = RefMut::map_split(player_cb.borrow_mut(),
-                                                                    |(p,c)| (p,c));
-        let source = {
-            {
-                let player = &mut *player;
-                core::mem::swap(&mut player.buffer_sourced, &mut player.buffer_next);
+    /// Toggles paused state. Returns a `Promise` which resolves to `true` if paused
+    /// or `false` if unpaused, `null` if not playing.
+    #[wasm_bindgen(js_name = togglePause)]
+    pub fn toggle_pause(&self) -> Promise {
+        match self.status {
+            PlayerStatus::Idle => Promise::resolve(&JsValue::NULL),
+            PlayerStatus::Playing => {
+                let player = Rc::clone(&self.player);
+                future_to_promise(
+                    Self::toggle_pause_async(player)
+                )
             }
-            let source = player.ctx.create_buffer_source()?;
-            source.set_buffer(Some(&player.buffer_next));
-            source.connect_with_audio_node(&player.gain)?;
-            source
-        };
-        player.start_time += player.buffer_duration;
-        source.start_with_when(player.start_time)?;
-        let weakref = Rc::downgrade(player_cb);
-        *closure = Closure::once(move || -> Result<(), JsValue> {
-            if let Some(rc) = weakref.upgrade() {
-                return Self::play_next_frame(&rc);
-            }
-            Ok(())
-        });
-        source.set_onended(Some( closure.as_ref().unchecked_ref() ));
-        player.render_frames()?;
-        Ok(())
+        }
     }
 
-    /// Sets the gain for this oscillator, between 0.0 and 1.0.
+    async fn toggle_pause_async(
+                player: Rc<RefCell<AyWebPlayer>>
+            ) -> Result<JsValue, JsValue>
+    {
+        let mut resumed = false;
+        let promise = {
+            let ctx = &player.borrow().ctx;
+            match ctx.state() {
+                AudioContextState::Suspended => {
+                    resumed = true;
+                    ctx.resume()?
+                }
+                AudioContextState::Running => ctx.suspend()?,
+                _ => Err("Audio context closed")?
+            }
+        };
+
+        let _ = JsFuture::from(promise).await?;
+
+        Ok(if resumed {
+            JsValue::FALSE
+        }
+        else {
+            JsValue::TRUE
+        })
+    }
+    /// Sets the channel mode for the player.
+    #[wasm_bindgen(js_name = setAmps)]
+    pub fn set_amps(&self, amp_mode: &str) -> Result<(), JsValue> {
+        let select = serde_json::from_str(&amp_mode)
+                                    .map_err(|e| e.to_string())?;
+        self.player.borrow_mut().ay_amp_select = select;
+        Ok(())
+    }
+    /// Sets the channel mode for the player.
+    #[wasm_bindgen(js_name = setChannels)]
+    pub fn set_channels(&self, chan_mode: &str) -> Result<(), JsValue> {
+        let chan_mode = serde_json::from_str(&chan_mode)
+                                    .map_err(|e| e.to_string())?;
+        self.player.borrow_mut().player.set_channels_mode(chan_mode);
+        Ok(())
+    }
+    /// Sets the gain for this audio source, between 0.0 and 1.0.
     #[wasm_bindgen(js_name = setGain)]
     pub fn set_gain(&self, gain: f32) {
-        self.player_closure.borrow_mut().0.set_gain(gain);
+        self.player.borrow_mut().set_gain(gain);
     }
 }
 
-impl AyPlayer {
-    fn new() -> Result<AyPlayer, JsValue> {
+// for a placeholder closure
+fn nothing() -> Result<(), JsValue> { Ok(()) }
+
+impl AyWebPlayer {
+    fn new(buffer_duration: f32) -> Result<Self, JsValue> {
+        if buffer_duration < 0.1 || buffer_duration > 1.0 {
+            Err("requested buffer duration should be between 0.1 and 1.0")?;
+        }
         let ctx = web_sys::AudioContext::new()?;
         let sample_rate = ctx.sample_rate();
-        let buffer_length = (sample_rate * 0.2).round() as u32;
+        let buffer_length = (sample_rate * buffer_duration).trunc() as u32;
         console_log!("sample_rate: {} buffer_length: {}", sample_rate, buffer_length);
 
         let player = AyFilePlayer::new(sample_rate as u32);
@@ -283,14 +315,16 @@ impl AyPlayer {
         let buffer_sourced = ctx.create_buffer(2, buffer_length, sample_rate)?;
         let buffer_duration = buffer_sourced.duration();
         let buffer_next = ctx.create_buffer(2, buffer_length, sample_rate)?;
+        let curr_end_closure = Closure::once(nothing);
+        let next_end_closure = Closure::once(nothing);
         let gain = ctx.create_gain()?;
+        let ay_amp_select = AyAmpSelect::Spec;
 
         gain.gain().set_value(0.0);
         gain.connect_with_audio_node(&ctx.destination())?;
 
-        Ok(AyPlayer {
+        Ok(AyWebPlayer {
             player,
-            start_time: 0.0,
             buffer_length,
             buffer_duration,
             ctx,
@@ -299,11 +333,14 @@ impl AyPlayer {
             cursor: 0..0,
             buffer_sourced,
             buffer_next,
+            curr_end_closure,
+            next_end_closure,
             gain,
+            ay_amp_select
         })
     }
-
-    fn render_frames(&mut self) -> Result<(), JsValue> {
+    // fills buffer_next with audio from rendered frames
+    fn render_frames<V: AmpLevels<f32>>(&mut self) -> Result<(), JsValue> {
         let buffer_length = self.buffer_length;
         let mut range = self.cursor.clone();
         let mut start = range.len() as u32;
@@ -312,7 +349,7 @@ impl AyPlayer {
             self.buffer_next.copy_to_channel_with_start_in_channel(&mut self.buffer1[range.clone()], 1, 0)?;
         }
         range.end = loop {
-            let nsamples = self.player.run_frame();
+            let nsamples = self.player.run_frame::<V>();
             self.buffer0.resize(nsamples, 0.0);
             self.buffer1.resize(nsamples, 0.0);
             self.player.render_audio_channel(0, &mut self.buffer0);
@@ -329,7 +366,6 @@ impl AyPlayer {
         self.cursor = range;
         Ok(())
     }
-
     /// Sets the gain for this oscillator, between 0.0 and 1.0.
     fn set_gain(&self, mut gain: f32) {
         if gain > 1.0 {

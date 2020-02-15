@@ -1,13 +1,10 @@
-use core::any::Any;
-use core::num::NonZeroU32;
-use core::time::Duration;
-use std::io::{Cursor, Read};
+use std::io::Cursor;
 
+use serde::{Serialize, Deserialize};
 use serde_json::{self, json};
 
-use z80emu::{Cpu, Z80NMOS};
-use zxspecemu::memory::{ZxMemory, SinglePageMemory};
-use zxspecemu::audio::sample::*;
+use z80emu::Z80NMOS;
+use zxspecemu::memory::ZxMemory;
 use zxspecemu::audio::*;
 use zxspecemu::audio::synth::*;
 use zxspecemu::audio::ay::*;
@@ -20,6 +17,7 @@ use zxspecemu::chip::ay_player::*;
 pub use zxspecemu::audio::synth::{BandLimHiFi, BandLimLowTreb, BandLimLowBass, BandLimNarrow};
 
 pub type Ay128kPlayer = AyPlayer<Ay128kPortDecode>;
+pub use zxspecemu::audio::{AmpLevels, ay::{AyAmps, AyFuseAmps}};
 
 macro_rules! resource {
     ($file:expr) => {
@@ -29,30 +27,87 @@ macro_rules! resource {
 
 const ROM48: &[u8] = include_bytes!(resource!("48k.rom"));
 
+#[derive(Clone, Copy, Serialize, Deserialize, Debug)]
+pub enum AyAmpSelect {
+    Spec,
+    Fuse,
+}
+
+#[derive(Clone, Copy, Serialize, Deserialize, Debug)]
+pub enum AyChannelsMode {
+    ABC,
+    ACB,
+    BAC,
+    BCA,
+    CAB,
+    CBA,
+    Mono
+}
+
+impl Default for AyChannelsMode {
+    fn default() -> Self {
+        AyChannelsMode::ACB
+    }
+}
+
+impl AyChannelsMode {
+    fn is_mono(self) -> bool {
+        if let AyChannelsMode::Mono = self {
+            true
+        }
+        else {
+            false
+        }
+    }
+}
+
+impl From<AyChannelsMode> for [usize;3] {
+    fn from(channels: AyChannelsMode) -> Self {
+        use AyChannelsMode::*;
+        match channels {
+                  // A, B, C -> 0: left, 1: right, 2: center
+            ABC  => [0, 2, 1],
+            ACB  => [0, 1, 2],
+            BAC  => [2, 0, 1],
+            BCA  => [1, 0, 2],
+            CAB  => [2, 1, 0],
+            CBA  => [1, 2, 0],
+            Mono => [2, 2, 2]
+        }
+    }
+}
+
+/// A whole "circuit board" bundled together.
 pub struct AyFilePlayer<F=BandLimHiFi> {
-    time_rate: f64,
     cpu: Z80NMOS,
     player: Ay128kPlayer,
-    // bandlim: BlepStereo<BandLimited<f32, F>>
     bandlim: BlepAmpFilter<BlepStereo<BandLimited<f32, F>>>,
+    time_rate: f64,
     ay_file: Option<PinAyFile>,
+    channels: [usize; 3]
 }
+
+const MONO_AMP_FILTER: f32 = 2.0/3.0;
+const STEREO_AMP_FILTER: f32 = 0.777;
 
 impl<F: BandLimOpt> AyFilePlayer<F> {
     pub fn new(sample_rate: u32) -> Self {
-        let mut bandlim = BlepAmpFilter::new(0.777, BlepStereo::new(0.5, BandLimited::<f32,F>::new(2)));
-        // let mut bandlim = BlepStereo::new(0.5, BandLimited::<f32,F>::new(2));
+        let mut bandlim = BlepAmpFilter::new(STEREO_AMP_FILTER,
+                                BlepStereo::new(0.5,
+                                    BandLimited::<f32,F>::new(2)
+                        ));
         let time_rate = Ay128kPlayer::ensure_audio_frame_time(&mut bandlim, sample_rate);
         let mut cpu = Z80NMOS::default();
         let mut player = Ay128kPlayer::default();
+        let channels = AyChannelsMode::default().into();
         player.reset(&mut cpu, true);
         player.reset_frames();
         AyFilePlayer {
-            time_rate, cpu, player, bandlim,
+            time_rate, cpu, player, bandlim, channels,
             ay_file: None
         }
     }
-
+    // tries the .AY parser and if it fails and the size is right reads as .SNA
     pub fn load_file<B: Into<Box<[u8]>>>(
                 &mut self,
                 data: B
@@ -60,6 +115,7 @@ impl<F: BandLimOpt> AyFilePlayer<F> {
     {
         self.player.reset(&mut self.cpu, true);
         self.player.reset_frames();
+        self.bandlim.reset();
         self.ay_file = None;
         let ay_file = match parse_ay(data) {
             Ok(af) => af,
@@ -89,7 +145,7 @@ impl<F: BandLimOpt> AyFilePlayer<F> {
         self.ay_file = Some(ay_file);
         Ok(res)
     }
-
+    /// Returns a serde json object with information about the selected song.
     pub fn set_song(&mut self, song_index: usize) -> Option<serde_json::Value> {
         if let Some(ay_file) = self.ay_file.as_ref() {
             if let Some(song) = ay_file.songs.get(song_index) {
@@ -103,11 +159,21 @@ impl<F: BandLimOpt> AyFilePlayer<F> {
         }
         None
     }
-
-    pub fn run_frame(&mut self) -> usize {
+    /// Sets channel mode and adjusts amplifier filter.
+    pub fn set_channels_mode(&mut self, config: AyChannelsMode) {
+        if config.is_mono() {
+            self.bandlim.filter = MONO_AMP_FILTER;
+        }
+        else {
+            self.bandlim.filter = STEREO_AMP_FILTER;
+        }
+        self.channels = config.into();
+    }
+    /// Runs a single frame, returns a number of samples to be rendered
+    pub fn run_frame<V: AmpLevels<f32>>(&mut self) -> usize {
         let time_rate = self.time_rate;
         self.player.execute_next_frame(&mut self.cpu);
-        self.player.render_ay_audio_frame::<AyAmps<f32>>(&mut self.bandlim, time_rate, [0, 1, 2]);
+        self.player.render_ay_audio_frame::<V>(&mut self.bandlim, time_rate, self.channels);
         self.player.render_earmic_out_audio_frame::<EarOutAmps4<f32>>(&mut self.bandlim, time_rate, 2);
         let frame_sample_count = self.player.end_audio_frame(&mut self.bandlim, time_rate);
         frame_sample_count

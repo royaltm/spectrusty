@@ -10,24 +10,55 @@
     <div class="container">
       <dir class="row">
         <div class="col-sm">
-          <h4>AY-8910/8912/8913 Chiptune Player</h4>
-          <div class="form-group">
-            <label for="gainControl">Gain:</label>
-            <input type="range" class="custom-range" min="0" max="100" value="100" id="gainControl"/>
+          <h4>ZX Spectrum AY-891x Chiptune Player</h4>
+          <div class="form-row align-items-center">
+            <div class="col">
+              <label for="gainControl">Gain:</label>
+              <input type="range" class="custom-range" min="0" max="100" value="100" id="gainControl"/>
+            </div>
+            <div class="col-auto">
+              <label for="channels">AY D→A amps:</label>
+              <select class="form-control form-control-sm" id="amps">
+                <option value="Spec" selected>Specs.</option>
+                <option value="Fuse">Fuse</option>
+              </select>
+           </div>
           </div>
-          <div class="form-group">
-            <label for="songs">Song:</label>
-            <select class="form-control" id="songs"></select>
+          <div class="form-row align-items-center">
+            <div class="col">
+              <label for="songs">Song:</label>
+              <select class="form-control" id="songs"></select>
+            </div>
+            <div class="col-auto">
+              <label for="channels">AY channels:</label>
+              <select class="form-control" id="channels">
+                <option value="ABC">ABC</option>
+                <option value="ACB" selected>ACB</option>
+                <option value="BAC">BAC</option>
+                <option value="BCA">BCA</option>
+                <option value="CAB">CAB</option>
+                <option value="CBA">CBA</option>
+                <option value="Mono">Mono</option>
+             </select>
+           </div>
           </div>
           <div class="form-group">
             <label for="music">Music file:</label>
             <select class="form-control" id="music" size="10"></select>
           </div>
+          <div class="form-row align-items-center">
+            <div class="col-auto">
+              <input class="btn btn-primary" id="pause" type="button" value="Pause ⏯"/>
+            </div>
+            <div class="col-auto">
+              <input class="btn btn-outline-success" id="replay" type="button" value="Replay ▶️"/>
+            </div>
+           <div class="col">
+              <input class="btn btn-outline-danger float-right" id="eject" type="button" value="Eject ⏏️"/>
+           </div>
+          </div>
           <div class="form-group">
-           <input class="btn btn-primary" id="pause" type="button" value="Pause ⏯"/>
-           <input class="btn btn-outline-success" id="replay" type="button" value="Re-play ▶️"/>
-           <input class="btn btn-outline-danger float-right" id="eject" type="button" value="Eject ⏏️"/>
-           <small class="form-text"><b>Headphone users</b>, please make sure your volume is not too loud!</small>
+            <small class="form-text"><b>Headphone users</b>, please make sure your volume is not too loud!</small>
           </div>
           <div class="custom-file">
             <input type="file" class="custom-file-input"  id="files" multiple accept=".ay,.sna"/>
