@@ -101,7 +101,6 @@ pub trait AyAudioFrame<B: Blep> {
     /// Renders square-wave pulses via [Blep] interface.
     ///
     /// Provide [AmpLevels] that can handle `level` values from 0 to 15 (4-bits).
-    /// `time_rate` may be obtained from calling [AudioFrame::ensure_audio_frame_time].
     /// `channels` - target [Blep] audio channels for `[A, B, C]` AY-3-891x channels.
     fn render_ay_audio_frame<V: AmpLevels<B::SampleDelta>>(
                     &mut self, blep: &mut B, channels: [usize; 3]);

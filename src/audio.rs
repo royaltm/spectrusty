@@ -144,7 +144,6 @@ pub trait EarMicOutAudioFrame<B: Blep> {
     ///    1    0     2
     ///    1    1     3
     ///```
-    /// `time_rate` may be optained from calling [AudioFrame::ensure_audio_frame_time].
     /// `channel` - target [Blep] audio channel.
     fn render_earmic_out_audio_frame<V: AmpLevels<B::SampleDelta>>(&self, blep: &mut B, channel: usize);
 }
@@ -154,7 +153,6 @@ pub trait EarInAudioFrame<B: Blep> {
     /// Renders EAR input as square-wave pulses via [Blep] interface.
     ///
     /// Provide [AmpLevels] that can handle `level` values from 0 to 1 (1-bit).
-    /// `time_rate` may be optained from calling [AudioFrame::ensure_audio_frame_time].
     /// `channel` - target [Blep] audio channel.
     fn render_ear_in_audio_frame<V: AmpLevels<B::SampleDelta>>(&self, blep: &mut B, channel: usize);
 }
