@@ -4,7 +4,6 @@ mod audio_cpal;
 
 use core::num::NonZeroU32;
 use std::io::Read;
-use core::time::Duration;
 
 #[allow(unused_imports)]
 use log::{error, warn, info, debug, trace, Level};
@@ -35,7 +34,7 @@ where T: 'static + FromSample<f32> + AudioSample + Send,
       i16: IntoSample<T>, f32: FromSample<T>,
 {
     let output_channels = audio.channels as usize;
-    let frame_time = Duration::from_nanos(Ay128kPlayer::FRAME_TIME_NANOS.into());
+    let frame_time = HostConfig128k::frame_time_duration();
     // BandLimHiFi
     // BandLimLowTreb
     // BandLimLowBass
@@ -46,9 +45,9 @@ where T: 'static + FromSample<f32> + AudioSample + Send,
     // let mut bandlim = BlepAmpFilter::new(BandLimited::<f32>::new(3), 0.777);
     // BandLimited::<f32>::new(3).wrap_with(BlepStereo::build(0.5)).wrap_with(BlepAmpFilter::build(0.777));
     // BlepAmpFilter::build(0.777).wrap(BlepStereo::build(0.5)).wrap(BandLimited::<f32>::new(3));
-    Ay128kPlayer::ensure_audio_frame_time(&mut bandlim, audio.sample_rate);
     let mut cpu = Z80NMOS::default();
     let mut player = Ay128kPlayer::default();
+    player.ensure_audio_frame_time(&mut bandlim, audio.sample_rate);
     player.reset(&mut cpu, true);
     // let rom_file = std::fs::File::open("resources/48k.rom").unwrap();
     // player.memory.load_into_rom_page(0, rom_file).unwrap();
@@ -88,7 +87,7 @@ where T: 'static + FromSample<f32> + AudioSample + Send,
         player.reset_frames();
         ay_file.initialize_player(&mut cpu, &mut player.memory, song_index);
         debug!("CPU: {:?}", cpu);
-        let mut tsync = ThreadSyncTimer::new();
+        let mut tsync = ThreadSyncTimer::new(player.frame_duration_nanos());
         let start_time = tsync.time;
         // render frames
         // debug!("CURRENT FRAME: {} song_length: {}", player.current_frame(), song_length);
@@ -134,7 +133,7 @@ where T: 'static + FromSample<f32> + AudioSample + Send,
                     cpu.get_reg16(z80emu::StkReg16::DE),
                     cpu.get_reg16(z80emu::StkReg16::AF),
                     &player.ay_io.registers()[0..14]);
-            if let Err(_) = tsync.synchronize_thread_to_frame::<Ay128kPlayer>() {
+            if let Err(_) = tsync.synchronize_thread_to_frame() {
                 warn!("frame too long");
             }
         }
@@ -173,7 +172,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // println!("Creating WAV: {:?}", wav_name);
     let writer = None; //WavWriter::create(wav_name, spec)?;
 
-    let frame_duration = Duration::from_nanos(Ay128kPlayer::FRAME_TIME_NANOS.into());
+    let frame_duration = HostConfig128k::frame_time_duration();
     debug!("frame duration: {:?} rate: {}", frame_duration, 1.0 / frame_duration.as_secs_f64());
     let latency = 5;
     let audio = adf.play(latency, frame_duration.as_secs_f64())?;

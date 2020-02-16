@@ -18,6 +18,7 @@ pub use zxspecemu::audio::synth::{BandLimHiFi, BandLimLowTreb, BandLimLowBass, B
 
 pub type Ay128kPlayer = AyPlayer<Ay128kPortDecode>;
 pub use zxspecemu::audio::{AmpLevels, ay::{AyAmps, AyFuseAmps}};
+pub use zxspecemu::chip::{HostConfig, HostConfig48k, HostConfig128k};
 
 macro_rules! resource {
     ($file:expr) => {
@@ -26,6 +27,12 @@ macro_rules! resource {
 }
 
 const ROM48: &[u8] = include_bytes!(resource!("48k.rom"));
+
+#[derive(Clone, Copy, Serialize, Deserialize, Debug)]
+pub enum Clocking {
+    ZXSpectrum128k,
+    ZXSpectrum48k,
+}
 
 #[derive(Clone, Copy, Serialize, Deserialize, Debug)]
 pub enum AyAmpSelect {
@@ -82,6 +89,7 @@ pub struct AyFilePlayer<F=BandLimHiFi> {
     cpu: Z80NMOS,
     player: Ay128kPlayer,
     bandlim: BlepAmpFilter<BlepStereo<BandLimited<f32, F>>>,
+    sample_rate: u32,
     ay_file: Option<PinAyFile>,
     channels: [usize; 3]
 }
@@ -95,16 +103,24 @@ impl<F: BandLimOpt> AyFilePlayer<F> {
                                 BlepStereo::new(0.5,
                                     BandLimited::<f32,F>::new(2)
                         ));
-        Ay128kPlayer::ensure_audio_frame_time(&mut bandlim, sample_rate);
         let mut cpu = Z80NMOS::default();
         let mut player = Ay128kPlayer::default();
+        player.ensure_audio_frame_time(&mut bandlim, sample_rate);
         let channels = AyChannelsMode::default().into();
         player.reset(&mut cpu, true);
         player.reset_frames();
         AyFilePlayer {
-            cpu, player, bandlim, channels,
+            cpu, player, bandlim, channels, sample_rate,
             ay_file: None
         }
+    }
+    // sets cpu clocking
+    pub fn set_clocking(&mut self, clocking: Clocking) {
+        match clocking {
+            Clocking::ZXSpectrum48k => self.player.set_host_config::<HostConfig48k>(),
+            Clocking::ZXSpectrum128k => self.player.set_host_config::<HostConfig128k>(),
+        }
+        self.player.ensure_audio_frame_time(&mut self.bandlim, self.sample_rate);
     }
     // tries the .AY parser and if it fails and the size is right reads as .SNA
     pub fn load_file<B: Into<Box<[u8]>>>(

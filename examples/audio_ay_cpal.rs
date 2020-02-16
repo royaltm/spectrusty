@@ -23,7 +23,7 @@ const CPU_HZ: u32 = 3_546_900;
 fn produce<T: 'static + FromSample<f32> + AudioSample + Send>(mut audio: Audio<T>, _writer: WavWriter)
 where i16: IntoSample<T>
 {
-    // create a band-limited pulse buffer with 1 channel
+    // create a band-limited pulse buffer with 3 channels
     let mut bandlim: BandLimited<f32> = BandLimited::new(3);
     // ensure BLEP has enough space to fit a single audio frame (no margin - our frames will have constant size)
     bandlim.ensure_frame_time(audio.sample_rate, CPU_HZ, FRAME_TSTATES, 0);

@@ -12,12 +12,9 @@ use crate::io::ay::*;
 use crate::clock::{FTs, FTsData2};
 use crate::memory::{ZxMemory, Memory64k};
 use crate::bus::{BusDevice, NullDevice};
-use crate::chip::{ControlUnit, nanos_from_frame_tc_cpu_hz};
+use crate::chip::{ControlUnit, nanos_from_frame_tc_cpu_hz, HostConfig128k, HostConfig};
 
-pub const FRAME_TSTATES: FTs = 70908;
-pub const CPU_HZ: u32 = 3_546_900;
-
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct AyPlayer<P> {
     pub frames: Wrapping<u64>,
     pub tsc: TsCounter<FTs>,
@@ -27,8 +24,29 @@ pub struct AyPlayer<P> {
     pub earmic_changes: Vec<FTsData2>,
     pub last_earmic: u8,
     pub prev_earmic: u8,
-    bus: NullDevice<FTs>,
-    _port_decode: PhantomData<P>
+        cpu_rate: u32,
+        frame_tstates: FTs,
+        bus: NullDevice<FTs>,
+        _port_decode: PhantomData<P>
+}
+
+impl<P> Default for AyPlayer<P> {
+    fn default() -> Self {
+        AyPlayer {
+            frames: Wrapping(0),
+            tsc: TsCounter::default(),
+            memory: Memory64k::default(),
+            ay_sound: Ay3_891xAudio::default(),
+            ay_io: Ay3_8913Io::default(),
+            earmic_changes: Vec::new(),
+            last_earmic: 3,
+            prev_earmic: 3,
+            cpu_rate: HostConfig128k::CPU_HZ,
+            frame_tstates: HostConfig128k::FRAME_TSTATES,
+            bus: NullDevice::default(),
+            _port_decode: PhantomData
+        }
+    }
 }
 
 pub trait AyPortDecode {
@@ -79,13 +97,13 @@ impl AyPortDecode for AyTC2068PortDecode {
 
 impl<P, A: Blep> AudioFrame<A> for AyPlayer<P>
 {
-    fn ensure_audio_frame_time(blep: &mut A, sample_rate: u32) {
-        blep.ensure_frame_time(sample_rate, CPU_HZ, FRAME_TSTATES, MARGIN_TSTATES)
+    fn ensure_audio_frame_time(&self, blep: &mut A, sample_rate: u32) {
+        blep.ensure_frame_time(sample_rate, self.cpu_rate, self.frame_tstates, MARGIN_TSTATES)
     }
 
     fn get_audio_frame_end_time(&self) -> FTs {
         let ts = self.tsc.as_timestamp();
-        debug_assert!(ts >= FRAME_TSTATES);
+        debug_assert!(ts >= self.frame_tstates);
         ts
     }
 }
@@ -96,7 +114,7 @@ impl<P, A, L> AyAudioFrame<A> for AyPlayer<P>
 {
     fn render_ay_audio_frame<V: AmpLevels<L>>(&mut self, blep: &mut A, chans: [usize; 3]) {
         let end_ts = self.tsc.as_timestamp();
-        debug_assert!(end_ts >= FRAME_TSTATES);
+        debug_assert!(end_ts >= self.frame_tstates);
         let changes = self.ay_io.recorder.drain_ay_reg_changes();
         self.ay_sound.render_audio::<V,L,_,A>(changes, blep, end_ts, chans)
     }
@@ -119,9 +137,13 @@ impl<P: AyPortDecode> ControlUnit for AyPlayer<P> {
     type TsCounter = TsCounter<FTs>;
     type BusDevice = NullDevice<FTs>;
     /// A frequency in Hz of the Cpu unit.
-    const CPU_HZ: u32 = CPU_HZ;
+    fn cpu_clock_rate(&self) -> u32 {
+        self.cpu_rate
+    }
     /// A single frame time in seconds.
-    const FRAME_TIME_NANOS: u32 = nanos_from_frame_tc_cpu_hz(FRAME_TSTATES as u32, CPU_HZ) as u32;
+    fn frame_duration_nanos(&self) -> u32 {
+        nanos_from_frame_tc_cpu_hz(self.frame_tstates as u32, self.cpu_rate) as u32
+    }
     /// Returns a mutable reference to the first bus device.
     fn bus_device(&mut self) -> &mut Self::BusDevice {
         &mut self.bus
@@ -136,7 +158,7 @@ impl<P: AyPortDecode> ControlUnit for AyPlayer<P> {
     }
     /// Returns `true` if current frame is over.
     fn is_frame_over(&self) -> bool {
-        self.tsc.as_timestamp() >= FRAME_TSTATES
+        self.tsc.as_timestamp() >= self.frame_tstates
     }
     /// Perform computer reset.
     fn reset<C: Cpu>(&mut self, cpu: &mut C, hard: bool) {
@@ -165,12 +187,12 @@ impl<P: AyPortDecode> ControlUnit for AyPlayer<P> {
     fn execute_next_frame<C: Cpu>(&mut self, cpu: &mut C) {
         let mut tsc = self.ensure_next_frame();
         loop {
-            match cpu.execute_with_limit(self, &mut tsc, FRAME_TSTATES) {
+            match cpu.execute_with_limit(self, &mut tsc, self.frame_tstates) {
                 Ok(()) => break,
                 Err(BreakCause::Halt) => {
                     tsc.0 = Wrapping(
-                        FRAME_TSTATES + (
-                            tsc.as_timestamp().wrapping_sub(FRAME_TSTATES)
+                        self.frame_tstates + (
+                            tsc.as_timestamp().wrapping_sub(self.frame_tstates)
                         ).rem_euclid(M1_CYCLE_TS as FTs)
                     );
                     break;
@@ -185,12 +207,12 @@ impl<P: AyPortDecode> ControlUnit for AyPlayer<P> {
     /// rendering has been performed.
     fn ensure_next_frame(&mut self) -> Self::TsCounter {
         let ts = self.tsc.as_timestamp();
-        if ts >= FRAME_TSTATES {
+        if ts >= self.frame_tstates {
             self.frames += Wrapping(1);
             self.ay_io.recorder.clear();
             self.earmic_changes.clear();
             self.prev_earmic = self.last_earmic;
-            self.tsc.0 = Wrapping(ts) - Wrapping(FRAME_TSTATES);
+            self.tsc.0 = Wrapping(ts) - Wrapping(self.frame_tstates);
         }
         self.tsc
     }
@@ -218,7 +240,13 @@ impl<P: AyPortDecode> AyPlayer<P>
         self.tsc = tsc;
         res
     }
-
+    /// Changes the cpu clock frequency and a duration of frames.
+    pub fn set_host_config<H: HostConfig>(&mut self) {
+        self.ensure_next_frame();
+        self.cpu_rate = H::CPU_HZ;
+        self.frame_tstates = H::FRAME_TSTATES;
+    }
+    /// Resets the frames counter.
     pub fn reset_frames(&mut self) {
         self.frames.0 = 0;
     }

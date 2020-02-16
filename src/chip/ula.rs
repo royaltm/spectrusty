@@ -17,16 +17,8 @@ use self::video::UlaTsCounter;
 
 pub const CPU_HZ: u32 = 3_500_000;
 
-// struct MaybeReadEar(pub Option<Box<dyn ReadEar>>);
-
-// impl Clone for MaybeReadEar {
-//     fn clone(&self) -> Self {
-//         MaybeReadEar(None)
-//     }
-// }
-
-// ZX Spectrum 16k/48k ULA
-// The memory::Memory48k or memory::Memory16k can be used with it.
+/// ZX Spectrum 16k/48k ULA
+/// The memory::Memory48k or memory::Memory16k can be used with it.
 #[derive(Clone)]
 pub struct Ula<M: ZxMemory, B: BusDevice<Timestamp=VideoTs>> {
     pub frames: Wrapping<u64>, // frame counter
@@ -98,8 +90,13 @@ where Self: VideoFrame, M: ZxMemory, B: BusDevice<Timestamp=VideoTs>
     type TsCounter = UlaTsCounter<M,B>;
     type BusDevice = B;
 
-    const CPU_HZ: u32 = CPU_HZ;
-    const FRAME_TIME_NANOS: u32 = nanos_from_frame_tc_cpu_hz(Ula::<M,B>::FRAME_TSTATES_COUNT as u32, CPU_HZ) as u32;
+    fn cpu_clock_rate(&self) -> u32 {
+        CPU_HZ
+    }
+
+    fn frame_duration_nanos(&self) -> u32 {
+        nanos_from_frame_tc_cpu_hz(Self::FRAME_TSTATES_COUNT as u32, CPU_HZ) as u32
+    }
 
     fn bus_device(&mut self) -> &mut Self::BusDevice {
         &mut self.bus

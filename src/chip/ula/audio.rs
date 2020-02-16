@@ -12,7 +12,7 @@ impl<M, B, A> AudioFrame<A> for Ula<M, B>
     where M: ZxMemory, B: BusDevice<Timestamp=VideoTs>,
           A: Blep
 {
-    fn ensure_audio_frame_time(blep: &mut A, sample_rate: u32) {
+    fn ensure_audio_frame_time(&self, blep: &mut A, sample_rate: u32) {
         blep.ensure_frame_time(sample_rate, CPU_HZ, Self::FRAME_TSTATES_COUNT, MARGIN_TSTATES)
     }
 

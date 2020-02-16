@@ -272,6 +272,14 @@ impl AyPlayerHandle {
             JsValue::TRUE
         })
     }
+    /// Sets the clocking for the player.
+    #[wasm_bindgen(js_name = setClocking)]
+    pub fn set_clocking(&self, cl_mode: &str) -> Result<(), JsValue> {
+        let clocking = serde_json::from_str(&cl_mode)
+                                    .map_err(|e| e.to_string())?;
+        self.player.borrow_mut().player.set_clocking(clocking);
+        Ok(())
+    }
     /// Sets the channel mode for the player.
     #[wasm_bindgen(js_name = setAmps)]
     pub fn set_amps(&self, amp_mode: &str) -> Result<(), JsValue> {

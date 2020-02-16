@@ -17,7 +17,14 @@
               <input type="range" class="custom-range" min="0" max="100" value="100" id="gainControl"/>
             </div>
             <div class="col-auto">
-              <label for="channels">AY D→A amps:</label>
+              <label for="clocks">Clocking:</label>
+              <select class="form-control form-control-sm" id="clocks">
+                <option value="ZXSpectrum128k" selected>128k</option>
+                <option value="ZXSpectrum48k">48k</option>
+              </select>
+           </div>
+            <div class="col-auto">
+              <label for="amps">AY D→A amps:</label>
               <select class="form-control form-control-sm" id="amps">
                 <option value="Spec" selected>Specs.</option>
                 <option value="Fuse">Fuse</option>

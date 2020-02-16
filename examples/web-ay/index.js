@@ -15,6 +15,7 @@ import('./pkg')
       }
       songIndex >>>= 0;
       ayPlayer = new rust_module.AyPlayerHandle(0.125); // a single buffer duration
+      ayPlayer.setClocking(JSON.stringify(clockingSelect.value));
       ayPlayer.setAmps(JSON.stringify(ampsSelect.value));
       ayPlayer.setChannels(JSON.stringify(channelsSelect.value));
       ayPlayer.setGain(gainControl.value / 100);
@@ -30,6 +31,7 @@ import('./pkg')
     const pauseButton = document.getElementById("pause");
     const replayButton = document.getElementById("replay");
     const channelsSelect = document.getElementById("channels");
+    const clockingSelect = document.getElementById("clocks");
     const ejectButton = document.getElementById("eject");
     const musicSelect = document.getElementById("music");
     const ampsSelect = document.getElementById("amps");
@@ -132,6 +134,10 @@ import('./pkg')
 
     ampsSelect.addEventListener("change", event => {
       ayPlayer && ayPlayer.setAmps(JSON.stringify(event.target.value));
+    }, false);
+
+    clockingSelect.addEventListener("change", event => {
+      ayPlayer && ayPlayer.setClocking(JSON.stringify(event.target.value));
     }, false);
   })
 .catch(console.error);
