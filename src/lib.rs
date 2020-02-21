@@ -14,6 +14,7 @@ pub mod io;
 pub mod memory;
 pub mod formats;
 pub mod video;
+pub mod peripherals;
 pub mod utils;
 
 #[cfg(test)]
