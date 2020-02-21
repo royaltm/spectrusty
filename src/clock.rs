@@ -240,6 +240,20 @@ impl<V: VideoFrame> VFrameTsCounter<V> {
         VFrameTsCounter { tsc: VideoTs { vc: Ts::max_value(), hc: V::HTS_COUNT - 1 }, video: PhantomData }
     }
 
+    pub fn saturating_wrap_with_normalized(ts: VideoTs, end_ts: VideoTs) -> VideoTs {
+        let mut vc = ts.vc.saturating_sub(end_ts.vc);
+        let mut hc = ts.hc - end_ts.hc;
+        while hc >= V::HTS_RANGE.end {
+            hc -= V::HTS_COUNT as Ts;
+            vc += 1;
+        }
+        while hc < V::HTS_RANGE.start {
+            hc += V::HTS_COUNT as Ts;
+            vc -= 1;
+        }
+        VideoTs::new(vc, hc)
+    }
+
     #[inline(always)]
     fn set_hc(&mut self, mut hc: Ts) {
         while hc >= V::HTS_RANGE.end {
