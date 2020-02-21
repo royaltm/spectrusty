@@ -13,7 +13,7 @@ use crate::memory::ZxMemory;
 use crate::video::VideoFrame;
 
 /// Implement this empty trait for BusDevice so methods from AyAudioVBusDevice
-/// will auto implement to pass method call to next devices.
+/// will get auto implemented to pass method call to next devices.
 pub trait PassByAyAudioBusDevice {}
 
 /// A convenient [Ay3_891xBusDevice] type emulating a device with a `Melodik` port configuration.
@@ -88,7 +88,7 @@ impl<T, P, A, B, D> BusDevice for Ay3_891xBusDevice<T, P, A, B, D>
     #[inline]
     fn read_io(&mut self, port: u16, timestamp: Self::Timestamp) -> Option<u8> {
         if P::is_data_read(port) {
-            return Some(self.ay_io.data_port_read(timestamp))
+            return Some(self.ay_io.data_port_read(port, timestamp))
         }
         self.bus.read_io(port, timestamp)
     }

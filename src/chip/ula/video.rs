@@ -7,6 +7,7 @@ use super::render_pixels::Renderer;
 use super::Ula;
 use crate::video::{BorderSize, PixelBuffer, VideoFrame, Video, MAX_BORDER_SIZE};
 
+#[derive(Clone, Copy, Default)]
 pub struct UlaVideoFrame;
 
 pub type UlaTsCounter = VFrameTsCounter<UlaVideoFrame>;

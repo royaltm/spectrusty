@@ -66,7 +66,7 @@ pub trait AyPortDecode {
                 true
             }
             p if p == Self::PORT_DATA_WRITE => {
-                ay_io.data_port_write(data, timestamp);
+                ay_io.data_port_write(port, data, timestamp);
                 true
             }
             _ => false
@@ -125,10 +125,10 @@ pub trait AyIoPort {
     fn ay_io_reset(&mut self, _timestamp: Self::Timestamp) {}
     /// Writes value to the device at the given `timestamp`.
     #[inline]
-    fn ay_io_write(&mut self, _val: u8, _timestamp: Self::Timestamp) {}
+    fn ay_io_write(&mut self, _addr: u16, _val: u8, _timestamp: Self::Timestamp) {}
     /// Reads value to the device at the given `timestamp`.
     #[inline]
-    fn ay_io_read(&mut self, _timestamp: Self::Timestamp) -> u8 { 0xff }
+    fn ay_io_read(&mut self, _addr: u16, _timestamp: Self::Timestamp) -> u8 { 0xff }
     /// Signals the device when the current frame ends.
     #[inline]
     fn end_frame(&mut self, _timestamp: Self::Timestamp) {}
@@ -248,14 +248,14 @@ where A: AyIoPort<Timestamp=T>,
     ///
     /// This method is being used to interface the host controller I/O operation.
     #[inline]
-    pub fn data_port_write(&mut self, data: u8, timestamp: T) {
+    pub fn data_port_write(&mut self, port: u16, data: u8, timestamp: T) {
         self.set(self.selected_reg, data); // What to do when control is set to output for IO?
         match self.selected_reg {
             AyRegister::IoA => {
-                self.port_a.ay_io_write(data, timestamp)
+                self.port_a.ay_io_write(port, data, timestamp)
             }
             AyRegister::IoB => {
-                self.port_b.ay_io_write(data, timestamp)
+                self.port_b.ay_io_write(port, data, timestamp)
             }
             reg => self.recorder.record_ay_reg_change(reg, data, timestamp)
         }
@@ -264,10 +264,10 @@ where A: AyIoPort<Timestamp=T>,
     ///
     /// This method is being used to interface the host controller I/O operation.
     #[inline]
-    pub fn data_port_read(&mut self, timestamp: T) -> u8 {
+    pub fn data_port_read(&mut self, port: u16, timestamp: T) -> u8 {
         match self.selected_reg {
             AyRegister::IoA => {
-                let port_input = self.port_a.ay_io_read(timestamp);
+                let port_input = self.port_a.ay_io_read(port, timestamp);
                 if self.is_ioa_input() {
                     port_input
                 }
@@ -276,7 +276,7 @@ where A: AyIoPort<Timestamp=T>,
                 }
             }
             AyRegister::IoB => {
-                let port_input = self.port_b.ay_io_read(timestamp);
+                let port_input = self.port_b.ay_io_read(port, timestamp);
                 if self.is_iob_input() {
                     port_input
                 }

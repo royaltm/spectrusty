@@ -224,7 +224,7 @@ impl<P> Io for AyPlayer<P> where P: AyPortDecode {
 
     fn read_io(&mut self, port: u16, ts: FTs) -> (u8, Option<NonZeroU16>) {
         let val = if P::is_data_read(port) {
-            self.ay_io.data_port_read(ts)
+            self.ay_io.data_port_read(port, ts)
         }
         else {
             0xff
