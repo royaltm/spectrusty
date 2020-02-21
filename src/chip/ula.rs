@@ -2,7 +2,6 @@ mod audio;
 mod io;
 mod render_pixels;
 mod video;
-mod ay;
 
 use core::num::Wrapping;
 use z80emu::{*, host::{Result, cycles::M1_CYCLE_TS}};
