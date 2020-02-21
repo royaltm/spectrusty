@@ -35,6 +35,7 @@ use zxspecemu::formats::{
 use zxspecemu::utils::tap::TapFileCabinet;
 
 use super::audio::Audio;
+use super::printer::ImageSpooler;
 
 pub use zxspecemu::video::{BorderSize, PixelBufRGB24};
 
@@ -42,7 +43,7 @@ const ROM48: &[u8] = include_bytes!("../../../resources/48k.rom");
 
 pub type ZXSpectrum16 = ZXSpectrum<Memory16k, NullDevice<VideoTs>, Z80NMOS>;
 pub type ZXSpectrum48 = ZXSpectrum<Memory48k, NullDevice<VideoTs>, Z80NMOS>;
-pub type ZXSpectrum48Ay = ZXSpectrum<Memory48k, Ay3_891xMelodik<ZxPrinter>, Z80NMOS>;//DebugBusDevice
+pub type ZXSpectrum48Ay = ZXSpectrum<Memory48k, Ay3_891xMelodik<ZxPrinter<UlaVideoFrame, ImageSpooler>>, Z80NMOS>;//DebugBusDevice <
 
 type ZXBlep = BlepAmpFilter<BlepStereo<BandLimited<f32>>>;
 
@@ -302,6 +303,19 @@ impl<M, B, C> ZXSpectrum<M, B, C>
         // eprintln!("{:?}", self.cpu);
         // eprintln!("{:?}", self.ula);
         Ok(())
+    }
+}
+
+pub trait SpoolerAccess {
+    fn spooler_mut(&mut self) -> Option<&mut ImageSpooler> { None }
+}
+
+impl SpoolerAccess for ZXSpectrum16 {}
+impl SpoolerAccess for ZXSpectrum48 {}
+
+impl SpoolerAccess for ZXSpectrum48Ay {
+    fn spooler_mut(&mut self) -> Option<&mut ImageSpooler> {
+        Some(&mut self.ula.bus_device().next_device().printer.spooler)
     }
 }
 

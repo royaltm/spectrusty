@@ -9,6 +9,7 @@
 mod utils;
 mod audio;
 mod spectrum;
+mod printer;
 
 use std::io::{Seek, Read};
 use std::thread;
@@ -113,6 +114,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     if turbo {
                         turbo = false;
                         zx.audio.resume();
+                    }
+                }
+                Event::KeyDown{ keycode: Some(Keycode::F3), repeat: false, ..} => {
+                    if let Some(spooler) = zx.spooler_mut() {
+                        if !spooler.is_spooling() {
+                            println!("saving printed image");
+                            spooler.save_image();
+                            spooler.clear();
+                        }
+                        else {
+                            println!("still spooling, can't save");
+                        }
+                    }
+                    else {
+                        println!("no spoooler");
                     }
                 }
                 Event::KeyDown{ keycode: Some(Keycode::Insert), keymod, repeat: false, ..} => {
