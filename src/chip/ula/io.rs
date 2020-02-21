@@ -7,7 +7,7 @@ use crate::memory::ZxMemory;
 use crate::video::{VideoFrame, pixel_line_offset, color_line_offset};
 // use crate::io::keyboard::*;
 // use crate::ts::*;
-use super::{Ula, UlaTsCounter};
+use super::{Ula, UlaVideoFrame, UlaTsCounter};
 
 impl<M, B> Io for Ula<M, B> where M: ZxMemory, B: BusDevice<Timestamp=VideoTs>
 {
@@ -35,12 +35,13 @@ impl<M, B> Io for Ula<M, B> where M: ZxMemory, B: BusDevice<Timestamp=VideoTs>
         if port & 1 == 0 {
             let border = data & 7;
             if self.last_border != border {
+                // println!("border: {} {:?}", border, ts);
                 self.last_border = border;
                 self.border_out_changes.push((ts, border).into());
             }
             let earmic = data >> 3 & 3;
-            if self.last_earmic != earmic {
-                self.last_earmic = earmic;
+            if self.last_earmic_data != earmic {
+                self.last_earmic_data = earmic;
                 self.earmic_out_changes.push((ts, earmic).into());
             }
         }
@@ -70,19 +71,20 @@ impl<M, B> Memory for Ula<M, B> where M: ZxMemory, B: BusDevice<Timestamp=VideoT
         self.memory.read16(addr)
     }
 
-    #[inline]
+    #[inline(always)]
     fn read_opcode(&mut self, pc: u16, _ir: u16, ts: VideoTs) -> u8 {
         self.bus.m1(&mut self.memory, pc, ts);
         self.memory.read(pc)
     }
 
+    #[inline(always)]
     fn write_mem(&mut self, addr: u16, val: u8, ts: VideoTs) {
         self.update_frame_pixels_and_colors(addr, ts);
         self.memory.write(addr, val);
     }
 }
 
-impl<M, B> KeyboardInterface for Ula<M, B> where M: ZxMemory, B: BusDevice<Timestamp=VideoTs>
+impl<M, B> KeyboardInterface for Ula<M, B>// where M: ZxMemory, B: BusDevice<Timestamp=VideoTs>
 {
     fn get_key_state(&self) -> ZXKeyboardMap {
         self.keyboard
@@ -96,7 +98,8 @@ trait FloatingBusOffset: VideoFrame {
     #[inline]
     fn floating_bus_offset(VideoTs{vc, hc}: VideoTs) -> Option<u16> {
         if Self::VSL_PIXELS.contains(&vc) {
-            match hc - 11 {
+            // println!("floating_bus_offset: {},{} {}", vc, hc, crate::clock::VFrameTsCounter::<Self>::vc_hc_to_tstates(vc, hc));
+            match hc {
                 c @ 0..=123 if c & 4 == 0 => Some(c as u16),
                 _ => None
             }
@@ -107,14 +110,15 @@ trait FloatingBusOffset: VideoFrame {
     }
 }
 
-impl<M,B> FloatingBusOffset for Ula<M,B>
-where M: ZxMemory, B: BusDevice<Timestamp=VideoTs> {}
+impl FloatingBusOffset for UlaVideoFrame {}
+    // where M: ZxMemory, B: BusDevice<Timestamp=VideoTs> {}
 
-impl<M: ZxMemory, B: BusDevice<Timestamp=VideoTs>> Ula<M,B> {
+impl<M: ZxMemory, B> Ula<M,B> {
     fn floating_bus(&self, ts: VideoTs) -> u8 {
-        if let Some(offs) = Self::floating_bus_offset(ts) {
-            let y = (ts.vc - Self::VSL_PIXELS.start) as u16;
+        if let Some(offs) = UlaVideoFrame::floating_bus_offset(ts) {
+            let y = (ts.vc - UlaVideoFrame::VSL_PIXELS.start) as u16;
             let col = (offs >> 3) << 1;
+            // println!("got offs: {} col:{} y:{}", offs, col, y);
             let addr = match offs & 3 {
                 0 => 0x4000 + pixel_line_offset(y) + col,
                 1 => 0x5800 + color_line_offset(y) + col,

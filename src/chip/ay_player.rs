@@ -49,52 +49,6 @@ impl<P> Default for AyPlayer<P> {
     }
 }
 
-pub trait AyPortDecode {
-    const PORT_MASK: u16;
-    const PORT_SELECT: u16;
-    const PORT_DATA_READ: u16;
-    const PORT_DATA_WRITE: u16;
-    #[inline]
-    fn is_select(port: u16) -> bool {
-        port & Self::PORT_MASK == Self::PORT_SELECT
-    }
-    #[inline]
-    fn is_data_read(port: u16) -> bool {
-        port & Self::PORT_MASK == Self::PORT_DATA_READ
-    }
-    #[inline]
-    fn is_data_write(port: u16) -> bool {
-        port & Self::PORT_MASK == Self::PORT_DATA_WRITE
-    }
-}
-
-#[derive(Clone, Copy, Default)]
-pub struct Ay128kPortDecode;
-impl AyPortDecode for Ay128kPortDecode {
-    const PORT_MASK      : u16 = 0b11000000_00000010;
-    const PORT_SELECT    : u16 = 0b11000000_00000000;
-    const PORT_DATA_READ : u16 = 0b11000000_00000000;
-    const PORT_DATA_WRITE: u16 = 0b10000000_00000000;
-}
-
-#[derive(Clone, Copy, Default)]
-pub struct AyFullerBoxPortDecode;
-impl AyPortDecode for AyFullerBoxPortDecode {
-    const PORT_MASK      : u16 = 0x00ff;
-    const PORT_SELECT    : u16 = 0x003f;
-    const PORT_DATA_READ : u16 = 0x003f;
-    const PORT_DATA_WRITE: u16 = 0x005f;
-}
-
-#[derive(Clone, Copy, Default)]
-pub struct AyTC2068PortDecode;
-impl AyPortDecode for AyTC2068PortDecode {
-    const PORT_MASK      : u16 = 0x00ff;
-    const PORT_SELECT    : u16 = 0x00f5;
-    const PORT_DATA_READ : u16 = 0x00f6;
-    const PORT_DATA_WRITE: u16 = 0x00f6;
-}
-
 impl<P, A: Blep> AudioFrame<A> for AyPlayer<P>
 {
     fn ensure_audio_frame_time(&self, blep: &mut A, sample_rate: u32) {
@@ -108,15 +62,14 @@ impl<P, A: Blep> AudioFrame<A> for AyPlayer<P>
     }
 }
 
-impl<P, A, L> AyAudioFrame<A> for AyPlayer<P>
-    where A: Blep<SampleDelta=L>,
-          L: SampleDelta + Default
+impl<P, A> AyAudioFrame<A> for AyPlayer<P>
+    where A: Blep
 {
-    fn render_ay_audio_frame<V: AmpLevels<L>>(&mut self, blep: &mut A, chans: [usize; 3]) {
+    fn render_ay_audio_frame<V: AmpLevels<A::SampleDelta>>(&mut self, blep: &mut A, chans: [usize; 3]) {
         let end_ts = self.tsc.as_timestamp();
         debug_assert!(end_ts >= self.frame_tstates);
         let changes = self.ay_io.recorder.drain_ay_reg_changes();
-        self.ay_sound.render_audio::<V,L,_,A>(changes, blep, end_ts, chans)
+        self.ay_sound.render_audio::<V,_,A>(changes, blep, end_ts, chans)
     }
 }
 
@@ -154,6 +107,10 @@ impl<P: AyPortDecode> ControlUnit for AyPlayer<P> {
     }
     /// Returns current frame's T-state.
     fn frame_tstate(&self) -> FTs {
+        self.tsc.as_timestamp().rem_euclid(self.frame_tstates)
+    }
+    /// Returns current frame's T-state.
+    fn current_tstate(&self) -> FTs {
         self.tsc.as_timestamp()
     }
     /// Returns `true` if current frame is over.
@@ -190,16 +147,18 @@ impl<P: AyPortDecode> ControlUnit for AyPlayer<P> {
             match cpu.execute_with_limit(self, &mut tsc, self.frame_tstates) {
                 Ok(()) => break,
                 Err(BreakCause::Halt) => {
-                    tsc.0 = Wrapping(
-                        self.frame_tstates + (
-                            tsc.as_timestamp().wrapping_sub(self.frame_tstates)
-                        ).rem_euclid(M1_CYCLE_TS as FTs)
-                    );
+                    assert_eq!(0, self.frame_tstates.rem_euclid(M1_CYCLE_TS as FTs));
+                    let ts = self.frame_tstates + tsc.as_timestamp()
+                                                     .rem_euclid(M1_CYCLE_TS as FTs);
+                    let r_incr = (ts - tsc.as_timestamp()) / M1_CYCLE_TS as i32;
+                    cpu.add_r(r_incr);
+                    tsc.0 = Wrapping(ts);
                     break;
                 }
                 Err(_) => {}
             }
         }
+        self.bus.update_timestamp(tsc.as_timestamp());
         self.tsc = tsc;
     }
     /// Prepares the internal state for the next frame.
@@ -208,6 +167,7 @@ impl<P: AyPortDecode> ControlUnit for AyPlayer<P> {
     fn ensure_next_frame(&mut self) -> Self::TsCounter {
         let ts = self.tsc.as_timestamp();
         if ts >= self.frame_tstates {
+            self.bus.next_frame(ts);
             self.frames += Wrapping(1);
             self.ay_io.recorder.clear();
             self.earmic_changes.clear();
@@ -281,15 +241,7 @@ impl<P> Io for AyPlayer<P> where P: AyPortDecode {
             }
         }
         else {
-            match port & P::PORT_MASK {
-                p if p == P::PORT_SELECT => {
-                    self.ay_io.select_port(data)
-                }
-                p if p == P::PORT_DATA_WRITE => {
-                    self.ay_io.data_port_write(data, ts)
-                }
-                _ => {}
-            }
+            P::write_ay_io(&mut self.ay_io, port, data, ts);
         }
         (None, None)
     }

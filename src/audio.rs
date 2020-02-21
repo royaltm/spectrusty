@@ -157,7 +157,14 @@ pub trait EarInAudioFrame<B: Blep> {
     fn render_ear_in_audio_frame<V: AmpLevels<B::SampleDelta>>(&self, blep: &mut B, channel: usize);
 }
 
-/// A trait for feeding EAR input frame buffer.
+/// A trait for reading MIC output.
+pub trait MicOut<'a> {
+    type PulseIter: Iterator<Item=NonZeroU32> + 'a;
+    /// Returns a frame buffered mic output as a pulse iterator.
+    fn mic_out_iter_pulses(&'a self) -> Self::PulseIter;
+}
+
+/// A trait for feeding EAR input.
 pub trait EarIn {
     /// Sets `EAR in` bit state after the provided interval in ∆ T-States counted from the last recorded change.
     fn set_ear_in(&mut self, ear_in: bool, delta_fts: u32);
@@ -189,15 +196,15 @@ Value output to bit: 4  3  |  Iss 2  Iss 3   Iss 2 V    Iss 3 V
 */
 pub const AMPS_EAR_MIC: [f32; 4] = [0.34/3.70, 0.66/3.70, 3.56/3.70, 3.70/3.70];
 pub const AMPS_EAR_OUT: [f32; 4] = [0.34/3.70, 0.34/3.70, 3.70/3.70, 3.70/3.70];
-pub const AMPS_EAR_IN:  [f32; 2] = [0.34/3.70, 3.70/3.70];
+pub const AMPS_EAR_IN:  [f32; 2] = [0.34/3.70, 0.66/3.70];
 
 pub const AMPS_EAR_MIC_I32: [i32; 4] = [0x0bc3_1d10, 0x16d5_1a60, 0x7b28_20ff, 0x7fff_ffff];
 pub const AMPS_EAR_OUT_I32: [i32; 4] = [0x0bc3_1d10, 0x0bc3_1d10, 0x7fff_ffff, 0x7fff_ffff];
-pub const AMPS_EAR_IN_I32:  [i32; 2] = [0x0bc3_1d10, 0x7fff_ffff];
+pub const AMPS_EAR_IN_I32:  [i32; 2] = [0x0bc3_1d10, 0x16d5_1a60];
 
 pub const AMPS_EAR_MIC_I16: [i16; 4] = [0x0bc3, 0x16d5, 0x7b27, 0x7fff];
 pub const AMPS_EAR_OUT_I16: [i16; 4] = [0x0bc3, 0x0bc3, 0x7fff, 0x7fff];
-pub const AMPS_EAR_IN_I16:  [i16; 2] = [0x0bc3, 0x7fff];
+pub const AMPS_EAR_IN_I16:  [i16; 2] = [0x0bc3, 0x16d5];
 
 #[derive(Clone, Default, Debug)]
 pub struct EarMicAmps4<T>(PhantomData<T>);

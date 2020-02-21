@@ -1,10 +1,9 @@
-#![allow(unused_imports)]
 use std::error;
 use core::fmt;
-use core::time::Duration;
+// use core::time::Duration;
 use core::mem::{swap, replace};
 use core::ops::{Deref, DerefMut};
-use std::sync::mpsc::{sync_channel, SyncSender, Receiver, SendError, RecvError, TryRecvError, RecvTimeoutError};
+use std::sync::mpsc::{channel, Sender, Receiver, SendError, RecvError, TryRecvError, RecvTimeoutError, TrySendError};
 
 pub use super::sample::AudioSample;
 
@@ -25,14 +24,32 @@ impl error::Error for AudioFrameError {
     }
 }
 
+impl<T> From<TrySendError<T>> for AudioFrameError {
+    fn from(_error: TrySendError<T>) -> Self {
+        AudioFrameError
+    }
+}
+
 impl<T> From<SendError<T>> for AudioFrameError {
     fn from(_error: SendError<T>) -> Self {
         AudioFrameError
     }
 }
 
+impl From<TryRecvError> for AudioFrameError {
+    fn from(_error: TryRecvError) -> Self {
+        AudioFrameError
+    }
+}
+
 impl From<RecvError> for AudioFrameError {
     fn from(_error: RecvError) -> Self {
+        AudioFrameError
+    }
+}
+
+impl From<RecvTimeoutError> for AudioFrameError {
+    fn from(_error: RecvTimeoutError) -> Self {
         AudioFrameError
     }
 }
@@ -54,9 +71,9 @@ impl<T> DerefMut for AudioBuffer<T> {
 }
 
 impl<T: AudioSample> AudioBuffer<T> {
-    fn new(frame_samples: usize, channels: u8) -> Self {
-        let size = frame_samples * channels as usize;
-        AudioBuffer(vec![T::center();size])
+    fn new(sample_frames: usize, channels: u8) -> Self {
+        let size = sample_frames * channels as usize;
+        AudioBuffer(vec![T::silence();size])
     }
 }
 
@@ -83,7 +100,7 @@ impl<T: Copy> AudioBuffer<T> {
 pub struct AudioFrameConsumer<T> {
     buffer: AudioBuffer<T>,
     cursor: usize,
-    producer_tx: SyncSender<AudioBuffer<T>>,
+    producer_tx: Sender<AudioBuffer<T>>,
     rx: Receiver<AudioBuffer<T>>,
 }
 
@@ -93,24 +110,27 @@ pub struct AudioFrameProducer<T> {
     // pub sample_rate: u32,
     // pub channels: u8,
     rx: Receiver<AudioBuffer<T>>,
-    consumer_tx: SyncSender<AudioBuffer<T>>,
+    consumer_tx: Sender<AudioBuffer<T>>,
 }
 
-pub fn create_carousel<T>(latency: usize, frame_samples: usize, channels: u8) ->
+pub fn create_carousel<T>(latency: usize, sample_frames: usize, channels: u8) ->
                                                 (AudioFrameProducer<T>, AudioFrameConsumer<T>)
 where T: 'static + AudioSample + Send
 {
-    // let frame_samples = (sample_rate as f64 * frame_duration).ceil() as usize;
-    let buffer = AudioBuffer::<T>::new(frame_samples, channels);
-    let (producer_tx, producer_rx) = sync_channel::<AudioBuffer<T>>(latency);
-    let (consumer_tx, consumer_rx) = sync_channel::<AudioBuffer<T>>(latency);
-    if latency > 0 {
+    // let sample_frames = (sample_rate as f64 * frame_duration).ceil() as usize;
+    let buffer = AudioBuffer::<T>::new(sample_frames, channels);
+    let (producer_tx, producer_rx) = channel::<AudioBuffer<T>>();
+    let (consumer_tx, consumer_rx) = channel::<AudioBuffer<T>>();
+    // if latency > 0 {
         // Add some frame buffers into circulation
-        for _ in 1..latency {
+        // for _ in 0..latency {
+            producer_tx.send(buffer.clone()).unwrap(); // infallible
+        // }
+        for _ in 0..latency {
             consumer_tx.send(buffer.clone()).unwrap(); // infallible
         }
-        producer_tx.send(buffer.clone()).unwrap(); // infallible
-    }
+        // }
+    // }
     let producer = AudioFrameProducer::new(buffer.clone(), consumer_tx, producer_rx);
     let consumer = AudioFrameConsumer::new(buffer, producer_tx, consumer_rx);
     (producer, consumer)
@@ -118,7 +138,7 @@ where T: 'static + AudioSample + Send
 
 impl<T> AudioFrameConsumer<T> {
     pub fn new(buffer: AudioBuffer<T>,
-               producer_tx: SyncSender<AudioBuffer<T>>,
+               producer_tx: Sender<AudioBuffer<T>>,
                consumer_rx: Receiver<AudioBuffer<T>>) -> Self {
         AudioFrameConsumer {
             buffer,
@@ -134,21 +154,39 @@ impl<T> AudioFrameConsumer<T> {
 }
 
 impl<T: 'static + Copy + Send> AudioFrameConsumer<T> {
-    /// Receives the next frame waiting for it up to given `wait_max_ms`.
+    /// Tries to receive the next frame.
+    ///
     /// On `Ok(true)` replaces the current frame with the new one and sends back the old one.
     /// If waiting for a new frame times out returns `Ok(false)`.
     /// Returns `Err(AudioFrameError)` only when sending or reveiving failed,
     /// which is possible only when the remote end has disconnected.
     #[inline]
-    pub fn next_frame(&mut self, wait_max_ms: u16) -> AudioFrameResult<bool> {
-        match self.rx.recv_timeout(Duration::from_millis(wait_max_ms as u64)) {
+    pub fn next_frame(&mut self) -> AudioFrameResult<bool> {
+        match self.rx.try_recv() {
+        // match self.rx.recv_timeout(Duration::from_millis(wait_max_ms as u64)) {
             Ok(mut buffer) => {
+                // print!("{:?} ", buffer.as_ptr());
                 swap(&mut self.buffer, &mut buffer);
                 self.producer_tx.send(buffer)?;
+                // let mut buffer = Some(buffer);
+                // loop {
+                //     match self.producer_tx.send(buffer.take().unwrap()) {
+                //         Err(TrySendError::Full(buf)) => {
+                //             println!("cons couldn't send");
+                //             buffer = Some(buf)
+                //         }
+                //         Ok(()) => break,
+                //         Err(e) => Err(e)?,
+                //     };
+                // }
                 Ok(true)
             }
-            Err(RecvTimeoutError::Timeout) => Ok(false),
-            Err(RecvTimeoutError::Disconnected) => Err(AudioFrameError),
+            Err(TryRecvError::Empty) => {
+                Ok(false)
+            },
+            Err(TryRecvError::Disconnected) => Err(AudioFrameError)
+            // Err(RecvTimeoutError::Timeout) => Ok(false),
+            // Err(RecvTimeoutError::Disconnected) => Err(AudioFrameError),
         }
     }
 
@@ -165,17 +203,21 @@ impl<T: 'static + Copy + Send> AudioFrameConsumer<T> {
     /// In case `ignore_missing` is `true` the last audio frame will be rendered again.
     /// Returns `Err(AudioFrameError)` only when sending or reveiving failed,
     /// which is possible only when the remote end has disconnected.
-    pub fn fill_buffer<'a>(&mut self, mut target_buffer: &'a mut[T],
-                                      wait_max_ms: u16,
-                                      ignore_missing: bool) -> AudioFrameResult<&'a mut[T]> {
+    pub fn fill_buffer<'a>(
+                &mut self,
+                mut target_buffer: &'a mut[T],
+                ignore_missing: bool
+            ) -> AudioFrameResult<&'a mut[T]>
+    {
         let mut cursor = self.cursor;
         while !target_buffer.is_empty() {
             if cursor >= self.buffer.sampled_size() {
-                if !(self.next_frame(wait_max_ms)? || ignore_missing) {
+                if !(self.next_frame()? || ignore_missing) {
                     break
                 }
                 cursor = 0;
             }
+            // print!("{:?} ", self.buffer.as_ptr());
             let copied_size = self.buffer.copy_to(target_buffer, cursor);
             cursor += copied_size;
             target_buffer = &mut target_buffer[copied_size..];
@@ -187,7 +229,7 @@ impl<T: 'static + Copy + Send> AudioFrameConsumer<T> {
 
 impl<T> AudioFrameProducer<T> {
     pub fn new(buffer: AudioBuffer<T>,
-               consumer_tx: SyncSender<AudioBuffer<T>>,
+               consumer_tx: Sender<AudioBuffer<T>>,
                producer_rx: Receiver<AudioBuffer<T>>) -> Self {
         AudioFrameProducer { buffer, rx: producer_rx, consumer_tx }
     }
@@ -201,8 +243,32 @@ impl<T> AudioFrameProducer<T> {
 impl<T: 'static + Send> AudioFrameProducer<T> {
     pub fn send_frame(&mut self) -> AudioFrameResult<()> {
         // eprintln!("waiting for buffer");
-        let buffer = replace(&mut self.buffer, self.rx.recv()?);
+        // let buffer = loop {
+        //     match self.rx.try_recv() {
+        //         Ok(buf) => break buf,
+        //         Err(TryRecvError::Empty) => {
+        //             let now = std::time::Instant::now();
+        //             let buf = self.rx.recv()?;
+        //             println!("prod couldn't recv, {:?}", now.elapsed());
+        //             break buf;
+        //         }
+        //         Err(e) => Err(e)?
+        //     }
+        // };
+        // let mut buffer = Some(replace(&mut self.buffer, buffer));
+        // let buffer = replace(&mut self.buffer, buffer);
         // eprintln!("got buffer");
+        // loop {
+        //     match self.consumer_tx.try_send(buffer.take().unwrap()) {
+        //         Err(TrySendError::Full(buf)) => {
+        //             println!("prod couldn't send");
+        //             buffer = Some(buf)
+        //         }
+        //         Ok(()) => return Ok(()),
+        //         Err(e) => Err(e)?
+        //     }
+        // }
+        let buffer = replace(&mut self.buffer, self.rx.recv()?);
         self.consumer_tx.send(buffer).map_err(From::from)
         // eprintln!("sent buffer");
     }
@@ -218,40 +284,54 @@ mod tests {
     fn carousel_works() -> Result<(), Box<dyn error::Error>> {
         // eprintln!("AudioBuffer<f32>: {:?}", core::mem::size_of::<AudioBuffer<f32>>());
         // eprintln!("AudioBuffer<u16>: {:?}", core::mem::size_of::<AudioBuffer<u16>>());
-        // eprintln!("SyncSender<AudioBuffer<f32>>: {:?}", core::mem::size_of::<SyncSender<AudioBuffer<f32>>>());
-        // eprintln!("SyncSender<AudioBuffer<u16>>: {:?}", core::mem::size_of::<SyncSender<AudioBuffer<u16>>>());
+        // eprintln!("Sender<AudioBuffer<f32>>: {:?}", core::mem::size_of::<Sender<AudioBuffer<f32>>>());
+        // eprintln!("Sender<AudioBuffer<u16>>: {:?}", core::mem::size_of::<Sender<AudioBuffer<u16>>>());
         const TEST_SAMPLES_COUNT: usize = 20000;
+        const LATENCY: usize = 5;
+        const BUFSIZE: usize = 256;
+        const ZEROLEN: usize = BUFSIZE + LATENCY*BUFSIZE;
         fn sinusoid(n: u16) -> f32 {
-            (PI*(n as f32)/128.0).sin()
+            (PI*(n as f32)/BUFSIZE as f32).sin()
         }
 
-        let (mut producer, mut consumer) = create_carousel::<f32>(1, 256, 1);
+        let (mut producer, mut consumer) = create_carousel::<f32>(LATENCY, BUFSIZE, 1);
         let join = thread::spawn(move || {
-            // thread::sleep(Duration::from_millis(250));
             let mut target = vec![0.0;800];
-            let unfilled = consumer.fill_buffer(&mut target, 1, false).unwrap();
-            assert_eq!(unfilled, []);
+            let mut unfilled = &mut target[..];
+            loop {
+                thread::sleep(std::time::Duration::from_millis(1));
+                unfilled = consumer.fill_buffer(unfilled, false).unwrap();
+                if unfilled.len() == 0 {
+                    break;
+                }
+            }
             target.resize(TEST_SAMPLES_COUNT, 0.0);
-            let unfilled = consumer.fill_buffer(&mut target[800..], 1, false).unwrap();
-            assert_eq!(unfilled, []);
+            let mut unfilled = &mut target[800..];
+            loop {
+                thread::sleep(std::time::Duration::from_millis(1));
+                unfilled = consumer.fill_buffer(unfilled, false).unwrap();
+                if unfilled.len() == 0 {
+                    break;
+                }
+            }
             target
         });
 
         loop {
             producer.render_frame(|vec| {
                 vec.clear();
-                vec.extend((0..256).map(sinusoid));
+                vec.extend((0..BUFSIZE as u16).map(sinusoid));
             });
             if let Err(_e) = producer.send_frame() {
                 break
             }
         }
         let target = join.join().unwrap();
-        assert_eq!(vec![0.0;256][..], target[..256]);
+        assert_eq!(vec![0.0;ZEROLEN][..], target[..ZEROLEN]);
         let mut template = Vec::new();
-        template.extend((0..256).map(sinusoid).cycle().take(TEST_SAMPLES_COUNT-256));
-        assert_eq!(TEST_SAMPLES_COUNT-256, template.len());
-        assert_eq!(template[..], target[256..]);
+        template.extend((0..BUFSIZE as u16).map(sinusoid).cycle().take(TEST_SAMPLES_COUNT-ZEROLEN));
+        assert_eq!(TEST_SAMPLES_COUNT-ZEROLEN, template.len());
+        assert_eq!(template[..], target[ZEROLEN..]);
         Ok(())
     }
 }

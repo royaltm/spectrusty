@@ -1,31 +1,57 @@
+pub mod ay;
+pub mod debug;
+pub mod zxprinter;
+
 use core::marker::PhantomData;
+
+use crate::clock::{FTs, VFrameTsCounter, VideoTs};
+// use crate::video::VideoFrame;
 use crate::memory::ZxMemory;
 
 pub trait BusDevice {
     type Timestamp: Sized;
-    type NextDevice: BusDevice;
+    type NextDevice: BusDevice<Timestamp=Self::Timestamp>;
 
     /// Returns a reference to the next device.
     fn next_device(&mut self) -> &mut Self::NextDevice;
     /// Resets the device and all devices in the chain.
-    fn reset(&mut self, timestamp: Self::Timestamp);
+    #[inline(always)]
+    fn reset(&mut self, timestamp: Self::Timestamp) {
+        self.next_device().reset(timestamp)
+    }
+    /// Called arbitrarily by control unit or other devices to update device's timer.
+    ///
+    /// If you need more fine grained timestamp increments implement [BusDevice::m1].
+    #[inline(always)]
+    fn update_timestamp(&mut self, timestamp: Self::Timestamp) {
+        self.next_device().update_timestamp(timestamp)
+    }
+    /// Called when control unit prepares for a next frame.
+    #[inline(always)]
+    fn next_frame(&mut self, timestamp: Self::Timestamp) {
+        self.next_device().next_frame(timestamp)
+    }
     /// Called by the control unit on M1 cycles.
-    fn m1<Z: ZxMemory>(&mut self, memory: &mut Z, pc: u16, timestamp: Self::Timestamp);
+    #[inline(always)]
+    fn m1<Z: ZxMemory>(&mut self, memory: &mut Z, pc: u16, timestamp: Self::Timestamp) {
+        self.next_device().m1(memory, pc, timestamp)
+    }
     /// Called by the control unit on IO::read_io.
-    fn read_io(&mut self, port: u16, timestamp: Self::Timestamp) -> Option<u8>;
+    #[inline(always)]
+    fn read_io(&mut self, port: u16, timestamp: Self::Timestamp) -> Option<u8> {
+        self.next_device().read_io(port, timestamp)
+    }
     /// Called by the control unit on IO::write_io.
-    fn write_io(&mut self, port: u16, data: u8, timestamp: Self::Timestamp) -> bool;
+    #[inline(always)]
+    fn write_io(&mut self, port: u16, data: u8, timestamp: Self::Timestamp) -> bool {
+        self.next_device().write_io(port, data, timestamp)
+    }
 }
 
 #[derive(Clone, Default, Debug)]
 pub struct NullDevice<T: Sized>(PhantomData<T>);
 
-// impl<T: Sized> Default for NullDevice<T> {
-//     fn default() -> Self {
-//         NullDevice(PhantomData)
-//     }
-// }
-
+/// Implementors should forward all calls to the underlying devices.
 impl<T: Sized> BusDevice for NullDevice<T> {
     type Timestamp = T;
     type NextDevice = Self;
@@ -37,6 +63,12 @@ impl<T: Sized> BusDevice for NullDevice<T> {
 
     #[inline]
     fn reset(&mut self, _timestamp: Self::Timestamp) {}
+
+    #[inline]
+    fn update_timestamp(&mut self, _timestamp: Self::Timestamp) {}
+
+    #[inline]
+    fn next_frame(&mut self, _timestamp: Self::Timestamp) {}
 
     #[inline]
     fn m1<Z: ZxMemory>(&mut self, _memory: &mut Z, _pc: u16, _timestamp: Self::Timestamp) {}
@@ -86,6 +118,20 @@ where D: BusDevice<Timestamp=T>, N: BusDevice<Timestamp=T>, T: Sized + Copy {
             device.reset(timestamp);
         }
         self.next_device.reset(timestamp);
+    }
+
+    fn update_timestamp(&mut self, timestamp: Self::Timestamp) {
+        if let Some(device) = &mut self.device {
+            device.update_timestamp(timestamp);
+        }
+        self.next_device.update_timestamp(timestamp);
+    }
+
+    fn next_frame(&mut self, timestamp: Self::Timestamp) {
+        if let Some(device) = &mut self.device {
+            device.next_frame(timestamp);
+        }
+        self.next_device.next_frame(timestamp);
     }
 
     fn m1<Z: ZxMemory>(&mut self, memory: &mut Z, pc: u16, timestamp: Self::Timestamp) {

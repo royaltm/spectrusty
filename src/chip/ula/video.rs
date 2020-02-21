@@ -1,15 +1,19 @@
 use core::iter::StepBy;
 use core::ops::Range;
-use crate::bus::BusDevice;
+// use crate::bus::BusDevice;
 use crate::memory::ZxMemory;
 use crate::clock::{VFrameTsCounter, VideoTs, Ts, VideoTsData3};
 use super::render_pixels::Renderer;
 use super::Ula;
-use crate::video::{BorderSize, PixelBuffer, VideoFrame, MAX_BORDER_SIZE};
+use crate::video::{BorderSize, PixelBuffer, VideoFrame, Video, MAX_BORDER_SIZE};
 
-pub type UlaTsCounter<M, B> = VFrameTsCounter<Ula<M, B>>;
+pub struct UlaVideoFrame;
 
-impl<M: ZxMemory, B: BusDevice<Timestamp=VideoTs>> VideoFrame for Ula<M,B> {
+pub type UlaTsCounter = VFrameTsCounter<UlaVideoFrame>;
+
+impl<M: ZxMemory, B> Video for Ula<M, B> {
+    type VideoFrame = UlaVideoFrame;
+
     #[inline]
     fn border_color(&self) -> u8 {
         self.last_border
@@ -23,8 +27,11 @@ impl<M: ZxMemory, B: BusDevice<Timestamp=VideoTs>> VideoFrame for Ula<M,B> {
     }
     /// This should be called after emulating each frame.
     fn render_video_frame<P: PixelBuffer>(&mut self, buffer: &mut [u8], pitch: usize, border_size: BorderSize) {
-        self.create_renderer(border_size).render_pixels::<P, Self>(buffer, pitch)
+        self.create_renderer(border_size).render_pixels::<P, Self::VideoFrame>(buffer, pitch)
     }
+}
+
+impl VideoFrame for UlaVideoFrame {
     /// A range of horizontal T-states, 0 should be where the frame starts.
     const HTS_RANGE: Range<Ts> = -69..155;
     /// The first video scan line index of the top border.
@@ -39,26 +46,26 @@ impl<M: ZxMemory, B: BusDevice<Timestamp=VideoTs>> VideoFrame for Ula<M,B> {
     type HtsIter = StepBy<Range<Ts>>;
 
     fn border_whole_line_hts_iter(border_size: BorderSize) -> Self::HtsIter {
-        let invborder = (MAX_BORDER_SIZE - Self::border_size_pixels(border_size)) as Ts;
-        (-21+invborder..155-invborder).step_by(4)
+        let invborder = ((MAX_BORDER_SIZE - Self::border_size_pixels(border_size))/2) as Ts;
+        (-20+invborder..156-invborder).step_by(4)
     }
 
     fn border_left_hts_iter(border_size: BorderSize) -> Self::HtsIter {
-        let invborder = (MAX_BORDER_SIZE - Self::border_size_pixels(border_size)) as Ts;
-        (-21+invborder..3).step_by(4)
+        let invborder = ((MAX_BORDER_SIZE - Self::border_size_pixels(border_size))/2) as Ts;
+        (-20+invborder..4).step_by(4)
     }
 
     fn border_right_hts_iter(border_size: BorderSize) -> Self::HtsIter {
-        let invborder = (MAX_BORDER_SIZE - Self::border_size_pixels(border_size)) as Ts;
-        (131..155-invborder).step_by(4)
+        let invborder = ((MAX_BORDER_SIZE - Self::border_size_pixels(border_size))/2) as Ts;
+        (132..156-invborder).step_by(4)
     }
 
     #[inline]
-    fn contention(mut hc: Ts) -> Ts {
+    fn contention(hc: Ts) -> Ts {
         if hc >= -1 && hc < 124 {
             let ct = (hc + 1) & 7;
             if ct < 6 {
-                hc += 6 - ct;
+                return hc + 6 - ct;
             }
         }
         hc
@@ -70,9 +77,12 @@ struct Coords {
     line: i16
 }
 
-static COL_INK_HTS:  &[Ts] = &[4, 6, 12, 14, 20, 22, 28, 30, 36, 38, 44, 46, 52, 54, 60, 62, 68, 70, 76, 78, 84, 86, 92, 94, 100, 102, 108, 110, 116, 118, 124, 126];
-static COL_ATTR_HTS: &[Ts] = &[5, 7, 13, 15, 21, 23, 29, 31, 37, 39, 45, 47, 53, 55, 61, 63, 69, 71, 77, 79, 85, 87, 93, 95, 101, 103, 109, 111, 117, 119, 125, 127];
+// static COL_INK_HTS:  &[Ts] = &[4, 6, 12, 14, 20, 22, 28, 30, 36, 38, 44, 46, 52, 54, 60, 62, 68, 70, 76, 78, 84, 86, 92, 94, 100, 102, 108, 110, 116, 118, 124, 126];
+// static COL_ATTR_HTS: &[Ts] = &[5, 7, 13, 15, 21, 23, 29, 31, 37, 39, 45, 47, 53, 55, 61, 63, 69, 71, 77, 79, 85, 87, 93, 95, 101, 103, 109, 111, 117, 119, 125, 127];
+static COL_INK_HTS:  &[Ts] = &[1, 3,  9, 11, 17, 19, 25, 27, 33, 35, 41, 43, 49, 51, 57, 59, 65, 67, 73, 75, 81, 83, 89, 91, 97,  99, 105, 107, 113, 115, 121, 123];
+static COL_ATTR_HTS: &[Ts] = &[2, 4, 10, 12, 18, 20, 26, 28, 34, 36, 42, 44, 50, 52, 58, 60, 66, 68, 74, 76, 82, 84, 90, 92, 98, 100, 106, 108, 114, 116, 122, 124];
 
+#[inline(always)]
 fn pixel_address_coords(addr: u16) -> Option<Coords> {
     match addr {
         0x4000..=0x57FF => {
@@ -86,6 +96,7 @@ fn pixel_address_coords(addr: u16) -> Option<Coords> {
     }
 }
 
+#[inline(always)]
 fn color_address_coords(addr: u16) -> Option<Coords> {
     match addr {
         0x5800..=0x5AFF => {
@@ -97,7 +108,7 @@ fn color_address_coords(addr: u16) -> Option<Coords> {
     }
 }
 
-impl<M: ZxMemory, B: BusDevice<Timestamp=VideoTs>> Ula<M,B> {
+impl<M: ZxMemory, B> Ula<M,B> {
     pub fn create_renderer(&mut self, border_size: BorderSize) -> Renderer<'_, std::vec::Drain<'_, VideoTsData3>> {
         let border = self.border as usize;
         Renderer {
@@ -131,7 +142,7 @@ impl<M: ZxMemory, B: BusDevice<Timestamp=VideoTs>> Ula<M,B> {
     #[inline(always)]
     pub(super) fn update_frame_pixels_and_colors(&mut self, addr: u16, ts: VideoTs) {
         if let Some(Coords { column, line }) = pixel_address_coords(addr) {
-            let cur_line_index = ts.vc - Self::VSL_PIXELS.start;
+            let cur_line_index = ts.vc - UlaVideoFrame::VSL_PIXELS.start;
             if line < cur_line_index || line == cur_line_index && ts.hc > COL_INK_HTS[column as usize] {
                 let (mask, pixels) = &mut self.frame_pixels[line as usize];
                 let mbit = 1 << column;
@@ -149,7 +160,7 @@ impl<M: ZxMemory, B: BusDevice<Timestamp=VideoTs>> Ula<M,B> {
     #[inline(always)]
     fn update_frame_colors(&mut self, addr: u16, ts: VideoTs) {
         if let Some(Coords { column, line }) = color_address_coords(addr) {
-            let cur_line_index = ts.vc - Self::VSL_PIXELS.start;
+            let cur_line_index = ts.vc - UlaVideoFrame::VSL_PIXELS.start;
             let coarse_cur_line_index = cur_line_index >> 3;
             if line < coarse_cur_line_index ||
                line == coarse_cur_line_index && cur_line_index & 0b111 == 0b111 && ts.hc > COL_ATTR_HTS[column as usize] {

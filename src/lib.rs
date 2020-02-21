@@ -4,6 +4,8 @@
 #[macro_use]
 extern crate bitflags;
 
+pub use z80emu;
+
 pub mod audio;
 pub mod bus;
 pub mod chip;
@@ -12,6 +14,7 @@ pub mod io;
 pub mod memory;
 pub mod formats;
 pub mod video;
+pub mod utils;
 
 #[cfg(test)]
 mod tests {

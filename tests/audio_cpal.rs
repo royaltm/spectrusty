@@ -125,7 +125,7 @@ where T: 'static + Sample + AudioSample + Send + UnwrapUnknownTypeOutputBuffer
 
             let res = match data {
                 cpal::StreamData::Output { ref mut buffer } => {
-                    consumer.fill_buffer(T::unwrap_buffer(buffer), 10, false)
+                    consumer.fill_buffer(T::unwrap_buffer(buffer), false)
                 }
                 _ => panic!("unexpected input data")
             };

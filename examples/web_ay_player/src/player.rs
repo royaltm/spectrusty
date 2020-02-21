@@ -3,17 +3,18 @@ use std::io::Cursor;
 use serde::{Serialize, Deserialize};
 use serde_json::{self, json};
 
-use z80emu::Z80NMOS;
+use zxspecemu::z80emu::Z80NMOS;
 use zxspecemu::memory::ZxMemory;
 use zxspecemu::audio::*;
-use zxspecemu::audio::synth::*;
-use zxspecemu::audio::ay::*;
+use zxspecemu::audio::synth::{BandLimited, BandLimOpt};
+use zxspecemu::audio::ay::AyAudioFrame;
+use zxspecemu::io::ay::Ay128kPortDecode;
 use zxspecemu::formats::{
     ay::*,
     sna::*
 };
-use zxspecemu::chip::*;
-use zxspecemu::chip::ay_player::*;
+use zxspecemu::chip::ControlUnit;
+use zxspecemu::chip::ay_player::AyPlayer;
 pub use zxspecemu::audio::synth::{BandLimHiFi, BandLimLowTreb, BandLimLowBass, BandLimNarrow};
 
 pub type Ay128kPlayer = AyPlayer<Ay128kPortDecode>;

@@ -126,12 +126,20 @@ impl<'a, BI> Renderer<'a, BI> where BI: Iterator<Item=VideoTsData3> {
 
     #[allow(clippy::too_many_arguments)]
     #[inline(always)]
-    fn render_pixel_line<B: PixelBuffer, C: VideoFrame>(rgb_line: &mut [u8], ink_line: &[u8], attr_line: &[u8],
-                                                frame_pixels: &(u32, [u8;32]),
-                                                frame_colors: &(u32, [u8;32]),
-                                                frame_colors_coarse: &(u32, [u8;32]),
-                                                border_changes: &mut Peekable<BI>, border: &mut usize, invert_flash: bool,
-                                                vc: Ts, border_size: BorderSize) {
+    fn render_pixel_line<B: PixelBuffer, C: VideoFrame>(
+                rgb_line: &mut [u8],
+                ink_line: &[u8],
+                attr_line: &[u8],
+                frame_pixels: &(u32, [u8;32]),
+                frame_colors: &(u32, [u8;32]),
+                frame_colors_coarse: &(u32, [u8;32]),
+                border_changes: &mut Peekable<BI>,
+                border: &mut usize,
+                invert_flash: bool,
+                vc: Ts,
+                border_size: BorderSize
+            )
+    {
         debug_assert_eq!(ink_line.len(), 32);
         debug_assert_eq!(attr_line.len(), 32);
         let mut writer = rgb_line.iter_mut();
@@ -149,16 +157,16 @@ impl<'a, BI> Renderer<'a, BI> where BI: Iterator<Item=VideoTsData3> {
         for (x, (ink, attr)) in ink_line.iter().zip(attr_line.iter()).enumerate() {
             let bitmask = 1 << x;
             let ink: u8 = if mask_pixels & bitmask != 0 {
-                frame_pixels.1[x]
+                frame_pixels.1[x & 31]
             }
             else {
                 *ink
             };
             let attr: u8 = if mask_colors & bitmask != 0 {
-                frame_colors.1[x]
+                frame_colors.1[x & 31]
             }
             else if mask_colors_coarse & bitmask != 0 {
-                frame_colors_coarse.1[x]
+                frame_colors_coarse.1[x & 31]
             }
             else {
                 *attr

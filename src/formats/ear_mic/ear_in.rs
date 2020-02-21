@@ -1,25 +1,6 @@
-//! **TAPE** pulse signal emulation.
-#[allow(unused_imports)]
 use core::num::NonZeroU32;
 use std::io::{Error, Read};
-
-/// Length of the lead pulse in T-states.
-pub const LEAD_PULSE_LENGTH : NonZeroU32 = unsafe { NonZeroU32::new_unchecked(2168) };
-/// Length of the 1st sync pulse in T-states.
-pub const SYNC_PULSE1_LENGTH: NonZeroU32 = unsafe { NonZeroU32::new_unchecked(667)  };
-/// Length of the 2nd sync pulse in T-states.
-pub const SYNC_PULSE2_LENGTH: NonZeroU32 = unsafe { NonZeroU32::new_unchecked(735)  };
-/// Length of the bit value 0 pulse in T-states.
-pub const ZERO_PULSE_LENGTH : NonZeroU32 = unsafe { NonZeroU32::new_unchecked(855)  };
-/// Length of the bit value 0 pulse in T-states.
-pub const ONE_PULSE_LENGTH  : NonZeroU32 = unsafe { NonZeroU32::new_unchecked(1710) };
-/// Length of the pause between *TAPE* blocks in T-states.
-pub const PAUSE_PULSE_LENGTH: NonZeroU32 = unsafe { NonZeroU32::new_unchecked(3_500_000/2) };
-
-/// The number of LEAD pulses for the header block.
-pub const LEAD_PULSES_HEAD: u16 = 8063;
-/// The number of LEAD pulses for the data block.
-pub const LEAD_PULSES_DATA: u16 = 3223;
+use super::consts::*;
 
 /// The state of the [EarPulseIter].
 #[derive(Debug)]
@@ -111,6 +92,23 @@ pub struct EarPulseIter<R> {
 }
 
 impl<R> EarPulseIter<R> {
+    /// Returns a reference to the current state.
+    pub fn state(&self) -> &IterState {
+        &self.state
+    }
+    /// Returns `true` if there are no more pulses to emit or there
+    /// was an error while reading bytes.
+    pub fn is_done(&self) -> bool {
+        self.state.is_done()
+    }
+    /// Returns a mutable reference to the inner reader.
+    pub fn get_mut(&mut self) -> &mut R {
+        &mut self.rd
+    }
+    /// Returns a shared reference to the inner reader.
+    pub fn get_ref(&self) -> &R {
+        &self.rd
+    }
     /// Returns the underlying reader.
     pub fn into_inner(self) -> R {
         self.rd
@@ -118,7 +116,7 @@ impl<R> EarPulseIter<R> {
 }
 
 impl<R: Read> EarPulseIter<R> {
-    /// Creates a new `EarPulseIter` from the given [Reader][Read].
+    /// Creates a new `EarPulseIter` from a given [Reader][Read].
     pub fn new(rd: R) -> Self {
         let mut epi = EarPulseIter { rd, state: IterState::Done, head: 0 };
         epi.reset();
@@ -144,23 +142,6 @@ impl<R: Read> EarPulseIter<R> {
     /// Returns an error from the underying reader if there was one.
     pub fn err(&self) -> Option<&Error> {
         self.state.err()
-    }
-    /// Returns a reference to the current state.
-    pub fn state(&self) -> &IterState {
-        &self.state
-    }
-    /// Returns `true` if there are no more pulses to emit or there
-    /// was an error while reading bytes.
-    pub fn is_done(&self) -> bool {
-        self.state.is_done()
-    }
-    /// Returns a mutable reference to the inner reader.
-    pub fn get_mut(&mut self) -> &mut R {
-        &mut self.rd
-    }
-    /// Returns a shared reference to the inner reader.
-    pub fn get_ref(&self) -> &R {
-        &self.rd
     }
 }
 
@@ -216,7 +197,7 @@ mod tests {
     use std::io::Cursor;
 
     #[test]
-    fn read_ear_work() {
+    fn read_ear_works() {
         let data = [0xFF, 0xA5, 0x00];
         let mut iter = EarPulseIter::new(Cursor::new(data));
         assert_eq!(false, iter.is_done());

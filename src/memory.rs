@@ -1,6 +1,7 @@
 use core::ops::Range;
 use core::ops::{Bound, RangeBounds};
-use std::io::Read;
+use core::fmt;
+use std::io::{self, Read};
 
 bitflags! {
     #[derive(Default)]
@@ -18,7 +19,35 @@ pub enum ZxMemoryError {
     PageOutOfRange,
     AddressRangeNotSupported,
     Unwritable,
-    Io(std::io::Error)
+    Io(io::Error)
+}
+
+impl fmt::Display for ZxMemoryError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", match self {
+            ZxMemoryError::PageOutOfRange => "Memory page index out of range",
+            ZxMemoryError::AddressRangeNotSupported => "Address range not supported",
+            ZxMemoryError::Unwritable => "Unwritable",
+            ZxMemoryError::Io(err) => return err.fmt(f)
+        })
+    }
+}
+
+impl From<ZxMemoryError> for io::Error {
+    fn from(err: ZxMemoryError) -> Self {
+        match err {
+            ZxMemoryError::PageOutOfRange => {
+                io::Error::new(io::ErrorKind::InvalidInput, "Memory page index out of range")
+            }
+            ZxMemoryError::AddressRangeNotSupported => {
+                io::Error::new(io::ErrorKind::InvalidInput, "Address range not supported")
+            }
+            ZxMemoryError::Unwritable => {
+                io::Error::new(io::ErrorKind::InvalidInput, "Unwritable")
+            }
+            ZxMemoryError::Io(err) => err
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -54,6 +83,8 @@ pub trait ZxMemory: Sized {
     fn page_index_at(&mut self, address: u16) -> Result<MemoryPage>;
     /// Get view of the screen_page memory.
     fn screen_ref(&self, screen_page: u8) -> Result<&[u8]>;
+    /// Get mutable view of the screen_page memory.
+    fn screen_mut(&mut self, screen_page: u8) -> Result<&mut [u8]>;
     /// If addr is above RAMTOP the function should return std::u8::MAX.
     fn read(&self, addr: u16) -> u8;
     /// If addr is above RAMTOP the function should return std::u16::MAX.
@@ -358,6 +389,13 @@ impl<M: SinglePageMemory> ZxMemory for M {
             return Err(ZxMemoryError::PageOutOfRange)
         }
         Ok(&self.as_slice()[0x4000..0x5B00])
+    }
+
+    fn screen_mut(&mut self, screen_page: u8) -> Result<&mut [u8]> {
+        if screen_page != 0 {
+            return Err(ZxMemoryError::PageOutOfRange)
+        }
+        Ok(&mut self.as_mut_slice()[0x4000..0x5B00])
     }
 
     fn map_ram_page<R: RangeBounds<u16>>(&mut self, ram_page: u8, address_range: R) -> Result<()> {

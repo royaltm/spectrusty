@@ -17,6 +17,7 @@ use zxspecemu::audio::sample::*;
 use zxspecemu::audio::*;
 use zxspecemu::audio::synth::*;
 use zxspecemu::audio::ay::*;
+use zxspecemu::io::ay::*;
 use zxspecemu::formats::{
     ay::*,
     // sna::*
@@ -108,7 +109,7 @@ where T: 'static + FromSample<f32> + AudioSample + Send,
                                 ).map(|(a,b)| [a,b]);
                                 // .map(|(a,(b,c))| [a,b,c]);
                 // set sample buffer size so to the size of the BLEP frame
-                vec.resize(frame_sample_count * output_channels, T::center());
+                vec.resize(frame_sample_count * output_channels, T::silence());
                 // render each sample
                 for (chans, samples) in vec.chunks_mut(output_channels).zip(sample_iter) {
                     // write to the wav file
@@ -133,8 +134,8 @@ where T: 'static + FromSample<f32> + AudioSample + Send,
                     cpu.get_reg16(z80emu::StkReg16::DE),
                     cpu.get_reg16(z80emu::StkReg16::AF),
                     &player.ay_io.registers()[0..14]);
-            if let Err(_) = tsync.synchronize_thread_to_frame() {
-                warn!("frame too long");
+            if let Err(missed) = tsync.synchronize_thread_to_frame() {
+                warn!("missed frames: {}", missed);
             }
         }
         println!("Played: {:?}", start_time.elapsed());

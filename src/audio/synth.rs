@@ -304,6 +304,7 @@ where T: Copy + Default + SampleDelta + MulNorm
         debug_assert!(channel < channels);
         let time = self.time_rate * timestamp as f64 - self.start_time;
         let index = time.trunc() as usize * channels + channel;
+        // FIX: better handle negative timestamps
         let phase = ((time.fract() * PHASE_COUNT as f64).trunc() as usize).rem_euclid(PHASE_COUNT);
         for (dp, phase) in self.diffs[index..index + STEP_WIDTH*channels]
                           .iter_mut().step_by(channels)

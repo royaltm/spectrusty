@@ -45,7 +45,7 @@ where i16: IntoSample<T>
     ];
     // render frames
     loop {
-        ay.render_audio::<AyAmps<f32>,_,_,_>(changes.drain(..),
+        ay.render_audio::<AyAmps<f32>,_,_>(changes.drain(..),
                                                     &mut bandlim, FRAME_TSTATES, [0, 1, 2]);
         // close current frame
         let frame_sample_count = Blep::end_frame(&mut bandlim, FRAME_TSTATES);
@@ -56,7 +56,7 @@ where i16: IntoSample<T>
                                 .zip(bandlim.sum_iter::<T>(2)))
                             .map(|(a,(b,c))| [a,b,c]);
             // set sample buffer size so to the size of the BLEP frame
-            vec.resize(frame_sample_count * channels, T::center());
+            vec.resize(frame_sample_count * channels, T::silence());
             // render each sample
             for (chans, samples) in vec.chunks_mut(channels).zip(sample_iter) {
                 // write to the wav file

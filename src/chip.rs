@@ -2,12 +2,13 @@ pub mod ula;
 pub mod ay_player;
 
 use core::time::Duration;
+use core::num::NonZeroU32;
 use std::time::Instant;
 use z80emu::{Clock, CpuDebug, Io, Cpu, host::Result};
 use crate::bus::BusDevice;
 use crate::clock::FTs;
 
-pub trait ControlUnit: Io {
+pub trait ControlUnit : Io {
     type TsCounter: Clock;
     type BusDevice: BusDevice;
     /// A frequency in Hz of the Cpu unit. This is the same as a number of T-states per second.
@@ -20,6 +21,8 @@ pub trait ControlUnit: Io {
     fn current_frame(&self) -> u64;
     /// Returns current frame's T-state.
     fn frame_tstate(&self) -> FTs;
+    /// Returns current T-state (can be negative as well as exceed a single frame).
+    fn current_tstate(&self) -> FTs;
     /// Returns `true` if current frame is over.
     fn is_frame_over(&self) -> bool;
     /// Perform computer reset.
@@ -106,23 +109,35 @@ impl ThreadSyncTimer {
     pub fn restart(&mut self) -> Instant {
         core::mem::replace(&mut self.time, Instant::now())
     }
+
+    pub fn check_frame_elapsed(&mut self) -> Option<Duration> {
+        let frame_duration = self.frame_duration;
+        let elapsed = self.time.elapsed();
+        if let Some(duration) = elapsed.checked_sub(frame_duration) {
+            self.time += frame_duration;
+            return Some(duration)
+        }
+        None
+    }
     /// This should be called at the end of each frame iteration of an emulation loop to synchronize
     /// thread using [std::thread::sleep].
     ///
-    /// Returns `Ok` if the thread is in sync with the emulation or Err<Instant> if the emulator is
-    /// lagging behind. In this instance the internal timer is being restarted and the previous time
-    /// instant pointing to the beginning of the previous frame is returned.
-    pub fn synchronize_thread_to_frame(&mut self) -> core::result::Result<(), Instant> {
+    /// Returns `Ok` if the thread is in sync with the emulation or Err<missed_frames> if emulation
+    /// is lagging behind.
+    pub fn synchronize_thread_to_frame(&mut self) -> core::result::Result<(), u32> {
         let frame_duration = self.frame_duration;
-        if let Some(duration) = frame_duration.checked_sub(self.time.elapsed()) {
+        let elapsed = self.time.elapsed();
+        if let Some(duration) = frame_duration.checked_sub(elapsed) {
             std::thread::sleep(duration);
             self.time += frame_duration;
             Ok(())
         }
         else {
-            Err(self.restart())
+            let missed_frames = (elapsed.as_secs_f64() / frame_duration.as_secs_f64()).trunc() as u32;
+            // self.time += frame_duration * missed_frames;
+            self.restart();
+            Err(missed_frames)
         }
-
     }
 }
 

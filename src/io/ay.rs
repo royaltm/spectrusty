@@ -32,6 +32,75 @@ const REG_MASKS: [u8;16] = [
     0x1f, 0x1f, 0x1f, 0xff, 0xff, 0x0f, 0xff, 0xff
 ];
 
+pub trait AyPortDecode {
+    const PORT_MASK: u16;
+    const PORT_SELECT: u16;
+    const PORT_DATA_READ: u16;
+    const PORT_DATA_WRITE: u16;
+    #[inline]
+    fn is_select(port: u16) -> bool {
+        port & Self::PORT_MASK == Self::PORT_SELECT
+    }
+    #[inline]
+    fn is_data_read(port: u16) -> bool {
+        port & Self::PORT_MASK == Self::PORT_DATA_READ
+    }
+    #[inline]
+    fn is_data_write(port: u16) -> bool {
+        port & Self::PORT_MASK == Self::PORT_DATA_WRITE
+    }
+    #[inline]
+    fn write_ay_io<T,R,A,B>(
+                ay_io: &mut Ay3_891xIo<T,R,A,B>,
+                port: u16,
+                data: u8,
+                timestamp: T
+            ) -> bool
+        where A: AyIoPort<Timestamp=T>,
+              B: AyIoPort<Timestamp=T>,
+              R: AyRegRecorder<Timestamp=T>
+    {
+        match port & Self::PORT_MASK {
+            p if p == Self::PORT_SELECT => {
+                ay_io.select_port(data);
+                true
+            }
+            p if p == Self::PORT_DATA_WRITE => {
+                ay_io.data_port_write(data, timestamp);
+                true
+            }
+            _ => false
+        }
+    }
+}
+
+#[derive(Clone, Copy, Default)]
+pub struct Ay128kPortDecode;
+impl AyPortDecode for Ay128kPortDecode {
+    const PORT_MASK      : u16 = 0b11000000_00000010;
+    const PORT_SELECT    : u16 = 0b11000000_00000000;
+    const PORT_DATA_READ : u16 = 0b11000000_00000000;
+    const PORT_DATA_WRITE: u16 = 0b10000000_00000000;
+}
+
+#[derive(Clone, Copy, Default)]
+pub struct AyFullerBoxPortDecode;
+impl AyPortDecode for AyFullerBoxPortDecode {
+    const PORT_MASK      : u16 = 0x00ff;
+    const PORT_SELECT    : u16 = 0x003f;
+    const PORT_DATA_READ : u16 = 0x003f;
+    const PORT_DATA_WRITE: u16 = 0x005f;
+}
+
+#[derive(Clone, Copy, Default)]
+pub struct AyTC2068PortDecode;
+impl AyPortDecode for AyTC2068PortDecode {
+    const PORT_MASK      : u16 = 0x00ff;
+    const PORT_SELECT    : u16 = 0x00f5;
+    const PORT_DATA_READ : u16 = 0x00f6;
+    const PORT_DATA_WRITE: u16 = 0x00f6;
+}
+
 /// Timestamps a change to one of AY registers.
 ///
 /// Instances of this type are being used by [Ay3_891xAudio][crate::audio::ay::Ay3_891xAudio]

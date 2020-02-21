@@ -23,13 +23,17 @@ pub enum BorderSize {
     Minimal = 1
 }
 
-pub trait VideoFrame {
+pub trait Video {
+    type VideoFrame: VideoFrame;
     /// Get the current border area color number 0..7.
     fn border_color(&self) -> u8;
     /// Sets the border area to the given color number 0..7.
     fn set_border_color(&mut self, border: u8);
     /// This should be called after emulating each frame.
     fn render_video_frame<B: PixelBuffer>(&mut self, buffer: &mut [u8], pitch: usize, border_size: BorderSize);
+}
+
+pub trait VideoFrame {
     /// A range of horizontal T-states, 0 should be where the frame starts.
     const HTS_RANGE: Range<Ts>;
     /// Number of horizontal T-states.
@@ -112,5 +116,21 @@ where T: Copy + From<u16> + BitAnd<Output=T> + Shl<u16, Output=T> + BitOr<Output
 pub(crate) fn color_line_offset<T>(y: T) -> T
 where T: Copy + From<u16> + Shr<u16, Output=T> + Shl<u16, Output=T>
 {
-    (y >> 3) << 3
+    (y >> 3) << 5
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn video_offsets_works() {
+        assert_eq!(pixel_line_offset(0usize), 0usize);
+        assert_eq!(pixel_line_offset(1usize), 256usize);
+        assert_eq!(pixel_line_offset(8usize), 32usize);
+        assert_eq!(color_line_offset(0usize), 0usize);
+        assert_eq!(color_line_offset(1usize), 0usize);
+        assert_eq!(color_line_offset(8usize), 32usize);
+        assert_eq!(color_line_offset(191usize), 736usize);
+    }
 }

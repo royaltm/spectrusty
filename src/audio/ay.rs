@@ -438,21 +438,20 @@ impl Ay3_891xAudio {
     ///   otherwise some register changes may be lost - the iterator will be drained anyway.
     /// * `end_ts` should be a value of an end of frame [Cpu][z80emu::Cpu] cycle (T-state) counter.
     /// * `channels` - indicate [Blep] audio channels for `[A, B, C]` AY channels.
-    pub fn render_audio<V,L,I,A>(&mut self,
+    pub fn render_audio<V,I,A>(&mut self,
                 changes: I,
                 blep: &mut A,
                 end_ts: FTs,
                 chans: [usize; 3]
             )
-        where V: AmpLevels<L>,
-              L: SampleDelta + Default,
+        where V: AmpLevels<A::SampleDelta>,
               I: IntoIterator<Item=AyRegChange>,
-              A: Blep<SampleDelta=L>
+              A: Blep
     {
         let mut change_iter = changes.into_iter().peekable();
         let mut ticker = Ticker::new(self.current_ts, end_ts);
         let mut tone_levels: [u8; 3] = self.last_levels;
-        let mut vol_levels: [L;3] = Default::default();
+        let mut vol_levels: [A::SampleDelta;3] = Default::default();
 
         for (level, tgt_amp) in tone_levels.iter().copied()
                                 .zip(vol_levels.iter_mut()) {

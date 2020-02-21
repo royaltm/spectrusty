@@ -286,6 +286,12 @@ impl<V: VideoFrame> Clock for VFrameTsCounter<V> {
     }
 
     fn add_m1(&mut self, address: u16) -> Self::Timestamp {
+        // match address {
+        //     0x80BB => println!("0x{:04x}: {} {:?}", address, self.as_tstates(), self.tsc),
+        //     // 0x80F3..=0x80F9 => println!("0x{:04x}: {} {:?}", address, self.as_tstates(), self.tsc),
+        //     // 0xC008..=0xC011 => println!("0x{:04x}: {} {:?}", address, self.as_tstates(), self.tsc),
+        //     _ => {}
+        // }
         let hc = if V::is_contended_address(address) && V::is_contended_line_mreq(self.tsc.vc) {
             V::contention(self.tsc.hc)
         }
@@ -307,15 +313,47 @@ impl<V: VideoFrame> Clock for VFrameTsCounter<V> {
         self.tsc
     }
 
+    // fn add_io(&mut self, port: u16) -> Self::Timestamp {
+    //     let VideoTs{ vc, hc } = self.tsc;
+    //     let hc = if V::is_contended_line_no_mreq(vc) {
+    //         if V::is_contended_address(port) {
+    //             let hc = V::contention(hc) + 1;
+    //             if port & 1 == 0 { // C:1, C:3
+    //                 V::contention(hc) + (IO_CYCLE_TS - 1) as Ts
+    //             }
+    //             else { // C:1, C:1, C:1, C:1
+    //                 let mut hc1 = hc;
+    //                 for _ in 1..IO_CYCLE_TS {
+    //                     hc1 = V::contention(hc1) + 1;
+    //                 }
+    //                 hc1
+    //             }
+    //         }
+    //         else {
+    //             if port & 1 == 0 { // N:1 C:3
+    //                 V::contention(hc + 1) + (IO_CYCLE_TS - 1) as Ts
+    //             }
+    //             else { // N:4
+    //                 hc + IO_CYCLE_TS as Ts
+    //             }
+    //         }
+    //     }
+    //     else { // N:4
+    //         hc + IO_CYCLE_TS as Ts
+    //     };
+    //     self.set_hc(hc);
+    //     Self::new(vc, hc - 1).as_timestamp() // data read at last cycle
+    // }
+
     fn add_io(&mut self, port: u16) -> Self::Timestamp {
         let VideoTs{ vc, mut hc } = self.tsc;
         let hc1 = if V::is_contended_line_no_mreq(vc) {
             if V::is_contended_address(port) {
                 hc = V::contention(hc) + IO_IORQ_LOW_TS as Ts;
-                if port & 1 == 0 {
+                if port & 1 == 0 { // C:1, C:3
                     V::contention(hc) + (IO_CYCLE_TS - IO_IORQ_LOW_TS) as Ts
                 }
-                else {
+                else { // C:1, C:1, C:1, C:1
                     let mut hc1 = hc;
                     for _ in 0..(IO_CYCLE_TS - IO_IORQ_LOW_TS) {
                         hc1 = V::contention(hc1) + 1;
@@ -325,10 +363,10 @@ impl<V: VideoFrame> Clock for VFrameTsCounter<V> {
             }
             else {
                 hc += IO_IORQ_LOW_TS as Ts;
-                if port & 1 == 0 {
+                if port & 1 == 0 { // N:1 C:3
                     V::contention(hc) + (IO_CYCLE_TS - IO_IORQ_LOW_TS) as Ts
                 }
-                else {
+                else { // N:4
                     hc + (IO_CYCLE_TS - IO_IORQ_LOW_TS) as Ts
                 }
             }
@@ -338,13 +376,14 @@ impl<V: VideoFrame> Clock for VFrameTsCounter<V> {
             hc + (IO_CYCLE_TS - IO_IORQ_LOW_TS) as Ts
         };
         self.set_hc(hc1);
-        VideoTs{ vc, hc }
+        Self::new(vc, hc).as_timestamp()
     }
 
     fn add_wait_states(&mut self, _bus: u16, _wait_states: NonZeroU16) {
         unreachable!()
     }
 
+    #[inline(always)]
     fn as_timestamp(&self) -> Self::Timestamp {
         self.tsc
     }

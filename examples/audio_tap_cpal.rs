@@ -9,7 +9,7 @@ use zxspecemu::audio::carousel::*;
 use zxspecemu::audio::sample::*;
 use zxspecemu::audio::*;
 use zxspecemu::audio::synth::*;
-use zxspecemu::formats::read_ear::*;
+use zxspecemu::formats::ear_mic::*;
 use zxspecemu::formats::tap::*;
 /****************************************************************************/
 /*                                   MAIN                                   */
@@ -51,6 +51,10 @@ where i16: IntoSample<T>
                         // print chunk info when rendering a sync pulse
                         let chunk = TapChunk::from(tap_pulse_iter.get_ref().get_ref()).validated().unwrap();
                         println!("{}", chunk);
+                        if chunk.is_head() {
+                            println!("name: {}", chunk.array_name().unwrap());
+                            println!("{:?}", chunk);
+                        }
                     }
                 }
                 None => {
@@ -69,7 +73,7 @@ where i16: IntoSample<T>
                             panic!("{:?}", err)
                         }
                         // pause between chunks
-                        tstamp += PAUSE_PULSE_LENGTH.get() as i32;
+                        tstamp += consts::PAUSE_PULSE_LENGTH.get() as i32;
                     }
                     else {
                         // no more chunks
@@ -86,7 +90,7 @@ where i16: IntoSample<T>
         audio.producer.render_frame(|ref mut vec| {
             let sample_iter = bandlim.sum_iter::<i16>(0); // channel 0
             // set sample buffer size so to the size of the BLEP frame
-            vec.resize(sample_iter.len() * channels, T::center());
+            vec.resize(sample_iter.len() * channels, T::silence());
             // render each sample
             for (chans, sample) in vec.chunks_mut(channels).zip(sample_iter) {
                 // write to the wav file

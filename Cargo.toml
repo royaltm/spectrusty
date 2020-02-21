@@ -22,5 +22,6 @@ memchr = "2.3.0"
 
 [workspace]
 members = [
-  "examples/web-ay",
+  "examples/web_ay_player",
+  "examples/sdl2_zxspectrum"
 ]

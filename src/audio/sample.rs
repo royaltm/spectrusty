@@ -3,9 +3,9 @@ use crate::clock::FTs;
 
 /// Various sample methods.
 pub trait AudioSample: Copy + Default {
-    /// Creates a centered sample value (with zero amplitude). Usefull for filling buffers.
+    /// Creates a silence sample value (with zero amplitude). Usefull for filling buffers.
     #[inline(always)]
-    fn center() -> Self {
+    fn silence() -> Self {
         Self::default()
     }
     fn max_pos_amplitude() -> Self;
@@ -25,7 +25,7 @@ pub trait IntoSample<S> {
 }
 
 /// This trait is being used to calculate sample amplitude differences (∆).
-pub trait SampleDelta: Copy {
+pub trait SampleDelta: Copy + Default {
     /// Returns the difference (if any) between `after` and `self` (before).
     fn sample_delta(self, after: Self) -> Option<Self>;
 }
@@ -89,7 +89,7 @@ impl AudioSample for i8 {
 }
 impl AudioSample for u16 {
     #[inline(always)]
-    fn center() -> Self {
+    fn silence() -> Self {
         0x8000
     }    
     #[inline(always)] fn max_pos_amplitude() -> Self { u16::max_value() }
@@ -97,7 +97,7 @@ impl AudioSample for u16 {
 }
 impl AudioSample for u8 {
     #[inline(always)]
-    fn center() -> Self {
+    fn silence() -> Self {
         0x80
     }
     #[inline(always)] fn max_pos_amplitude() -> Self { u8::max_value() }

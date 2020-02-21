@@ -1,0 +1,25 @@
+[package]
+name = "sdl2_zxspectrum"
+version = "0.1.0"
+authors = ["Rafal Michalski <royaltm75@gmail.com>"]
+edition = "2018"
+workspace = "../.."
+publish = false
+
+[features]
+default = ["bundled"]
+bundled = ["sdl2/bundled"]
+static-link = ["sdl2/static-link"]
+
+[dependencies]
+rand = "0.7"
+sdl2 = "0.33.0"
+sdl2-sys = "0.33.0"
+
+[dependencies.zxspecemu]
+version = "*"
+path = "../.."
+
+[target.'cfg(windows)'.dependencies.winapi]
+version = "0.3"
+features = ["winuser", "winerror", "shellscalingapi"]
