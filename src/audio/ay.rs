@@ -1,7 +1,7 @@
 //! The emulation of the AY-3-8910/8912/8913 sound generator.
 use core::marker::PhantomData;
 use super::*;
-use crate::io::ay::{AyRegister, AyRegChange};
+use crate::peripherals::ay::{AyRegister, AyRegChange};
 
 /// Internal clock divisor.
 pub const INTERNAL_CLOCK_DIVISOR: FTs = 16;
@@ -108,7 +108,7 @@ pub trait AyAudioFrame<B: Blep> {
 
 /// Implements AY-3-8910/8912/8913 programmable sound generator.
 ///
-/// For the implementation of I/O ports see [crate::io::ay].
+/// For the implementation of I/O ports see [crate::peripherals::ay].
 #[derive(Default, Clone, Debug)]
 pub struct Ay3_891xAudio {
     current_ts: FTs,

@@ -10,7 +10,6 @@ pub mod audio;
 pub mod bus;
 pub mod chip;
 pub mod clock;
-pub mod io;
 pub mod memory;
 pub mod formats;
 pub mod video;

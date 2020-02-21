@@ -10,7 +10,7 @@ use zxspecemu::audio::*;
 use zxspecemu::audio::ay::*;
 use zxspecemu::audio::music::*;
 use zxspecemu::audio::synth::*;
-use zxspecemu::io::ay::{AyRegister, AyRegChange};
+use zxspecemu::peripherals::ay::{AyRegister, AyRegChange};
 
 /****************************************************************************/
 /*                                   MAIN                                   */

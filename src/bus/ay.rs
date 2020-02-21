@@ -4,9 +4,9 @@ use core::marker::PhantomData;
 
 use crate::clock::{VFrameTsCounter, VideoTs, FTs};
 use crate::bus::{BusDevice, NullDevice};
-use crate::io::ay::*;
+use crate::peripherals::ay::{Ay3_8910Io, AyPortDecode, AyIoPort, AyIoNullPort, Ay128kPortDecode, AyFullerBoxPortDecode};
 use crate::chip::ula::{UlaTsCounter, Ula};
-use crate::audio::ay::*;
+use crate::audio::ay::Ay3_891xAudio;
 use crate::audio::{Blep, AmpLevels};
 use crate::audio::sample::SampleDelta;
 use crate::memory::ZxMemory;

@@ -18,6 +18,7 @@ use zxspecemu::bus::zxprinter::*;
 use zxspecemu::clock::*;
 use zxspecemu::z80emu::{Cpu, Z80NMOS};
 use zxspecemu::memory::{ZxMemory, Memory48k, Memory16k};
+use zxspecemu::peripherals::{ZXKeyboardMap, KeyboardInterface};
 use zxspecemu::io::*;
 use zxspecemu::audio::*;
 use zxspecemu::audio::sample::AudioSample;

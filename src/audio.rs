@@ -173,7 +173,7 @@ pub trait EarIn {
     /// The provided iterator should yield time intervals measured in T-state ∆ differences after which the state
     /// of the `EAR in` bit should be toggled.
     ///
-    /// See also [read_ear][crate::formats::read_ear].
+    /// See also [ear_mic][crate::formats::ear_mic].
     ///
     /// `max_frames_threshold` may be optionally provided as a number of frames to limit the buffered changes.
     /// This is usefull if the given iterator provides data largely exceeding the duration of a single frame.

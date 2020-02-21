@@ -17,7 +17,7 @@ use zxspecemu::audio::sample::*;
 use zxspecemu::audio::*;
 use zxspecemu::audio::synth::*;
 use zxspecemu::audio::ay::*;
-use zxspecemu::io::ay::*;
+use zxspecemu::peripherals::ay::*;
 use zxspecemu::formats::{
     ay::*,
     // sna::*

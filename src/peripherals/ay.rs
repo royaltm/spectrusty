@@ -147,12 +147,12 @@ pub trait AyRegRecorder {
     fn record_ay_reg_change(&mut self, reg: AyRegister, val: u8, timestamp: Self::Timestamp);
 }
 
-/// The type of [Ay3_891xIo] with two I/O ports (A and B) and [AyRegVecRecorder].
-pub type Ay3_8910Io<T,A,B> = Ay3_891xIo<T, AyRegVecRecorder<T>, A, B>;
+/// The type of [Ay3_891xIo] with two optional I/O ports (A and B) and [AyRegVecRecorder].
+pub type Ay3_8910Io<T,A=AyIoNullPort<T>,B=AyIoNullPort<T>> = Ay3_891xIo<T, AyRegVecRecorder<T>, A, B>;
 /// The type of [Ay3_891xIo] with one I/O port (A only) and [AyRegVecRecorder].
-pub type Ay3_8912Io<T,A> = Ay3_891xIo<T, AyRegVecRecorder<T>, A, AyIoNullPort<T>>;
+pub type Ay3_8912Io<T,A> = Ay3_8910Io<T, A>;
 /// The type of [Ay3_891xIo] without I/O ports and [AyRegVecRecorder].
-pub type Ay3_8913Io<T> = Ay3_891xIo<T, AyRegVecRecorder<T>, AyIoNullPort<T>, AyIoNullPort<T>>;
+pub type Ay3_8913Io<T> = Ay3_8910Io<T>;
 
 /// Implements AY-3-8910/8912/8913 I/O ports and provides an interface for I/O operations.
 ///

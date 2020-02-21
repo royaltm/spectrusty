@@ -2,8 +2,7 @@ use core::ops::{Deref, DerefMut};
 use core::marker::PhantomData;
 
 use crate::clock::{VFrameTsCounter, VideoTs, FTs};
-use crate::bus::{BusDevice, NullDevice};
-use crate::io::ay::*;
+use crate::bus::{BusDevice, NullDevice, PortAddress};
 use crate::chip::ula::{UlaTsCounter, Ula};
 use crate::audio::ay::*;
 use crate::audio::{Blep, AmpLevels};
@@ -12,11 +11,11 @@ use crate::memory::ZxMemory;
 use crate::video::VideoFrame;
 use super::ay::PassByAyAudioBusDevice;
 
-pub use crate::peripherals::zxprinter::*;
+pub use crate::peripherals::zxprinter::{ZxPrinterDevice, Spooler};
 
-pub type ZxPrinter<V, S, D=NullDevice<VideoTs>> = ZxPrinterBusDevice<ZxPrinterPortDecode, V, S, D>;
-pub type Alphacom32<V, S, D=NullDevice<VideoTs>> = ZxPrinterBusDevice<Alphacom32PortDecode, V, S, D>;
-pub type TS2040<V, S, D=NullDevice<VideoTs>> = ZxPrinterBusDevice<TS2040PortDecode, V, S, D>;
+pub type ZxPrinter<V, S, D=NullDevice<VideoTs>> = ZxPrinterBusDevice<ZxPrinterPortAddress, V, S, D>;
+pub type Alphacom32<V, S, D=NullDevice<VideoTs>> = ZxPrinterBusDevice<Alphacom32PortAddress, V, S, D>;
+pub type TS2040<V, S, D=NullDevice<VideoTs>> = ZxPrinterBusDevice<TS2040PortAddress, V, S, D>;
 
 #[derive(Clone, Default)]
 pub struct ZxPrinterBusDevice<P, V, S, D=NullDevice<VideoTs>>
@@ -26,40 +25,31 @@ pub struct ZxPrinterBusDevice<P, V, S, D=NullDevice<VideoTs>>
     _port_decode: PhantomData<P>
 }
 
-pub trait PrinterPortDecode {
-    const PORT_MASK: u16;
-    const PORT_DATA: u16;
-    #[inline]
-    fn is_data_rw(port: u16) -> bool {
-        port & Self::PORT_MASK == Self::PORT_DATA
-    }
+#[derive(Clone, Copy, Default)]
+pub struct ZxPrinterPortAddress;
+impl PortAddress for ZxPrinterPortAddress {
+    const ADDRESS_MASK: u16 = 0b0000_0000_0000_0100;
+    const ADDRESS_BITS: u16 = 0b0000_0000_0000_0000;
 }
 
 #[derive(Clone, Copy, Default)]
-pub struct ZxPrinterPortDecode;
-impl PrinterPortDecode for ZxPrinterPortDecode {
-    const PORT_MASK: u16 = 0b0000_0000_0000_0100;
-    const PORT_DATA: u16 = 0b0000_0000_0000_0000;
+pub struct Alphacom32PortAddress;
+impl PortAddress for Alphacom32PortAddress {
+    const ADDRESS_MASK: u16 = 0b0000_0000_1000_0100;
+    const ADDRESS_BITS: u16 = 0b0000_0000_1000_0000;
 }
 
 #[derive(Clone, Copy, Default)]
-pub struct Alphacom32PortDecode;
-impl PrinterPortDecode for Alphacom32PortDecode {
-    const PORT_MASK: u16 = 0b0000_0000_1000_0100;
-    const PORT_DATA: u16 = 0b0000_0000_1000_0000;
+pub struct TS2040PortAddress;
+impl PortAddress for TS2040PortAddress {
+    const ADDRESS_MASK: u16 = 0b0000_0000_1111_1111;
+    const ADDRESS_BITS: u16 = 0b0000_0000_1111_1011;
 }
 
-#[derive(Clone, Copy, Default)]
-pub struct TS2040PortDecode;
-impl PrinterPortDecode for TS2040PortDecode {
-    const PORT_MASK: u16 = 0b0000_0000_1111_1111;
-    const PORT_DATA: u16 = 0b0000_0000_1111_1011;
-}
-
-impl<T, P, D> PassByAyAudioBusDevice for ZxPrinterBusDevice<T, P, D> {}
+impl<P, V, S, D> PassByAyAudioBusDevice for ZxPrinterBusDevice<P, V, S, D> {}
 
 impl<P, V, S, D> BusDevice for ZxPrinterBusDevice<P, V, S, D>
-    where P: PrinterPortDecode,
+    where P: PortAddress,
           V: VideoFrame,
           D: BusDevice<Timestamp=VideoTs>,
           S: Spooler
@@ -86,7 +76,7 @@ impl<P, V, S, D> BusDevice for ZxPrinterBusDevice<P, V, S, D>
 
     #[inline]
     fn read_io(&mut self, port: u16, timestamp: Self::Timestamp) -> Option<u8> {
-        if P::is_data_rw(port) {
+        if P::match_port(port) {
             // println!("reading: {:02x}", port);
             return Some(self.printer.read_status(timestamp))
         }
@@ -95,7 +85,7 @@ impl<P, V, S, D> BusDevice for ZxPrinterBusDevice<P, V, S, D>
 
     #[inline]
     fn write_io(&mut self, port: u16, data: u8, timestamp: Self::Timestamp) -> bool {
-        if P::is_data_rw(port) {
+        if P::match_port(port) {
             // println!("print: {:04x} {:b}", port, data);
             self.printer.write_control(data, timestamp);
             return true;

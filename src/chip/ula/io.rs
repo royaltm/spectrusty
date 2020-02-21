@@ -2,7 +2,7 @@ use core::num::NonZeroU16;
 use z80emu::{Io, Memory};
 use crate::bus::BusDevice;
 use crate::clock::VideoTs;
-use crate::io::keyboard::{KeyboardInterface, ZXKeyboardMap};
+use crate::peripherals::{KeyboardInterface, ZXKeyboardMap};
 use crate::memory::ZxMemory;
 use crate::video::{VideoFrame, pixel_line_offset, color_line_offset};
 // use crate::io::keyboard::*;

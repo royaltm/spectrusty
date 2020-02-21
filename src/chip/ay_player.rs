@@ -8,7 +8,7 @@ use z80emu::{Cpu, Clock, Io, Memory, CpuDebug, CpuDebugFn, BreakCause, opconsts,
 use crate::audio::*;
 use crate::audio::sample::SampleDelta;
 use crate::audio::ay::*;
-use crate::io::ay::*;
+use crate::peripherals::ay::{Ay3_8913Io, AyPortDecode};
 use crate::clock::{FTs, FTsData2};
 use crate::memory::{ZxMemory, Memory64k};
 use crate::bus::{BusDevice, NullDevice};
