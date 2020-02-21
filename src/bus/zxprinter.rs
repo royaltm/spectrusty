@@ -12,18 +12,18 @@ use crate::memory::ZxMemory;
 use crate::video::VideoFrame;
 use super::ay::PassByAyAudioBusDevice;
 
-pub type ZxPrinter<D=NullDevice<VideoTs>> = ZxPrinterBusDevice<VideoTs, ZxPrinterPortDecode, D>;
-pub type Alphacom32<D=NullDevice<VideoTs>> = ZxPrinterBusDevice<VideoTs, Alphacom32PortDecode, D>;
-pub type TS2040<D=NullDevice<VideoTs>> = ZxPrinterBusDevice<VideoTs, TS2040PortDecode, D>;
+pub use crate::peripherals::zxprinter::*;
+
+pub type ZxPrinter<V, S, D=NullDevice<VideoTs>> = ZxPrinterBusDevice<ZxPrinterPortDecode, V, S, D>;
+pub type Alphacom32<V, S, D=NullDevice<VideoTs>> = ZxPrinterBusDevice<Alphacom32PortDecode, V, S, D>;
+pub type TS2040<V, S, D=NullDevice<VideoTs>> = ZxPrinterBusDevice<TS2040PortDecode, V, S, D>;
 
 #[derive(Clone, Default)]
-pub struct ZxPrinterBusDevice<T, P, D=NullDevice<T>>
+pub struct ZxPrinterBusDevice<P, V, S, D=NullDevice<VideoTs>>
 {
-    last_ts: T,
-    state: u8,
+    pub printer: ZxPrinterDevice<V, S>,
     bus: D,
-    _port_decode: PhantomData<P>,
-    // _video_frame: PhantomData<V>
+    _port_decode: PhantomData<P>
 }
 
 pub trait PrinterPortDecode {
@@ -58,12 +58,13 @@ impl PrinterPortDecode for TS2040PortDecode {
 
 impl<T, P, D> PassByAyAudioBusDevice for ZxPrinterBusDevice<T, P, D> {}
 
-impl<T, P, D> BusDevice for ZxPrinterBusDevice<T, P, D>
+impl<P, V, S, D> BusDevice for ZxPrinterBusDevice<P, V, S, D>
     where P: PrinterPortDecode,
-          T: Copy,
-          D: BusDevice<Timestamp=T>
+          V: VideoFrame,
+          D: BusDevice<Timestamp=VideoTs>,
+          S: Spooler
 {
-    type Timestamp = T;
+    type Timestamp = VideoTs;
     type NextDevice = D;
 
     #[inline]
@@ -73,29 +74,21 @@ impl<T, P, D> BusDevice for ZxPrinterBusDevice<T, P, D>
 
     #[inline]
     fn reset(&mut self, timestamp: Self::Timestamp) {
+        self.printer.reset();
         self.bus.reset(timestamp);
     }
 
     #[inline]
-    fn update_timestamp(&mut self, timestamp: Self::Timestamp) {
-        self.bus.update_timestamp(timestamp)
-    }
-
-    #[inline]
     fn next_frame(&mut self, timestamp: Self::Timestamp) {
+        self.printer.next_frame(timestamp);
         self.bus.next_frame(timestamp)
-    }
-
-    #[inline]
-    fn m1<Z: ZxMemory>(&mut self, memory: &mut Z, pc: u16, timestamp: Self::Timestamp) {
-        self.bus.m1(memory, pc, timestamp)
     }
 
     #[inline]
     fn read_io(&mut self, port: u16, timestamp: Self::Timestamp) -> Option<u8> {
         if P::is_data_rw(port) {
             // println!("reading: {:02x}", port);
-            return Some(self.state)
+            return Some(self.printer.read_status(timestamp))
         }
         self.bus.read_io(port, timestamp)
     }
@@ -103,7 +96,8 @@ impl<T, P, D> BusDevice for ZxPrinterBusDevice<T, P, D>
     #[inline]
     fn write_io(&mut self, port: u16, data: u8, timestamp: Self::Timestamp) -> bool {
         if P::is_data_rw(port) {
-            println!("print: {:04x} {:b}", port, data);
+            // println!("print: {:04x} {:b}", port, data);
+            self.printer.write_control(data, timestamp);
             return true;
         }
         self.bus.write_io(port, data, timestamp)
