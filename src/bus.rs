@@ -1,10 +1,11 @@
-//! This module hosts an emulation of modular system bus devices, that can be used with any [ControlUnit][crate::chip::ControlUnit].
+//! This module hosts an emulation of system bus devices, that can be used with any [ControlUnit][crate::chip::ControlUnit].
 pub mod ay;
 pub mod debug;
 pub mod zxprinter;
 pub mod joystick;
 
 use core::marker::PhantomData;
+use core::ops::{Deref, DerefMut};
 
 use crate::clock::{FTs, VFrameTsCounter, VideoTs};
 use crate::memory::ZxMemory;
@@ -21,7 +22,9 @@ pub trait BusDevice {
     type NextDevice: BusDevice<Timestamp=Self::Timestamp>;
 
     /// Returns a mutable reference to the next device.
-    fn next_device(&mut self) -> &mut Self::NextDevice;
+    fn next_device_mut(&mut self) -> &mut Self::NextDevice;
+    /// Returns a reference to the next device.
+    fn next_device_ref(&self) -> &Self::NextDevice;
     /// Resets the device and all devices in this chain. Used by [ControlUnit::reset][crate::chip::ControlUnit::reset].
     ///
     /// Default implementation forwards this call to the next device.
@@ -29,7 +32,7 @@ pub trait BusDevice {
     /// **NOTE**: Implementors of bus devices should always forward this call after optionally applying it to `self`.
     #[inline(always)]
     fn reset(&mut self, timestamp: Self::Timestamp) {
-        self.next_device().reset(timestamp)
+        self.next_device_mut().reset(timestamp)
     }
     /// This method should be called at the end of each frame by [ControlUnit::execute_next_frame][crate::chip::ControlUnit::execute_next_frame].
     ///
@@ -40,7 +43,7 @@ pub trait BusDevice {
     /// **NOTE**: Implementors of bus devices should always forward this call after optionally applying it to `self`.
     #[inline(always)]
     fn update_timestamp(&mut self, timestamp: Self::Timestamp) {
-        self.next_device().update_timestamp(timestamp)
+        self.next_device_mut().update_timestamp(timestamp)
     }
     /// This method should be called just before a clock of control unit is adjusted when preparing for the next frame.
     ///
@@ -52,7 +55,7 @@ pub trait BusDevice {
     /// **NOTE**: Implementors of bus devices should always forward this call after optionally applying it to `self`.
     #[inline(always)]
     fn next_frame(&mut self, timestamp: Self::Timestamp) {
-        self.next_device().next_frame(timestamp)
+        self.next_device_mut().next_frame(timestamp)
     }
     /// This method is called by the control unit during an op-code fetch `M1` cycles of Cpu.
     ///
@@ -63,29 +66,33 @@ pub trait BusDevice {
     /// **NOTE**: Implementors of bus devices should always forward this call after optionally applying it to `self`.
     #[inline(always)]
     fn m1<Z: ZxMemory>(&mut self, memory: &mut Z, pc: u16, timestamp: Self::Timestamp) {
-        self.next_device().m1(memory, pc, timestamp)
+        self.next_device_mut().m1(memory, pc, timestamp)
     }
     /// This method is called by the control unit during an I/O read cycle.
     ///
     /// Default implementation forwards this call to the next device.
     ///
-    /// **NOTE**: Implementors of bus devices should only forward this call if it does not apply to this device.
-    /// If however the device should provide the result for the pending I/O read cycle, this method must return
-    /// `Some(data)` and must not forward the call any further.
+    /// **NOTE**: Implementations of bus devices should only need to forward this call if it does not apply
+    /// to this device or if not all bits are modified by the implementing device. In the latter case
+    /// the result from the forwarded call should be logically `ANDed` with the result of reading form this
+    ///  device and if the upstream result is `None` the result should be returned with all unused bits set to 1.
     #[inline(always)]
     fn read_io(&mut self, port: u16, timestamp: Self::Timestamp) -> Option<u8> {
-        self.next_device().read_io(port, timestamp)
+        self.next_device_mut().read_io(port, timestamp)
     }
     /// This method is called by the control unit during an I/O write cycle.
     ///
+    /// Returns `true` if the device blocked writing through.
+    ///
     /// Default implementation forwards this call to the next device.
     ///
-    /// **NOTE**: Implementors of bus devices should only forward this call if it does not apply to this device.
-    /// If however the device should use the data of the pending I/O write cycle, this method must return
-    /// `true` and must not forward the call any further.
+    /// **NOTE**: Implementations of bus devices should only forward this call to the next device
+    /// if it does not apply to this device or if the device doesn't block writing.
+    /// If the device blocks writing to next devices and the port matches the device this method must
+    /// return `true`. Otherwise this method should return the forwarded result.
     #[inline(always)]
     fn write_io(&mut self, port: u16, data: u8, timestamp: Self::Timestamp) -> bool {
-        self.next_device().write_io(port, data, timestamp)
+        self.next_device_mut().write_io(port, data, timestamp)
     }
 }
 
@@ -111,7 +118,11 @@ impl<T: Sized> BusDevice for NullDevice<T> {
     type NextDevice = Self;
 
     #[inline(always)]
-    fn next_device(&mut self) -> &mut Self::NextDevice {
+    fn next_device_mut(&mut self) -> &mut Self::NextDevice {
+        self
+    }
+    #[inline(always)]
+    fn next_device_ref(&self) -> &Self::NextDevice {
         self
     }
     #[inline(always)]
@@ -137,70 +148,89 @@ impl<T: Sized> BusDevice for NullDevice<T> {
     }
 }
 
-/// This is highly experimental, use at your own risk.
-/// It may be removed or completely changed in a future.
-pub struct OptionalDevice<D: BusDevice, N: BusDevice, T: Sized> {
+/// A [BusDevice] allowing for plugging in and out the device during run time.
+#[derive(Clone, Default, Debug)]
+pub struct OptionalBusDevice<D, N=NullDevice<VideoTs>> {
     pub device: Option<D>,
-    next_device: N,
-    ts: PhantomData<T>
+    next_device: N
 }
 
-impl<D,N,T> OptionalDevice<D,N,T>
-where D: BusDevice<Timestamp=T>, N: BusDevice<Timestamp=T>, T: Sized {
+impl<D, N> OptionalBusDevice<D, N>
+    where D: BusDevice, N: BusDevice
+{
     pub fn new(device: Option<D>, next_device: N) -> Self {
-        OptionalDevice { device, next_device, ts: PhantomData }
+        OptionalBusDevice { device, next_device }
     }
 }
 
-impl<D,N,T> Default for OptionalDevice<D,N,T>
-where D: BusDevice<Timestamp=T>, N: BusDevice<Timestamp=T> + Default, T: Sized {
-    fn default() -> Self {
-        OptionalDevice { device: None, next_device: N::default(), ts: PhantomData }
+impl<D, N> Deref for OptionalBusDevice<D, N> {
+    type Target = Option<D>;
+    fn deref(&self) -> &Self::Target {
+        &self.device
     }
 }
 
-impl<D,N,T> BusDevice for OptionalDevice<D,N,T>
-where D: BusDevice<Timestamp=T>, N: BusDevice<Timestamp=T>, T: Sized + Copy {
-    type Timestamp = T;
+impl<D, N> DerefMut for OptionalBusDevice<D, N> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.device
+    }
+}
+
+impl<D, N> BusDevice for OptionalBusDevice<D, N>
+    where D: BusDevice,
+          N: BusDevice<Timestamp=D::Timestamp>,
+          D::Timestamp: Copy
+{
+    type Timestamp = D::Timestamp;
     type NextDevice = N;
 
-    fn next_device(&mut self) -> &mut Self::NextDevice {
+    #[inline]
+    fn next_device_mut(&mut self) -> &mut Self::NextDevice {
         &mut self.next_device
     }
-
+    #[inline]
+    fn next_device_ref(&self) -> &Self::NextDevice {
+        &self.next_device
+    }
+    #[inline]
     fn reset(&mut self, timestamp: Self::Timestamp) {
         if let Some(device) = &mut self.device {
             device.reset(timestamp);
         }
         self.next_device.reset(timestamp);
     }
-
+    #[inline]
     fn update_timestamp(&mut self, timestamp: Self::Timestamp) {
         if let Some(device) = &mut self.device {
             device.update_timestamp(timestamp);
         }
         self.next_device.update_timestamp(timestamp);
     }
-
+    #[inline]
     fn next_frame(&mut self, timestamp: Self::Timestamp) {
         if let Some(device) = &mut self.device {
             device.next_frame(timestamp);
         }
         self.next_device.next_frame(timestamp);
     }
-
+    #[inline]
     fn m1<Z: ZxMemory>(&mut self, memory: &mut Z, pc: u16, timestamp: Self::Timestamp) {
         if let Some(device) = &mut self.device {
             device.m1(memory, pc, timestamp);
         }
         self.next_device.m1(memory, pc, timestamp);
     }
-
+    #[inline]
     fn read_io(&mut self, port: u16, timestamp: Self::Timestamp) -> Option<u8> {
-        self.device.as_mut().and_then(|device| device.read_io(port, timestamp))
-                            .or_else(|| self.next_device.read_io(port, timestamp))
+        let bus_data = self.next_device.read_io(port, timestamp);
+        let dev_data = self.device.as_mut().and_then(|dev| dev.read_io(port, timestamp));
+        match (bus_data, dev_data) {
+            (Some(bus_data), Some(dev_data)) => Some(bus_data & dev_data),
+            (Some(data), None)|(None, Some(data)) => Some(data),
+            (None, None) => None
+        }
     }
-
+    #[inline]
     fn write_io(&mut self, port: u16, data: u8, timestamp: Self::Timestamp) -> bool {
         if let Some(device) = &mut self.device {
             if device.write_io(port, data, timestamp) {

@@ -89,35 +89,38 @@ impl<P, A, L> EarMicOutAudioFrame<A> for AyPlayer<P>
 impl<P: AyPortDecode> ControlUnit for AyPlayer<P> {
     type TsCounter = TsCounter<FTs>;
     type BusDevice = NullDevice<FTs>;
-    /// A frequency in Hz of the Cpu unit.
     fn cpu_clock_rate(&self) -> u32 {
         self.cpu_rate
     }
-    /// A single frame time in seconds.
+
     fn frame_duration_nanos(&self) -> u32 {
         nanos_from_frame_tc_cpu_hz(self.frame_tstates as u32, self.cpu_rate) as u32
     }
-    /// Returns a mutable reference to the first bus device.
-    fn bus_device(&mut self) -> &mut Self::BusDevice {
+
+    fn bus_device_mut(&mut self) -> &mut Self::BusDevice {
         &mut self.bus
     }
-    /// Returns current frame counter value.
+
+    fn bus_device_ref(&self) -> &Self::BusDevice {
+        &self.bus
+    }
+
     fn current_frame(&self) -> u64 {
         self.frames.0
     }
-    /// Returns current frame's T-state.
+
     fn frame_tstate(&self) -> FTs {
         self.tsc.as_timestamp().rem_euclid(self.frame_tstates)
     }
-    /// Returns current frame's T-state.
+
     fn current_tstate(&self) -> FTs {
         self.tsc.as_timestamp()
     }
-    /// Returns `true` if current frame is over.
+
     fn is_frame_over(&self) -> bool {
         self.tsc.as_timestamp() >= self.frame_tstates
     }
-    /// Perform computer reset.
+
     fn reset<C: Cpu>(&mut self, cpu: &mut C, hard: bool) {
         if hard {
             cpu.reset();
@@ -130,17 +133,14 @@ impl<P: AyPortDecode> ControlUnit for AyPlayer<P> {
             self.execute_instruction(cpu, opconsts::RST_00H_OPCODE).unwrap();
         }
     }
-    /// Triggers non-maskable interrupt. Returns true if the nmi was successfully executed.
-    /// May return false when Cpu has just executed EI instruction or a 0xDD 0xFD prefix.
-    /// In this instance, execute a step or more and then try again.
+
     fn nmi<C: Cpu>(&mut self, cpu: &mut C) -> bool {
         let mut tsc = self.ensure_next_frame();
         let res = cpu.nmi(self, &mut tsc);
         self.tsc = tsc;
         res
     }
-    /// Advances the internal state for the next frame and 
-    /// executes cpu instructions as fast as possible untill the end of the frame.
+
     fn execute_next_frame<C: Cpu>(&mut self, cpu: &mut C) {
         let mut tsc = self.ensure_next_frame();
         loop {
@@ -161,9 +161,7 @@ impl<P: AyPortDecode> ControlUnit for AyPlayer<P> {
         self.bus.update_timestamp(tsc.as_timestamp());
         self.tsc = tsc;
     }
-    /// Prepares the internal state for the next frame.
-    /// This method should be called after Chip.is_frame_over returns true and after all the video and audio
-    /// rendering has been performed.
+
     fn ensure_next_frame(&mut self) -> Self::TsCounter {
         let ts = self.tsc.as_timestamp();
         if ts >= self.frame_tstates {
@@ -176,8 +174,7 @@ impl<P: AyPortDecode> ControlUnit for AyPlayer<P> {
         }
         self.tsc
     }
-    /// Executes a single cpu instruction with the option to pass a debugging function.
-    /// Returns true if the frame has ended.
+
     fn execute_single_step<C: Cpu, F>(&mut self,
                 cpu: &mut C,
                 debug: Option<F>

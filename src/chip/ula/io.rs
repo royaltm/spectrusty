@@ -21,12 +21,14 @@ impl<M, B> Io for Ula<M, B> where M: ZxMemory, B: BusDevice<Timestamp=VideoTs>
     }
 
     fn read_io(&mut self, port: u16, ts: VideoTs) -> (u8, Option<NonZeroU16>) {
+        let bus_data = self.bus.read_io(port, ts);
         let val = if port & 1 == 0 {
-            self.keyboard.read_keyboard((port >> 8) as u8) & ((self.read_ear_in(ts) << 6) | 0b1011_1111)
+            self.keyboard.read_keyboard((port >> 8) as u8) &
+            ((self.read_ear_in(ts) << 6) | 0b1011_1111) &
+            bus_data.unwrap_or(u8::max_value())
         }
         else {
-            self.bus.read_io(port, ts)
-                    .unwrap_or_else(|| self.floating_bus(ts))
+            bus_data.unwrap_or_else(|| self.floating_bus(ts))
         };
         (val, None)
     }

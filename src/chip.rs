@@ -16,7 +16,9 @@ pub trait ControlUnit : Io {
     /// A single frame duration in nanoseconds.
     fn frame_duration_nanos(&self) -> u32;
     /// Returns a mutable reference to the first bus device.
-    fn bus_device(&mut self) -> &mut Self::BusDevice;
+    fn bus_device_mut(&mut self) -> &mut Self::BusDevice;
+    /// Returns a reference to the first bus device.
+    fn bus_device_ref(&self) -> &Self::BusDevice;
     /// Returns current frame counter value.
     fn current_frame(&self) -> u64;
     /// Returns current frame's T-state.

@@ -14,8 +14,11 @@ impl<T: Debug, D: BusDevice<Timestamp=T>> BusDevice for DebugBusDevice<T, D> {
     type Timestamp = T;
     type NextDevice = D;
 
-    fn next_device(&mut self) -> &mut Self::NextDevice {
+    fn next_device_mut(&mut self) -> &mut Self::NextDevice {
         &mut self.bus
+    }
+    fn next_device_ref(&self) -> &Self::NextDevice {
+        &self.bus
     }
     fn read_io(&mut self, port: u16, timestamp: Self::Timestamp) -> Option<u8> {
         println!("read_io: {:04x} {:?}", port, timestamp);

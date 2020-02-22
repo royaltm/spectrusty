@@ -3,7 +3,7 @@ use core::ops::{Deref, DerefMut};
 use core::marker::PhantomData;
 
 use crate::clock::{VFrameTsCounter, VideoTs, FTs};
-use crate::bus::{BusDevice, NullDevice};
+use crate::bus::{BusDevice, NullDevice, OptionalBusDevice};
 use crate::peripherals::ay::{Ay3_8910Io, AyPortDecode, AyIoPort, AyIoNullPort, Ay128kPortDecode, AyFullerBoxPortDecode};
 use crate::chip::ula::{UlaTsCounter, Ula};
 use crate::audio::ay::Ay3_891xAudio;
@@ -17,9 +17,19 @@ use crate::video::VideoFrame;
 pub trait PassByAyAudioBusDevice {}
 
 /// A convenient [Ay3_891xBusDevice] type emulating a device with a `Melodik` port configuration.
-pub type Ay3_891xMelodik<D=NullDevice<VideoTs>,A=AyIoNullPort<VideoTs>, B=AyIoNullPort<VideoTs>> = Ay3_891xBusDevice<VideoTs, Ay128kPortDecode, A, B, D>;
+pub type Ay3_891xMelodik<D=NullDevice<VideoTs>,
+                         A=AyIoNullPort<VideoTs>,
+                         B=AyIoNullPort<VideoTs>> = Ay3_891xBusDevice<
+                                                        VideoTs,
+                                                        Ay128kPortDecode,
+                                                        A, B, D>;
 /// A convenient [Ay3_891xBusDevice] type emulating a device with a `Fuller Box` port configuration.
-pub type Ay3_891xFullerBox<D=NullDevice<VideoTs>, A=AyIoNullPort<VideoTs>, B=AyIoNullPort<VideoTs>> = Ay3_891xBusDevice<VideoTs, AyFullerBoxPortDecode, A, B, D>;
+pub type Ay3_891xFullerBox<D=NullDevice<VideoTs>,
+                           A=AyIoNullPort<VideoTs>,
+                           B=AyIoNullPort<VideoTs>> = Ay3_891xBusDevice<
+                                                        VideoTs,
+                                                        AyFullerBoxPortDecode,
+                                                        A, B, D>;
 
 pub trait AyAudioVBusDevice<B: Blep> {
     fn render_ay_audio_vts<L: AmpLevels<B::SampleDelta>,
@@ -39,21 +49,41 @@ pub struct Ay3_891xBusDevice<T, P,
         _port_decode: PhantomData<P>
 }
 
-impl<E, D, Z> AyAudioVBusDevice<E> for D
+impl<E, D, N> AyAudioVBusDevice<E> for D
     where E: Blep,
-          D: BusDevice<Timestamp=VideoTs, NextDevice=Z> + PassByAyAudioBusDevice,
-          Z: BusDevice<Timestamp=VideoTs> + AyAudioVBusDevice<E>
+          D: BusDevice<Timestamp=VideoTs, NextDevice=N> + PassByAyAudioBusDevice,
+          N: BusDevice<Timestamp=VideoTs> + AyAudioVBusDevice<E>
 {
     #[inline(always)]
     fn render_ay_audio_vts<S, V>(&mut self, blep: &mut E, end_ts: VideoTs, chans: [usize; 3])
         where S: AmpLevels<E::SampleDelta>,
               V: VideoFrame
     {
-        <Self as BusDevice>::next_device(self).render_ay_audio_vts::<S, V>(blep, end_ts, chans)
+        <Self as BusDevice>::next_device_mut(self).render_ay_audio_vts::<S, V>(blep, end_ts, chans)
     }
 }
 
-impl<E: Blep, P, A, B, D> AyAudioVBusDevice<E> for Ay3_891xBusDevice<VideoTs, P, A, B, D> {
+impl<E, D, N> AyAudioVBusDevice<E> for OptionalBusDevice<D, N>
+    where E: Blep,
+          D: AyAudioVBusDevice<E>,
+          N: AyAudioVBusDevice<E>
+{
+    /// # Note
+    /// If a device is being attached to an optional device the call will be forwarded to
+    /// both: an optional device and to the next bus device.
+    #[inline(always)]
+    fn render_ay_audio_vts<S, V>(&mut self, blep: &mut E, end_ts: VideoTs, chans: [usize; 3])
+        where S: AmpLevels<E::SampleDelta>,
+              V: VideoFrame
+    {
+        if let Some(ref mut device) = self.device {
+          device.render_ay_audio_vts::<S, V>(blep, end_ts, chans)
+        }
+        self.next_device.render_ay_audio_vts::<S, V>(blep, end_ts, chans)
+    }
+}
+
+impl<E: Blep, P, A, B, N> AyAudioVBusDevice<E> for Ay3_891xBusDevice<VideoTs, P, A, B, N> {
     #[inline(always)]
     fn render_ay_audio_vts<S, V>(&mut self, blep: &mut E, end_ts: VideoTs, chans: [usize; 3])
         where S: AmpLevels<E::SampleDelta>,
@@ -61,6 +91,14 @@ impl<E: Blep, P, A, B, D> AyAudioVBusDevice<E> for Ay3_891xBusDevice<VideoTs, P,
     {
         self.render_ay_audio::<S,V,E>(blep, end_ts, chans)
     }
+}
+
+impl<E: Blep> AyAudioVBusDevice<E> for NullDevice<VideoTs> {
+    #[inline(always)]
+    fn render_ay_audio_vts<S, V>(&mut self, _blep: &mut E, _end_ts: VideoTs, _chans: [usize; 3])
+        where S: AmpLevels<E::SampleDelta>,
+              V: VideoFrame
+    {}
 }
 
 impl<T, P, A, B, D> BusDevice for Ay3_891xBusDevice<T, P, A, B, D>
@@ -74,8 +112,13 @@ impl<T, P, A, B, D> BusDevice for Ay3_891xBusDevice<T, P, A, B, D>
     type NextDevice = D;
 
     #[inline]
-    fn next_device(&mut self) -> &mut Self::NextDevice {
+    fn next_device_mut(&mut self) -> &mut Self::NextDevice {
         &mut self.bus
+    }
+
+    #[inline]
+    fn next_device_ref(&self) -> &Self::NextDevice {
+        &self.bus
     }
 
     #[inline]

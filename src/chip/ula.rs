@@ -105,8 +105,12 @@ where M: ZxMemory, B: BusDevice<Timestamp=VideoTs>
         nanos_from_frame_tc_cpu_hz(UlaVideoFrame::FRAME_TSTATES_COUNT as u32, CPU_HZ) as u32
     }
 
-    fn bus_device(&mut self) -> &mut Self::BusDevice {
+    fn bus_device_mut(&mut self) -> &mut Self::BusDevice {
         &mut self.bus
+    }
+
+    fn bus_device_ref(&self) -> &Self::BusDevice {
+        &self.bus
     }
 
     fn current_frame(&self) -> u64 {
