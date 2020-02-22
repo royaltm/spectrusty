@@ -1,5 +1,7 @@
 use core::marker::PhantomData;
+use core::ops::{Deref, DerefMut};
 use std::io::Write;
+
 use crate::video::VideoFrame;
 use crate::clock::*;
 // ; bit 7 set - activate stylus.
@@ -45,6 +47,19 @@ pub struct ZxPrinterDevice<V, S> {
     last_ts: VideoTs,
     line: [u8;32],
     _video_frame: PhantomData<V>
+}
+
+impl<V, S> Deref for ZxPrinterDevice<V, S> {
+    type Target = S;
+    fn deref(&self) -> &Self::Target {
+        &self.spooler
+    }
+}
+
+impl<V, S> DerefMut for ZxPrinterDevice<V, S> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.spooler
+    }
 }
 
 impl<V: VideoFrame, S: Spooler> ZxPrinterDevice<V, S> {
