@@ -16,6 +16,7 @@ use zxspecemu::bus::ay::*;
 
 use zxspecemu::bus::zxprinter::*;
 use zxspecemu::bus::joystick::*;
+use zxspecemu::bus::mouse::*;
 use zxspecemu::clock::*;
 use zxspecemu::z80emu::{Cpu, Z80NMOS};
 use zxspecemu::memory::{ZxMemory, Memory48k, Memory16k};
@@ -44,10 +45,11 @@ const ROM48: &[u8] = include_bytes!("../../../resources/48k.rom");
 pub type ZXSpectrum16 = ZXSpectrum<Z80NMOS, Memory16k, OptionalBusDevice<MultiJoystickBusDevice>>;
 pub type ZXSpectrum48 = ZXSpectrum<Z80NMOS, Memory48k, OptionalBusDevice<MultiJoystickBusDevice>>;
 pub type ZXSpectrum48Ay = ZXSpectrum<Z80NMOS, Memory48k,
+                            KempstonMouse<
                                 Ay3_891xMelodik<
                                     ZxPrinter<UlaVideoFrame, ImageSpooler,
                                         OptionalBusDevice<MultiJoystickBusDevice>
-                          >>>;
+                          >>>>;
 
 type ZXBlep = BlepAmpFilter<BlepStereo<BandLimited<f32>>>;
 
@@ -305,11 +307,18 @@ impl<C, M, B> ZXSpectrum<C, M, B>
     }
 }
 
+impl MouseAccess for ZXSpectrum16 {}
+impl MouseAccess for ZXSpectrum48 {}
+impl MouseAccess for ZXSpectrum48Ay {
+    fn mouse_mut(&mut self) -> Option<&mut KempstonMouseDevice> {
+        Some(&mut *self.ula.bus_device_mut())
+    }
+}
 impl SpoolerAccess for ZXSpectrum16 {}
 impl SpoolerAccess for ZXSpectrum48 {}
 impl SpoolerAccess for ZXSpectrum48Ay {
     fn spooler_mut(&mut self) -> Option<&mut ImageSpooler> {
-        Some(&mut *self.ula.bus_device_mut().next_device_mut())
+        Some(&mut *self.ula.bus_device_mut().next_device_mut().next_device_mut())
     }
 }
 impl JoystickAccess for ZXSpectrum16 {
@@ -331,9 +340,9 @@ impl JoystickAccess for ZXSpectrum48 {
 
 impl JoystickAccess for ZXSpectrum48Ay {
     fn joystick_device_mut(&mut self) -> &mut Option<MultiJoystickBusDevice> {
-        self.ula.bus_device_mut().next_device_mut().next_device_mut()
+        self.ula.bus_device_mut().next_device_mut().next_device_mut().next_device_mut()
     }
     fn joystick_device_ref(&self) -> &Option<MultiJoystickBusDevice> {
-        self.ula.bus_device_ref().next_device_ref().next_device_ref()
+        self.ula.bus_device_ref().next_device_ref().next_device_ref().next_device_ref()
     }
 }

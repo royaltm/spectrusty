@@ -1,8 +1,9 @@
 //! This module hosts an emulation of system bus devices, that can be used with any [ControlUnit][crate::chip::ControlUnit].
 pub mod ay;
 pub mod debug;
-pub mod zxprinter;
 pub mod joystick;
+pub mod mouse;
+pub mod zxprinter;
 
 use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};

@@ -92,9 +92,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let texture_creator = canvas.texture_creator();
 
-    let mut texture =
-        texture_creator.create_texture_streaming(PixelFormatEnum::RGB24, screen_width, screen_height)
-                       .map_err(err_str)?;
+    let mut texture = texture_creator
+                      .create_texture_streaming(PixelFormatEnum::RGB24, screen_width, screen_height)
+                      .map_err(err_str)?;
 
     let mut event_pump = sdl_context.event_pump()?;
 
@@ -115,6 +115,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         for event in event_pump.poll_iter() {
             match event {
                 Event::Window { win_event: WindowEvent::Close, .. } | Event::Quit { .. } => break 'mainloop,
+                Event::MouseMotion{ xrel, yrel, .. } => {
+                    // println!("{:?} {:?} {}x{} | {}x{}", which, mousestate, x, y, xrel, yrel);
+                    // let size = canvas.window().size();
+                    let viewport = canvas.window().drawable_size();
+                    // println!("{:?} {:?}", viewport, size);
+                    zx.update_mouse_position(xrel, yrel, border_size, viewport);
+                }
+                Event::MouseButtonDown { mouse_btn, .. } => {
+                    zx.update_mouse_button(mouse_btn, true);
+                }
+                Event::MouseButtonUp { mouse_btn, .. } => {
+                    zx.update_mouse_button(mouse_btn, false);
+                }
                 Event::KeyDown{ keycode: Some(Keycode::F1), repeat: false, ..} => {
                     zx.audio.pause();
                     info(HELP.into());

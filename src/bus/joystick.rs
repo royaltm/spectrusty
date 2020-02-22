@@ -18,7 +18,7 @@ pub use crate::peripherals::joystick::{
 pub type KempstonJoystick<D=NullDevice<VideoTs>> = JoystickBusDevice<VideoTs,
                                                             KempstonJoyPortAddress,
                                                             KempstonJoystickDevice,
-                                                            D>;/// A convenient Kempston Joystick [BusDevice] type.
+                                                            D>;
 /// A convenient Fuller Joystick [BusDevice] type.
 pub type FullerJoystick<D=NullDevice<VideoTs>> = JoystickBusDevice<VideoTs,
                                                             FullerJoyPortAddress,
@@ -82,7 +82,7 @@ impl PortAddress for SinclairRightJoyPortAddress {
     const ADDRESS_MASK: u16 = 0x1000;
     const ADDRESS_BITS: u16 = 0xeffe;
 }
-/// Kempston Joystick [PortAddress].
+/// Cursor Joystick [PortAddress].
 #[derive(Clone, Copy, Default)]
 pub struct CursorJoyPortAddress;
 impl PortAddress for CursorJoyPortAddress {

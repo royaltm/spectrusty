@@ -1,7 +1,13 @@
 use sdl2::keyboard::{Mod as Modifier, Keycode};
+use sdl2::mouse::MouseButton;
+use zxspecemu::memory::ZxMemory;
 use zxspecemu::bus::joystick::MultiJoystickBusDevice;
 use zxspecemu::bus::joystick::JoystickSelect;
-use zxspecemu::peripherals::{KeyboardInterface, ZXKeyboardMap, joystick::Directions};
+use zxspecemu::peripherals::{KeyboardInterface, ZXKeyboardMap};
+use zxspecemu::peripherals::joystick::Directions;
+use zxspecemu::peripherals::mouse::{MouseInterface, MouseButtons, kempston::KempstonMouseDevice};
+use zxspecemu::chip::ula::Ula;
+use zxspecemu::video::{Video, BorderSize, VideoFrame};
 
 #[allow(unused_imports)]
 use log::{error, warn, info, debug, trace};
@@ -11,6 +17,10 @@ use super::printer::ImageSpooler;
 
 pub trait SpoolerAccess {
     fn spooler_mut(&mut self) -> Option<&mut ImageSpooler> { None }
+}
+
+pub trait MouseAccess {
+    fn mouse_mut(&mut self) -> Option<&mut KempstonMouseDevice> { None }
 }
 
 pub trait JoystickAccess {
@@ -24,7 +34,41 @@ pub trait JoystickAccess {
     }
 }
 
-impl<C, M, B> ZXSpectrum<C, M, B> {
+impl<C, M, B> ZXSpectrum<C, M, B>
+    where M: ZxMemory
+{
+    pub fn update_mouse_position(&mut self, dx: i32, dy: i32, border: BorderSize, viewport: (u32, u32))
+        where Self: MouseAccess
+    {
+        if let Some(mouse) = self.mouse_mut() {
+            let (sx, sy) = <Ula::<M, B> as Video>::VideoFrame::screen_size_pixels(border);
+            let (vx, vy) = viewport;
+            let dx = (dx * 2 * sx as i32 / vx as i32) as i16;
+            let dy = (dy * 2 * sy as i32 / vy as i32) as i16;
+            // println!("{}x{}", dx, dy);
+            mouse.move_mouse((dx, dy))
+        }
+    }
+
+    pub fn update_mouse_button(&mut self, button: MouseButton, pressed: bool)
+        where Self: MouseAccess
+    {
+        if let Some(mouse) = self.mouse_mut() {
+            let button_mask = match button {
+                MouseButton::Left => MouseButtons::LEFT,
+                MouseButton::Right => MouseButtons::RIGHT,
+                _ => return
+            };
+            let buttons = mouse.get_buttons();
+            mouse.set_buttons(if pressed {
+                buttons|button_mask
+            }
+            else {
+                buttons&!button_mask
+            })
+        }
+    }
+
     #[inline]
     pub fn update_keypress(&mut self, keycode: Keycode, modifier: Modifier, pressed: bool)
         where Self: JoystickAccess
