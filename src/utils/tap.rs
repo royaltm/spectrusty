@@ -123,6 +123,10 @@ impl<F, S> TapCabinet<F, S>
         self.taps.len()
     }
 
+    pub fn iter_meta(&self) -> impl Iterator<Item=&S> {
+        self.taps.iter().map(|(_,m)| m)
+    }
+
     pub fn current_tap_index(&self) -> usize {
         self.current
     }
