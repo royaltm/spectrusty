@@ -2,10 +2,11 @@ use core::ops::{Deref, DerefMut};
 use core::convert::TryInto;
 use core::time::Duration;
 use std::error::Error;
-use std::thread::{self, JoinHandle};
-use std::sync::mpsc::{sync_channel, SyncSender, Receiver, TryRecvError};
 
-use sdl2::{Sdl, audio::{AudioCallback, AudioSpecDesired, AudioSpec}};
+#[allow(unused_imports)]
+use log::{error, warn, info, debug, trace};
+
+use sdl2::{Sdl, audio::{AudioCallback, AudioSpecDesired}};
 pub use sdl2::audio::AudioDevice;
 
 use zxspecemu::audio::carousel::*;
@@ -23,11 +24,11 @@ impl AudioCallback for AudioCb<f32> {
             Ok(unfilled) => {
                 // println!("buff since: {:?} dur {:?} {} cnt {}", since, now.elapsed(), unfilled.len(), self.2);
                 if unfilled.len() != 0 {
-                    println!("missing buffer");
+                    debug!("missing buffer");
                 }
             }
             Err(_) => {
-                println!("fatal: producer terminated");
+                error!("fatal: producer terminated");
             }
         }
     }
@@ -67,7 +68,7 @@ impl Audio {
         self.device.pause()
     }
     pub fn close(self) -> AudioFrameConsumer<f32> {
-        eprintln!("closing audio");
+        debug!("closing audio");
         self.device.close_and_get_callback().0
     }
     pub fn create(
@@ -86,13 +87,13 @@ impl Audio {
             channels: Some(CHANNELS),
             samples: Some(samples),
         };
-        // None: use default device
+
         let mut producer: Option<AudioFrameProducer<f32>> = None;
         let device = audio_subsystem.open_playback(None, &desired_spec, |spec| {
             // Show obtained AudioSpec
-            println!("{:?}", spec);
+            debug!("{:?}", spec);
             let sample_frames = (spec.freq as f64 * frame_duration_secs).ceil() as usize;
-            println!("sample frames: {} latency: {}", sample_frames, latency);
+            debug!("Sample frames: {} latency: {}", sample_frames, latency);
             let (prod, consumer) = create_carousel::<f32>(latency, sample_frames, spec.channels);
             producer = Some(prod);
             AudioCb(consumer, std::time::Instant::now(), 0)

@@ -1,11 +1,10 @@
 #![allow(unused_macros)]
-use std::{borrow::Cow, error::Error, ptr, rc::Rc};
 
-use sdl2::{get_error,
-           messagebox::{ show_simple_message_box, MessageBoxFlag },
-           video::{Window, WindowContext},
-           VideoSubsystem};
-use sdl2_sys::SDL_Window;
+#[allow(unused_imports)]
+use log::{error, warn, info, debug, trace};
+
+use std::{borrow::Cow, error::Error, ptr};
+use sdl2::{messagebox::{ show_simple_message_box, MessageBoxFlag }};
 
 pub fn alert(text: Cow<str>) {
     show_simple_message_box(MessageBoxFlag::ERROR, "ZX Spectrum", &text, None).expect("to show message box");
