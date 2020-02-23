@@ -74,8 +74,8 @@ impl<M, B> Memory for Ula<M, B> where M: ZxMemory, B: BusDevice<Timestamp=VideoT
     }
 
     #[inline(always)]
-    fn read_opcode(&mut self, pc: u16, _ir: u16, ts: VideoTs) -> u8 {
-        self.bus.m1(&mut self.memory, pc, ts);
+    fn read_opcode(&mut self, pc: u16, _ir: u16, _ts: VideoTs) -> u8 {
+        // self.bus.m1(&mut self.memory, pc, ts);
         self.memory.read(pc)
     }
 

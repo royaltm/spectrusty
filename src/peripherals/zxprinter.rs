@@ -1,3 +1,4 @@
+use core::fmt::Debug;
 use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
 use std::io::Write;
@@ -29,16 +30,16 @@ const SLOW_MASK: u8   = 0b0000_0010;
 const BIT_DELAY: u32 = 400;//6835;
 const LINE_DELAY: u32 = BIT_DELAY*8;
 
-pub trait Spooler {
+pub trait Spooler: Debug {
     fn motor_on(&mut self) {}
     fn motor_off(&mut self) {}
     fn push_line(&mut self, line: &[u8]);
 }
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, Debug)]
 pub struct DebugSpooler;
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct ZxPrinterDevice<V, S> {
     pub spooler: S,
     motor: bool,

@@ -32,7 +32,7 @@ const REG_MASKS: [u8;16] = [
     0x1f, 0x1f, 0x1f, 0xff, 0xff, 0x0f, 0xff, 0xff
 ];
 
-pub trait AyPortDecode {
+pub trait AyPortDecode: fmt::Debug {
     const PORT_MASK: u16;
     const PORT_SELECT: u16;
     const PORT_DATA_READ: u16;
@@ -74,7 +74,7 @@ pub trait AyPortDecode {
     }
 }
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, Debug)]
 pub struct Ay128kPortDecode;
 impl AyPortDecode for Ay128kPortDecode {
     const PORT_MASK      : u16 = 0b11000000_00000010;
@@ -83,7 +83,7 @@ impl AyPortDecode for Ay128kPortDecode {
     const PORT_DATA_WRITE: u16 = 0b10000000_00000000;
 }
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, Debug)]
 pub struct AyFullerBoxPortDecode;
 impl AyPortDecode for AyFullerBoxPortDecode {
     const PORT_MASK      : u16 = 0x00ff;
@@ -92,7 +92,7 @@ impl AyPortDecode for AyFullerBoxPortDecode {
     const PORT_DATA_WRITE: u16 = 0x005f;
 }
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, Debug)]
 pub struct AyTC2068PortDecode;
 impl AyPortDecode for AyTC2068PortDecode {
     const PORT_MASK      : u16 = 0x00ff;
@@ -118,7 +118,7 @@ pub struct AyRegChange {
 }
 
 /// This trait should be implemented by devices attached to [Ay3_891xIo] A/B ports.
-pub trait AyIoPort {
+pub trait AyIoPort: fmt::Debug {
     type Timestamp;
     /// Resets the device at the given `timestamp`.
     #[inline]
@@ -326,7 +326,7 @@ impl AyRegChange {
     }
 }
 
-impl<T> AyIoPort for AyIoNullPort<T> {
+impl<T: fmt::Debug> AyIoPort for AyIoNullPort<T> {
     type Timestamp = T;
 }
 

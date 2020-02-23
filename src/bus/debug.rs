@@ -4,7 +4,7 @@ use core::ops::{Deref, DerefMut};
 use crate::bus::BusDevice;
 use super::ay::PassByAyAudioBusDevice;
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct DebugBusDevice<T, D> {
     bus: D,
     _ts: PhantomData<T>

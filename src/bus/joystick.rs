@@ -41,9 +41,26 @@ pub type CursorJoystick<D=NullDevice<VideoTs>> = JoystickBusDevice<VideoTs,
                                                             CursorJoyPortAddress,
                                                             CursorJoystickDevice,
                                                             D>;
+macro_rules! joystick_names {
+    ($($ty:ty: $name:expr),*) => { $(
+        impl<D> fmt::Display for $ty {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.write_str($name)
+            }
+        }
+    )*};
+}
+
+joystick_names! {
+    KempstonJoystick<D>: "Kempston Joystick",
+    FullerJoystick<D>: "Fuller Joystick",
+    SinclairLeftJoystick<D>: "Sinclair #1 Joystick",
+    SinclairRightJoystick<D>: "Sinclair #2 Joystick",
+    CursorJoystick<D>: "Cursor Joystick"
+}
 
 /// A joystick controller, providing a [BusDevice] implementation that can be used with [joystick devices][JoystickDevice].
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct JoystickBusDevice<T, P, J, D=NullDevice<T>>
 {
     /// A [JoystickDevice] implementation, which may also implement [JoystickInterface] trait
@@ -55,35 +72,35 @@ pub struct JoystickBusDevice<T, P, J, D=NullDevice<T>>
 }
 
 /// Kempston Joystick [PortAddress].
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, Debug)]
 pub struct KempstonJoyPortAddress;
 impl PortAddress for KempstonJoyPortAddress {
     const ADDRESS_MASK: u16 = 0x0020;
     const ADDRESS_BITS: u16 = 0x001f;
 }
 /// Fuller Joystick [PortAddress].
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, Debug)]
 pub struct FullerJoyPortAddress;
 impl PortAddress for FullerJoyPortAddress {
     const ADDRESS_MASK: u16 = 0x00ff;
     const ADDRESS_BITS: u16 = 0x007f;
 }
 /// Left Sinclair Joystick [PortAddress].
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, Debug)]
 pub struct SinclairLeftJoyPortAddress;
 impl PortAddress for SinclairLeftJoyPortAddress {
     const ADDRESS_MASK: u16 = 0x0800;
     const ADDRESS_BITS: u16 = 0xf7fe;
 }
 /// Right Sinclair Joystick [PortAddress].
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, Debug)]
 pub struct SinclairRightJoyPortAddress;
 impl PortAddress for SinclairRightJoyPortAddress {
     const ADDRESS_MASK: u16 = 0x1000;
     const ADDRESS_BITS: u16 = 0xeffe;
 }
 /// Cursor Joystick [PortAddress].
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, Debug)]
 pub struct CursorJoyPortAddress;
 impl PortAddress for CursorJoyPortAddress {
     const ADDRESS_MASK: u16 = 0x1800;
@@ -111,7 +128,8 @@ impl<T, P, J, D> DerefMut for JoystickBusDevice<T, P, J, D> {
 impl<T, P, J, D> PassByAyAudioBusDevice for JoystickBusDevice<T, P, J, D> {}
 
 impl<T, P, J, D> BusDevice for JoystickBusDevice<T, P, J, D>
-    where P: PortAddress,
+    where T: fmt::Debug,
+          P: PortAddress,
           D: BusDevice<Timestamp=VideoTs>,
           J: JoystickDevice
 {
@@ -348,7 +366,7 @@ impl JoystickSelect {
 
 impl<T, D> PassByAyAudioBusDevice for MultiJoystickBusDevice<T, D> {}
 
-impl<T, D> BusDevice for MultiJoystickBusDevice<T, D>
+impl<T: fmt::Debug, D> BusDevice for MultiJoystickBusDevice<T, D>
     where D: BusDevice<Timestamp=T>
 {
     type Timestamp = T;

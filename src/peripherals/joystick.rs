@@ -1,4 +1,6 @@
 //! This module hosts traits for interfacing joystick controllers and joystick device implementations.
+use core::fmt::Debug;
+
 pub mod cursor;
 pub mod fuller;
 pub mod kempston;
@@ -88,7 +90,7 @@ pub trait JoystickInterface {
 }
 
 /// A joystick device interface used by the joystick [bus][crate::bus::joystick] device.
-pub trait JoystickDevice {
+pub trait JoystickDevice: Debug {
     /// Reads current joystick state as I/O data.
     fn port_read(&self, port: u16) -> u8;
     /// Writes I/O data to a joystick device.

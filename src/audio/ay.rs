@@ -103,7 +103,10 @@ pub trait AyAudioFrame<B: Blep> {
     /// Provide [AmpLevels] that can handle `level` values from 0 to 15 (4-bits).
     /// `channels` - target [Blep] audio channels for `[A, B, C]` AY-3-891x channels.
     fn render_ay_audio_frame<V: AmpLevels<B::SampleDelta>>(
-                    &mut self, blep: &mut B, channels: [usize; 3]);
+        &mut self,
+        blep: &mut B,
+        channels: [usize; 3]
+    );
 }
 
 /// Implements AY-3-8910/8912/8913 programmable sound generator.

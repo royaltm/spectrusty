@@ -43,8 +43,11 @@ pub trait ControlUnit : Io {
     /// Executes a single cpu instruction with the option to pass a debugging function.
     /// Returns true if the frame has ended.
     fn execute_single_step<C: Cpu,
-                           F: FnOnce(CpuDebug)>(&mut self, cpu: &mut C, debug: Option<F>) ->
-                                        Result<Self::WrIoBreak, Self::RetiBreak>;
+                           F: FnOnce(CpuDebug)>(
+            &mut self,
+            cpu: &mut C,
+            debug: Option<F>
+    ) -> Result<Self::WrIoBreak, Self::RetiBreak>;
 }
 
 pub trait HostConfig {

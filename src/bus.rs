@@ -1,21 +1,86 @@
 //! This module hosts an emulation of system bus devices, that can be used with any [ControlUnit][crate::chip::ControlUnit].
+use core::fmt::Debug;
+use core::any::{TypeId, Any};
+use core::marker::PhantomData;
+use core::ops::{Deref, DerefMut};
+
 pub mod ay;
+mod dynbus;
 pub mod debug;
 pub mod joystick;
 pub mod mouse;
 pub mod zxprinter;
 
-use core::marker::PhantomData;
-use core::ops::{Deref, DerefMut};
-
 use crate::clock::{FTs, VFrameTsCounter, VideoTs};
 use crate::memory::ZxMemory;
 
+pub use dynbus::*;
+
+// A required part of `dyn BusDevice`.
+// Shamelessly ripped from std::error. Somewhat tedious, but apparently this is the way.
+mod private {
+    #[derive(Debug)]
+    pub struct Internal;
+}
+
+impl<T: Debug + 'static> dyn BusDevice<Timestamp=T, NextDevice=NullDevice<T>> {
+    /// Attempts to downcast the box to a concrete type.
+    #[inline]
+    pub fn downcast<D: 'static>(self: Box<Self>) -> Result<Box<D>, Box<DynamicDevice<T>>>
+        where D: BusDevice<Timestamp=T, NextDevice=NullDevice<T>>
+    {
+        if self.is::<D>() {
+            unsafe {
+                let raw: *mut DynamicDevice<T> = Box::into_raw(self);
+                Ok(Box::from_raw(raw as *mut D))
+            }
+        } else {
+            Err(self)
+        }
+    }
+}
+
+impl<T: Debug + 'static> dyn BusDevice<Timestamp=T, NextDevice=NullDevice<T>> + 'static {
+    /// Returns `true` if the boxed type is the same as `D`
+    #[inline]
+    pub fn is<D: 'static>(&self) -> bool
+        where D: BusDevice<Timestamp=T, NextDevice=NullDevice<T>>
+    {
+        TypeId::of::<D>() == self.type_id(private::Internal)
+    }
+    /// Returns some reference to the boxed value if it is of type `D`, or
+    /// `None` if it isn't.
+    pub fn downcast_ref<D: 'static>(&self) -> Option<&D>
+        where D: BusDevice<Timestamp=T, NextDevice=NullDevice<T>>
+    {
+        if self.is::<D>() {
+            unsafe {
+                Some(&*(self as *const DynamicDevice<T> as *const D))
+            }
+        } else {
+            None
+        }
+    }
+    /// Returns some mutable reference to the boxed value if it is of type `D`, or
+    /// `None` if it isn't.
+    pub fn downcast_mut<D: 'static>(&mut self) -> Option<&mut D>
+        where D: BusDevice<Timestamp=T, NextDevice=NullDevice<T>>
+    {
+        if self.is::<D>() {
+            unsafe {
+                Some(&mut *(self as *mut DynamicDevice<T> as *mut D))
+            }
+        } else {
+            None
+        }
+    }
+}
+
 /// An interface that allows attaching many, different devices in a daisy chain.
 ///
-/// Implementations of system bus devices should be provided to [ControlUnit][crate::chip::ControlUnit]
-/// as its type argument.
-pub trait BusDevice {
+/// Implementations of bus devices should be provided to implementations of [ControlUnit][crate::chip::ControlUnit]
+/// for its associated type argument: `BusDevice`.
+pub trait BusDevice: Debug {
     /// A frame timestamp type. Must be the same as `Io::Timestamp` implemented by a [ControlUnit][crate::chip::ControlUnit]
     /// and for all devices in a days chain.
     type Timestamp: Sized;
@@ -37,8 +102,6 @@ pub trait BusDevice {
     }
     /// This method should be called at the end of each frame by [ControlUnit::execute_next_frame][crate::chip::ControlUnit::execute_next_frame].
     ///
-    /// If you need more fine grained timestamp increments implement [BusDevice::m1].
-    ///
     /// Default implementation forwards this call to the next device.
     ///
     /// **NOTE**: Implementors of bus devices should always forward this call after optionally applying it to `self`.
@@ -58,6 +121,7 @@ pub trait BusDevice {
     fn next_frame(&mut self, timestamp: Self::Timestamp) {
         self.next_device_mut().next_frame(timestamp)
     }
+/*
     /// This method is called by the control unit during an op-code fetch `M1` cycles of Cpu.
     ///
     /// It can be used e.g. for implementing ROM traps.
@@ -69,13 +133,14 @@ pub trait BusDevice {
     fn m1<Z: ZxMemory>(&mut self, memory: &mut Z, pc: u16, timestamp: Self::Timestamp) {
         self.next_device_mut().m1(memory, pc, timestamp)
     }
+*/
     /// This method is called by the control unit during an I/O read cycle.
     ///
     /// Default implementation forwards this call to the next device.
     ///
     /// **NOTE**: Implementations of bus devices should only need to forward this call if it does not apply
     /// to this device or if not all bits are modified by the implementing device. In the latter case
-    /// the result from the forwarded call should be logically `ANDed` with the result of reading form this
+    /// the result from the forwarded call should be logically `ANDed` with the result of reading from this
     ///  device and if the upstream result is `None` the result should be returned with all unused bits set to 1.
     #[inline(always)]
     fn read_io(&mut self, port: u16, timestamp: Self::Timestamp) -> Option<u8> {
@@ -89,16 +154,23 @@ pub trait BusDevice {
     ///
     /// **NOTE**: Implementations of bus devices should only forward this call to the next device
     /// if it does not apply to this device or if the device doesn't block writing.
-    /// If the device blocks writing to next devices and the port matches the device this method must
+    /// If the device blocks writing to next devices and the port matches this method must
     /// return `true`. Otherwise this method should return the forwarded result.
     #[inline(always)]
     fn write_io(&mut self, port: u16, data: u8, timestamp: Self::Timestamp) -> bool {
         self.next_device_mut().write_io(port, data, timestamp)
     }
+    /// Gets the `TypeId` of `self`.
+    ///
+    /// A required part for `dyn BusDevice`.
+    #[doc(hidden)]
+    fn type_id(&self, _: private::Internal) -> TypeId where Self: 'static {
+        TypeId::of::<Self>()
+    }
 }
 
 /// A helper trait for matching I/O port addresses.
-pub trait PortAddress {
+pub trait PortAddress: Debug {
     /// Relevant address bits should be set to 1.
     const ADDRESS_MASK: u16;
     /// Bits from this constant will be matching only if `ADDRESS_MASK` constains 1 for bits in the same positions.
@@ -111,10 +183,10 @@ pub trait PortAddress {
 }
 
 /// A daisy-chain terminator device. Use it as the last device in a chain.
-#[derive(Clone, Default, Debug)]
-pub struct NullDevice<T: Sized>(PhantomData<T>);
+#[derive(Clone, Default, Debug, PartialEq, Eq)]
+pub struct NullDevice<T>(PhantomData<T>);
 
-impl<T: Sized> BusDevice for NullDevice<T> {
+impl<T: Debug> BusDevice for NullDevice<T> {
     type Timestamp = T;
     type NextDevice = Self;
 
@@ -135,8 +207,8 @@ impl<T: Sized> BusDevice for NullDevice<T> {
     #[inline(always)]
     fn next_frame(&mut self, _timestamp: Self::Timestamp) {}
 
-    #[inline(always)]
-    fn m1<Z: ZxMemory>(&mut self, _memory: &mut Z, _pc: u16, _timestamp: Self::Timestamp) {}
+    // #[inline(always)]
+    // fn m1<Z: ZxMemory>(&mut self, _memory: &mut Z, _pc: u16, _timestamp: Self::Timestamp) {}
 
     #[inline(always)]
     fn read_io(&mut self, _port: u16, _timestamp: Self::Timestamp) -> Option<u8> {
@@ -149,7 +221,7 @@ impl<T: Sized> BusDevice for NullDevice<T> {
     }
 }
 
-/// A [BusDevice] allowing for plugging in and out the device during run time.
+/// A [BusDevice] allowing for plugging in and out a device during run time.
 #[derive(Clone, Default, Debug)]
 pub struct OptionalBusDevice<D, N=NullDevice<VideoTs>> {
     pub device: Option<D>,
@@ -214,13 +286,13 @@ impl<D, N> BusDevice for OptionalBusDevice<D, N>
         }
         self.next_device.next_frame(timestamp);
     }
-    #[inline]
-    fn m1<Z: ZxMemory>(&mut self, memory: &mut Z, pc: u16, timestamp: Self::Timestamp) {
-        if let Some(device) = &mut self.device {
-            device.m1(memory, pc, timestamp);
-        }
-        self.next_device.m1(memory, pc, timestamp);
-    }
+    // #[inline]
+    // fn m1<Z: ZxMemory>(&mut self, memory: &mut Z, pc: u16, timestamp: Self::Timestamp) {
+    //     if let Some(device) = &mut self.device {
+    //         device.m1(memory, pc, timestamp);
+    //     }
+    //     self.next_device.m1(memory, pc, timestamp);
+    // }
     #[inline]
     fn read_io(&mut self, port: u16, timestamp: Self::Timestamp) -> Option<u8> {
         let bus_data = self.next_device.read_io(port, timestamp);

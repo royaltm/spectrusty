@@ -2,6 +2,7 @@
 mod color;
 mod pixel_buffer;
 
+use core::fmt::Debug;
 use core::ops::{BitAnd, BitOr, Shl, Shr, Range};
 use crate::clock::{Ts, FTs};
 
@@ -33,7 +34,7 @@ pub trait Video {
     fn render_video_frame<B: PixelBuffer>(&mut self, buffer: &mut [u8], pitch: usize, border_size: BorderSize);
 }
 
-pub trait VideoFrame {
+pub trait VideoFrame: Debug {
     /// A range of horizontal T-states, 0 should be where the frame starts.
     const HTS_RANGE: Range<Ts>;
     /// Number of horizontal T-states.

@@ -1,4 +1,5 @@
 //! Sinclair Left and Right Joysticks' implementation.
+use core::fmt::Debug;
 use core::marker::PhantomData;
 use super::{JoystickDevice, Directions, JoystickInterface};
 const UNUSED_MASK:      u8 = 0b1110_0000;
@@ -13,7 +14,7 @@ pub struct SinclairJoystickDevice<S> {
     _side: PhantomData<S>
 }
 
-pub trait SinclairJoyKeyMap {
+pub trait SinclairJoyKeyMap: Debug {
     const FIRE_MASK:  u8;
     const UP_MASK:    u8;
     const DOWN_MASK:  u8;
@@ -57,7 +58,7 @@ impl<S> Default for SinclairJoystickDevice<S> {
     }
 }
 
-impl<S> JoystickDevice for SinclairJoystickDevice<S> {
+impl<S: Debug> JoystickDevice for SinclairJoystickDevice<S> {
     #[inline]
     fn port_read(&self, _port: u16) -> u8 {
         self.data

@@ -1,6 +1,6 @@
+use core::fmt;
 use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
-
 use crate::clock::{VFrameTsCounter, VideoTs, FTs};
 use crate::bus::{BusDevice, NullDevice, PortAddress};
 use crate::chip::ula::{UlaTsCounter, Ula};
@@ -17,7 +17,23 @@ pub type ZxPrinter<V, S, D=NullDevice<VideoTs>> = ZxPrinterBusDevice<ZxPrinterPo
 pub type Alphacom32<V, S, D=NullDevice<VideoTs>> = ZxPrinterBusDevice<Alphacom32PortAddress, V, S, D>;
 pub type TS2040<V, S, D=NullDevice<VideoTs>> = ZxPrinterBusDevice<TS2040PortAddress, V, S, D>;
 
-#[derive(Clone, Default)]
+macro_rules! printer_names {
+    ($($ty:ty: $name:expr),*) => { $(
+        impl<V, S, D> fmt::Display for $ty {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.write_str($name)
+            }
+        }
+    )*};
+}
+
+printer_names! {
+    ZxPrinter<V, S, D>: "ZX Printer",
+    Alphacom32<V, S, D>: "Alphacom 32 Printer",
+    TS2040<V, S, D>: "TS2040 Printer"
+}
+
+#[derive(Clone, Default, Debug)]
 pub struct ZxPrinterBusDevice<P, V, S, D=NullDevice<VideoTs>>
 {
     pub printer: ZxPrinterDevice<V, S>,
@@ -25,21 +41,21 @@ pub struct ZxPrinterBusDevice<P, V, S, D=NullDevice<VideoTs>>
     _port_decode: PhantomData<P>
 }
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, Debug)]
 pub struct ZxPrinterPortAddress;
 impl PortAddress for ZxPrinterPortAddress {
     const ADDRESS_MASK: u16 = 0b0000_0000_0000_0100;
     const ADDRESS_BITS: u16 = 0b0000_0000_1111_1011;
 }
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, Debug)]
 pub struct Alphacom32PortAddress;
 impl PortAddress for Alphacom32PortAddress {
     const ADDRESS_MASK: u16 = 0b0000_0000_1000_0100;
     const ADDRESS_BITS: u16 = 0b0000_0000_1111_1011;
 }
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, Debug)]
 pub struct TS2040PortAddress;
 impl PortAddress for TS2040PortAddress {
     const ADDRESS_MASK: u16 = 0b0000_0000_1111_1111;

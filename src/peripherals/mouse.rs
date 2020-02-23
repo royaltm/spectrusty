@@ -1,4 +1,6 @@
 //! This module hosts traits for interfacing mouse controllers and mouse device implementations.
+use core::fmt::Debug;
+
 pub mod kempston;
 
 bitflags! {
@@ -41,7 +43,7 @@ impl From<[i16;2]> for MouseMovement {
     }
 }
 
-/// A user input interface for a [JoystickDevice].
+/// A user input interface for a [MouseDevice].
 pub trait MouseInterface {
     /// Sets the state of all mouse buttons.
     fn set_buttons(&mut self, buttons: MouseButtons);
@@ -52,7 +54,7 @@ pub trait MouseInterface {
 }
 
 /// A mouse device interface used by the mouse [bus][crate::bus::mouse] device.
-pub trait MouseDevice {
+pub trait MouseDevice: Debug {
     /// Reads current mouse state as I/O data.
     fn port_read(&self, port: u16) -> u8;
     /// Writes I/O data to a mouse device.

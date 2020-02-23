@@ -1,4 +1,5 @@
 //! Hosts [MouseBusDevice] implementing [BusDevice].
+use core::fmt::Debug;
 use core::convert::TryFrom;
 use core::fmt;
 use core::marker::PhantomData;
@@ -19,8 +20,13 @@ pub type KempstonMouse<D=NullDevice<VideoTs>> = MouseBusDevice<VideoTs,
                                                             KempstonMouseDevice,
                                                             D>;
 
+impl<D> fmt::Display for KempstonMouse<D> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("Kempston Mouse")
+    }
+}
 /// A mouse controller, providing a [BusDevice] implementation that can be used with [mouse devices][MouseDevice].
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct MouseBusDevice<T, P, M, D=NullDevice<T>> {
     /// A [MouseDevice] implementation, which may also implement [MouseInterface] trait
     /// for providing user input.
@@ -31,7 +37,7 @@ pub struct MouseBusDevice<T, P, M, D=NullDevice<T>> {
 }
 
 /// Kempston Mouse [PortAddress].
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, Debug)]
 pub struct KempstonMousePortAddress;
 impl PortAddress for KempstonMousePortAddress {
     const ADDRESS_MASK: u16 = 0b0000_0000_0010_0000;
@@ -53,7 +59,7 @@ impl<T, P, M, D> DerefMut for MouseBusDevice<T, P, M, D> {
 
 impl<T, P, M, D> PassByAyAudioBusDevice for MouseBusDevice<T, P, M, D> {}
 
-impl<T, P, M, D> BusDevice for MouseBusDevice<T, P, M, D>
+impl<T: Debug, P, M, D> BusDevice for MouseBusDevice<T, P, M, D>
     where P: PortAddress,
           D: BusDevice<Timestamp=VideoTs>,
           M: MouseDevice

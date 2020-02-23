@@ -10,12 +10,13 @@ use crate::video::{Video, VideoFrame};
 use super::{Ula, UlaTsCounter, UlaVideoFrame, CPU_HZ};
 
 impl<E, M, D> AyAudioFrame<E> for Ula<M, D>
-    where D: AyAudioVBusDevice<E>,
-          E: Blep
+    where E: Blep,
+          D: AyAudioVBusDevice
+          
 {
     #[inline]
     fn render_ay_audio_frame<V: AmpLevels<E::SampleDelta>>(&mut self, blep: &mut E, chans: [usize; 3]) {
-        self.bus.render_ay_audio_vts::<V, UlaVideoFrame>(blep, self.tsc, chans)
+        self.bus.render_ay_audio_vts::<V, UlaVideoFrame, E>(blep, self.tsc, chans)
     }
 }
 
