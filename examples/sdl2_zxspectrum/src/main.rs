@@ -12,32 +12,33 @@ mod spectrum;
 mod printer;
 mod peripherals;
 
+use std::collections::HashSet;
+
 #[allow(unused_imports)]
 use log::{error, warn, info, debug, trace};
 
 #[allow(unused_imports)]
-use sdl2::{event::{Event, WindowEvent},
+use sdl2::{Sdl, 
+           event::{Event, WindowEvent},
            keyboard::{Keycode, Mod as Modifier},
            pixels::PixelFormatEnum,
            rect::Rect,
            video::{FullscreenType, Window, WindowContext}};
 // use sdl2_sys::SDL_WindowFlags;
 use crate::spectrum::*;
-use crate::peripherals::SpoolerAccess;
+use crate::peripherals::{SpoolerAccess, MouseAccess, JoystickAccess, DynBusAccess};
 use crate::utils::*;
-
-type ZXSpectrum = ZXSpectrum48Ay; // ZXSpectrum48 // ZXSpectrum16
 
 const REQUESTED_AUDIO_LATENCY: usize = 2;
 
 
-const HELP: &str = r###"ZX Spectrum SDL2 example emulator.
-
+const HEAD: &str = r#"The SDL2 desktop example emulator for "rust-zxspecemu""#;
+const HELP: &str = r###"
 Drag & drop TAP, SNA or SCR files over the emulator window in order to load them.
 
 F1: Show this help.
 F2: Turbo - runs as fast as possible, while key is being pressed.
-F3: Save ZX Printer spooled image as a PNG file.
+F3: Save ZX Printer spooled image as a PNG file. [+printer opt. only]
 F4: Change joystick implementation (cursor keys).
 F5: Play current TAP file.
 F6: Print current TAP file info (only if not playing or recording).
@@ -46,7 +47,7 @@ F8: Record TAP chunks appending them to the current TAP file.
 F9: Turn On/Off tape audio.
 F10: Reset Zx Spectrum.
 F11: Trigger non-maskable interrupt.
-Pause: Pauses or resumes emulation.
+Pause: Pauses/resumes emulation.
 Insert: Create a new TAP file for recording.
 Delete: Remove a current TAP from the emulator.
 Home/End: Move TAP cursor to the beginning/end of current TAP file.
@@ -62,20 +63,71 @@ enum EmulatorStatus {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    simple_logger::init_with_level(log::Level::Debug).unwrap();
+    simple_logger::init_with_level(log::Level::Info).unwrap();
 
     set_dpi_awareness()?;
     let sdl_context = sdl2::init()?;
+
+    let (mut cfg, files): (HashSet<_>,HashSet<_>) = std::env::args().skip(1).partition(|arg| arg.starts_with("+"));
+
+    if cfg.is_empty() {
+        let zx = ZXSpectrum48::create(&sdl_context, REQUESTED_AUDIO_LATENCY)?;
+        run(zx, sdl_context, files)
+    }
+    else {
+        let mut zx = ZXSpectrum48DynBus::create(&sdl_context, REQUESTED_AUDIO_LATENCY)?;
+        let all = cfg.remove("+all");
+        if cfg.remove("+mouse") || all {
+            zx.add_mouse();
+        }
+        if cfg.remove("+printer") || all {
+            zx.add_printer();
+        }
+        if cfg.remove("+ay") || cfg.remove("+melodik") || all {
+            zx.add_ay_melodik();
+        }
+        if cfg.remove("+fullerbox") || all {
+            zx.add_fullerbox();
+        }
+        if cfg.is_empty() {
+            run(zx, sdl_context, files)
+        }
+        else {
+            Err(format!("Unrecognized options: {}. Provide one of: +mouse, +printer, +ay|melodik, +fullerbox",
+                cfg.drain().collect::<Vec<_>>().join(" ")))?
+        }
+    }
+}
+
+fn run<C, M, B, I>(mut zx: ZXSpectrum<C, M, B>, sdl_context: Sdl, files: I) -> Result<(), Box<dyn std::error::Error>>
+    where I: IntoIterator<Item=String>,
+          M: ZxMemory + Default,
+          B: BusDevice<Timestamp=VideoTs>,
+          C: Cpu + std::fmt::Debug,
+          Ula<M, B>: Default + AyAudioFrame<ZXBlep>,
+          ZXSpectrum<C, M, B>: SpoolerAccess + MouseAccess + JoystickAccess + DynBusAccess
+{
+    zx.reset();
+
+    for filename in files {
+        match zx.handle_file(&filename)? {
+            FileType::Unknown => Err(format!("Unrecognized file: {}", filename))?,
+            t => info!("File: {} {}", t, filename),
+        }
+        
+    }
+
     let video_subsystem = sdl_context.video()?;
     // eprintln!("driver: {}", video_subsystem.current_video_driver());
 
     let border_size = BorderSize::Full;
     let window: Window;
-    let (screen_width, screen_height) = ZXSpectrum::screen_size(border_size);
+    let (screen_width, screen_height) = ZXSpectrum::<C, M, B>::screen_size(border_size);
     info!("{:?} {}x{}", border_size, screen_width, screen_height);
 
     window = video_subsystem.window("ZX Spectrum Sdl2", screen_width*2, screen_height*2)
-                            .resizable()
+                            // .resizable()
+                            .allow_highdpi()
                             .position_centered()
                             .build()
                             .map_err(err_str)?;
@@ -97,13 +149,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                       .map_err(err_str)?;
 
     let mut event_pump = sdl_context.event_pump()?;
-
-    let mut zx = ZXSpectrum::create(&sdl_context, REQUESTED_AUDIO_LATENCY)?;
-    zx.reset();
-
-    for filename in std::env::args().skip(1) {
-        info!("File: {} {}", zx.handle_file(&filename)?, filename);
-    }
 
     let mut counter_elapsed = 0u64;
     let mut counter_iters = 0usize;
@@ -130,7 +175,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 Event::KeyDown{ keycode: Some(Keycode::F1), repeat: false, ..} => {
                     zx.audio.pause();
-                    info(HELP.into());
+                    info(format!("{}\nHardware configuration:\n{}\n{}", HEAD, zx.device_info(), HELP).into());
                     zx.audio.resume();
                 }
                 Event::KeyDown{ keycode: Some(Keycode::F11), repeat: false, ..} => {

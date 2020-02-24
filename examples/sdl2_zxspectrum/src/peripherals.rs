@@ -1,8 +1,9 @@
+use core::fmt::Display;
 use sdl2::keyboard::{Mod as Modifier, Keycode};
 use sdl2::mouse::MouseButton;
 use zxspecemu::memory::ZxMemory;
-use zxspecemu::bus::joystick::MultiJoystickBusDevice;
-use zxspecemu::bus::joystick::JoystickSelect;
+use zxspecemu::bus::DynamicBusDevice;
+use zxspecemu::bus::joystick::{JoystickSelect, MultiJoystickBusDevice};
 use zxspecemu::peripherals::{KeyboardInterface, ZXKeyboardMap};
 use zxspecemu::peripherals::joystick::Directions;
 use zxspecemu::peripherals::mouse::{MouseInterface, MouseButtons, kempston::KempstonMouseDevice};
@@ -17,15 +18,22 @@ use super::printer::ImageSpooler;
 
 pub trait SpoolerAccess {
     fn spooler_mut(&mut self) -> Option<&mut ImageSpooler> { None }
+    fn printer_disp(&mut self) -> Option<&dyn Display> { None }
+}
+
+pub trait DynBusAccess {
+    fn dynbus_devices_mut(&mut self) -> Option<&mut DynamicBusDevice> { None }
+    fn dynbus_devices_ref(&self) -> Option<&DynamicBusDevice> { None }
 }
 
 pub trait MouseAccess {
     fn mouse_mut(&mut self) -> Option<&mut KempstonMouseDevice> { None }
+    fn mouse_disp(&mut self) -> Option<&dyn Display> { None }
 }
 
 pub trait JoystickAccess {
-    fn joystick_device_mut(&mut self) -> &mut Option<MultiJoystickBusDevice>;// { &mut None }
-    fn joystick_device_ref(&self) -> &Option<MultiJoystickBusDevice>;// { &None }
+    fn joystick_device_mut(&mut self) -> &mut Option<MultiJoystickBusDevice>;
+    fn joystick_device_ref(&self) -> &Option<MultiJoystickBusDevice>;
     fn joystick_mut(&mut self) -> Option<&mut JoystickSelect> {
         self.joystick_device_mut().as_deref_mut()
     }

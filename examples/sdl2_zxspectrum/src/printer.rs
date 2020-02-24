@@ -6,7 +6,7 @@ use zxspecemu::bus::zxprinter::{PIXEL_LINE_WIDTH, Spooler};
 use log::{error, warn, info, debug, trace};
 
 /// A simple ZX Printer spooler that saves spooled data as PNG files.
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct ImageSpooler {
     spooling: bool,
     buf: Vec<u8>
