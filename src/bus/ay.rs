@@ -34,13 +34,13 @@ pub type Ay3_891xFullerBox<D=NullDevice<VideoTs>,
 
 impl<D> fmt::Display for Ay3_891xMelodik<D> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "AY-3-8913 (Melodik)")
+        f.write_str("AY-3-8913 (Melodik)")
     }
 }
 
 impl<D> fmt::Display for Ay3_891xFullerBox<D> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "AY-3-8913 (Fuller Box)")
+        f.write_str("AY-3-8913 (Fuller Box)")
     }
 }
 /// This trait is being used by [AyAudioFrame][crate::audio::ay::AyAudioFrame] implementations to render

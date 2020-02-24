@@ -1,15 +1,21 @@
 use core::any::{TypeId, Any};
-use core::fmt::Debug;
+use core::fmt::{Display, Debug};
 use core::marker::PhantomData;
-use core::ops::{Deref, DerefMut};
-use std::ops::{Index, IndexMut};
+use core::ops::{Deref, DerefMut, Index, IndexMut};
+use core::iter::IntoIterator;
 
 use crate::clock::VideoTs;
 use crate::memory::ZxMemory;
 use super::{BusDevice, NullDevice};
 
+/// A trait for dynamic bus devices, which currently includes methods from [Display] and [BusDevice].
+/// Implemented for all types that implement dependent traits.
+pub trait NamedBusDevice<T: Debug>: Display + BusDevice<Timestamp=T, NextDevice=NullDevice<T>>{}
+
+impl<T: Debug, D> NamedBusDevice<T> for D where D: Display + BusDevice<Timestamp=T, NextDevice=NullDevice<T>> {}
+
 /// A helper type for a dynamic [BusDevice]. Devices of this type can be used with a [DynamicBusDevice].
-pub type DynamicDevice<T> = dyn BusDevice<Timestamp=T, NextDevice=NullDevice<T>>;
+pub type DynamicDevice<T> = dyn NamedBusDevice<T>;
 /// A helper type for a boxed dynamic [BusDevice]. Used by [DynamicBusDevice].
 pub type BoxedDynamicDevice<T> = Box<DynamicDevice<T>>;
 /// A helper type for a dynamic [BusDevice] linked with `D: BusDevice`.
@@ -36,8 +42,8 @@ pub struct DynamicBusDevice<D: BusDevice=NullDevice<VideoTs>> {
     bus: D
 }
 
-impl<'a, T: Debug, D: 'a> From<D> for Box<dyn BusDevice<Timestamp=T, NextDevice=NullDevice<T>> + 'a>
-    where D: BusDevice<Timestamp=T, NextDevice=NullDevice<T>>
+impl<'a, T: Debug, D: 'a> From<D> for Box<dyn NamedBusDevice<T> + 'a>
+    where D: BusDevice<Timestamp=T, NextDevice=NullDevice<T>> + Display
 {
     fn from(dev: D) -> Self {
         Box::new(dev)
@@ -99,8 +105,7 @@ impl<D> DynamicBusDevice<D>
     /// # Panics
     /// Panics if a device is not of type `B`.
     pub fn remove_as_device<B>(&mut self) -> Option<Box<B>>
-        where B: BusDevice<Timestamp=D::Timestamp,
-                           NextDevice=NullDevice<D::Timestamp>> + 'static
+        where B: NamedBusDevice<D::Timestamp> + 'static
     {
         self.remove_device().map(|boxdev|
             boxdev.downcast::<B>().expect("wrong dynamic mut device type")
@@ -208,6 +213,7 @@ impl<D> BusDevice for DynamicBusDevice<D>
 
 #[cfg(test)]
 mod tests {
+    use core::fmt;
     use super::*;
 
     #[derive(Default, Clone, PartialEq, Debug)]
@@ -215,6 +221,12 @@ mod tests {
         foo: i32,
         data: u8,
         bus: NullDevice<i32>
+    }
+
+    impl fmt::Display for TestDevice {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            f.write_str("Test Device")
+        }
     }
 
     impl BusDevice for TestDevice {
@@ -282,6 +294,7 @@ mod tests {
         let dev = dchain.get_device_ref(index1).unwrap();
         assert_eq!(dev.is::<TestDevice>(), true);
         assert_eq!(dev.is::<NullDevice<_>>(), false);
+        assert_eq!(format!("{}", dev), "Test Device");
         if let Some(dev) = dchain.get_device_mut(index1) {
             dev.update_timestamp(777);
             assert_eq!(dev.read_io(0, 0), None);

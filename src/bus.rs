@@ -1,5 +1,5 @@
 //! This module hosts an emulation of system bus devices, that can be used with any [ControlUnit][crate::chip::ControlUnit].
-use core::fmt::Debug;
+use core::fmt::{self, Debug};
 use core::any::{TypeId, Any};
 use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
@@ -23,11 +23,11 @@ mod private {
     pub struct Internal;
 }
 
-impl<T: Debug + 'static> dyn BusDevice<Timestamp=T, NextDevice=NullDevice<T>> {
+impl<T: Debug + 'static> dyn NamedBusDevice<T> {
     /// Attempts to downcast the box to a concrete type.
     #[inline]
     pub fn downcast<D: 'static>(self: Box<Self>) -> Result<Box<D>, Box<DynamicDevice<T>>>
-        where D: BusDevice<Timestamp=T, NextDevice=NullDevice<T>>
+        where D: NamedBusDevice<T>
     {
         if self.is::<D>() {
             unsafe {
@@ -40,7 +40,7 @@ impl<T: Debug + 'static> dyn BusDevice<Timestamp=T, NextDevice=NullDevice<T>> {
     }
 }
 
-impl<T: Debug + 'static> dyn BusDevice<Timestamp=T, NextDevice=NullDevice<T>> + 'static {
+impl<T: Debug + 'static> dyn NamedBusDevice<T> + 'static {
     /// Returns `true` if the boxed type is the same as `D`
     #[inline]
     pub fn is<D: 'static>(&self) -> bool
@@ -221,6 +221,12 @@ impl<T: Debug> BusDevice for NullDevice<T> {
     }
 }
 
+impl<T> fmt::Display for NullDevice<T> {
+    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Ok(())
+    }
+}
+
 /// A [BusDevice] allowing for plugging in and out a device during run time.
 #[derive(Clone, Default, Debug)]
 pub struct OptionalBusDevice<D, N=NullDevice<VideoTs>> {
@@ -311,5 +317,18 @@ impl<D, N> BusDevice for OptionalBusDevice<D, N>
             }
         }
         self.next_device.write_io(port, data, timestamp)
+    }
+}
+
+impl<D, N> fmt::Display for OptionalBusDevice<D, N>
+    where D: fmt::Display
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(ref device) = self.device {
+            device.fmt(f)
+        }
+        else {
+            Ok(())
+        }
     }
 }
