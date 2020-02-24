@@ -176,6 +176,14 @@ pub struct MultiJoystickBusDevice<T=VideoTs, D=NullDevice<T>> {
     _ts: PhantomData<T>
 }
 
+impl<T, D: Default> MultiJoystickBusDevice<T, D> {
+    pub fn new_with(joystick: JoystickSelect) -> Self {
+        MultiJoystickBusDevice {
+            joystick, bus: Default::default(), _ts: PhantomData
+        }
+    }
+}
+
 impl<T, D> Deref for MultiJoystickBusDevice<T, D> {
     type Target = JoystickSelect;
     fn deref(&self) -> &Self::Target {
