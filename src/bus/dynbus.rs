@@ -155,6 +155,33 @@ impl<D: BusDevice> IndexMut<usize> for DynamicBusDevice<D> {
     }
 }
 
+impl<'a, D: BusDevice> IntoIterator for &'a DynamicBusDevice<D> {
+    type Item = &'a BoxLinkedDynDevice<D>;
+    type IntoIter = core::slice::Iter<'a, BoxLinkedDynDevice<D>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.devices.iter()
+    }
+}
+
+impl<'a, D: BusDevice> IntoIterator for &'a mut DynamicBusDevice<D> {
+    type Item = &'a mut BoxLinkedDynDevice<D>;
+    type IntoIter = core::slice::IterMut<'a, BoxLinkedDynDevice<D>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.devices.iter_mut()
+    }
+}
+
+impl<D: BusDevice> IntoIterator for DynamicBusDevice<D> {
+    type Item = BoxLinkedDynDevice<D>;
+    type IntoIter = std::vec::IntoIter<BoxLinkedDynDevice<D>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.devices.into_iter()
+    }
+}
+
 impl<D> BusDevice for DynamicBusDevice<D>
     where D: BusDevice, D::Timestamp: Debug + Copy
 {
