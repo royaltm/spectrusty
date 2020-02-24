@@ -102,8 +102,8 @@ impl<D, N> AyAudioVBusDevice for OptionalBusDevice<D, N>
 
 impl AyAudioVBusDevice for DynamicDevice<VideoTs> {
     /// # Note
-    /// Because we need to guess the conrete type of the dynamic `BusDevice` we can currently handle
-    /// ony the most common cases: [Ay3_891xMelodik] and [Ay3_891xFullerBox]. If you use a customized
+    /// Because we need to guess the concrete type of the dynamic `BusDevice` we can currently handle
+    /// only the most common cases: [Ay3_891xMelodik] and [Ay3_891xFullerBox]. If you use a customized
     /// [Ay3_891xBusDevice] for a dynamic `BusDevice` you need to render audio directly on the device
     /// downcasted to your custom type.
     #[inline]
