@@ -226,7 +226,10 @@ impl<M, B> Ula<M, B> {
                     None => self.prev_ear_in
                 }
             }
-            _ => if self.last_earmic_data == 0 { 0 } else { 1 } // issue 2
+            _ => {
+                if self.last_earmic_data & 2 == 0 { 0 } else { 1 } // issue 3
+                // if self.last_earmic_data == 0 { 0 } else { 1 } // issue 2
+            }
         }
     }
 }

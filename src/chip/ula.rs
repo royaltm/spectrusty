@@ -75,8 +75,8 @@ where M: ZxMemory + Default, B: Default
             prev_ear_in: 0,
             ear_in_last_index: 0,
             prev_earmic_ts: FTs::min_value(),
-            prev_earmic_data: 3,
-            last_earmic_data: 3,
+            prev_earmic_data: 0,
+            last_earmic_data: 0,
             // keyboard
             keyboard: ZXKeyboardMap::empty()
         }
