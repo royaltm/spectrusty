@@ -13,13 +13,19 @@ pub struct ImageSpooler {
 }
 
 impl ImageSpooler {
+    #[inline]
     pub fn is_spooling(&self) -> bool {
         self.spooling
     }
 
+    #[inline]
+    pub fn lines_buffered(&self) -> u32 {
+        (self.buf.len() as u32 + PIXEL_LINE_WIDTH - 1) / PIXEL_LINE_WIDTH
+    }
+
     pub fn save_image(&mut self) -> Result<Option<String>, image::error::ImageError> {
         // calculate height from the buffer size
-        let height: u32 = (self.buf.len() as u32 + PIXEL_LINE_WIDTH - 1) / PIXEL_LINE_WIDTH;
+        let height: u32 = self.lines_buffered();
         if height == 0 {
             return Ok(None);
         }

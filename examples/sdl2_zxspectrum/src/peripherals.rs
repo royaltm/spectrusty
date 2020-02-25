@@ -1,4 +1,4 @@
-use core::fmt::Display;
+// use core::fmt::Display;
 use sdl2::keyboard::{Mod as Modifier, Keycode};
 use sdl2::mouse::MouseButton;
 use zxspecemu::memory::ZxMemory;
@@ -18,7 +18,7 @@ use super::printer::ImageSpooler;
 
 pub trait SpoolerAccess {
     fn spooler_mut(&mut self) -> Option<&mut ImageSpooler> { None }
-    fn printer_disp(&mut self) -> Option<&dyn Display> { None }
+    fn spooler_ref(&self) -> Option<&ImageSpooler> { None }
 }
 
 pub trait DynBusAccess {
@@ -28,7 +28,6 @@ pub trait DynBusAccess {
 
 pub trait MouseAccess {
     fn mouse_mut(&mut self) -> Option<&mut KempstonMouseDevice> { None }
-    fn mouse_disp(&mut self) -> Option<&dyn Display> { None }
 }
 
 pub trait JoystickAccess {

@@ -36,24 +36,24 @@ const HEAD: &str = r#"The SDL2 desktop example emulator for "rust-zxspecemu""#;
 const HELP: &str = r###"
 Drag & drop TAP, SNA or SCR files over the emulator window in order to load them.
 
-F1: Show this help.
+F1: Shows this help.
 F2: Turbo - runs as fast as possible, while key is being pressed.
-F3: Save ZX Printer spooled image as a PNG file. [+printer opt. only]
-F4: Change joystick implementation (cursor keys).
-F5: Play current TAP file.
-F6: Print current TAP file info (only if not playing or recording).
-F7: List tap file names.
-F8: Record TAP chunks appending them to the current TAP file.
-F9: Turn On/Off tape audio.
-F10: Reset Zx Spectrum.
-F11: Trigger non-maskable interrupt.
+F3: Saves ZX Printer spooled image as a PNG file. [+printer opt. only]
+F4: Changes joystick implementation (cursor keys).
+F5: Plays current TAP file.
+F6: Prints current TAP file info (only if not playing or recording).
+F7: Lists tap file names.
+F8: Starts recording of TAP chunks appending them to the current TAP file.
+F9: Toggles on/off tape audio.
+F10: Resets ZX Spectrum.
+F11: Triggers non-maskable interrupt.
 Pause: Pauses/resumes emulation.
-Insert: Create a new TAP file for recording.
-Delete: Remove a current TAP from the emulator.
-Home/End: Move TAP cursor to the beginning/end of current TAP file.
-PgUp/PgDown: Move TAP cursor to the previous/next block of current TAP file.
-Home/End+SHIFT: Select a first/last TAP file.
-PgUp/PgDown+SHIFT: Select a previous/next TAP file.
+Insert: Creates a new TAP file for recording.
+Delete: Removes a current TAP from the emulator.
+Home/End: Moves a TAP cursor to the beginning/end of current TAP file.
+PgUp/PgDown: Moves a TAP cursor to the previous/next block of current TAP file.
+Home/End+SHIFT: Selects a first/last TAP file.
+PgUp/PgDown+SHIFT: Selects a previous/next TAP file.
 "###;
 
 enum EmulatorStatus {
@@ -68,7 +68,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     set_dpi_awareness()?;
     let sdl_context = sdl2::init()?;
 
-    let (mut cfg, files): (HashSet<_>,HashSet<_>) = std::env::args().skip(1).partition(|arg| arg.starts_with("+"));
+    let (mut cfg, files): (HashSet<_>,HashSet<_>) = std::env::args().skip(1)
+                                        .partition(|arg| arg.starts_with("+"));
 
     if cfg.is_empty() {
         let zx = ZXSpectrum48::create(&sdl_context, REQUESTED_AUDIO_LATENCY)?;
@@ -125,7 +126,10 @@ fn run<C, M, B, I>(mut zx: ZXSpectrum<C, M, B>, sdl_context: Sdl, files: I) -> R
     let (screen_width, screen_height) = ZXSpectrum::<C, M, B>::screen_size(border_size);
     info!("{:?} {}x{}", border_size, screen_width, screen_height);
 
-    window = video_subsystem.window("ZX Spectrum Sdl2", screen_width*2, screen_height*2)
+    let window_title = |zx: &ZXSpectrum<C, M, B>| format!("ZX Spectrum {}", zx.device_info());
+
+    window = video_subsystem.window(&window_title(&zx),
+                                    screen_width*2, screen_height*2)
                             // .resizable()
                             .allow_highdpi()
                             .position_centered()
@@ -155,6 +159,7 @@ fn run<C, M, B, I>(mut zx: ZXSpectrum<C, M, B>, sdl_context: Sdl, files: I) -> R
     let mut counter_sum = 0.0;
     let mut file_count = 0;
     let mut status = EmulatorStatus::Normal;
+    let mut printing: Option<u32> = None;
 
     'mainloop: loop {
         for event in event_pump.poll_iter() {
@@ -175,7 +180,8 @@ fn run<C, M, B, I>(mut zx: ZXSpectrum<C, M, B>, sdl_context: Sdl, files: I) -> R
                 }
                 Event::KeyDown{ keycode: Some(Keycode::F1), repeat: false, ..} => {
                     zx.audio.pause();
-                    info(format!("{}\nHardware configuration:\n{}\n{}", HEAD, zx.device_info(), HELP).into());
+                    info(format!("{}\nHardware configuration:\nRAM: {}\n{}",
+                                    HEAD, zx.device_info(), HELP).into());
                     zx.audio.resume();
                 }
                 Event::KeyDown{ keycode: Some(Keycode::F11), repeat: false, ..} => {
@@ -217,6 +223,7 @@ fn run<C, M, B, I>(mut zx: ZXSpectrum<C, M, B>, sdl_context: Sdl, files: I) -> R
                             if let Some(name) = spooler.save_image()? {
                                 info!("Printer output saved as: {}", name);
                                 spooler.clear();
+                                canvas.window_mut().set_title(&window_title(&zx))?;
                             }
                             else {
                                 info!("Printer spooler is empty.");
@@ -232,6 +239,7 @@ fn run<C, M, B, I>(mut zx: ZXSpectrum<C, M, B>, sdl_context: Sdl, files: I) -> R
                 }
                 Event::KeyUp{ keycode: Some(Keycode::F4), repeat: false, ..} => {
                     zx.next_joystick();
+                    canvas.window_mut().set_title(&window_title(&zx))?;
                 }
                 Event::KeyDown{ keycode: Some(Keycode::Insert), repeat: false, ..} => {
                     loop {
@@ -367,14 +375,30 @@ fn run<C, M, B, I>(mut zx: ZXSpectrum<C, M, B>, sdl_context: Sdl, files: I) -> R
             }
         }
 
+        if let EmulatorStatus::Paused = status {
+            zx.synchronize_thread_to_frame();
+            continue
+        }
+
         // render pixels
         texture.with_lock(None, |buffer: &mut [u8], pitch: usize| {
             // measure_performance!("Video frame at: {:.4} Hz frames: {} wall: {} s"; 1.0f64, timer_subsystem, counter_elapsed, counter_iters, counter_sum; {
                 zx.render_pixels::<PixelBufRGB24>(buffer, pitch, border_size);
             // 1.0});
         })?;
+
         canvas.copy(&texture, None, None)?;
         canvas.present();
+
+        {
+            let pr = zx.spooler_ref().filter(|sp| sp.is_spooling())
+                                     .map(|sp| sp.lines_buffered());
+            if printing != pr {
+                printing = pr;
+                canvas.window_mut().set_title(&window_title(&zx))?;
+            }
+        }
+
         match status {
             EmulatorStatus::Turbo => {
                 measure_performance!("CPU: {:.4} MHz T-states: {} wall: {} s"; 1e6f64, timer_subsystem, counter_elapsed, counter_iters, counter_sum; {

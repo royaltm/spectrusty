@@ -42,6 +42,7 @@ pub use zxspecemu::video::{BorderSize, PixelBufRGB24};
 
 const ROM48: &[u8] = include_bytes!("../../../resources/48k.rom");
 
+pub type ZXPrinterToImage = ZxPrinter<UlaVideoFrame, ImageSpooler>;
 pub type ZXSpectrum16 = ZXSpectrum<Z80NMOS, Memory16k, OptionalBusDevice<MultiJoystickBusDevice>>;
 pub type ZXSpectrum48 = ZXSpectrum<Z80NMOS, Memory48k, OptionalBusDevice<MultiJoystickBusDevice>>;
 pub type ZXSpectrum48DynBus = ZXSpectrum<Z80NMOS, Memory48k,
@@ -153,7 +154,7 @@ impl<C, M, B> ZXSpectrum<C, M, B>
     pub fn render_audio(&mut self) -> AudioFrameResult<()> {
         let Self { ula, bandlim, audio, .. } = self;
         ula.render_ay_audio_frame::<AyAmps<f32>>(bandlim, [0, 1, 2]);
-        // ula.render_ay_audio_frame::<AyAmps<f32>>(bandlim, [2, 2, 2]);
+        // ula.render_ay_audio_frame::<AyAmps<f32>>(bandlim, [2, 2, 2]); // mono
         if self.audible_tap {
             ula.render_earmic_out_audio_frame::<EarMicAmps4<f32>>(bandlim, 2);
             ula.render_ear_in_audio_frame::<EarInAmps2<f32>>(bandlim, 2);
@@ -264,13 +265,26 @@ impl<C, M, B> ZXSpectrum<C, M, B>
     pub fn device_info(&self) -> String
         where Self: JoystickAccess + DynBusAccess
     {
-        let mut info = format!("RAM: {}kb", (M::RAMTOP as u32 + 1)/1024-16);
+        let mut info = format!("{}kb", (M::RAMTOP as u32 + 1)/1024-16);
         if let Some(joy) = self.joystick_ref() {
-            write!(info, " + {} Joystick", joy).unwrap();
+            if self.joystick_index != 0 {
+                write!(info, " + {} #{} Joy.", joy, self.joystick_index + 1).unwrap();
+            }
+            else {
+                write!(info, " + {} Joystick", joy).unwrap();
+            }
         }
         if let Some(devices) = self.dynbus_devices_ref() {
-            for dev in devices {
+            let pr_index = self.bus_index.printer;
+            for (i, dev) in devices.into_iter().enumerate() {
                 write!(info, " + {}", dev).unwrap();
+                if pr_index.filter(|&pri| pri == i).is_some() {
+                    let spooler: &ImageSpooler = dev.downcast_ref::<ZXPrinterToImage>().unwrap();
+                    let lines = spooler.lines_buffered();
+                    if lines != 0 || spooler.is_spooling() {
+                        write!(info, "[{}]", lines).unwrap();
+                    }
+                }
             }
         }
         info
@@ -363,7 +377,7 @@ impl ZXSpectrum48DynBus {
     pub fn add_printer(&mut self) {
         if self.bus_index.printer.is_none() {
             self.bus_index.printer = Some(self.dynbus_mut()
-                .append_device(ZxPrinter::<UlaVideoFrame, ImageSpooler>::default()));
+                .append_device(ZXPrinterToImage::default()));
         }
     }
 }
@@ -393,7 +407,12 @@ impl SpoolerAccess for ZXSpectrum48 {}
 impl SpoolerAccess for ZXSpectrum48DynBus {
     fn spooler_mut(&mut self) -> Option<&mut ImageSpooler> {
         self.bus_index.printer.map(move |index| {
-            &mut ***self.dynbus_mut().as_device_mut::<ZxPrinter<UlaVideoFrame, ImageSpooler>>(index)
+            &mut ***self.dynbus_mut().as_device_mut::<ZXPrinterToImage>(index)
+        })
+    }
+    fn spooler_ref(&self) -> Option<&ImageSpooler> {
+        self.bus_index.printer.map(|index| {
+            &***self.dynbus_ref().as_device_ref::<ZXPrinterToImage>(index)
         })
     }
 }
