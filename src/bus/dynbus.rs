@@ -1,8 +1,8 @@
 use core::any::{TypeId, Any};
 use core::fmt::{Display, Debug};
+use core::iter::IntoIterator;
 use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut, Index, IndexMut};
-use core::iter::IntoIterator;
 
 use crate::clock::VideoTs;
 use crate::memory::ZxMemory;
@@ -115,7 +115,7 @@ impl<D> DynamicBusDevice<D>
     /// # Panics
     /// Panics if a device doesn't exist at `index` or if a device is not of type `B`.
     #[inline]
-    pub fn as_device_ref<B>(&mut self, index: usize) -> &B
+    pub fn as_device_ref<B>(&self, index: usize) -> &B
         where B: BusDevice<Timestamp=D::Timestamp,
                            NextDevice=NullDevice<D::Timestamp>> + 'static
     {
