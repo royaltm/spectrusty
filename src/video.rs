@@ -2,6 +2,7 @@
 mod color;
 mod pixel_buffer;
 
+use core::convert::TryFrom;
 use core::fmt::Debug;
 use core::ops::{BitAnd, BitOr, Shl, Shr, Range};
 use crate::clock::{Ts, FTs};
@@ -14,7 +15,8 @@ pub const PAL_HC: u32 = 704/2;
 
 pub const MAX_BORDER_SIZE: u32 = 6*8;
 
-#[derive(Copy,Clone,Debug)]
+#[derive(Copy,Clone,Debug,PartialEq,Eq,Hash)]
+#[repr(u8)]
 pub enum BorderSize {
     Full    = 6,
     Large   = 5,
@@ -22,6 +24,28 @@ pub enum BorderSize {
     Small   = 3,
     Tiny    = 2,
     Minimal = 1
+}
+
+impl From<BorderSize> for u8 {
+    fn from(border: BorderSize) -> u8 {
+        border as u8
+    }
+}
+
+impl TryFrom<u8> for BorderSize {
+    type Error = ();
+    fn try_from(border: u8) -> Result<Self, Self::Error> {
+        use BorderSize::*;
+        Ok(match border {
+            6 => Full,
+            5 => Large,
+            4 => Medium,
+            3 => Small,
+            2 => Tiny,
+            1 => Minimal,
+            _ => return Err(())
+        })
+    }
 }
 
 pub trait Video {
