@@ -4,8 +4,12 @@
 use log::{error, warn, info, debug, trace};
 
 use std::{borrow::Cow, error::Error, ptr};
-use sdl2::{messagebox::{ show_simple_message_box, MessageBoxFlag }};
-
+use sdl2::{VideoSubsystem,
+            // video::Window,
+            pixels::PixelFormatEnum,
+            // rect::Rect,
+            render::WindowCanvas,
+            messagebox::{ show_simple_message_box, MessageBoxFlag }};
 pub fn alert(text: Cow<str>) {
     show_simple_message_box(MessageBoxFlag::ERROR, "ZX Spectrum", &text, None).expect("to show message box");
 }
@@ -37,6 +41,30 @@ pub fn set_dpi_awareness() -> Result<(), String> {
 }
 
 pub fn err_str<E: Error>(e: E) -> String { e.to_string() }
+
+pub fn create_image_canvas_window(video_sdl: &VideoSubsystem, image_data: &[u8]) -> Result<WindowCanvas, Box<dyn Error>> {
+    let img = image::load_from_memory_with_format(image_data,
+                                                  image::ImageFormat::Jpeg)?
+              .into_rgb();
+    let (width, height) = img.dimensions();
+    let window = video_sdl.window("ZX Spectrum", width, height)
+                            .borderless()
+                            // .hidden()
+                            .build()
+                            .map_err(err_str)?;
+    
+    let mut canvas = window.into_canvas().build()?;
+    let texture_creator = canvas.texture_creator();
+    let mut texture = texture_creator.create_texture_static(PixelFormatEnum::RGB24, width, height)?;
+    let samples = img.as_flat_samples();
+    let pitch = samples.layout.height_stride;
+    texture.update(None,
+                   samples.as_view::<image::Rgb<u8>>().unwrap().image_slice(),
+                   pitch)?;
+    canvas.copy(&texture, None, None)?;
+    canvas.present();
+    Ok(canvas)
+}
 
 macro_rules! measure_performance {
     ($label:expr; $time_unit:expr, $timer_subsystem:expr, $counter_elapsed:ident, $counter_iters:ident, $units_sum:ident; $run:expr) => {

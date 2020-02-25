@@ -44,16 +44,28 @@ pub trait JoystickAccess {
 impl<C, M, B> ZXSpectrum<C, M, B>
     where M: ZxMemory
 {
-    pub fn update_mouse_position(&mut self, dx: i32, dy: i32, border: BorderSize, viewport: (u32, u32))
+    pub fn move_mouse(&mut self, dx: i32, dy: i32) {
+        self.mouse_rel.0 += dx;
+        self.mouse_rel.1 += dy;
+    }
+
+    /// Send mouse positions at most once every frame to prevent overflowing.
+    pub fn send_mouse_move(&mut self, border: BorderSize, viewport: (u32, u32))
         where Self: MouseAccess
     {
-        if let Some(mouse) = self.mouse_mut() {
-            let (sx, sy) = <Ula::<M, B> as Video>::VideoFrame::screen_size_pixels(border);
-            let (vx, vy) = viewport;
-            let dx = (dx * 2 * sx as i32 / vx as i32) as i16;
-            let dy = (dy * 2 * sy as i32 / vy as i32) as i16;
-            // println!("{}x{}", dx, dy);
-            mouse.move_mouse((dx, dy))
+        match self.mouse_rel {
+            (0, 0) => {},
+            (dx, dy) => {
+                if let Some(mouse) = self.mouse_mut() {
+                    let (sx, sy) = <Ula::<M, B> as Video>::VideoFrame::screen_size_pixels(border);
+                    let (vx, vy) = viewport;
+                    let dx = (dx * 2 * sx as i32 / vx as i32) as i16;
+                    let dy = (dy * 2 * sy as i32 / vy as i32) as i16;
+                    // println!("{}x{}", dx, dy);
+                    mouse.move_mouse((dx, dy))
+                }
+                self.mouse_rel = (0, 0);
+            }
         }
     }
 

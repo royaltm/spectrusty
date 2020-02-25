@@ -70,6 +70,7 @@ pub struct ZXSpectrum<C, M, B> {
     pub tap_cabinet: TapFileCabinet,
     pub joystick_index: usize,
     bus_index: BusDeviceIndexes,
+    pub mouse_rel: (i32, i32),
     nmi: bool,
 }
 
@@ -134,6 +135,7 @@ impl<C, M, B> ZXSpectrum<C, M, B>
             tap_cabinet,
             // audio: ManuallyDrop::new(audio),
             bus_index: Default::default(),
+            mouse_rel: (0, 0),
             time_sync
         };
         zx.ula.memory.load_into_rom_page(0, ROM48).unwrap();

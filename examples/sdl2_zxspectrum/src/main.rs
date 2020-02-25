@@ -12,6 +12,7 @@ mod spectrum;
 mod printer;
 mod peripherals;
 
+use std::convert::TryInto;
 use std::collections::HashSet;
 
 #[allow(unused_imports)]
@@ -20,10 +21,11 @@ use log::{error, warn, info, debug, trace};
 #[allow(unused_imports)]
 use sdl2::{Sdl, 
            event::{Event, WindowEvent},
-           keyboard::{Keycode, Mod as Modifier},
+           keyboard::{Scancode, Keycode, Mod as Modifier},
+           mouse::MouseButton,
            pixels::PixelFormatEnum,
            rect::Rect,
-           video::{FullscreenType, Window, WindowContext}};
+           video::{WindowPos, FullscreenType, Window, WindowContext}};
 // use sdl2_sys::SDL_WindowFlags;
 use crate::spectrum::*;
 use crate::peripherals::{SpoolerAccess, MouseAccess, JoystickAccess, DynBusAccess};
@@ -31,6 +33,7 @@ use crate::utils::*;
 
 const REQUESTED_AUDIO_LATENCY: usize = 2;
 
+const KEYBOARD_IMAGE: &[u8] = include_bytes!("../../../resources/ZXSpectrumKeys704.jpg");
 
 const HEAD: &str = r#"The SDL2 desktop example emulator for "rust-zxspecemu""#;
 const HELP: &str = r###"
@@ -47,6 +50,8 @@ F8: Starts recording of TAP chunks appending them to the current TAP file.
 F9: Toggles on/off tape audio.
 F10: Resets ZX Spectrum.
 F11: Triggers non-maskable interrupt.
+F12: Change border size.
+ScrLck: Show/hide keyboard image.
 Pause: Pauses/resumes emulation.
 Insert: Creates a new TAP file for recording.
 Delete: Removes a current TAP from the emulator.
@@ -100,7 +105,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 }
 
-fn run<C, M, B, I>(mut zx: ZXSpectrum<C, M, B>, sdl_context: Sdl, files: I) -> Result<(), Box<dyn std::error::Error>>
+fn run<C, M, B, I>(
+        mut zx: ZXSpectrum<C, M, B>,
+        sdl_context: Sdl,
+        files: I
+    ) -> Result<(), Box<dyn std::error::Error>>
     where I: IntoIterator<Item=String>,
           M: ZxMemory + Default,
           B: BusDevice<Timestamp=VideoTs>,
@@ -120,15 +129,12 @@ fn run<C, M, B, I>(mut zx: ZXSpectrum<C, M, B>, sdl_context: Sdl, files: I) -> R
 
     let video_subsystem = sdl_context.video()?;
     // eprintln!("driver: {}", video_subsystem.current_video_driver());
-
-    let border_size = BorderSize::Full;
-    let window: Window;
-    let (screen_width, screen_height) = ZXSpectrum::<C, M, B>::screen_size(border_size);
-    info!("{:?} {}x{}", border_size, screen_width, screen_height);
-
+    let mut border_size = BorderSize::Full;
     let window_title = |zx: &ZXSpectrum<C, M, B>| format!("ZX Spectrum {}", zx.device_info());
 
-    window = video_subsystem.window(&window_title(&zx),
+    let (screen_width, screen_height) = ZXSpectrum::<C, M, B>::screen_size(border_size);
+    debug!("{:?} {}x{}", border_size, screen_width, screen_height);
+    let window = video_subsystem.window(&window_title(&zx),
                                     screen_width*2, screen_height*2)
                             // .resizable()
                             .allow_highdpi()
@@ -136,21 +142,29 @@ fn run<C, M, B, I>(mut zx: ZXSpectrum<C, M, B>, sdl_context: Sdl, files: I) -> R
                             .build()
                             .map_err(err_str)?;
 
-    sdl_context.mouse().show_cursor(false);
-
-    let timer_subsystem = sdl_context.timer()?;
-
     let mut canvas = window.into_canvas()
                     .accelerated()
                     // .present_vsync()
                     .build()
                     .map_err(err_str)?;
+    let canvas_id = canvas.window().id();
 
     let texture_creator = canvas.texture_creator();
+    let create_texture = |width, height| {
+        texture_creator.create_texture_streaming(PixelFormatEnum::RGB24, width, height)
+                       .map_err(err_str)
+    };
 
-    let mut texture = texture_creator
-                      .create_texture_streaming(PixelFormatEnum::RGB24, screen_width, screen_height)
-                      .map_err(err_str)?;
+    let mut texture = create_texture(screen_width, screen_height)?;
+
+    let mut keyboard_visible = false;
+    let mut keyboard_canvas = create_image_canvas_window(&video_subsystem, KEYBOARD_IMAGE)?;
+    let keyboard_canvas_id = keyboard_canvas.window().id();
+    keyboard_canvas.window_mut().hide();
+
+    // sdl_context.mouse().show_cursor(false);
+
+    let timer_subsystem = sdl_context.timer()?;
 
     let mut event_pump = sdl_context.event_pump()?;
 
@@ -160,23 +174,57 @@ fn run<C, M, B, I>(mut zx: ZXSpectrum<C, M, B>, sdl_context: Sdl, files: I) -> R
     let mut file_count = 0;
     let mut status = EmulatorStatus::Normal;
     let mut printing: Option<u32> = None;
+    let mut move_keyboard: Option<(i32, i32)> = None;
 
     'mainloop: loop {
         for event in event_pump.poll_iter() {
             match event {
                 Event::Window { win_event: WindowEvent::Close, .. } | Event::Quit { .. } => break 'mainloop,
-                Event::MouseMotion{ xrel, yrel, .. } => {
-                    // println!("{:?} {:?} {}x{} | {}x{}", which, mousestate, x, y, xrel, yrel);
+                Event::MouseMotion{ window_id, xrel, yrel, .. } if window_id == canvas_id => {
                     // let size = canvas.window().size();
-                    let viewport = canvas.window().drawable_size();
-                    // println!("{:?} {:?}", viewport, size);
-                    zx.update_mouse_position(xrel, yrel, border_size, viewport);
+                    // println!("{}x{}", xrel, yrel);
+                    zx.move_mouse(xrel, yrel);
                 }
-                Event::MouseButtonDown { mouse_btn, .. } => {
-                    zx.update_mouse_button(mouse_btn, true);
+                Event::MouseMotion {
+                        window_id, mousestate, xrel, yrel, ..
+                    } if mousestate.left() && window_id == keyboard_canvas_id => {
+                    let (dx, dy) = move_keyboard.unwrap_or((0, 0));
+                    let (dx, dy) = (dx + xrel, dy + yrel);
+                    if dx == 0 && dy == 0 {
+                        move_keyboard = None;
+                    }
+                    else {
+                        move_keyboard = Some((dx, dy));
+                        let (x, y) = keyboard_canvas.window().position();
+                        keyboard_canvas.window_mut().set_position(WindowPos::Positioned(x + dx),
+                                                      WindowPos::Positioned(y + dy));
+                        keyboard_canvas.present();
+                        continue;
+                    }
                 }
-                Event::MouseButtonUp { mouse_btn, .. } => {
+                Event::KeyDown{ keycode: Some(Keycode::Escape), repeat: false, ..} => {
+                    if canvas.window().grab() {
+                        sdl_context.mouse().show_cursor(true);
+                        canvas.window_mut().set_grab(false);
+                    }
+                }
+                Event::MouseButtonDown { window_id, mouse_btn, .. } if window_id == canvas_id => {
+                    if canvas.window().grab() {
+                        zx.update_mouse_button(mouse_btn, true);
+                    }
+                    else {
+                        sdl_context.mouse().show_cursor(false);
+                        canvas.window_mut().set_grab(true);
+                    }
+                }
+                Event::MouseButtonDown { window_id, mouse_btn: MouseButton::Left, .. } if window_id == keyboard_canvas_id => {
+                    move_keyboard = None;
+                }
+                Event::MouseButtonUp { window_id, mouse_btn, .. } if window_id == canvas_id => {
                     zx.update_mouse_button(mouse_btn, false);
+                }
+                Event::MouseButtonUp { window_id, mouse_btn: MouseButton::Left, .. } if window_id == keyboard_canvas_id => {
+                    move_keyboard = None;
                 }
                 Event::KeyDown{ keycode: Some(Keycode::F1), repeat: false, ..} => {
                     zx.audio.pause();
@@ -356,6 +404,29 @@ fn run<C, M, B, I>(mut zx: ZXSpectrum<C, M, B>, sdl_context: Sdl, files: I) -> R
                     zx.audible_tap = !zx.audible_tap;
                     info!("TAP sound: {}", if zx.audible_tap { "audible" } else { "silent" });
                 }
+                Event::KeyDown{ keycode: Some(Keycode::F12), repeat: false, ..} => {
+                    border_size = u8::from(border_size).wrapping_sub(1).try_into().unwrap_or(BorderSize::Full);
+                    let (w, h) = ZXSpectrum::<C, M, B>::screen_size(border_size);
+                    canvas.window_mut().set_size(w*2, h*2)?;
+                    texture = create_texture(w, h)?;
+                }
+                Event::KeyDown{ keycode: Some(Keycode::ScrollLock), repeat: false, ..} => {
+                    if keyboard_visible {
+                        keyboard_canvas.window_mut().hide();
+                    }
+                    else {
+                        keyboard_canvas.window_mut().show();
+                        let (mut x, mut y) = canvas.window().position();
+                        let (w, h) = canvas.window().size();
+                        y += h as i32;
+                        let (kw, _) = keyboard_canvas.window().size();
+                        x += (w as i32 - kw as i32)/2;
+                        keyboard_canvas.window_mut().set_position(WindowPos::Positioned(x), WindowPos::Positioned(y));
+                        keyboard_canvas.present();
+                        move_keyboard = None;
+                    }
+                    keyboard_visible = !keyboard_visible;
+                }
                 Event::KeyDown{ keycode: Some(keycode), keymod, repeat: false, ..} => {
                     if !zx.cursor_to_joystick(keycode, true) {
                         zx.update_keypress(keycode, keymod, true);
@@ -370,7 +441,7 @@ fn run<C, M, B, I>(mut zx: ZXSpectrum<C, M, B>, sdl_context: Sdl, files: I) -> R
                     info!("Dropped file: {} {}", zx.handle_file(&filename)?, filename);
                 }
                 _ => {
-                    continue 'mainloop
+                    // continue 'mainloop
                 }
             }
         }
@@ -379,6 +450,9 @@ fn run<C, M, B, I>(mut zx: ZXSpectrum<C, M, B>, sdl_context: Sdl, files: I) -> R
             zx.synchronize_thread_to_frame();
             continue
         }
+
+        let viewport = canvas.window().drawable_size();
+        zx.send_mouse_move(border_size, viewport);
 
         // render pixels
         texture.with_lock(None, |buffer: &mut [u8], pitch: usize| {
