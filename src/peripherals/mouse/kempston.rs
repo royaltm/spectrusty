@@ -72,6 +72,13 @@ impl MouseInterface for KempstonMouseDevice {
 }
 
 #[inline(always)]
-fn clamped_move(prev: u8, coord: i16) -> u8 {
-    prev.wrapping_add((coord >> 1) as u8)
+fn clamped_move(prev: u8, mut delta: i16) -> u8 {
+    delta >>= 1;
+    if delta < i8::min_value().into() {
+        delta = i8::min_value().into();
+    }
+    else if delta > i8::max_value().into() {
+        delta = i8::max_value().into();
+    }
+    prev.wrapping_add(delta as u8)
 }
