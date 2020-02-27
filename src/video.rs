@@ -3,7 +3,7 @@ mod color;
 mod pixel_buffer;
 
 use core::convert::TryFrom;
-use core::fmt::Debug;
+use core::fmt::{self, Debug};
 use core::ops::{BitAnd, BitOr, Shl, Shr, Range};
 use crate::clock::{Ts, FTs};
 
@@ -33,8 +33,19 @@ impl From<BorderSize> for u8 {
     }
 }
 
+#[derive(Clone,Copy,Debug,PartialEq,Eq)]
+pub struct BorderSizeTryFromError(pub u8);
+
+impl fmt::Display for BorderSizeTryFromError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "converted integer ({}) out of range for `BorderSize`", self.0)
+    }
+}
+
+impl std::error::Error for BorderSizeTryFromError {}
+
 impl TryFrom<u8> for BorderSize {
-    type Error = ();
+    type Error = BorderSizeTryFromError;
     fn try_from(border: u8) -> Result<Self, Self::Error> {
         use BorderSize::*;
         Ok(match border {
@@ -45,7 +56,7 @@ impl TryFrom<u8> for BorderSize {
             2 => Tiny,
             1 => Minimal,
             0 => Nil,
-            _ => return Err(())
+            _ => return Err(BorderSizeTryFromError(border))
         })
     }
 }
