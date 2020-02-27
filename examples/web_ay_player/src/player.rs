@@ -8,7 +8,7 @@ use zxspecemu::memory::ZxMemory;
 use zxspecemu::audio::*;
 use zxspecemu::audio::synth::{BandLimited, BandLimOpt};
 use zxspecemu::audio::ay::AyAudioFrame;
-use zxspecemu::io::ay::Ay128kPortDecode;
+use zxspecemu::peripherals::ay::Ay128kPortDecode;
 use zxspecemu::formats::{
     ay::*,
     sna::*
@@ -136,7 +136,7 @@ impl<F: BandLimOpt> AyFilePlayer<F> {
         let ay_file = match parse_ay(data) {
             Ok(af) => af,
             Err(ay_err) if ay_err.data.len() == SNA_LENGTH => {
-                self.player.memory.rom_page_mut(0).unwrap()
+                self.player.memory.rom_mut()
                     .copy_from_slice(&ROM48);
                 read_sna(Cursor::new(&ay_err.data),
                         &mut self.cpu,

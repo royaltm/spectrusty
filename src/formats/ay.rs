@@ -25,7 +25,7 @@ use nom::{Offset, IResult, Err};
 
 use z80emu::{Cpu, Prefix, Reg8, CpuFlags, InterruptMode};
 // use crate::cpu_debug::print_debug_memory;
-use crate::memory::{ZxMemory, SinglePageMemory};
+use crate::memory::{ZxMemory, SingleBankMemory};
 
 /// This is the main type produced by methods of this module.
 pub type PinAyFile = Pin<Box<AyFile>>;
@@ -215,7 +215,7 @@ impl AyFile {
     /// * If special player is required. See [AyMeta].
     /// * If a capacity of provided memory is less than 64kb.
     pub fn initialize_player<C, M>(&self, cpu: &mut C, mem: &mut M, song_index: usize)
-    where C: Cpu, M: ZxMemory + SinglePageMemory
+    where C: Cpu, M: ZxMemory + SingleBankMemory
     {
         if self.meta.special_player {
             panic!("can't initialize file with a special player");

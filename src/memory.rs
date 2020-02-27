@@ -1,33 +1,129 @@
+/*! Emulator's memory api. This module defines [ZxMemory] trait.
+# Memory banks and pages.
+
+* [ZxMemory] ROM and RAM is a continuous slice of memory divided into logical banks.
+* 16 bit memory addresses are mapped constantly to pages depending on the implementation: [SingleBankMemory] or [PagedMemory].
+* Each page can have any fitting bank of ROM or RAM memory switched in.
+
+Below are examples of continuous memory slab: all ROM banks followed by RAM banks.
+[ZxMemory::mem_ref] and [ZxMemory::mem_mut] both give access to the whole area.
+```text
+|00000h  |04000h  |8000h   |0c000h  |10000h  |14000h  |18000h |1c000h  |20000h  | 24000h
+Memory16k
+|ROM_SIZE|
++--------+--------+
+|        | Screen |
+|        | Bank 0 |
+| ROM    | RAM    |
+| Bank 0 | Bank 0 |
++--------+--------+
+Memory48k
+|ROM_SIZE|
++--------+--------+--------+--------+
+|        | Screen Bank 0            |
+|        |                          |
+| ROM    | RAM Bank 0               |
+| Bank 0 |                          |
++--------+--------+--------+--------+
+Memory128k
+|<-   ROM_SIZE  ->|
++--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+
+|        |        |        |        |        |        |        | Screen |        | Screen |
+|        |        |        |        |        |        |        | Bank 0 |        | Bank 1 |
+| ROM    | ROM    | RAM    | RAM    | RAM    | RAM    | RAM    | RAM    | RAM    | RAM    |
+| Bank 0 | Bank 1 | Bank 0 | Bank 1 | Bank 2 | Bank 3 | Bank 4 | Bank 5 | Bank 6 | Bank 7 |
++--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+
+```
+Below are examples of memory pages mappings.
+
+A constant memory map of [Memory16k] and [Memory48k]:
+```text
+        Memory48k  Memory16k
+Page 0 +--------+  +--------+ Page 0 0x0000
+       |        |  |        |
+       |        |  |        |
+       | ROM    |  | ROM    |
+       | Bank 0 |  | Bank 0 |
+Page 1 +--------+  +--------+ Page 1 0x4000
+       | Screen |  | Screen |
+       | Bank 0 |  | Bank 0 |
+       | RAM    |  | RAM    |
+       | Bank 0 |  | Bank 0 | RAMTOP 0x7fff
+       +        +  +--------+        0x8000
+       |        |
+       |        |
+       |        |
+       |        |
+       +        +                    0xc000
+       |        |
+       |        |
+       |        |
+RAMTOP |        |                    0xffff
+       +--------+
+```
+A memory map with example banks switched in for [Memory128k] or [Memory128kPlus]:
+```text
+Page 0 +--------+ 0x1000
+       |        |
+       |        |
+       | ROM    |
+       | Bank 0 |
+Page 1 +--------+ 0x4000
+       | Screen |
+       | Bank 0 |
+       | RAM    |
+       | Bank 5 |
+Page 2 +--------+ 0x8000
+       |        |
+       |        |
+       | RAM    |
+       | Bank 2 |
+Page 3 +--------+ 0xc000
+       |        |
+       |        |
+       | RAM    |
+RAMTOP | Bank 0 | 0xffff
+       +--------+
+```
+*/
 use core::ops::Range;
 use core::ops::{Bound, RangeBounds};
 use core::fmt;
 use std::io::{self, Read};
 
-bitflags! {
-    #[derive(Default)]
-    pub struct MemoryFeatures: u8 {
-        const ROM16K   = 0x01; // 2 ROMS available
-        const ROM32K   = 0x02; // 4 ROMS available
-        const RAM_BANKS_16K = 0x04; // 16k ram banks
-        const RAM_BANKS_8K  = 0x08; // 8k ram banks
-        const NONE = MemoryFeatures::empty().bits;
-    }
-}
+mod single_page;
+mod multi_page;
+
+pub use single_page::*;
+pub use multi_page::*;
+
+// bitflags! {
+//     #[derive(Default)]
+//     pub struct MemoryFeatures: u8 {
+//         const ROM16K   = 0x01; // 2 ROMS available
+//         const ROM32K   = 0x02; // 4 ROMS available
+//         const RAM_BANKS_16K = 0x04; // 16k ram banks
+//         const RAM_BANKS_8K  = 0x08; // 8k ram banks
+//         const NONE = MemoryFeatures::empty().bits;
+//     }
+// }
 
 #[derive(Debug)]
 pub enum ZxMemoryError {
-    PageOutOfRange,
+    InvalidPageIndex,
+    InvalidBankIndex,
     AddressRangeNotSupported,
-    Unwritable,
     Io(io::Error)
 }
+
+impl std::error::Error for ZxMemoryError {}
 
 impl fmt::Display for ZxMemoryError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", match self {
-            ZxMemoryError::PageOutOfRange => "Memory page index out of range",
+            ZxMemoryError::InvalidPageIndex => "Memory page index out of range",
+            ZxMemoryError::InvalidBankIndex => "Memory bank index out of range",
             ZxMemoryError::AddressRangeNotSupported => "Address range not supported",
-            ZxMemoryError::Unwritable => "Unwritable",
             ZxMemoryError::Io(err) => return err.fmt(f)
         })
     }
@@ -36,14 +132,14 @@ impl fmt::Display for ZxMemoryError {
 impl From<ZxMemoryError> for io::Error {
     fn from(err: ZxMemoryError) -> Self {
         match err {
-            ZxMemoryError::PageOutOfRange => {
-                io::Error::new(io::ErrorKind::InvalidInput, "Memory page index out of range")
+            ZxMemoryError::InvalidPageIndex => {
+                io::Error::new(io::ErrorKind::InvalidInput, err)
+            }
+            ZxMemoryError::InvalidBankIndex => {
+                io::Error::new(io::ErrorKind::InvalidInput, err)
             }
             ZxMemoryError::AddressRangeNotSupported => {
-                io::Error::new(io::ErrorKind::InvalidInput, "Address range not supported")
-            }
-            ZxMemoryError::Unwritable => {
-                io::Error::new(io::ErrorKind::InvalidInput, "Unwritable")
+                io::Error::new(io::ErrorKind::InvalidInput, err)
             }
             ZxMemoryError::Io(err) => err
         }
@@ -51,406 +147,199 @@ impl From<ZxMemoryError> for io::Error {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub enum MemoryPage {
-    Rom {index: u8, offset: u16},
-    Ram {index: u8, offset: u16}
+#[repr(u8)]
+pub enum MemoryKind {
+    Rom,
+    Ram
 }
 
+/// A type returned by [ZxMemory::page_index_at].
+#[derive(Clone, Copy, Debug)]
+pub struct MemPageOffset {
+    /// A kind of memory bank switched in.
+    pub kind: MemoryKind,
+    /// A page index.
+    pub index: u8,
+    /// An offset into the page slice.
+    pub offset: u16
+}
+
+/// A type returned by [MemPageMutIter] iterator.
 #[derive(Debug)]
-pub enum PageSlice<'a> {
+pub enum PageMutSlice<'a> {
     Rom(&'a mut [u8]),
     Ram(&'a mut [u8])
 }
 
+/// A type returned by some of [ZxMemory] methods.
 pub type Result<T> = core::result::Result<T, ZxMemoryError>;
 
+/// A trait for interfacing ZX Spectrum's various memory types.
 pub trait ZxMemory: Sized {
+    /// This is just a hint. Actual page sizes may vary.
+    const PAGE_SIZE: usize = 0x4000;
+    /// The size of the whole rom, not just one bank.
+    const ROM_SIZE: usize;
+    /// The last available memory address.
     const RAMTOP: u16;
-    const FEATURES: MemoryFeatures;
-    /// Page should be a supported page rom index.
-    fn rom_page_ref(&self, rom_page: u8) -> Result<&[u8]>;
-    /// Page should be a supported page ram index.
-    fn ram_page_ref(&self, ram_page: u8) -> Result<&[u8]>;
-    /// Page should be a supported page rom index.
-    fn rom_page_mut(&mut self, rom_page: u8) -> Result<& mut[u8]>;
-    /// Page should be a supported page ram index.
-    fn ram_page_mut(&mut self, ram_page: u8) -> Result<& mut[u8]>;
-    /// Page should be a supported page ram index and the address range should be a supported page-able address range.
-    fn map_ram_page<A: RangeBounds<u16>>(&mut self, ram_page: u8, address_range: A) -> Result<()>;
-    /// Page should be a supported page rom index and the address range should be a supported page-able address range.
-    fn map_rom_page<A: RangeBounds<u16>>(&mut self, rom_page: u8, address_range: A) -> Result<()>;
-    /// Page should be a supported page ram index and the address range should be a supported page-able address range.
-    fn page_index_at(&mut self, address: u16) -> Result<MemoryPage>;
-    /// Get view of the screen_page memory.
-    fn screen_ref(&self, screen_page: u8) -> Result<&[u8]>;
-    /// Get mutable view of the screen_page memory.
-    fn screen_mut(&mut self, screen_page: u8) -> Result<&mut [u8]>;
-    /// If addr is above RAMTOP the function should return std::u8::MAX.
+    /// A maximum value allowed for a `page` argument.
+    const PAGES_MAX: u8;
+    /// A maximum value allowed for a `screen_bank` argument
+    const SCR_BANKS_MAX: usize;
+    /// A maximum value allowed for a `rom_bank` argument
+    const ROM_BANKS_MAX: usize;
+    /// A maximum value allowed for a `ram_bank` argument
+    const RAM_BANKS_MAX: usize;
+    // /// A hint of available memory features.
+    // const FEATURES: MemoryFeatures;
+    /// If `addr` is above `RAMTOP` the function should return [std::u8::MAX].
     fn read(&self, addr: u16) -> u8;
-    /// If addr is above RAMTOP the function should return std::u16::MAX.
+    /// If `addr` is above `RAMTOP` the function should return [std::u16::MAX].
     fn read16(&self, addr: u16) -> u16;
-    /// If addr is above RAMTOP the function should do nothing.
+    /// If `addr` is above `RAMTOP` the function should do nothing.
     fn write(&mut self, addr: u16, val: u8);
-    /// If addr is above RAMTOP the function should do nothing.
+    /// If addr is above `RAMTOP` the function should do nothing.
     fn write16(&mut self, addr: u16, val: u16);
-    /// The data read depends on how big rom pages are.
-    /// Results in an error when the rom data size is less than the rom page size or invalid page index is given.
-    fn load_into_rom_page<R: Read>(&mut self, rom_page: u8, mut rd: R) -> Result<()> {
-        let slice = self.rom_page_mut(rom_page)?;
-        rd.read_exact(slice).map_err(ZxMemoryError::Io)?;
+    /// Provides a continuous view into the whole memory (all banks: ROM + RAM).
+    fn mem_ref(&self) -> &[u8];
+    /// Provides a continuous view into the whole memory (all banks: ROM + RAM).
+    fn mem_mut(&mut self) -> &mut[u8];
+    /// Returns a slice of the screen memory.
+    fn screen_ref(&self, screen_bank: usize) -> Result<&[u8]>;
+    /// Returns a mutable slice of the screen_page memory.
+    fn screen_mut(&mut self, screen_bank: usize) -> Result<&mut [u8]>;
+    /// `page` should be less or euqal to PAGES_MAX.
+    fn page_kind(&self, page: u8) -> Result<MemoryKind>;
+    /// `page` should be less or euqal to PAGES_MAX.
+    fn page_ref(&self, page: u8) -> Result<&[u8]>;
+    /// `page` should be less or euqal to PAGES_MAX.
+    fn page_mut(&mut self, page: u8) -> Result<& mut[u8]>;
+    /// `rom_bank` should be less or equal to `ROM_BANKS_MAX`.
+    fn rom_bank_ref(&self, rom_bank: usize) -> Result<&[u8]>;
+    /// `rom_bank` should be less or equal to `ROM_BANKS_MAX`.
+    fn rom_bank_mut(&mut self, rom_bank: usize) -> Result<&[u8]>;
+    /// `ram_bank` should be less or equal to `RAM_BANKS_MAX`.
+    fn ram_bank_ref(&self, ram_bank: usize) -> Result<&[u8]>;
+    /// `ram_bank` should be less or equal to `RAM_BANKS_MAX`.
+    fn ram_bank_mut(&mut self, ram_bank: usize) -> Result<&[u8]>;
+    /// `rom_bank` should be less or equal to `ROM_BANKS_MAX` and `page` should be less or euqal to PAGES_MAX.
+    fn map_rom_bank(&mut self, rom_bank: usize, page: u8) -> Result<()>;
+    /// `ram_bank` should be less or equal to `RAM_BANKS_MAX` and `page` should be less or euqal to PAGES_MAX.
+    fn map_ram_bank(&mut self, ram_bank: usize, page: u8) -> Result<()>;
+    /// Returns `Ok(MemPageOffset)` if address is equal to or less than [ZxMemory::RAMTOP].
+    fn page_index_at(&self, address: u16) -> Result<MemPageOffset>;
+    /// Provides a continuous view into the ROM memory (all banks).
+    fn rom_ref(&self) -> &[u8] {
+        &self.mem_ref()[0..Self::ROM_SIZE]
+    }
+    /// Provides a continuous mutable view into the ROM memory (all banks).
+    fn rom_mut(&mut self) -> &mut [u8] {
+        &mut self.mem_mut()[0..Self::ROM_SIZE]
+    }
+    /// Provides a continuous view into the RAM memory (all banks).
+    fn ram_ref(&self) -> &[u8] {
+        &self.mem_ref()[Self::ROM_SIZE..]
+    }
+    /// Provides a continuous mutable view into the RAM memory (all banks).
+    fn ram_mut(&mut self) -> &mut [u8] {
+        &mut self.mem_mut()[Self::ROM_SIZE..]
+    }
+    /// The data read depends on how big ROM is [ZxMemory::ROM_SIZE].
+    /// Results in an error when the rom data size is less than the `ROM_SIZE`.
+    fn load_into_rom<R: Read>(&mut self, mut rd: R) -> Result<()> {
+        let slice = self.rom_mut();
+        rd.read_exact(slice).map_err(ZxMemoryError::Io)
+    }
+    /// Returns an iterator of mutable memory page slices [PageMutSlice] intersecting with a given address range.
+    fn page_slice_iter_mut<'a, A: RangeBounds<u16>>(
+            &'a mut self,
+            address_range: A
+        ) -> Result<MemPageMutIter<'a, Self>>
+    {
+        let range = normalize_address_range(address_range, 0, Self::RAMTOP)
+                    .map_err(|_| ZxMemoryError::AddressRangeNotSupported)?;
+        let cursor = range.start;
+        let end = range.end;
+        Ok(MemPageMutIter { mem: self, cursor, end })
+    }
+    /// Reads data into a paged-in memory area at the given address range.
+    fn load_into_mem<A: RangeBounds<u16>, R: Read>(&mut self, address_range: A, mut rd: R) -> Result<()> {
+        for page in self.page_slice_iter_mut(address_range)? {
+            match page {
+                PageMutSlice::Rom(slice)|PageMutSlice::Ram(slice) => {
+                    rd.read_exact(slice).map_err(ZxMemoryError::Io)
+                }
+            }?
+        }
         Ok(())
     }
-
-    fn for_each_page<A, F>(&mut self, address_range: A, mut f: F) -> Result<()>
-    where A: RangeBounds<u16>, F: FnMut(PageSlice<'_>) -> Result<()>
+    /// Fills currently paged-in pages with the data produced by the closure F.
+    ///
+    /// Usefull to fill RAM with random bytes.
+    /// Provide the address range, trying to write into the address above RAMTOP results in an Error.
+    fn fill_mem<R, F>(&mut self, address_range: R, mut f: F) -> Result<()>
+    where R: RangeBounds<u16>, F: FnMut() -> u8
     {
-        let range = normalize_address_range(address_range, 0, Self::RAMTOP).map_err(|_| ZxMemoryError::AddressRangeNotSupported)?;
-        let mut cursor = range.start;
-        let end = range.end;
-        while cursor < end {
-            let page = self.page_index_at(cursor as u16)?;
+        for page in self.page_slice_iter_mut(address_range)? {
             match page {
-                MemoryPage::Rom { index, offset } => {
-                    let offset = offset as usize;
-                    let page = self.rom_page_mut(index)?;
-                    let read_len = end - cursor;
-                    let read_end = page.len().min(offset + read_len);
-                    let read_page = &mut page[offset..read_end];
-                    cursor += read_page.len();
-                    f(PageSlice::Rom(read_page))?;
-                },
-                MemoryPage::Ram { index, offset } => {
-                    let offset = offset as usize;
-                    let page = self.ram_page_mut(index)?;
-                    let read_len = end - cursor;
-                    let read_end = page.len().min(offset + read_len);
-                    let read_page = &mut page[offset..read_end];
-                    cursor += read_page.len();
-                    f(PageSlice::Ram(read_page))?;
+                PageMutSlice::Rom(slice)|PageMutSlice::Ram(slice) => {
+                    for p in slice.iter_mut() {
+                        *p = f()
+                    }
                 }
             }
         }
         Ok(())
     }
+}
+/// Implements an iterator of [PageMutSlice]s. See [ZxMemory::page_slice_iter_mut].
+pub struct MemPageMutIter<'a, Z> {
+    mem: &'a mut Z,
+    cursor: usize,
+    end: usize
+}
 
-    /// Reads data into a paged-in memory area at the given address range.
-    /// Attempting to write into the ROM area or above the RAMTOP results in an Error.
-    fn load_into_ram<A: RangeBounds<u16>, R: Read>(&mut self, address_range: A, mut rd: R) -> Result<()> {
-        self.for_each_page(address_range, |page| match page {
-            PageSlice::Ram(slice) => {
-                rd.read_exact(slice).map_err(ZxMemoryError::Io)
-            },
-            PageSlice::Rom(_) => Err(ZxMemoryError::Unwritable)
-        })
-    }
-    /// Fills currently paged-in RAM pages with the data produced by the closure F. Usefull to fill the RAM with random bytes.
-    /// Provide the RAM address, trying to write into the address above RAMTOP results in an Error.
-    /// The function is skipping ROM paged-in areas.
-    fn fill_ram<R, F>(&mut self, address_range: R, mut f: F) -> Result<()>
-    where R: RangeBounds<u16>, F: FnMut() -> u8
-    {
-        self.for_each_page(address_range, |page| match page {
-            PageSlice::Ram(slice) => {
-                for p in slice.iter_mut() {
-                    *p = f()
+impl<'a, Z: ZxMemory> Iterator for MemPageMutIter<'a, Z> {
+    type Item = PageMutSlice<'a>;
+    fn next(&mut self) -> Option<PageMutSlice<'a>> {
+        let cursor = self.cursor;
+        let end = self.end;
+        if cursor < end {
+            let MemPageOffset { kind, index, offset } = self.mem.page_index_at(cursor as u16).unwrap();
+            let offset = offset as usize;
+            let page = self.mem.page_mut(index).unwrap();
+            // we are borrowing from mem with 'a bound to mem, not self
+            let page = unsafe { core::mem::transmute::<&mut[u8], &'a mut[u8]>(page) };
+            let read_len = end - cursor;
+            let read_end = page.len().min(offset + read_len);
+            let read_page = &mut page[offset..read_end];
+            self.cursor += read_page.len();
+            match kind {
+                MemoryKind::Rom => {
+                    Some(PageMutSlice::Rom(read_page))
+                },
+                MemoryKind::Ram => {
+                    Some(PageMutSlice::Ram(read_page))
                 }
-                Ok(())
-            },
-            PageSlice::Rom(_) => Ok(()),
-        })
-    }
-}
-
-///////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////
-
-#[derive(Clone)]
-pub struct Memory16k {
-    mem: Box<[u8;0x8000]>
-}
-
-#[derive(Clone)]
-pub struct Memory48k {
-    mem: Box<[u8;0x10000]>
-}
-
-#[derive(Clone)]
-pub struct Memory64k {
-    mem: Box<[u8;0x10000]>
-}
-
-impl Default for Memory16k {
-    fn default() -> Self {
-        Memory16k { mem: Box::new([0; 0x8000]) }
-    }
-}
-
-impl Default for Memory48k {
-    fn default() -> Self {
-        Memory48k { mem: Box::new([0;0x10000]) }
-    }
-}
-
-impl Default for Memory64k {
-    fn default() -> Self {
-        Memory64k { mem: Box::new([0;0x10000]) }
-    }
-}
-
-pub trait SinglePageMemory {
-    const ROMSIZE: u16;
-    const ROMTOP: u16;
-    const RAMBOT: u16;
-    const RAMTOP: u16;
-    fn as_slice(&self) -> &[u8];
-    fn as_mut_slice(&mut self) -> &mut[u8];
-
-    #[inline(always)]
-    fn mem(&self) -> *const u8 {
-        self.as_slice().as_ptr()
-    }
-
-    #[inline(always)]
-    fn mem_mut(&mut self) -> *mut u8 {
-        self.as_mut_slice().as_mut_ptr()
-    }
-}
-
-impl SinglePageMemory for Memory16k {
-    const ROMSIZE: u16 = 0x4000;
-    const ROMTOP: u16 = Self::ROMSIZE-1;
-    const RAMBOT: u16 = Self::ROMTOP+1;
-    const RAMTOP: u16 = 0x7FFF;
-
-    fn as_slice(&self) -> &[u8] {
-        &*self.mem
-    }
-
-    fn as_mut_slice(&mut self) -> &mut[u8] {
-        &mut *self.mem
-    }
-
-    fn mem(&self) -> *const u8 {
-        self.mem.as_ptr()
-    }
-
-    fn mem_mut(&mut self) -> *mut u8 {
-        self.mem.as_mut_ptr()
-    }
-}
-
-impl SinglePageMemory for Memory48k {
-    const ROMSIZE: u16 = 0x4000;
-    const ROMTOP: u16 = Self::ROMSIZE-1;
-    const RAMBOT: u16 = Self::ROMTOP+1;
-    const RAMTOP: u16 = 0xFFFF;
-
-    fn as_slice(&self) -> &[u8] {
-        &*self.mem
-    }
-
-    fn as_mut_slice(&mut self) -> &mut[u8] {
-        &mut *self.mem
-    }
-
-    fn mem(&self) -> *const u8 {
-        self.mem.as_ptr()
-    }
-
-    fn mem_mut(&mut self) -> *mut u8 {
-        self.mem.as_mut_ptr()
-    }
-}
-
-impl SinglePageMemory for Memory64k {
-    const ROMSIZE: u16 = 0x4000;
-    const ROMTOP: u16 = Self::ROMSIZE-1;
-    const RAMBOT: u16 = 0x0000;
-    const RAMTOP: u16 = 0xFFFF;
-
-    fn as_slice(&self) -> &[u8] {
-        &*self.mem
-    }
-
-    fn as_mut_slice(&mut self) -> &mut[u8] {
-        &mut *self.mem
-    }
-
-    fn mem(&self) -> *const u8 {
-        self.mem.as_ptr()
-    }
-
-    fn mem_mut(&mut self) -> *mut u8 {
-        self.mem.as_mut_ptr()
-    }
-}
-
-impl<M: SinglePageMemory> ZxMemory for M {
-    const RAMTOP: u16 = M::RAMTOP;
-    const FEATURES: MemoryFeatures = MemoryFeatures::NONE;
-
-    #[inline(always)]
-    fn read(&self, addr: u16) -> u8 {
-        if addr <= Self::RAMTOP {
-            unsafe {
-                self.mem().offset(addr as isize).read()
             }
         }
         else {
-            u8::max_value()
+            None
         }
-    }
-
-    #[allow(clippy::cast_ptr_alignment)]
-    #[inline]
-    fn read16(&self, addr: u16) -> u16 {
-        match addr {
-            a if a < Self::RAMTOP => unsafe {
-                let ptr: *const u8 = self.mem().offset(a as isize);
-                let ptr16 = ptr as *const u16;
-                ptr16.read_unaligned().to_le()
-            }
-            a if a == Self::RAMTOP || a == std::u16::MAX => {
-                self.read(a) as u16|(self.read(a.wrapping_add(1)) as u16) << 8
-            }
-            _ => {
-                u16::max_value()
-            }
-        }
-    }
-
-    #[inline(always)]
-    fn write(&mut self, addr: u16, val: u8) {
-        if addr >= Self::RAMBOT && addr <= Self::RAMTOP  {
-            unsafe {
-                self.mem_mut().offset(addr as isize).write(val);
-            }
-        }
-    }
-
-    #[allow(clippy::cast_ptr_alignment)]
-    #[inline]
-    fn write16(&mut self, addr: u16, val: u16) {
-        match addr {
-            a if a >= Self::RAMBOT && a < Self::RAMTOP => unsafe {
-                let ptr: *mut u8 = self.mem_mut().offset(a as isize);
-                let ptr16 = ptr as *mut u16;
-                ptr16.write_unaligned(val.to_le());
-            }
-            a if a == Self::ROMTOP => {
-                self.write(a.wrapping_add(1), (val >> 8) as u8);
-            }
-            a if a == Self::RAMTOP => {
-                self.write(a, val as u8);
-                self.write(a.wrapping_add(1), (val >> 8) as u8);
-            }
-            _ => {}
-        }
-    }
-
-    fn rom_page_ref(&self, rom_page: u8) -> Result<&[u8]> {
-        if rom_page != 0 {
-            return Err(ZxMemoryError::PageOutOfRange)
-        }
-        Ok(&self.as_slice()[0..=Self::ROMTOP as usize])
-    }
-
-    fn ram_page_ref(&self, ram_page: u8) -> Result<&[u8]> {
-        if ram_page != 0 {
-            return Err(ZxMemoryError::PageOutOfRange)
-        }
-        Ok(&self.as_slice()[Self::RAMBOT as usize..=Self::RAMTOP as usize])
-    }
-
-    fn rom_page_mut(&mut self, rom_page: u8) -> Result<&mut[u8]> {
-        if rom_page != 0 {
-            return Err(ZxMemoryError::PageOutOfRange)
-        }
-        Ok(&mut self.as_mut_slice()[0..=Self::ROMTOP as usize])
-    }
-
-    fn ram_page_mut(&mut self, ram_page: u8) -> Result<&mut[u8]> {
-        if ram_page != 0 {
-            return Err(ZxMemoryError::PageOutOfRange)
-        }
-        Ok(&mut self.as_mut_slice()[Self::RAMBOT as usize..=Self::RAMTOP as usize])
-    }
-
-    fn page_index_at(&mut self, address: u16) -> Result<MemoryPage> {
-        match address {
-            a if a <= Self::ROMTOP => Ok(MemoryPage::Rom {index: 0, offset: a}),
-            a if a >= Self::RAMBOT && a <=Self::RAMTOP => Ok(MemoryPage::Ram {index: 0, offset: a - Self::RAMBOT}),
-            _ => Err(ZxMemoryError::AddressRangeNotSupported)
-        }
-    }
-
-    fn screen_ref(&self, screen_page: u8) -> Result<&[u8]> {
-        if screen_page != 0 {
-            return Err(ZxMemoryError::PageOutOfRange)
-        }
-        Ok(&self.as_slice()[0x4000..0x5B00])
-    }
-
-    fn screen_mut(&mut self, screen_page: u8) -> Result<&mut [u8]> {
-        if screen_page != 0 {
-            return Err(ZxMemoryError::PageOutOfRange)
-        }
-        Ok(&mut self.as_mut_slice()[0x4000..0x5B00])
-    }
-
-    fn map_ram_page<R: RangeBounds<u16>>(&mut self, ram_page: u8, address_range: R) -> Result<()> {
-        if ram_page != 0 {
-            return Err(ZxMemoryError::PageOutOfRange)
-        }
-        let range = normalize_address_range(address_range, Self::RAMBOT, Self::RAMTOP).
-                    map_err(|_| ZxMemoryError::AddressRangeNotSupported)?;
-        if range != (Self::RAMBOT as usize..Self::RAMTOP as usize) {
-            return Err(ZxMemoryError::AddressRangeNotSupported)
-        }
-        Ok(())
-    }
-
-    fn map_rom_page<R: RangeBounds<u16>>(&mut self, rom_page: u8, address_range: R) -> Result<()> {
-        if rom_page != 0 {
-            return Err(ZxMemoryError::PageOutOfRange)
-        }
-        let range = normalize_address_range(address_range, 0, Self::ROMTOP).
-                    map_err(|_| ZxMemoryError::AddressRangeNotSupported)?;
-        if range != (0..Self::ROMTOP as usize) {
-            return Err(ZxMemoryError::AddressRangeNotSupported)
-        }
-        Ok(())
     }
 }
 
-// struct Memory128k {
-//     rom: usize,
-//     ram: [usize;4],
-//     banks: [Box<[u8;16384]>;8],
-//     roms: [Box<[u8;16384]>;2]
-// }
-
-// struct Memory2a {
-//     rom: usize,
-//     ram: [usize;4],
-//     banks: [Box<[u8;16384]>;8],
-//     roms: [Box<[u8;16384]>;4]
-// }
-
-// struct MemoryTimex {
-//     rom: usize,
-//     ram: u8,
-//     exrom_active: bool,
-//     exrom: [Box<[u8;8192]>;8],
-//     home: [Box<[u8;8192]>;8],
-//     dock: [Box<[u8;8192]>;4]
-// }
 enum AddressRangeError {
     StartBoundTooLow,
     EndBoundTooHigh
 }
 
-fn normalize_address_range<R: RangeBounds<u16>>(range: R, min_inclusive: u16, max_inclusive: u16) -> core::result::Result<Range<usize>, AddressRangeError> {
+fn normalize_address_range<R: RangeBounds<u16>>(
+        range: R,
+        min_inclusive: u16,
+        max_inclusive: u16
+    ) -> core::result::Result<Range<usize>, AddressRangeError>
+{
     let start = match range.start_bound() {
         Bound::Included(start) => if *start < min_inclusive {
                 return Err(AddressRangeError::StartBoundTooLow)

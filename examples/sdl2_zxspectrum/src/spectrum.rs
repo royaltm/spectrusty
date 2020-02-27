@@ -138,9 +138,9 @@ impl<C, M, B> ZXSpectrum<C, M, B>
             mouse_rel: (0, 0),
             time_sync
         };
-        zx.ula.memory.load_into_rom_page(0, ROM48).unwrap();
+        zx.ula.memory.load_into_rom(ROM48).unwrap();
         // Produce some noise in memory for nice visuals.
-        zx.ula.memory.fill_ram(.., random).unwrap();
+        zx.ula.memory.fill_mem(0x4000.., random).unwrap();
         zx.audio.resume();
         Ok(zx)
     }

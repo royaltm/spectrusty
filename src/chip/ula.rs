@@ -22,8 +22,7 @@ pub const CPU_HZ: u32 = 3_500_000;
 //     pub ula: Ula<M, B>
 // }
 
-/// ZX Spectrum 16k/48k ULA
-/// The memory::Memory48k or memory::Memory16k can be used with it.
+/// ZX Spectrum 16k/48k ULA.
 #[derive(Clone)]
 pub struct Ula<M, B> {
     pub frames: Wrapping<u64>, // frame counter

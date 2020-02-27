@@ -79,7 +79,7 @@ pub fn read_sna<R: Read, M: ZxMemory, C: Cpu>(mut rd: R, cpu: &mut C, mem: &mut 
    })?);
    cpu.inc_r();
    cpu.inc_r(); // RETN would increase this 2 times
-   mem.load_into_ram(0x4000..=0xFFFF, rd).map_err(|_| {
+   mem.load_into_mem(0x4000..=0xFFFF, rd).map_err(|_| {
       Error::new(ErrorKind::InvalidData, "SNA: Need at least 48k RAM memory")
    })?;
    cpu.set_pc(mem.read16(sp));
