@@ -23,7 +23,8 @@ pub enum BorderSize {
     Medium  = 4,
     Small   = 3,
     Tiny    = 2,
-    Minimal = 1
+    Minimal = 1,
+    Nil     = 0
 }
 
 impl From<BorderSize> for u8 {
@@ -43,6 +44,7 @@ impl TryFrom<u8> for BorderSize {
             3 => Small,
             2 => Tiny,
             1 => Minimal,
+            0 => Nil,
             _ => return Err(())
         })
     }
@@ -81,7 +83,8 @@ pub trait VideoFrame: Debug {
             BorderSize::Medium  => MAX_BORDER_SIZE - 2*8,
             BorderSize::Small   => MAX_BORDER_SIZE - 3*8,
             BorderSize::Tiny    => MAX_BORDER_SIZE - 4*8,
-            BorderSize::Minimal => MAX_BORDER_SIZE - 5*8
+            BorderSize::Minimal => MAX_BORDER_SIZE - 5*8,
+            BorderSize::Nil     => 0
         }
     }
     /// A rendered screen pixel size (horizontal, vertical) depending on the border size selection.
@@ -109,7 +112,7 @@ pub trait VideoFrame: Debug {
     /// An iterator of right border latch horizontal T-states.
     fn border_right_hts_iter(border_size: BorderSize) -> Self::HtsIter;
 
-    /// Memory contention while rendering pixel lines.
+    /// Memory contention while rendering ink+paper lines.
     fn contention(hc: Ts) -> Ts;
 
     #[inline]
