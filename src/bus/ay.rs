@@ -3,7 +3,7 @@ use core::fmt::{self, Debug};
 use core::ops::{Deref, DerefMut};
 use core::marker::PhantomData;
 
-use crate::clock::{VFrameTsCounter, VideoTs, FTs};
+use crate::clock::{VideoTs, FTs};
 use crate::bus::{BusDevice, NullDevice, OptionalBusDevice, DynamicBusDevice, DynamicDevice};
 use crate::peripherals::ay::{Ay3_8910Io, AyPortDecode, AyIoPort, AyIoNullPort, Ay128kPortDecode, AyFullerBoxPortDecode};
 use crate::chip::ula::{UlaTsCounter, Ula};
@@ -214,7 +214,7 @@ impl<P, A, B, D> Ay3_891xBusDevice<VideoTs, P, A, B, D> {
               V: VideoFrame,
               E: Blep
     {
-        let end_ts = VFrameTsCounter::<V>::from(end_ts).as_tstates();
+        let end_ts = V::vts_to_tstates(end_ts);
         let changes = self.ay_io.recorder.drain_ay_reg_changes::<V>();
         self.ay_sound.render_audio::<S,_,E>(changes, blep, end_ts, chans)
     }

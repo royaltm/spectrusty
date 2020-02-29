@@ -7,9 +7,12 @@ use crate::memory::ZxMemory;
 use crate::video::{VideoFrame, pixel_line_offset, color_line_offset};
 // use crate::io::keyboard::*;
 // use crate::ts::*;
-use super::{Ula, UlaVideoFrame, UlaTsCounter};
+use super::{Ula, UlaVideoFrame};
 
-impl<M, B> Io for Ula<M, B> where M: ZxMemory, B: BusDevice<Timestamp=VideoTs>
+impl<M, B, V> Io for Ula<M, B, V>
+    where M: ZxMemory,
+          B: BusDevice<Timestamp=VideoTs>,
+          V: VideoFrame
 {
     type Timestamp = VideoTs;
     type WrIoBreak = ();
@@ -21,16 +24,9 @@ impl<M, B> Io for Ula<M, B> where M: ZxMemory, B: BusDevice<Timestamp=VideoTs>
     }
 
     fn read_io(&mut self, port: u16, ts: VideoTs) -> (u8, Option<NonZeroU16>) {
-        let bus_data = self.bus.read_io(port, ts);
-        let val = if port & 1 == 0 {
-            self.keyboard.read_keyboard((port >> 8) as u8) &
-            ((self.read_ear_in(ts) << 6) | 0b1011_1111) &
-            bus_data.unwrap_or(u8::max_value())
-        }
-        else {
-            bus_data.unwrap_or_else(|| self.floating_bus(ts))
-        };
-        (val, None)
+        let data = self.ula_read_io(port, ts)
+                       .unwrap_or_else(|| self.floating_bus(ts));
+        (data, None)
     }
 
     fn write_io(&mut self, port: u16, data: u8, ts: VideoTs) -> (Option<()>, Option<NonZeroU16>) {
@@ -54,7 +50,9 @@ impl<M, B> Io for Ula<M, B> where M: ZxMemory, B: BusDevice<Timestamp=VideoTs>
     }
 }
 
-impl<M, B> Memory for Ula<M, B> where M: ZxMemory, B: BusDevice<Timestamp=VideoTs>
+impl<M, B> Memory for Ula<M, B>
+    where M: ZxMemory,
+          B: BusDevice<Timestamp=VideoTs>
 {
     type Timestamp = VideoTs;
 
@@ -86,7 +84,7 @@ impl<M, B> Memory for Ula<M, B> where M: ZxMemory, B: BusDevice<Timestamp=VideoT
     }
 }
 
-impl<M, B> KeyboardInterface for Ula<M, B>// where M: ZxMemory, B: BusDevice<Timestamp=VideoTs>
+impl<M, B, V> KeyboardInterface for Ula<M, B, V>
 {
     fn get_key_state(&self) -> ZXKeyboardMap {
         self.keyboard
@@ -96,39 +94,27 @@ impl<M, B> KeyboardInterface for Ula<M, B>// where M: ZxMemory, B: BusDevice<Tim
     }
 }
 
-trait FloatingBusOffset: VideoFrame {
-    #[inline]
-    fn floating_bus_offset(VideoTs{vc, hc}: VideoTs) -> Option<u16> {
-        if Self::VSL_PIXELS.contains(&vc) {
-            // println!("floating_bus_offset: {},{} {}", vc, hc, crate::clock::VFrameTsCounter::<Self>::vc_hc_to_tstates(vc, hc));
-            match hc {
-                c @ 0..=123 if c & 4 == 0 => Some(c as u16),
-                _ => None
-            }
+impl<M, B, V> Ula<M, B, V>
+    where M: ZxMemory, B: BusDevice<Timestamp=VideoTs>, V: VideoFrame
+{
+    #[inline(always)]
+    pub(crate) fn ula_read_io(&mut self, port: u16, ts: VideoTs) -> Option<u8> {
+        let bus_data = self.bus.read_io(port, ts);
+        if port & 1 == 0 {
+            let data = self.keyboard.read_keyboard((port >> 8) as u8) &
+                      ((self.read_ear_in(ts) << 6) | 0b1011_1111) &
+                      bus_data.unwrap_or(u8::max_value());
+            Some(data)
         }
         else {
-            None
+            bus_data
         }
     }
-}
 
-impl FloatingBusOffset for UlaVideoFrame {}
-    // where M: ZxMemory, B: BusDevice<Timestamp=VideoTs> {}
-
-impl<M: ZxMemory, B> Ula<M,B> {
+    #[inline]
     fn floating_bus(&self, ts: VideoTs) -> u8 {
-        if let Some(offs) = UlaVideoFrame::floating_bus_offset(ts) {
-            let y = (ts.vc - UlaVideoFrame::VSL_PIXELS.start) as u16;
-            let col = (offs >> 3) << 1;
-            // println!("got offs: {} col:{} y:{}", offs, col, y);
-            let addr = match offs & 3 {
-                0 => 0x4000 + pixel_line_offset(y) + col,
-                1 => 0x5800 + color_line_offset(y) + col,
-                2 => 0x4001 + pixel_line_offset(y) + col,
-                3 => 0x5801 + color_line_offset(y) + col,
-                _ => unsafe { core::hint::unreachable_unchecked() }
-            };
-            self.memory.read(addr)
+        if let Some(addr) = V::floating_bus_screen_address(ts) {
+            self.memory.read_screen(0, addr)
         }
         else {
             u8::max_value()

@@ -11,44 +11,47 @@ use std::io::{Read};
 use sdl2::{Sdl};
 use rand::prelude::*;
 
-pub use zxspecemu::bus::*;
-use zxspecemu::bus::ay::*;
-
-use zxspecemu::bus::zxprinter::*;
-use zxspecemu::bus::joystick::*;
-use zxspecemu::bus::mouse::*;
-pub use zxspecemu::clock::*;
-pub use zxspecemu::z80emu::{Cpu, Z80NMOS};
-pub use zxspecemu::memory::{ZxMemory, Memory48k, Memory16k};
-
-use zxspecemu::audio::*;
 use zxspecemu::audio::sample::AudioSample;
 use zxspecemu::audio::carousel::AudioFrameResult;
 use zxspecemu::audio::synth::*;
-pub use zxspecemu::audio::ay::*;
-pub use zxspecemu::chip::*;
-pub use zxspecemu::chip::ula::*;
-use zxspecemu::video::*;
+use zxspecemu::bus::ay::*;
+use zxspecemu::bus::zxprinter::*;
+use zxspecemu::bus::joystick::*;
+use zxspecemu::bus::mouse::*;
 use zxspecemu::formats::{
     sna
 };
 use zxspecemu::utils::tap::TapFileCabinet;
+use zxspecemu::video::*;
 
 use super::audio::Audio;
 use super::printer::ImageSpooler;
 use super::peripherals::*;
 
-pub use zxspecemu::video::{BorderSize, PixelBufRGB24};
+pub use zxspecemu::peripherals::KeyboardInterface;
+pub use zxspecemu::audio::*;
+pub use zxspecemu::audio::ay::*;
+pub use zxspecemu::bus::*;
+pub use zxspecemu::chip::*;
+pub use zxspecemu::chip::ula::*;
+pub use zxspecemu::chip::ula128::*;
+pub use zxspecemu::clock::*;
+pub use zxspecemu::memory::{ZxMemory, Memory48k, Memory16k};
+pub use zxspecemu::video::{BorderSize, PixelBufRGB24, Video};
+pub use zxspecemu::z80emu::{Cpu, Z80NMOS};
 
 const ROM48: &[u8] = include_bytes!("../../../resources/48k.rom");
+const ROM128: &[u8] = include_bytes!("../../../resources/128k.rom");
 
 pub type ZXPrinterToImage = ZxPrinter<UlaVideoFrame, ImageSpooler>;
-pub type ZXSpectrum16 = ZXSpectrum<Z80NMOS, Memory16k, OptionalBusDevice<MultiJoystickBusDevice>>;
-pub type ZXSpectrum48 = ZXSpectrum<Z80NMOS, Memory48k, OptionalBusDevice<MultiJoystickBusDevice>>;
-pub type ZXSpectrum48DynBus = ZXSpectrum<Z80NMOS, Memory48k,
-                                OptionalBusDevice<MultiJoystickBusDevice,
-                                    DynamicBusDevice
-                                >>;
+pub type ZXSpectrum16 = ZXSpectrum<Z80NMOS, Ula<Memory16k, OptionalBusDevice<MultiJoystickBusDevice>>>;
+pub type ZXSpectrum48 = ZXSpectrum<Z80NMOS, Ula<Memory48k, OptionalBusDevice<MultiJoystickBusDevice>>>;
+pub type ZXSpectrum128 = ZXSpectrum<Z80NMOS, Ula128<OptionalBusDevice<MultiJoystickBusDevice>>>;
+pub type ZXSpectrum48DynBus = ZXSpectrum<Z80NMOS,
+                                        Ula<Memory48k,
+                                            OptionalBusDevice<MultiJoystickBusDevice,
+                                                DynamicBusDevice
+                                        >>>;
 pub type ZXBlep = BlepAmpFilter<BlepStereo<BandLimited<f32>>>;
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -59,9 +62,9 @@ pub struct BusDeviceIndexes {
     ay_fullerbox: Option<usize>,
 }
 
-pub struct ZXSpectrum<C, M, B> {
+pub struct ZXSpectrum<C, U> {
     cpu: C,
-    pub ula: Ula<M, B>,
+    pub ula: U,
     pub audio: Audio,
     bandlim: ZXBlep,
     // writer: Option<hound::WavWriter<std::io::BufWriter<std::fs::File>>>,
@@ -99,11 +102,9 @@ impl fmt::Display for FileType {
 //         unsafe { ManuallyDrop::into_inner(core::ptr::read(&mut self.audio)) }.close_audio_device()
 //     }
 // }
-impl<C, M, B> ZXSpectrum<C, M, B>
-    where M: ZxMemory + Default,
-          B: BusDevice<Timestamp=VideoTs>,
-          C: Cpu + std::fmt::Debug,
-          Ula<M, B>: Default + AyAudioFrame<ZXBlep>
+impl<C, U> ZXSpectrum<C, U>
+    where C: Cpu + std::fmt::Debug,
+          U: Default + UlaCommon + UlaAudioFrame<ZXBlep>
 {
     pub fn create(sdl_context: &Sdl, latency: usize) -> Result<Self, Box<dyn std::error::Error>> {
         // let (tx, audio_rx) = sync_channel::<AudioBuffer>(3);
@@ -118,7 +119,7 @@ impl<C, M, B> ZXSpectrum<C, M, B>
         //     sample_format: hound::SampleFormat::Float,
         // };
         // let writer = Some(hound::WavWriter::create("spectrum.wav", spec).unwrap());
-        let ula = Ula::<M,B>::default();
+        let ula = U::default();
         let tap_cabinet = TapFileCabinet::new();
         let audio = Audio::create(sdl_context, latency, ula.frame_duration_nanos())?;
         let mut bandlim = BlepAmpFilter::build(0.5)(BlepStereo::build(0.8)(BandLimited::<f32>::new(2)));
@@ -138,9 +139,14 @@ impl<C, M, B> ZXSpectrum<C, M, B>
             mouse_rel: (0, 0),
             time_sync
         };
-        zx.ula.memory.load_into_rom(ROM48).unwrap();
+        if U::Memory::ROM_SIZE == ROM48.len() {
+            zx.ula.memory_mut().load_into_rom(ROM48).unwrap();
+        }
+        else {
+            zx.ula.memory_mut().load_into_rom(ROM128).unwrap();
+        }
         // Produce some noise in memory for nice visuals.
-        zx.ula.memory.fill_mem(0x4000.., random).unwrap();
+        zx.ula.memory_mut().fill_mem(0x4000.., random).unwrap();
         zx.audio.resume();
         Ok(zx)
     }
@@ -208,7 +214,8 @@ impl<C, M, B> ZXSpectrum<C, M, B>
             }
         }
 
-        let fts = self.ula.ensure_next_frame().as_tstates();
+        self.ula.ensure_next_frame();
+        let fts = self.ula.current_tstate();
         let mut should_stop = false;
 
         if let Some(ref mut feeder) = self.tap_cabinet.ear_in_pulse_iter() {
@@ -267,7 +274,7 @@ impl<C, M, B> ZXSpectrum<C, M, B>
     pub fn device_info(&self) -> String
         where Self: JoystickAccess + DynBusAccess
     {
-        let mut info = format!("{}kb", (M::RAMTOP as u32 + 1)/1024-16);
+        let mut info = format!("{}kb", (self.ula.memory_ref().ram_ref().len() as u32)/1024);
         if let Some(joy) = self.joystick_ref() {
             if self.joystick_index != 0 {
                 write!(info, " + {} #{} Joy.", joy, self.joystick_index + 1).unwrap();
@@ -332,11 +339,11 @@ impl<C, M, B> ZXSpectrum<C, M, B>
     }
 
     pub fn load_scr<R: Read>(&mut self, mut rd: R) -> std::io::Result<()> {
-        rd.read_exact(self.ula.memory.screen_mut(0)?)
+        rd.read_exact(self.ula.memory_mut().screen_mut(0)?)
     }
 
     pub fn load_sna<R: Read>(&mut self, rd: R) -> std::io::Result<()> {
-        let border = sna::read_sna(rd, &mut self.cpu, &mut self.ula.memory)?;
+        let border = sna::read_sna(rd, &mut self.cpu, self.ula.memory_mut())?;
         self.ula.set_border_color(border);
         // eprintln!("{:?}", self.cpu);
         // eprintln!("{:?}", self.ula);
@@ -386,6 +393,7 @@ impl ZXSpectrum48DynBus {
 
 impl DynBusAccess for ZXSpectrum16 {}
 impl DynBusAccess for ZXSpectrum48 {}
+impl DynBusAccess for ZXSpectrum128 {}
 impl DynBusAccess for ZXSpectrum48DynBus {
     fn dynbus_devices_mut(&mut self) -> Option<&mut DynamicBusDevice> {
         Some(self.dynbus_mut())
@@ -397,6 +405,7 @@ impl DynBusAccess for ZXSpectrum48DynBus {
 
 impl MouseAccess for ZXSpectrum16 {}
 impl MouseAccess for ZXSpectrum48 {}
+impl MouseAccess for ZXSpectrum128 {}
 impl MouseAccess for ZXSpectrum48DynBus {
     fn mouse_mut(&mut self) -> Option<&mut KempstonMouseDevice> {
         self.bus_index.mouse.map(move |index| {
@@ -406,6 +415,7 @@ impl MouseAccess for ZXSpectrum48DynBus {
 }
 impl SpoolerAccess for ZXSpectrum16 {}
 impl SpoolerAccess for ZXSpectrum48 {}
+impl SpoolerAccess for ZXSpectrum128 {}
 impl SpoolerAccess for ZXSpectrum48DynBus {
     fn spooler_mut(&mut self) -> Option<&mut ImageSpooler> {
         self.bus_index.printer.map(move |index| {
@@ -433,6 +443,14 @@ impl JoystickAccess for ZXSpectrum48 {
     }
     fn joystick_device_ref(&self) -> &Option<MultiJoystickBusDevice> {
         self.ula.bus_device_ref()
+    }
+}
+impl JoystickAccess for ZXSpectrum128 {
+    fn joystick_device_mut(&mut self) -> &mut Option<MultiJoystickBusDevice> {
+        self.ula.bus_device_mut().next_device_mut()
+    }
+    fn joystick_device_ref(&self) -> &Option<MultiJoystickBusDevice> {
+        self.ula.bus_device_ref().next_device_ref()
     }
 }
 impl JoystickAccess for ZXSpectrum48DynBus {

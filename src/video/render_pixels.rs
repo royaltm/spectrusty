@@ -1,11 +1,11 @@
 #![allow(dead_code,unused_variables)]
 use std::iter::Peekable;
 use crate::clock::{VideoTs, Ts, VideoTsData3};
-use crate::video::*;
+use crate::video::{*, frame_cache::*};
 // 0, 0, 0, 21, 21, 201, 202, 33, 33, 203, 38, 203, 44, 203, 44, 47, 204, 204, 205, 205, 53, 205, 205, 205,
 // 0, 0, 0, 27, 27, 251, 252, 41, 41, 252, 47, 252, 55, 253, 55, 59, 254, 254, 255, 255, 65, 255, 255, 255
 #[allow(clippy::unreadable_literal,clippy::excessive_precision)]
-static PALETTE: [(f32,f32,f32);16] = [
+pub static PALETTE: [(f32,f32,f32);16] = [
     (0.0,0.0,0.0),
     (0.08235294117647059,0.08235294117647059,0.788235294117647),
     (0.792156862745098,0.12941176470588237,0.12941176470588237),
@@ -30,19 +30,11 @@ const INK_MASK   : u8 = 0b0000_0111;
 const PAPER_MASK : u8 = 0b0011_1000;
 
 #[derive(Debug)]
-pub struct Renderer<'a, BI> {
+pub struct Renderer<FIP, BI> {
     /// A border color value 0..=7 at the beginning of the frame.
     pub border: usize,
-    /// Early frame pixels override 8x32x192.
-    pub frame_pixels: &'a [(u32, [u8;32])],
-    /// Early frame colors override 32x192.
-    pub frame_colors: &'a [(u32, [u8;32])],
-    /// Early frame colors override 32x24.
-    pub frame_colors_coarse: &'a [(u32, [u8;32])],
-    /// Ink/paper bitplanes.
-    pub pixel_memory: &'a [u8],
-    /// 8x8 color attributes.
-    pub color_memory: &'a [u8],
+    /// An ink/paper and attributes producer.
+    pub frame_image_producer: FIP,
     /// Changes to border color registered at the specified t-state.
     pub border_changes: BI,
     /// Determines the size of rendered screen.
@@ -51,24 +43,20 @@ pub struct Renderer<'a, BI> {
     pub invert_flash: bool
 }
 
-impl<'a, BI> Renderer<'a, BI> where BI: Iterator<Item=VideoTsData3> {
+impl<FIP, BI> Renderer<FIP, BI>
+    where FIP: FrameImageProducer,
+          BI: Iterator<Item=VideoTsData3>,
+{
     #[inline(always)]
     pub fn render_pixels<B: PixelBuffer, C: VideoFrame>(self, buffer: &mut [u8], pitch: usize) {
         let Renderer {
-            frame_pixels,
-            frame_colors,
-            frame_colors_coarse,
-            pixel_memory,
-            color_memory,
+            mut frame_image_producer,
             mut border,
             border_changes,
             border_size,
             invert_flash
         } = self;
 
-        debug_assert_eq!(frame_pixels.len(), 192);
-        debug_assert_eq!(frame_colors.len(), 192);
-        debug_assert_eq!(frame_colors_coarse.len(), 24);
         let border_top = C::border_top_vsl_iter(border_size);
         let mut border_changes = border_changes.peekable();
         let mut line_chunks_vc = buffer.chunks_mut(pitch)
@@ -78,16 +66,10 @@ impl<'a, BI> Renderer<'a, BI> where BI: Iterator<Item=VideoTsData3> {
             Self::render_border_line::<B, C>(rgb_line, &mut border_changes, &mut border, vc, border_size);
         }
 
-        for (y, (rgb_line, vc)) in line_chunks_vc.by_ref().enumerate().take(PIXEL_LINES) {
-            let ink_addr = pixel_line_offset(y);
-            let ink_line = &pixel_memory[ink_addr..ink_addr + 32];
-            let attr_addr = color_line_offset(y);
-            let attr_line = &color_memory[attr_addr..attr_addr + 32];
-            Self::render_pixel_line::<B, C>(rgb_line, ink_line, attr_line,
-                                            &frame_pixels[y],
-                                            &frame_colors[y],
-                                            &frame_colors_coarse[y >> 3],
-                                            &mut border_changes, &mut border, invert_flash, vc, border_size);
+        for (rgb_line, vc) in line_chunks_vc.by_ref().take(PIXEL_LINES) {
+            Self::render_pixel_line::<B, C>(rgb_line, &mut frame_image_producer,
+                    &mut border_changes, &mut border, invert_flash, vc, border_size);
+            frame_image_producer.next_line();
         }
 
         for (rgb_line, vc) in line_chunks_vc {
@@ -126,13 +108,9 @@ impl<'a, BI> Renderer<'a, BI> where BI: Iterator<Item=VideoTsData3> {
 
     #[allow(clippy::too_many_arguments)]
     #[inline(always)]
-    fn render_pixel_line<B: PixelBuffer, C: VideoFrame>(
+    fn render_pixel_line<'a, B: PixelBuffer, C: VideoFrame>(
                 rgb_line: &mut [u8],
-                ink_line: &[u8],
-                attr_line: &[u8],
-                frame_pixels: &(u32, [u8;32]),
-                frame_colors: &(u32, [u8;32]),
-                frame_colors_coarse: &(u32, [u8;32]),
+                line_iter: &mut FIP,
                 border_changes: &mut Peekable<BI>,
                 border: &mut usize,
                 invert_flash: bool,
@@ -140,8 +118,6 @@ impl<'a, BI> Renderer<'a, BI> where BI: Iterator<Item=VideoTsData3> {
                 border_size: BorderSize
             )
     {
-        debug_assert_eq!(ink_line.len(), 32);
-        debug_assert_eq!(attr_line.len(), 32);
         let mut writer = rgb_line.iter_mut();
         let mut brd_pixel = PixelRgb::from_palette(*border, &PALETTE);
         let mut ts = VideoTs::new(vc, 0);
@@ -151,26 +127,7 @@ impl<'a, BI> Renderer<'a, BI> where BI: Iterator<Item=VideoTsData3> {
             Self::render_border_pixels::<B,_>(&mut writer, border_changes, &mut brd_pixel, border, ts);
         }
 
-        let mask_pixels: u32 = frame_pixels.0;
-        let mask_colors: u32 = frame_colors.0;
-        let mask_colors_coarse: u32 = frame_colors_coarse.0;
-        for (x, (ink, attr)) in ink_line.iter().zip(attr_line.iter()).enumerate() {
-            let bitmask = 1 << x;
-            let ink: u8 = if mask_pixels & bitmask != 0 {
-                frame_pixels.1[x & 31]
-            }
-            else {
-                *ink
-            };
-            let attr: u8 = if mask_colors & bitmask != 0 {
-                frame_colors.1[x & 31]
-            }
-            else if mask_colors_coarse & bitmask != 0 {
-                frame_colors_coarse.1[x & 31]
-            }
-            else {
-                *attr
-            };
+        for PixelPack8 { ink, attr } in line_iter {
             put_8pixels_ink_attr::<B,_>(&mut writer, ink, attr, invert_flash);
         }
 

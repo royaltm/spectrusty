@@ -1,4 +1,5 @@
 pub mod ula;
+pub mod ula128;
 pub mod ay_player;
 
 use core::time::Duration;
@@ -7,11 +8,21 @@ use std::time::Instant;
 use z80emu::{Clock, CpuDebug, Io, Cpu, host::Result};
 use crate::bus::BusDevice;
 use crate::clock::FTs;
+use crate::memory::ZxMemory;
 
-pub trait ControlUnit : Io {
-    type TsCounter: Clock;
+/// A trait for directly accessing an emulated memory implementation.
+pub trait MemoryAccess {
+    type Memory: ZxMemory;
+    /// Returns a mutable reference to the memory.
+    fn memory_mut(&mut self) -> &mut Self::Memory;
+    /// Returns a reference to the memory.
+    fn memory_ref(&self) -> &Self::Memory;    
+}
+
+/// A trait for controling an emulated chipset implementation.
+pub trait ControlUnit {
     type BusDevice: BusDevice;
-    /// A frequency in Hz of the Cpu unit. This is the same as a number of T-states per second.
+    /// A frequency in Hz of the Cpu unit. This is the same as a number of cycles (T states) per second.
     fn cpu_clock_rate(&self) -> u32;
     /// A single frame duration in nanoseconds.
     fn frame_duration_nanos(&self) -> u32;
@@ -19,35 +30,45 @@ pub trait ControlUnit : Io {
     fn bus_device_mut(&mut self) -> &mut Self::BusDevice;
     /// Returns a reference to the first bus device.
     fn bus_device_ref(&self) -> &Self::BusDevice;
-    /// Returns current frame counter value.
+    /// Returns a current frame counter value. The [ControlUnit] implementation should count
+    /// passing frames infinitely wrapping at 2^64.
     fn current_frame(&self) -> u64;
-    /// Returns current frame's T-state.
-    fn frame_tstate(&self) -> FTs;
-    /// Returns current T-state (can be negative as well as exceed a single frame).
+    /// Returns a normalized frame counter and a T state value.
+    ///
+    /// T states are counted from 0 at the start of each frame.
+    fn frame_tstate(&self) -> (u64, FTs);
+    /// Returns a current frame's T state.
+    /// 
+    /// Unlike [frame_tstate] these values can sometimes be negative as well as exceeding the maximum
+    /// nuber of T states per frame. See [execute_next_frame] to know why.
     fn current_tstate(&self) -> FTs;
-    /// Returns `true` if current frame is over.
+    /// Returns `true` if the current frame is over.
     fn is_frame_over(&self) -> bool;
-    /// Perform computer reset.
+    /// Perform a system reset. If `hard` is true emulates a RESET signal being active for `cpu` and all `bus` devices.
     fn reset<C: Cpu>(&mut self, cpu: &mut C, hard: bool);
-    /// Triggers non-maskable interrupt. Returns true if the nmi was successfully executed.
-    /// May return false when Cpu has just executed EI instruction or a 0xDD 0xFD prefix.
+    /// Triggers a non-maskable interrupt. `Returns` true if the nmi was successfully executed.
+    /// May return `false` when Cpu has just executed EI instruction or a 0xDD 0xFD prefix.
     /// In this instance, execute a step or more and then try again.
     fn nmi<C: Cpu>(&mut self, cpu: &mut C) -> bool;
     /// Advances the internal state for the next frame and 
-    /// executes cpu instructions as fast as possible untill the end of the frame.
+    /// executes `cpu` instructions as fast as possible untill the end of the frame.
     fn execute_next_frame<C: Cpu>(&mut self, cpu: &mut C);
-    /// Prepares the internal state for the next frame.
-    /// This method should be called after Chip.is_frame_over returns true and after all the video and audio
-    /// rendering has been performed.
-    fn ensure_next_frame(&mut self) -> Self::TsCounter;
+    /// Prepares the internal state for the next frame, advances the frame counter and wraps the T state counter.
+    ///
+    /// This method should be called after all side effects (e.g. video and audio rendering) has been performed.
+    /// Implementations would usually clear some internal audio and video data from a previous frame.
+    ///
+    /// Both [Chip::execute_next_frame] and [Chip::execute_single_step] invoke this method internally, so the only
+    /// reason to call this method from the emulator program would be to make sure internal buffers are clear
+    /// before feeding the implementation with external data to be consumed by devices during the next frame.
+    fn ensure_next_frame(&mut self);
     /// Executes a single cpu instruction with the option to pass a debugging function.
-    /// Returns true if the frame has ended.
     fn execute_single_step<C: Cpu,
                            F: FnOnce(CpuDebug)>(
             &mut self,
             cpu: &mut C,
             debug: Option<F>
-    ) -> Result<Self::WrIoBreak, Self::RetiBreak>;
+    ) -> Result<(), ()>;
 }
 
 pub trait HostConfig {

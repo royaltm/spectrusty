@@ -3,14 +3,14 @@
 ```text
                      /---- ensure_audio_frame_time ----\
   +----------------------+                         +--------+
-  |      AudioFrame      |  render_*_audio_frame   |        |
-  | EarMicOutAudioFrame  | ======================> |  Blep  |
-  |   EarInAudioFrame    |     end_audio_frame     |        |
-  |   [ AyAudioFrame ]   |                         |        |
-  +----------------------+                         +--------+
-  |      AmpLevels       |                             |     
-  +----------------------+        /----------------- (sum)   
-                                  |                    v       
+  |    UlaAudioFrame:    |  render_*_audio_frame   |        |
+  |      AudioFrame +    | ======================> |  Blep  |
+  | EarMicOutAudioFrame +|     end_audio_frame     |        |
+  |   EarInAudioFrame +  |                         |        |
+  |   [ AyAudioFrame ]   |                         +--------+
+  +----------------------+                             |     
+  |      AmpLevels       |        /----------------- (sum)   
+  +----------------------+        |                    v       
                                   v                 carousel 
                            +-------------+   +--------------------+
                            | (WavWriter) |   | AudioFrameProducer |
@@ -35,7 +35,7 @@ pub(crate) const MARGIN_TSTATES: FTs = 2 * 23;
 use core::ops::{Deref, DerefMut};
 use core::marker::PhantomData;
 use core::num::NonZeroU32;
-use crate::clock::{VideoTs, VFrameTsCounter};
+use crate::clock::VideoTs;
 use crate::video::VideoFrame;
 pub use sample::{SampleDelta, MulNorm, FromSample};
 pub use crate::clock::FTs;
@@ -122,10 +122,18 @@ pub trait AudioFrame<B: Blep> {
     /// Sets up [Blep] time rate and ensures enough space for the audio frame is reserved.
     fn ensure_audio_frame_time(&self, blep: &mut B, sample_rate: u32);
     /// Returns a timestamp to be passed to [Blep] to end the frame.
+    ///
+    /// #Panics
+    /// Panics if the current frame execution didn't get to the near of end-of-frame.
+    /// To check if you can actually call this method, invoke [ControlUnit::is_frame_over].
     fn get_audio_frame_end_time(&self) -> FTs;
     /// Calls [Blep::end_frame] to finalize the frame and prepare it for rendition.
     ///
     /// Returns a number of samples ready to be rendered in a single channel.
+    ///
+    /// #Panics
+    /// Panics if the current frame execution didn't get to the near of end-of-frame.
+    /// To check if you can actually call this method, invoke [ControlUnit::is_frame_over].
     #[inline]
     fn end_audio_frame(&self, blep: &mut B) -> usize {
         blep.end_frame(self.get_audio_frame_end_time())
@@ -365,7 +373,7 @@ pub(crate) fn render_audio_frame_vts<VF,VL,L,A,T>(
         }
         let next_vol = VL::amp_level(state.into());
         if let Some(delta) = last_vol.sample_delta(next_vol) {
-            let timestamp = VFrameTsCounter::<VF>::from(ts).as_tstates();
+            let timestamp = VF::vts_to_tstates(ts);
             blep.add_step(channel, timestamp, delta);
             last_vol = next_vol;
         }

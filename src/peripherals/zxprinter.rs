@@ -27,8 +27,8 @@ const STYLUS_MASK: u8 = 0b1000_0000;
 const MOTOR_MASK: u8  = 0b0000_0100;
 const SLOW_MASK: u8   = 0b0000_0010;
 
-const BIT_DELAY: u32 = 400;//6835;
-const LINE_DELAY: u32 = BIT_DELAY*8;
+const BIT_DELAY: FTs = 400;//6835;
+const LINE_DELAY: FTs = BIT_DELAY*8;
 
 pub trait Spooler: Debug {
     fn motor_on(&mut self) {}
@@ -65,7 +65,7 @@ impl<V, S> DerefMut for ZxPrinterDevice<V, S> {
 
 impl<V: VideoFrame, S: Spooler> ZxPrinterDevice<V, S> {
     pub fn next_frame(&mut self, end_ts: VideoTs) {
-        self.last_ts = VFrameTsCounter::<V>::saturating_wrap_with_normalized(self.last_ts, end_ts);
+        self.last_ts = V::saturating_wrap_with_normalized(self.last_ts, end_ts);
     }
 
     pub fn reset(&mut self) {
@@ -136,15 +136,15 @@ impl<V: VideoFrame, S: Spooler> ZxPrinterDevice<V, S> {
     fn start(&mut self, data: u8, timestamp: VideoTs) {
         if self.motor {
             if self.ready {
-                let mut tsc = VFrameTsCounter::<V>::from(timestamp);
                 let delay = if self.write_bit(data & STYLUS_MASK == STYLUS_MASK) {
                     LINE_DELAY
                 }
                 else {
                     BIT_DELAY
                 };
-                tsc += delay * if data & SLOW_MASK == SLOW_MASK { 2 } else { 1 };
-                self.last_ts = *tsc;
+                let ts = V::vts_to_tstates(timestamp) +
+                         delay * if data & SLOW_MASK == SLOW_MASK { 2 } else { 1 };
+                self.last_ts = V::tstates_to_vts(ts);
                 self.ready = false;
             }
         }
@@ -152,9 +152,9 @@ impl<V: VideoFrame, S: Spooler> ZxPrinterDevice<V, S> {
             self.motor = true;
             self.ready = false;
             self.cursor = 0;
-            let mut tsc = VFrameTsCounter::<V>::from(timestamp);
-            tsc += LINE_DELAY * if data & SLOW_MASK == SLOW_MASK { 2 } else { 1 };
-            self.last_ts = *tsc;
+            let ts = V::vts_to_tstates(timestamp) +
+                     LINE_DELAY * if data & SLOW_MASK == SLOW_MASK { 2 } else { 1 };
+            self.last_ts = V::tstates_to_vts(ts);
             self.spooler.motor_on();
         }
     }

@@ -1,7 +1,7 @@
 //! AY-3-8910/8912/8913 I/O.
 use core::fmt;
 use core::ops::{Deref, DerefMut};
-use crate::clock::{VFrameTsCounter, FTs, VideoTs};
+use crate::clock::{FTs, VideoTs};
 use crate::video::VideoFrame;
 use core::marker::PhantomData;
 use std::convert::TryFrom;
@@ -321,7 +321,7 @@ impl AyRegChange {
     }
     /// Creates a new `AyRegChange` from the given arguments, converting a provided `timestamp` first.
     pub fn new_from_vts<V: VideoFrame>(timestamp: VideoTs, reg: AyRegister, val: u8) -> Self {
-        let time = VFrameTsCounter::<V>::from(timestamp).as_tstates();
+        let time = V::vts_to_tstates(timestamp);
         Self::new(time, reg, val)
     }
 }

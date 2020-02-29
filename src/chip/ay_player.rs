@@ -57,7 +57,7 @@ impl<P, A: Blep> AudioFrame<A> for AyPlayer<P>
 
     fn get_audio_frame_end_time(&self) -> FTs {
         let ts = self.tsc.as_timestamp();
-        debug_assert!(ts >= self.frame_tstates);
+        assert!(ts >= self.frame_tstates, "AyPlayer::get_audio_frame_end_time:: frame execution didn't finish yet");
         ts
     }
 }
@@ -67,7 +67,6 @@ impl<P, A> AyAudioFrame<A> for AyPlayer<P>
 {
     fn render_ay_audio_frame<V: AmpLevels<A::SampleDelta>>(&mut self, blep: &mut A, chans: [usize; 3]) {
         let end_ts = self.tsc.as_timestamp();
-        debug_assert!(end_ts >= self.frame_tstates);
         let changes = self.ay_io.recorder.drain_ay_reg_changes();
         self.ay_sound.render_audio::<V,_,A>(changes, blep, end_ts, chans)
     }
@@ -87,7 +86,6 @@ impl<P, A, L> EarMicOutAudioFrame<A> for AyPlayer<P>
 }
 
 impl<P: AyPortDecode> ControlUnit for AyPlayer<P> {
-    type TsCounter = TsCounter<FTs>;
     type BusDevice = NullDevice<FTs>;
     fn cpu_clock_rate(&self) -> u32 {
         self.cpu_rate
@@ -109,8 +107,19 @@ impl<P: AyPortDecode> ControlUnit for AyPlayer<P> {
         self.frames.0
     }
 
-    fn frame_tstate(&self) -> FTs {
-        self.tsc.as_timestamp().rem_euclid(self.frame_tstates)
+    fn frame_tstate(&self) -> (u64, FTs) {
+        let mut frames = self.frames;
+        let ts = self.tsc.as_timestamp();
+        let ts_norm = ts.rem_euclid(self.frame_tstates);
+        if ts_norm != ts {
+            frames = if ts < 0 {
+                frames - Wrapping(1)
+            }
+            else {
+                frames + Wrapping(1)
+            }
+        }
+        (frames.0, ts_norm)
     }
 
     fn current_tstate(&self) -> FTs {
@@ -135,14 +144,14 @@ impl<P: AyPortDecode> ControlUnit for AyPlayer<P> {
     }
 
     fn nmi<C: Cpu>(&mut self, cpu: &mut C) -> bool {
-        let mut tsc = self.ensure_next_frame();
+        let mut tsc = self.ensure_next_frame_tsc();
         let res = cpu.nmi(self, &mut tsc);
         self.tsc = tsc;
         res
     }
 
     fn execute_next_frame<C: Cpu>(&mut self, cpu: &mut C) {
-        let mut tsc = self.ensure_next_frame();
+        let mut tsc = self.ensure_next_frame_tsc();
         loop {
             match cpu.execute_with_limit(self, &mut tsc, self.frame_tstates) {
                 Ok(()) => break,
@@ -162,7 +171,26 @@ impl<P: AyPortDecode> ControlUnit for AyPlayer<P> {
         self.tsc = tsc;
     }
 
-    fn ensure_next_frame(&mut self) -> Self::TsCounter {
+    fn ensure_next_frame(&mut self) {
+        self.ensure_next_frame_tsc();
+    }
+
+    fn execute_single_step<C: Cpu, F>(&mut self,
+                cpu: &mut C,
+                debug: Option<F>
+            ) -> Result<(), ()>
+        where F: FnOnce(CpuDebug)
+    {
+        let mut tsc = self.ensure_next_frame_tsc();
+        let res = cpu.execute_next(self, &mut tsc, debug);
+        self.tsc = tsc;
+        res
+    }
+}
+
+impl<P: AyPortDecode> AyPlayer<P>
+{
+    fn ensure_next_frame_tsc(&mut self) -> TsCounter<FTs> {
         let ts = self.tsc.as_timestamp();
         if ts >= self.frame_tstates {
             self.bus.next_frame(ts);
@@ -175,24 +203,9 @@ impl<P: AyPortDecode> ControlUnit for AyPlayer<P> {
         self.tsc
     }
 
-    fn execute_single_step<C: Cpu, F>(&mut self,
-                cpu: &mut C,
-                debug: Option<F>
-            ) -> Result<Self::WrIoBreak, Self::RetiBreak>
-        where F: FnOnce(CpuDebug)
-    {
-        let mut tsc = self.ensure_next_frame();
-        let res = cpu.execute_next(self, &mut tsc, debug);
-        self.tsc = tsc;
-        res
-    }
-}
-
-impl<P: AyPortDecode> AyPlayer<P>
-{
     fn execute_instruction<C: Cpu>(&mut self, cpu: &mut C, code: u8) -> Result<(), ()> {
         const DEBUG: Option<CpuDebugFn> = None;
-        let mut tsc = self.ensure_next_frame();
+        let mut tsc = self.ensure_next_frame_tsc();
         let res = cpu.execute_instruction(self, &mut tsc, DEBUG, code);
         self.tsc = tsc;
         res
