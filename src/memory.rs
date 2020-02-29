@@ -146,7 +146,7 @@ impl From<ZxMemoryError> for io::Error {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 #[repr(u8)]
 pub enum MemoryKind {
     Rom,
@@ -154,7 +154,7 @@ pub enum MemoryKind {
 }
 
 /// A type returned by [ZxMemory::page_index_at].
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct MemPageOffset {
     /// A kind of memory bank switched in.
     pub kind: MemoryKind,
@@ -196,6 +196,11 @@ pub trait ZxMemory: Sized {
     fn read(&self, addr: u16) -> u8;
     /// If `addr` is above `RAMTOP` the function should return [std::u16::MAX].
     fn read16(&self, addr: u16) -> u16;
+    /// `addr` is in screen address space (0 addresses the first byte of screen memory).
+    /// #Panics
+    /// If `addr` is above upper limit of screen memory address space the function should panic.
+    /// If `screen_bank` doesn't exist the function should also panic.
+    fn read_screen(&self, screen_bank: usize, addr: u16) -> u8;
     /// If `addr` is above `RAMTOP` the function should do nothing.
     fn write(&mut self, addr: u16, val: u8);
     /// If addr is above `RAMTOP` the function should do nothing.

@@ -203,6 +203,17 @@ impl<M: SingleBankMemory> ZxMemory for M {
         }
     }
     #[inline]
+    fn read_screen(&self, _screen_bank: usize, addr: u16) -> u8 {
+        if addr < 0x1B00 {
+            unsafe {
+                self.mem().add(0x4000 + addr as usize).read()
+            }
+        }
+        else {
+            panic!("trying to read outside of screen area");
+        }
+    }
+    #[inline]
     fn mem_ref(&self) -> &[u8] {
         self.as_slice()
     }
