@@ -39,6 +39,7 @@ const HEAD: &str = r#"The SDL2 desktop example emulator for "rust-zxspecemu""#;
 const HELP: &str = r###"
 Drag & drop TAP, SNA or SCR files over the emulator window in order to load them.
 
+Esc: Release grabbed pointer.
 F1: Shows this help.
 F2: Turbo - runs as fast as possible, while key is being pressed.
 F3: Saves ZX Printer spooled image as a PNG file. [+printer opt. only]
@@ -80,6 +81,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let zx = ZXSpectrum48::create(&sdl_context, REQUESTED_AUDIO_LATENCY)?;
         run(zx, sdl_context, files)
     }
+    else if cfg.remove("+128") {
+        let zx = ZXSpectrum128::create(&sdl_context, REQUESTED_AUDIO_LATENCY)?;
+        run(zx, sdl_context, files)
+    }
     else {
         let mut zx = ZXSpectrum48DynBus::create(&sdl_context, REQUESTED_AUDIO_LATENCY)?;
         let all = cfg.remove("+all");
@@ -105,17 +110,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 }
 
-fn run<C, M, B, I>(
-        mut zx: ZXSpectrum<C, M, B>,
+fn run<C, U, I>(
+        mut zx: ZXSpectrum<C, U>,
         sdl_context: Sdl,
         files: I
     ) -> Result<(), Box<dyn std::error::Error>>
     where I: IntoIterator<Item=String>,
-          M: ZxMemory + Default,
-          B: BusDevice<Timestamp=VideoTs>,
           C: Cpu + std::fmt::Debug,
-          Ula<M, B>: Default + AyAudioFrame<ZXBlep>,
-          ZXSpectrum<C, M, B>: SpoolerAccess + MouseAccess + JoystickAccess + DynBusAccess
+          U: Default + UlaCommon + UlaAudioFrame<ZXBlep>,
+          ZXSpectrum<C, U>: SpoolerAccess + MouseAccess + JoystickAccess + DynBusAccess
 {
     zx.reset();
 
@@ -130,9 +133,9 @@ fn run<C, M, B, I>(
     let video_subsystem = sdl_context.video()?;
     // eprintln!("driver: {}", video_subsystem.current_video_driver());
     let mut border_size = BorderSize::Full;
-    let window_title = |zx: &ZXSpectrum<C, M, B>| format!("ZX Spectrum {}", zx.device_info());
+    let window_title = |zx: &ZXSpectrum<C, U>| format!("ZX Spectrum {}", zx.device_info());
 
-    let (screen_width, screen_height) = ZXSpectrum::<C, M, B>::screen_size(border_size);
+    let (screen_width, screen_height) = ZXSpectrum::<C, U>::screen_size(border_size);
     debug!("{:?} {}x{}", border_size, screen_width, screen_height);
     let window = video_subsystem.window(&window_title(&zx),
                                     screen_width*2, screen_height*2)
@@ -406,7 +409,7 @@ fn run<C, M, B, I>(
                 }
                 Event::KeyDown{ keycode: Some(Keycode::F12), repeat: false, ..} => {
                     border_size = u8::from(border_size).wrapping_sub(1).try_into().unwrap_or(BorderSize::Full);
-                    let (w, h) = ZXSpectrum::<C, M, B>::screen_size(border_size);
+                    let (w, h) = ZXSpectrum::<C, U>::screen_size(border_size);
                     canvas.window_mut().set_size(w*2, h*2)?;
                     texture = create_texture(w, h)?;
                 }

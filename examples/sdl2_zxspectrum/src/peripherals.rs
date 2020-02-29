@@ -1,13 +1,12 @@
 // use core::fmt::Display;
 use sdl2::keyboard::{Mod as Modifier, Keycode};
 use sdl2::mouse::MouseButton;
-use zxspecemu::memory::ZxMemory;
+
 use zxspecemu::bus::DynamicBusDevice;
 use zxspecemu::bus::joystick::{JoystickSelect, MultiJoystickBusDevice};
 use zxspecemu::peripherals::{KeyboardInterface, ZXKeyboardMap};
 use zxspecemu::peripherals::joystick::Directions;
 use zxspecemu::peripherals::mouse::{MouseInterface, MouseButtons, kempston::KempstonMouseDevice};
-use zxspecemu::chip::ula::Ula;
 use zxspecemu::video::{Video, BorderSize, VideoFrame};
 
 #[allow(unused_imports)]
@@ -41,9 +40,7 @@ pub trait JoystickAccess {
     }
 }
 
-impl<C, M, B> ZXSpectrum<C, M, B>
-    where M: ZxMemory
-{
+impl<C, U> ZXSpectrum<C, U> {
     pub fn move_mouse(&mut self, dx: i32, dy: i32) {
         self.mouse_rel.0 += dx;
         self.mouse_rel.1 += dy;
@@ -51,13 +48,13 @@ impl<C, M, B> ZXSpectrum<C, M, B>
 
     /// Send mouse positions at most once every frame to prevent overflowing.
     pub fn send_mouse_move(&mut self, border: BorderSize, viewport: (u32, u32))
-        where Self: MouseAccess
+        where Self: MouseAccess, U: Video
     {
         match self.mouse_rel {
             (0, 0) => {},
             (dx, dy) => {
                 if let Some(mouse) = self.mouse_mut() {
-                    let (sx, sy) = <Ula::<M, B> as Video>::VideoFrame::screen_size_pixels(border);
+                    let (sx, sy) = <U as Video>::VideoFrame::screen_size_pixels(border);
                     let (vx, vy) = viewport;
                     let dx = (dx * 2 * sx as i32 / vx as i32) as i16;
                     let dy = (dy * 2 * sy as i32 / vy as i32) as i16;
@@ -90,7 +87,7 @@ impl<C, M, B> ZXSpectrum<C, M, B>
 
     #[inline]
     pub fn update_keypress(&mut self, keycode: Keycode, modifier: Modifier, pressed: bool)
-        where Self: JoystickAccess
+        where Self: JoystickAccess, U: KeyboardInterface
     {
         self.ula.set_key_state(
             map_keys(self.ula.get_key_state(), keycode, modifier, pressed,
