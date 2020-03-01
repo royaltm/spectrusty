@@ -9,23 +9,19 @@ use crate::memory::ZxMemory;
 use super::{BusDevice, NullDevice};
 
 /// A trait for dynamic bus devices, which currently includes methods from [Display] and [BusDevice].
+/// Devices implementing this trait can be used with a [DynamicBusDevice].
+///
 /// Implemented for all types that implement dependent traits.
 pub trait NamedBusDevice<T: Debug>: Display + BusDevice<Timestamp=T, NextDevice=NullDevice<T>>{}
 
 impl<T: Debug, D> NamedBusDevice<T> for D where D: Display + BusDevice<Timestamp=T, NextDevice=NullDevice<T>> {}
 
-/// A helper type for a dynamic [BusDevice]. Devices of this type can be used with a [DynamicBusDevice].
-pub type DynamicDevice<T> = dyn NamedBusDevice<T>;
-/// A helper type for a boxed dynamic [BusDevice]. Used by [DynamicBusDevice].
-pub type BoxedDynamicDevice<T> = Box<DynamicDevice<T>>;
-/// A helper type for a dynamic [BusDevice] linked with `D: BusDevice`.
-///
-/// This is virtually the same as [DynamicDevice] with a constraint on the associated type.
-pub type LinkedDynDevice<D> = DynamicDevice<<D as BusDevice>::Timestamp>;
+/// A type of a dynamic [NamedBusDevice] with a constraint on a timestamp type.
+pub type LinkedDynDevice<D> = dyn NamedBusDevice<<D as BusDevice>::Timestamp>;
 /// This is a type of items stored by [DynamicBusDevice].
 ///
-/// This is virtually the same as [BoxedDynamicDevice] with a constraint on the associated type.
-pub type BoxLinkedDynDevice<D> = BoxedDynamicDevice<<D as BusDevice>::Timestamp>;
+/// A type of a boxed dynamic [NamedBusDevice] with a constraint on a timestamp type.
+pub type BoxLinkedDynDevice<D> = Box<dyn NamedBusDevice<<D as BusDevice>::Timestamp>>;
 
 /// A bus device that allows for adding and removing devices of different types in run-time.
 ///
@@ -70,7 +66,7 @@ impl<D> DynamicBusDevice<D>
     pub fn len(&self) -> usize {
         self.devices.len()
     }
-    /// Appends a device at the end of the daisy-chain.
+    /// Appends a device at the end of the daisy-chain. Returns an index to a dynamic device.
     pub fn append_device<B>(&mut self, device: B) -> usize
         where B: Into<BoxLinkedDynDevice<D>>
     {
@@ -103,53 +99,72 @@ impl<D> DynamicBusDevice<D>
 {
     /// Removes the last device from the dynamic daisy-chain.
     /// # Panics
-    /// Panics if a device is not of type `B`.
+    /// Panics if a device is not of a type given as parameter `B`.
     pub fn remove_as_device<B>(&mut self) -> Option<Box<B>>
         where B: NamedBusDevice<D::Timestamp> + 'static
     {
         self.remove_device().map(|boxdev|
-            boxdev.downcast::<B>().expect("wrong dynamic mut device type")
+            boxdev.downcast::<B>().expect("wrong dynamic device type removed")
         )
     }
-    /// Returns a reference to a device of type `B` at `index` in the dynamic daisy-chain.
+    /// Returns a reference to a device of a type `B` at `index` in the dynamic daisy-chain.
     /// # Panics
-    /// Panics if a device doesn't exist at `index` or if a device is not of type `B`.
+    /// Panics if a device doesn't exist at `index` or if a device is not of a type given as parameter `B`.
     #[inline]
     pub fn as_device_ref<B>(&self, index: usize) -> &B
-        where B: BusDevice<Timestamp=D::Timestamp,
-                           NextDevice=NullDevice<D::Timestamp>> + 'static
+        where B: NamedBusDevice<D::Timestamp> + 'static
     {
-        self.devices[index].downcast_ref::<B>().expect("wrong dynamic ref device type")
+        self.devices[index].downcast_ref::<B>().expect("wrong dynamic device type")
     }
-    /// Returns a mutable reference to a device of type `B` at `index` in the dynamic daisy-chain.
+    /// Returns a mutable reference to a device of a type `B` at `index` in the dynamic daisy-chain.
     /// # Panics
-    /// Panics if a device doesn't exist at `index` or if a device is not of type `B`.
+    /// Panics if a device doesn't exist at `index` or if a device is not of a type given as parameter `B`.
     #[inline]
     pub fn as_device_mut<B>(&mut self, index: usize) -> &mut B
-        where B: BusDevice<Timestamp=D::Timestamp,
-                           NextDevice=NullDevice<D::Timestamp>> + 'static
+        where B: NamedBusDevice<D::Timestamp> + 'static
     {
-        self.devices[index].downcast_mut::<B>().expect("wrong dynamic mut device type")
+        self.devices[index].downcast_mut::<B>().expect("wrong dynamic device type")
     }
-    /// Returns `true` if a device at `index` is of type `B`.
+    /// Returns `true` if a device at `index` is of a type given as parameter `B`.
     #[inline]
     pub fn is_device<B>(&self, index: usize) -> bool
-        where B: BusDevice<Timestamp=D::Timestamp,
-                           NextDevice=NullDevice<D::Timestamp>> + 'static
+        where B: NamedBusDevice<D::Timestamp> + 'static
     {
         self.devices.get(index).map(|d| d.is::<B>()).unwrap_or(false)
+    }
+    /// Searches for a device of a type given as parameter `B`, returning its index.
+    #[inline]
+    pub fn position_device<B>(&self) -> Option<usize>
+        where B: NamedBusDevice<D::Timestamp> + 'static
+    {
+        self.devices.iter().position(|d| d.is::<B>())
+    }
+    /// Searches for a device of a type given as parameter `B`, returning a reference to a device.
+    #[inline]
+    pub fn find_device_ref<B>(&self) -> Option<&B>
+        where B: NamedBusDevice<D::Timestamp> + 'static
+    {
+        self.devices.iter().find_map(|d| d.downcast_ref::<B>())
+    }
+    /// Searches for a device of a type given as parameter `B`, returning a mutable reference to a device.
+    #[inline]
+    pub fn find_device_mut<B>(&mut self) -> Option<&mut B>
+        where B: NamedBusDevice<D::Timestamp> + 'static
+    {
+        self.devices.iter_mut().find_map(|d| d.downcast_mut::<B>())
     }
 }
 
 impl<D: BusDevice> Index<usize> for DynamicBusDevice<D> {
     type Output = LinkedDynDevice<D>;
-
+    #[inline]
     fn index(&self, index: usize) -> &Self::Output {
         self.devices[index].as_ref()
     }
 }
 
 impl<D: BusDevice> IndexMut<usize> for DynamicBusDevice<D> {
+    #[inline]
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         self.devices[index].as_mut()
     }
@@ -158,7 +173,7 @@ impl<D: BusDevice> IndexMut<usize> for DynamicBusDevice<D> {
 impl<'a, D: BusDevice> IntoIterator for &'a DynamicBusDevice<D> {
     type Item = &'a BoxLinkedDynDevice<D>;
     type IntoIter = core::slice::Iter<'a, BoxLinkedDynDevice<D>>;
-
+    #[inline]
     fn into_iter(self) -> Self::IntoIter {
         self.devices.iter()
     }
@@ -167,7 +182,7 @@ impl<'a, D: BusDevice> IntoIterator for &'a DynamicBusDevice<D> {
 impl<'a, D: BusDevice> IntoIterator for &'a mut DynamicBusDevice<D> {
     type Item = &'a mut BoxLinkedDynDevice<D>;
     type IntoIter = core::slice::IterMut<'a, BoxLinkedDynDevice<D>>;
-
+    #[inline]
     fn into_iter(self) -> Self::IntoIter {
         self.devices.iter_mut()
     }
@@ -176,7 +191,7 @@ impl<'a, D: BusDevice> IntoIterator for &'a mut DynamicBusDevice<D> {
 impl<D: BusDevice> IntoIterator for DynamicBusDevice<D> {
     type Item = BoxLinkedDynDevice<D>;
     type IntoIter = std::vec::IntoIter<BoxLinkedDynDevice<D>>;
-
+    #[inline]
     fn into_iter(self) -> Self::IntoIter {
         self.devices.into_iter()
     }
@@ -293,7 +308,7 @@ mod tests {
         assert_eq!(dchain.len(), 0);
         assert_eq!(dchain.write_io(0, 0, 0), false);
         assert_eq!(dchain.read_io(0, 0), None);
-        let test_dev: BoxedDynamicDevice<_> = Box::new(TestDevice::default());
+        let test_dev: Box<dyn NamedBusDevice<_>> = Box::new(TestDevice::default());
         let index = dchain.append_device(test_dev);
         assert_eq!(dchain.is_device::<TestDevice>(index), true);
         assert_eq!(index, 0);

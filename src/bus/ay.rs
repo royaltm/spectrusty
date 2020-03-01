@@ -4,7 +4,7 @@ use core::ops::{Deref, DerefMut};
 use core::marker::PhantomData;
 
 use crate::clock::{VideoTs, FTs};
-use crate::bus::{BusDevice, NullDevice, OptionalBusDevice, DynamicBusDevice, DynamicDevice};
+use crate::bus::{BusDevice, NullDevice, OptionalBusDevice, DynamicBusDevice, NamedBusDevice};
 use crate::peripherals::ay::{Ay3_8910Io, AyPortDecode, AyIoPort, AyIoNullPort, Ay128kPortDecode, AyFullerBoxPortDecode};
 use crate::chip::ula::{UlaTsCounter, Ula};
 use crate::audio::ay::Ay3_891xAudio;
@@ -100,7 +100,7 @@ impl<D, N> AyAudioVBusDevice for OptionalBusDevice<D, N>
     }
 }
 
-impl AyAudioVBusDevice for DynamicDevice<VideoTs> {
+impl AyAudioVBusDevice for dyn NamedBusDevice<VideoTs> {
     /// # Note
     /// Because we need to guess the concrete type of the dynamic `BusDevice` we can currently handle
     /// only the most common cases: [Ay3_891xMelodik] and [Ay3_891xFullerBox]. If you use a customized

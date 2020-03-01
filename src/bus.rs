@@ -26,12 +26,12 @@ mod private {
 impl<T: Debug + 'static> dyn NamedBusDevice<T> {
     /// Attempts to downcast the box to a concrete type.
     #[inline]
-    pub fn downcast<D: 'static>(self: Box<Self>) -> Result<Box<D>, Box<DynamicDevice<T>>>
+    pub fn downcast<D: 'static>(self: Box<Self>) -> Result<Box<D>, Box<dyn NamedBusDevice<T>>>
         where D: NamedBusDevice<T>
     {
         if self.is::<D>() {
             unsafe {
-                let raw: *mut DynamicDevice<T> = Box::into_raw(self);
+                let raw: *mut dyn NamedBusDevice<T> = Box::into_raw(self);
                 Ok(Box::from_raw(raw as *mut D))
             }
         } else {
@@ -43,19 +43,15 @@ impl<T: Debug + 'static> dyn NamedBusDevice<T> {
 impl<T: Debug + 'static> dyn NamedBusDevice<T> + 'static {
     /// Returns `true` if the boxed type is the same as `D`
     #[inline]
-    pub fn is<D: 'static>(&self) -> bool
-        where D: BusDevice<Timestamp=T, NextDevice=NullDevice<T>>
-    {
+    pub fn is<D: NamedBusDevice<T> + 'static>(&self) -> bool {
         TypeId::of::<D>() == self.type_id(private::Internal)
     }
     /// Returns some reference to the boxed value if it is of type `D`, or
     /// `None` if it isn't.
-    pub fn downcast_ref<D: 'static>(&self) -> Option<&D>
-        where D: BusDevice<Timestamp=T, NextDevice=NullDevice<T>>
-    {
+    pub fn downcast_ref<D: NamedBusDevice<T> + 'static>(&self) -> Option<&D> {
         if self.is::<D>() {
             unsafe {
-                Some(&*(self as *const DynamicDevice<T> as *const D))
+                Some(&*(self as *const dyn NamedBusDevice<T> as *const D))
             }
         } else {
             None
@@ -63,12 +59,10 @@ impl<T: Debug + 'static> dyn NamedBusDevice<T> + 'static {
     }
     /// Returns some mutable reference to the boxed value if it is of type `D`, or
     /// `None` if it isn't.
-    pub fn downcast_mut<D: 'static>(&mut self) -> Option<&mut D>
-        where D: BusDevice<Timestamp=T, NextDevice=NullDevice<T>>
-    {
+    pub fn downcast_mut<D: NamedBusDevice<T> + 'static>(&mut self) -> Option<&mut D> {
         if self.is::<D>() {
             unsafe {
-                Some(&mut *(self as *mut DynamicDevice<T> as *mut D))
+                Some(&mut *(self as *mut dyn NamedBusDevice<T> as *mut D))
             }
         } else {
             None
