@@ -219,12 +219,12 @@ where A: AyIoPort<Timestamp=T>,
     /// Returns true if the control register bit controlling I/O port A input is reset.
     #[inline]
     pub fn is_ioa_input(&self) -> bool {
-        self.get(AyRegister::MixerControl) & 0x80 == 0
+        self.get(AyRegister::MixerControl) & 0x40 == 0
     }
     /// Returns true if the control register bit controlling I/O port B input is reset.
     #[inline]
     pub fn is_iob_input(&self) -> bool {
-        self.get(AyRegister::MixerControl) & 0x40 == 0
+        self.get(AyRegister::MixerControl) & 0x80 == 0
     }
     /// Returns true if the control register bit controlling I/O port A input is set.
     #[inline]
