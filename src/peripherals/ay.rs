@@ -194,6 +194,11 @@ where A: AyIoPort<Timestamp=T>,
         self.port_a.ay_io_reset(timestamp);
         self.port_b.ay_io_reset(timestamp);
     }
+    /// Prepares port implementations for the next frame.
+    pub fn next_frame(&mut self, timestamp: T) where T: Copy {
+        self.port_a.end_frame(timestamp);
+        self.port_b.end_frame(timestamp);
+    }
     /// Retrieves a current value of the indicated register.
     #[inline]
     pub fn get(&self, reg: AyRegister) -> u8 {
