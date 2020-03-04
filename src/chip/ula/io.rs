@@ -19,8 +19,8 @@ impl<M, B, V> Io for Ula<M, B, V>
     type RetiBreak = ();
 
     #[inline(always)]
-    fn is_irq(&mut self, ts: VideoTs) -> bool {
-        ts.vc == 0 && ts.hc & !31 == 0
+    fn is_irq(&mut self, VideoTs{ vc, hc }: VideoTs) -> bool {
+        vc == 0 && hc & !31 == 0
     }
 
     fn read_io(&mut self, port: u16, ts: VideoTs) -> (u8, Option<NonZeroU16>) {

@@ -18,11 +18,11 @@ use crate::clock::{VideoTs, VideoTsData1, FTs, Ts, VFrameTsCounter, MemoryConten
 use crate::chip::ula::{Ula, UlaTimestamp, UlaCpuExt, UlaMemoryContention};
 
 pub use video::{Ula128VidFrame, Ula128MemContention};
-use ay::Ay3_8912SerKeypad;
+pub use ay::*;
 
 pub const CPU_HZ: u32 = 3_546_900;
 
-pub(self) type InnerUla<B> = Ula<Memory128k, Ay3_8912SerKeypad<B>, Ula128VidFrame>;
+pub(self) type InnerUla<B> = Ula<Memory128k, B, Ula128VidFrame>;
 
 /// ZX Spectrum 128k ULA.
 #[derive(Clone, Debug)]
@@ -84,7 +84,7 @@ impl<B> MemoryAccess for Ula128<B>
 impl<B> ControlUnit for Ula128<B>
     where B: BusDevice<Timestamp=VideoTs>
 {
-    type BusDevice = Ay3_8912SerKeypad<B>;
+    type BusDevice = B;
 
     fn cpu_clock_rate(&self) -> u32 {
         CPU_HZ
