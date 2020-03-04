@@ -10,14 +10,14 @@ publish = false
 crate-type = ["cdylib"]
 
 [dependencies]
-wasm-bindgen = {version = "0.2.58", features = ["serde-serialize"]}
-wasm-bindgen-futures = "0.4.8"
-js-sys = "0.3.35"
+wasm-bindgen = {version = "0.2.59", features = ["serde-serialize"]}
+wasm-bindgen-futures = "0.4.9"
+js-sys = "0.3.36"
 serde = "1.0"
 serde_json = "1.0"
 
 [dependencies.web-sys]
-version = "0.3.4"
+version = "0.3.36"
 features = [
   'AudioBuffer',
   'AudioBufferSourceNode',
