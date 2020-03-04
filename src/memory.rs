@@ -222,11 +222,11 @@ pub trait ZxMemory: Sized {
     /// `rom_bank` should be less or equal to `ROM_BANKS_MAX`.
     fn rom_bank_ref(&self, rom_bank: usize) -> Result<&[u8]>;
     /// `rom_bank` should be less or equal to `ROM_BANKS_MAX`.
-    fn rom_bank_mut(&mut self, rom_bank: usize) -> Result<&[u8]>;
+    fn rom_bank_mut(&mut self, rom_bank: usize) -> Result<&mut[u8]>;
     /// `ram_bank` should be less or equal to `RAM_BANKS_MAX`.
     fn ram_bank_ref(&self, ram_bank: usize) -> Result<&[u8]>;
     /// `ram_bank` should be less or equal to `RAM_BANKS_MAX`.
-    fn ram_bank_mut(&mut self, ram_bank: usize) -> Result<&[u8]>;
+    fn ram_bank_mut(&mut self, ram_bank: usize) -> Result<&mut[u8]>;
     /// `rom_bank` should be less or equal to `ROM_BANKS_MAX` and `page` should be less or euqal to PAGES_MAX.
     fn map_rom_bank(&mut self, rom_bank: usize, page: u8) -> Result<()>;
     /// `ram_bank` should be less or equal to `RAM_BANKS_MAX` and `page` should be less or euqal to PAGES_MAX.
@@ -253,6 +253,11 @@ pub trait ZxMemory: Sized {
     /// Results in an error when the rom data size is less than the `ROM_SIZE`.
     fn load_into_rom<R: Read>(&mut self, mut rd: R) -> Result<()> {
         let slice = self.rom_mut();
+        rd.read_exact(slice).map_err(ZxMemoryError::Io)
+    }
+    /// Results in an error when the rom data size is less than the rom bank's size.
+    fn load_into_rom_bank<R: Read>(&mut self, rom_bank: usize, mut rd: R) -> Result<()> {
+        let slice = self.rom_bank_mut(rom_bank)?;
         rd.read_exact(slice).map_err(ZxMemoryError::Io)
     }
     /// Returns an iterator of mutable memory page slices [PageMutSlice] intersecting with a given address range.

@@ -323,7 +323,7 @@ impl<M: MemoryBanks> ZxMemory for PagedMemory<M> {
         })
     }
     #[inline]
-    fn page_mut(&mut self, page: u8) -> Result<& mut[u8]> {
+    fn page_mut(&mut self, page: u8) -> Result<&mut [u8]> {
         if page > Self::PAGES_MAX {
             return Err(ZxMemoryError::InvalidPageIndex)
         }
@@ -339,12 +339,12 @@ impl<M: MemoryBanks> ZxMemory for PagedMemory<M> {
         Ok(&self.as_slice()[offset..offset+M::BANK_SIZE])
     }
 
-    fn rom_bank_mut(&mut self, rom_bank: usize) -> Result<&[u8]> {
+    fn rom_bank_mut(&mut self, rom_bank: usize) -> Result<&mut[u8]> {
         if rom_bank > Self::ROM_BANKS_MAX {
             return Err(ZxMemoryError::InvalidBankIndex)
         }
         let offset = M::BANK_SIZE * rom_bank;
-        Ok(&self.as_mut_slice()[offset..offset+M::BANK_SIZE])
+        Ok(&mut self.as_mut_slice()[offset..offset+M::BANK_SIZE])
     }
 
     fn ram_bank_ref(&self, ram_bank: usize) -> Result<&[u8]> {
@@ -356,12 +356,12 @@ impl<M: MemoryBanks> ZxMemory for PagedMemory<M> {
     }
 
 
-    fn ram_bank_mut(&mut self, ram_bank: usize) -> Result<&[u8]> {
+    fn ram_bank_mut(&mut self, ram_bank: usize) -> Result<&mut[u8]> {
         if ram_bank > Self::RAM_BANKS_MAX {
             return Err(ZxMemoryError::InvalidBankIndex)
         }
         let offset = M::BANK_SIZE * ram_bank + M::ROMSIZE;
-        Ok(&self.as_mut_slice()[offset..offset+M::BANK_SIZE])
+        Ok(&mut self.as_mut_slice()[offset..offset+M::BANK_SIZE])
     }
 
     fn map_rom_bank(&mut self, rom_bank: usize, page: u8) -> Result<()> {

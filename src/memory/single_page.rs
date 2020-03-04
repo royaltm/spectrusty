@@ -252,7 +252,7 @@ impl<M: SingleBankMemory> ZxMemory for M {
         }        
     }
     #[inline]
-    fn page_mut(&mut self, page: u8) -> Result<& mut[u8]> {
+    fn page_mut(&mut self, page: u8) -> Result<&mut[u8]> {
         match page {
             0 => Ok(&mut self.as_mut_slice()[..Self::ROM_SIZE]),
             1 => Ok(&mut self.as_mut_slice()[Self::ROM_SIZE..]),
@@ -266,7 +266,7 @@ impl<M: SingleBankMemory> ZxMemory for M {
         Ok(&self.as_slice()[..=Self::ROMTOP as usize])
     }
 
-    fn rom_bank_mut(&mut self, rom_bank: usize) -> Result<&[u8]> {
+    fn rom_bank_mut(&mut self, rom_bank: usize) -> Result<&mut[u8]> {
         if rom_bank > Self::ROM_BANKS_MAX {
             return Err(ZxMemoryError::InvalidBankIndex)
         }
@@ -281,7 +281,7 @@ impl<M: SingleBankMemory> ZxMemory for M {
     }
 
 
-    fn ram_bank_mut(&mut self, ram_bank: usize) -> Result<&[u8]> {
+    fn ram_bank_mut(&mut self, ram_bank: usize) -> Result<&mut[u8]> {
         if ram_bank > Self::RAM_BANKS_MAX {
             return Err(ZxMemoryError::InvalidBankIndex)
         }
