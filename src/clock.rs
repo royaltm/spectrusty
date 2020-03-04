@@ -96,11 +96,6 @@ macro_rules! video_ts_packed_data {
             pub fn hc(&self) -> Ts {
                 self.hc_data >> $bits
             }
-
-            #[inline(always)]
-            pub fn wrap_vc(&mut self, vc_frame_count: Ts) {
-                self.vc %= vc_frame_count;
-            }
         }
     }
 }
@@ -172,11 +167,6 @@ impl VideoTs {
     pub const fn new(vc: Ts, hc: Ts) -> Self {
         VideoTs{ vc, hc }
     }
-
-    #[inline(always)]
-    pub fn wrap_vc(&mut self, vc_frame_count: Ts) {
-        self.vc %= vc_frame_count;
-    }
 }
 
 impl<V: VideoFrame, C> VFrameTsCounter<V, C> {
@@ -220,7 +210,7 @@ impl<V: VideoFrame, C> VFrameTsCounter<V, C> {
 
     #[inline(always)]
     pub fn wrap_frame(&mut self) {
-        self.tsc.wrap_vc(V::VSL_COUNT);
+        self.tsc.vc %= V::VSL_COUNT
     }
 
     /// Is counter past or near the end of frame
