@@ -366,9 +366,6 @@ impl Ticker {
     pub fn new(current: FTs, end_ts: FTs) -> Self {
         Ticker { current, end_ts }
     }
-    pub fn into_next_frame_ts(self) -> FTs {
-        self.current - self.end_ts
-    }
 }
 
 impl Iterator for Ticker {
@@ -440,11 +437,13 @@ impl Ay3_891xAudio {
     /// * `changes` should be ordered by `time` and recorded only with `time` < `end_ts`,
     ///   otherwise some register changes may be lost - the iterator will be drained anyway.
     /// * `end_ts` should be a value of an end of frame [Cpu][z80emu::Cpu] cycle (T-state) counter.
+    /// * `frame_tstates` should be a duration of a single frame in T-states.
     /// * `channels` - indicate [Blep] audio channels for `[A, B, C]` AY channels.
     pub fn render_audio<V,I,A>(&mut self,
                 changes: I,
                 blep: &mut A,
                 end_ts: FTs,
+                frame_tstates: FTs,
                 chans: [usize; 3]
             )
         where V: AmpLevels<A::SampleDelta>,
@@ -506,7 +505,7 @@ impl Ay3_891xAudio {
             self.update_register(reg, val);
         }
 
-        self.current_ts = ticker.into_next_frame_ts();
+        self.current_ts = ticker.current - frame_tstates;
         self.last_levels = tone_levels;
     }
 

@@ -46,7 +46,7 @@ where i16: IntoSample<T>
     // render frames
     loop {
         ay.render_audio::<AyAmps<f32>,_,_>(changes.drain(..),
-                                                    &mut bandlim, FRAME_TSTATES, [0, 1, 2]);
+                                                    &mut bandlim, FRAME_TSTATES, FRAME_TSTATES, [0, 1, 2]);
         // close current frame
         let frame_sample_count = Blep::end_frame(&mut bandlim, FRAME_TSTATES);
         // render BLEP frame into the sample buffer

@@ -202,6 +202,12 @@ impl<T, P, A, B, D> BusDevice for Ay3_891xBusDevice<T, P, A, B, D>
         }
         self.bus.write_io(port, data, timestamp)
     }
+
+    #[inline]
+    fn next_frame(&mut self, timestamp: Self::Timestamp) {
+        self.ay_io.next_frame(timestamp);
+        self.bus.next_frame(timestamp)
+    }
 }
 
 impl<P, A, B, D> Ay3_891xBusDevice<VideoTs, P, A, B, D> {
@@ -209,14 +215,19 @@ impl<P, A, B, D> Ay3_891xBusDevice<VideoTs, P, A, B, D> {
     ///
     /// Provide [AmpLevels] that can handle `level` values from 0 to 15 (4-bits).
     /// `channels` - target [Blep] audio channels for `[A, B, C]` AY-3-891x channels.
-    pub fn render_ay_audio<S,V,E>(&mut self, blep: &mut E, end_ts: VideoTs, chans: [usize; 3])
+    pub fn render_ay_audio<S,V,E>(
+            &mut self,
+            blep: &mut E,
+            end_ts: VideoTs,
+            chans: [usize; 3]
+        )
         where S: AmpLevels<E::SampleDelta>,
               V: VideoFrame,
               E: Blep
     {
         let end_ts = V::vts_to_tstates(end_ts);
         let changes = self.ay_io.recorder.drain_ay_reg_changes::<V>();
-        self.ay_sound.render_audio::<S,_,E>(changes, blep, end_ts, chans)
+        self.ay_sound.render_audio::<S,_,_>(changes, blep, end_ts, V::FRAME_TSTATES_COUNT, chans)
     }
 
 }
@@ -226,12 +237,18 @@ impl<P, A, B, D> Ay3_891xBusDevice<FTs, P, A, B, D> {
     ///
     /// Provide [AmpLevels] that can handle `level` values from 0 to 15 (4-bits).
     /// `channels` - target [Blep] audio channels for `[A, B, C]` AY-3-891x channels.
-    pub fn render_ay_audio<S,E>(&mut self, blep: &mut E, end_ts: FTs, chans: [usize; 3])
+    pub fn render_ay_audio<S,E>(
+            &mut self,
+            blep: &mut E,
+            end_ts: FTs,
+            frame_tstates: FTs,
+            chans: [usize; 3]
+        )
         where S: AmpLevels<E::SampleDelta>,
               E: Blep
     {
         let changes = self.ay_io.recorder.drain_ay_reg_changes();
-        self.ay_sound.render_audio::<S,_,E>(changes, blep, end_ts, chans)
+        self.ay_sound.render_audio::<S,_,_>(changes, blep, end_ts, frame_tstates, chans)
     }
 
 }

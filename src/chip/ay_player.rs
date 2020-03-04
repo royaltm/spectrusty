@@ -68,7 +68,7 @@ impl<P, A> AyAudioFrame<A> for AyPlayer<P>
     fn render_ay_audio_frame<V: AmpLevels<A::SampleDelta>>(&mut self, blep: &mut A, chans: [usize; 3]) {
         let end_ts = self.tsc.as_timestamp();
         let changes = self.ay_io.recorder.drain_ay_reg_changes();
-        self.ay_sound.render_audio::<V,_,A>(changes, blep, end_ts, chans)
+        self.ay_sound.render_audio::<V,_,A>(changes, blep, end_ts, self.frame_tstates, chans)
     }
 }
 
