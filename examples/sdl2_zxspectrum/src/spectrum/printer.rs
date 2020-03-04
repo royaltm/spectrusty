@@ -2,7 +2,7 @@ use std::io::{self, Write};
 
 use image::{ImageBuffer, Pixel, Luma};
 
-use zxspecemu::bus::zxprinter::{PIXEL_LINE_WIDTH, BYTES_PER_LINE, Spooler};
+use zxspecemu::bus::zxprinter::{DOTS_PER_LINE, BYTES_PER_LINE, Spooler};
 
 #[allow(unused_imports)]
 use log::{error, warn, info, debug, trace};
@@ -69,7 +69,7 @@ impl ZxGfxPrinter for ImageSpooler {
   <g stroke-width="0.2" stroke="#b8b" fill="#646">
 "##,
             mm_height=0.4*lines as f32,
-            pixel_width=PIXEL_LINE_WIDTH,
+            pixel_width=DOTS_PER_LINE,
             pixel_height = lines)?;
         for (index, mut dots) in self.buf.iter().copied().enumerate() {
             let x = (index % BYTES_PER_LINE as usize) * 8;
@@ -97,16 +97,16 @@ impl ZxGfxPrinter for ImageSpooler {
             return None;
         }
         assert_eq!(PixelT::CHANNEL_COUNT, 1);
-        let mut imgbuf = Vec::with_capacity(PIXEL_LINE_WIDTH as usize*height);
+        let mut imgbuf = Vec::with_capacity(DOTS_PER_LINE as usize*height);
         imgbuf.extend(self.buf.iter().copied().flat_map(|mut bits| {
             (0..8).map(move |_| {
                 bits = bits.rotate_left(1);
                 if bits & 1 == 1 { 0 } else { !0 }
             })
         }));
-        ImageBuffer::from_vec(PIXEL_LINE_WIDTH, height as u32, imgbuf)
+        ImageBuffer::from_vec(DOTS_PER_LINE, height as u32, imgbuf)
         // let name = format!("printer_out_{}.png", Utc::now().format("%Y-%m-%d_%H%M%S%.f"));
-        // image::save_buffer(&name, &self.buf, PIXEL_LINE_WIDTH, height as , ColorType::L8)?;
+        // image::save_buffer(&name, &self.buf, DOTS_PER_LINE, height as , ColorType::L8)?;
     }
 
     fn clear(&mut self) {

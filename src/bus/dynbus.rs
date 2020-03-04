@@ -23,15 +23,17 @@ pub type LinkedDynDevice<D> = dyn NamedBusDevice<<D as BusDevice>::Timestamp>;
 /// A type of a boxed dynamic [NamedBusDevice] with a constraint on a timestamp type.
 pub type BoxLinkedDynDevice<D> = Box<dyn NamedBusDevice<<D as BusDevice>::Timestamp>>;
 
-/// A bus device that allows for adding and removing devices of different types in run-time.
+/// A bus device that allows for adding and removing devices of different types at run time.
 ///
 /// The penalty is that the access to the devices must be done using a virtual call dispatch.
 /// Also the device of this type can't be cloned (nor the [ControlUnit][crate::chip::ControlUnit]
 /// with this device attached).
 ///
-/// Implements [BusDevice] so it's possible to attach a statically dispatched next [BusDevice] to it.
+/// `DynamicBusDevice` implements [BusDevice] so obviously it's possible to attach a statically
+/// dispatched next [BusDevice] to it. By default it is [NullDevice].
 ///
-/// Currently only devices terminated with [NullDevice] can be appended.
+/// Currently only types implementing [BusDevice] terminated with [NullDevice] can be appended as
+/// dynamically dispatched objects.
 #[derive(Default, Debug)]
 pub struct DynamicBusDevice<D: BusDevice=NullDevice<VideoTs>> {
     devices: Vec<BoxLinkedDynDevice<D>>,
@@ -73,7 +75,8 @@ impl<D> DynamicBusDevice<D>
         self.devices.push(device.into());
         self.devices.len() - 1
     }
-    /// Removes the last device from the dynamic daisy-chain.
+    /// Removes the last device from the dynamic daisy-chain and returns an instance of the boxed
+    /// dynamic object.
     pub fn remove_device(&mut self) -> Option<BoxLinkedDynDevice<D>> {
         self.devices.pop()
     }
@@ -132,21 +135,21 @@ impl<D> DynamicBusDevice<D>
     {
         self.devices.get(index).map(|d| d.is::<B>()).unwrap_or(false)
     }
-    /// Searches for a device of a type given as parameter `B`, returning its index.
+    /// Searches for a first device of a type given as parameter `B`, returning its index.
     #[inline]
     pub fn position_device<B>(&self) -> Option<usize>
         where B: NamedBusDevice<D::Timestamp> + 'static
     {
         self.devices.iter().position(|d| d.is::<B>())
     }
-    /// Searches for a device of a type given as parameter `B`, returning a reference to a device.
+    /// Searches for a first device of a type given as parameter `B`, returning a reference to a device.
     #[inline]
     pub fn find_device_ref<B>(&self) -> Option<&B>
         where B: NamedBusDevice<D::Timestamp> + 'static
     {
         self.devices.iter().find_map(|d| d.downcast_ref::<B>())
     }
-    /// Searches for a device of a type given as parameter `B`, returning a mutable reference to a device.
+    /// Searches for a first device of a type given as parameter `B`, returning a mutable reference to a device.
     #[inline]
     pub fn find_device_mut<B>(&mut self) -> Option<&mut B>
         where B: NamedBusDevice<D::Timestamp> + 'static

@@ -1,15 +1,49 @@
-// http://www.fruitcake.plus.com/Sinclair/Spectrum128/Keypad/
 use core::fmt::{self, Debug};
 use core::marker::PhantomData;
+
 use crate::clock::{FTs, VideoTs, Ts};
 use crate::peripherals::ay::{AyIoPort, AyIoNullPort, Ay128kPortDecode};
-use crate::peripherals::serial::{SerialPort, DataState, ControlState, NullSerialPort, SerialKeypad, SerPortIo};
+use crate::peripherals::serial::{SerialPortDevice, DataState, ControlState, NullSerialPort, SerialKeypad, Rs232Io};
 use crate::bus::ay::{Ay3_891xBusDevice};
-use rand::{Rng, SeedableRng};
-use rand::rngs::SmallRng;
-use super::video::Ula128VidFrame;
 use crate::video::VideoFrame;
-// <- TODO: serport impl...
+use super::video::Ula128VidFrame;
+
+/// The bridge between ZX Spectrum 128 [AY-3-8912][crate::peripherals::ay::Ay3_891xIo] I/O ports and emulators
+/// of serial port devices.
+///
+/// The *RS232C*/*MIDI* interface is implemented using the Port `A` Data Store in the sound generator chip IC32.
+/// The data store is a special register which accesses an 8-bit bi-directional port A7-AO.
+/// The port occupies the same I/O space as the sound generator registers and is accessed in much the same way.
+///
+/// Bits of an I/O port `A` register have the following meaning:
+///
+/// * A0: `KEYPAD CTS` (OUT) = 0: active - Spectrum ready to receive, 1: inactive - busy.
+/// * A1: `KEYPAD RXD` (OUT) = 0: transmit bit (high voltage), 1: transmit bit (low voltage).
+/// * A2: `RS232  CTS` (OUT) = 0: active - Spectrum ready to receive, 1: inactive - busy.
+/// * A3: `RS232  RXD` (OUT) = 0: transmit (high voltage), 1: transmit bit (low voltage).
+/// * A4: `KEYPAD DTR` (IN)  = 0: active - a device ready for data, 1: inactive - busy.
+/// * A5: `KEYPAD TXD` (IN)  = 0: receive bit (high voltage), 1: Receive bit (low voltage).
+/// * A6: `RS232  DTR` (IN)  = 0: active - a device ready for data, 1: inactive - busy.
+/// * A7: `RS232  TXD` (IN)  = 0: receive bit (high voltage), 1: Receive bit (low voltage).
+///
+/// This type implements a single [AyIoPort] as two serial ports of ZX Spectrum 128.
+///
+/// One of these ports is primarily being used for the extension [keypad][SerialKeypad] and the other
+/// for communicating with a serial printer or other [RS-232][Rs232Io] device in either direction.
+///
+/// To "connect" something to these ports, provide some types implementing [SerialPortDevice] as
+/// `S1` and `S2`.
+#[derive(Clone, Debug, Default)]
+pub struct SerialPorts128<S1,S2> {
+    /// A [SerialPortDevice] connected to a `KEYPAD` port.
+    pub serial1: S1,
+    /// A [SerialPortDevice] connected to a `RS232` port.
+    pub serial2: S2,
+    io_state: Serial128Io,
+}
+
+/// This type implements a [BusDevice][crate::bus::BusDevice] emulating AY-3-8912 with an extension
+/// [keypad][SerialKeypad].
 pub type Ay3_8912Keypad<D> = Ay3_891xBusDevice<VideoTs,
                                                 Ay128kPortDecode,
                                                 SerialPorts128<
@@ -18,19 +52,23 @@ pub type Ay3_8912Keypad<D> = Ay3_891xBusDevice<VideoTs,
                                                 >,
                                                 AyIoNullPort<VideoTs>, D>;
 
-pub type Ay3_8912RS232<D, R, W> = Ay3_891xBusDevice<VideoTs,
+/// This type implements a [BusDevice][crate::bus::BusDevice] emulating AY-3-8912 with a [RS-232][Rs232Io]
+/// communication.
+pub type Ay3_8912Rs232<D, R, W> = Ay3_891xBusDevice<VideoTs,
                                                 Ay128kPortDecode,
                                                 SerialPorts128<
                                                     NullSerialPort<VideoTs>,
-                                                    SerPortIo<Ula128VidFrame, R, W>
+                                                    Rs232Io<Ula128VidFrame, R, W>
                                                 >,
                                                 AyIoNullPort<VideoTs>, D>;
 
-pub type Ay3_8912KeypadRS232<D, R, W> = Ay3_891xBusDevice<VideoTs,
+/// This type implements a [BusDevice][crate::bus::BusDevice] emulating AY-3-8912 with extension
+/// [keypad][SerialKeypad] and [RS-232][Rs232Io] communication.
+pub type Ay3_8912KeypadRs232<D, R, W> = Ay3_891xBusDevice<VideoTs,
                                                 Ay128kPortDecode,
                                                 SerialPorts128<
                                                     SerialKeypad<Ula128VidFrame>,
-                                                    SerPortIo<Ula128VidFrame, R, W>
+                                                    Rs232Io<Ula128VidFrame, R, W>
                                                 >,
                                                 AyIoNullPort<VideoTs>, D>;
 
@@ -40,39 +78,32 @@ impl<D> fmt::Display for Ay3_8912Keypad<D> {
     }
 }
 
-impl<D, R, W> fmt::Display for Ay3_8912RS232<D, R, W> {
+impl<D, R, W> fmt::Display for Ay3_8912Rs232<D, R, W> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("AY-3-8912 + RS-232")
     }
 }
 
-impl<D, R, W> fmt::Display for Ay3_8912KeypadRS232<D, R, W> {
+impl<D, R, W> fmt::Display for Ay3_8912KeypadRs232<D, R, W> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("AY-3-8912 + Keypad + RS-232")
     }
 }
 
 
-#[derive(Clone, Debug, Default)]
-pub struct SerialPorts128<S1,S2> {
-    pub serial1: S1,
-    pub serial2: S2,
-    io_state: Serial128Io,
-}
-
 bitflags! {
     struct Serial128Io: u8 {
-        const SER1_CTS      = 0b0000_0001; // 0=Spectrum ready to receive, 1=Busy
-        const SER1_RXD      = 0b0000_0010; // unused
-        const SER2_CTS      = 0b0000_0100; // 0=Spectrum ready to receive, 1=Busy 
-        const SER2_RXD      = 0b0000_1000; // 0=Transmit high bit,         1=Transmit low bit
+        const SER1_CTS      = 0b0000_0001;
+        const SER1_RXD      = 0b0000_0010;
+        const SER2_CTS      = 0b0000_0100;
+        const SER2_RXD      = 0b0000_1000;
         const SER1_OUT_MASK = 0b0000_0011;
         const SER2_OUT_MASK = 0b0000_1100;
         const OUTPUT_MASK   = Self::SER1_OUT_MASK.bits()|Self::SER2_OUT_MASK.bits();
-        const SER1_DTR      = 0b0001_0000; // unused
-        const SER1_TXD      = 0b0010_0000; // 0=Receive high bit,          1=Receive low bit
-        const SER2_DTR      = 0b0100_0000; // 0=Device ready for data,     1=Busy
-        const SER2_TXD      = 0b1000_0000; // 0=Receive high bit,          1=Receive low bit
+        const SER1_DTR      = 0b0001_0000;
+        const SER1_TXD      = 0b0010_0000;
+        const SER2_DTR      = 0b0100_0000;
+        const SER2_TXD      = 0b1000_0000;
         const SER1_INP_MASK = 0b0011_0000;
         const SER2_INP_MASK = 0b1100_0000;
     }
@@ -128,17 +159,13 @@ impl Serial128Io {
 }
 
 impl<S1, S2> AyIoPort for SerialPorts128<S1, S2>
-    where S1: Debug + SerialPort<Timestamp=VideoTs>,
-          S2: Debug + SerialPort<Timestamp=VideoTs>
+    where S1: Debug + SerialPortDevice<Timestamp=VideoTs>,
+          S2: Debug + SerialPortDevice<Timestamp=VideoTs>
 {
     type Timestamp = VideoTs;
 
     #[inline]
-    fn ay_io_reset(&mut self, timestamp: Self::Timestamp) {
-        self.io_state = Serial128Io::all();
-        self.serial1.reset(timestamp);
-        self.serial2.reset(timestamp);
-    }
+    fn ay_io_reset(&mut self, _timestamp: Self::Timestamp) {}
 
     #[inline]
     fn ay_io_write(&mut self, _addr: u16, data: u8, timestamp: Self::Timestamp) {
@@ -187,9 +214,7 @@ impl<S1, S2> AyIoPort for SerialPorts128<S1, S2>
 mod tests {
     use super::*;
     #[test]
-    fn ayayay_works() {
-        println!("SmallRng {}", core::mem::size_of::<SmallRng>());
-        println!("{:?}", SmallRng::from_entropy());
+    fn serial_ports_128_work() {
         // println!("SerialKeypad<Ula128VidFrame> {}", core::mem::size_of::<SerialKeypad<Ula128VidFrame>>());
     }
 }

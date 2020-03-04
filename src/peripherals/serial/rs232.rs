@@ -1,27 +1,47 @@
 use core::fmt;
 use core::marker::PhantomData;
 use core::slice;
-use std::io::{Read, Write};
-
-use crate::clock::{FTs, VideoTs, Ts};
-// use crate::chip::ula128::{SerialIo, SerialPort};
-use crate::peripherals::serial::{SerialPort, DataState, ControlState};
-use crate::peripherals::ay::{AyIoPort, AyIoNullPort, Ay128kPortDecode};
-use crate::bus::ay::{Ay3_891xBusDevice};
-use crate::video::VideoFrame;
-use crate::chip::ula128::CPU_HZ;
+use std::io::{Read, Write, ErrorKind};
 
 #[allow(unused_imports)]
 use log::{error, warn, info, debug, trace};
 
-const MIN_STOP_BIT_DELAY: u32 = CPU_HZ / 9600;
-const MAX_STOP_BIT_DELAY: u32 = CPU_HZ / 50;
-const ERROR_GRACE_DELAY: u32 = MAX_STOP_BIT_DELAY * 11;
-
+use crate::clock::{FTs, VideoTs, Ts};
+use crate::peripherals::serial::{SerialPortDevice, DataState, ControlState};
+use crate::peripherals::ay::{AyIoPort, AyIoNullPort, Ay128kPortDecode};
+use crate::bus::ay::{Ay3_891xBusDevice};
+use crate::video::VideoFrame;
+use crate::chip::ula128::CPU_HZ;
+/// The RS-232 serial port remote device.
+///
+/// Both ZX Spectrum's Interface 1 and 128k for communication via RS-232 use `DTR` and `CTS` lines to signal
+/// readiness and transmit or receive data using one `START` bit, 8 data bits and 2 `STOP` bits without parity.
+///
+/// Spectrum's ROM routines can send and transmit data with the following baud rates only:
+/// 50, 110, 300, 600, 1200, 2400, 4800, 9600 (default).
+///
+/// This type implements [SerialPortDevice] that transforms Spectrum's RS-232 signals to byte streams
+/// and vice-versa.
+///
+/// `Rs232Io` actually doesn't emulate any particular device, but rather writes transmitted bytes to a
+/// generic [writer][Write] and reads bytes from a generic [reader][Read].
+///
+/// Both `reader` and `writer` needs to be implemented by the user and its types should be provided as
+/// generics `R` and `W` accordingly.
+///
+/// An implementaion of [VideoFrame] is required to be provided as `V` for timestamp calculations.
+///
+/// The baud rate is not needed to be set up, as it is being auto-detected.
+///
+/// # Panics
+/// The [Read] and [Write] implementation methods must not return any error other than [ErrorKind::Interrupted].
+/// If any other error is returned the [SerialPortDevice] implementation will panic.
 #[derive(Clone, Debug)]
-pub struct SerPortIo<V, R, W> {
-    pub reader: R, // zx spectrum reads as CTS(ready=0) / TXD START 0 rev bits STOP 1 1
-    pub writer: W, // zx spectrum writes waits for DTR(ready=0) / RXD START 0 rev bits STOP 1 1
+pub struct Rs232Io<V, R, W> {
+    /// A reader providing data received by Spectrum.
+    pub reader: R,
+    /// A writer receiving data from Spectrum.
+    pub writer: W,
     // bit_interval: u32, // CPU_HZ / BAUDS
     read_io: ReadStatus,
     read_max_delay_ts: VideoTs,
@@ -32,7 +52,11 @@ pub struct SerPortIo<V, R, W> {
     _video_frame: PhantomData<V>
 }
 
-impl<V, R: Default, W: Default> Default for SerPortIo<V, R, W> {
+const MIN_STOP_BIT_DELAY: u32 = CPU_HZ / 9600;
+const MAX_STOP_BIT_DELAY: u32 = CPU_HZ / 50;
+const ERROR_GRACE_DELAY: u32 = MAX_STOP_BIT_DELAY * 11;
+
+impl<V, R: Default, W: Default> Default for Rs232Io<V, R, W> {
     fn default() -> Self {
         let reader = R::default();
         let writer = W::default();
@@ -42,7 +66,7 @@ impl<V, R: Default, W: Default> Default for SerPortIo<V, R, W> {
         let write_io = WriteStatus::Idle;
         let write_max_delay_ts = Default::default();
         let write_event_ts = Default::default();
-        SerPortIo {
+        Rs232Io {
             reader, writer,
             read_io,
             read_max_delay_ts,
@@ -54,11 +78,8 @@ impl<V, R: Default, W: Default> Default for SerPortIo<V, R, W> {
     }
 }
 
-impl<V: VideoFrame, R: Read, W: Write> SerialPort for SerPortIo<V, R, W> {
+impl<V: VideoFrame, R: Read, W: Write> SerialPortDevice for Rs232Io<V, R, W> {
     type Timestamp = VideoTs;
-    fn reset(&mut self, timestamp: Self::Timestamp) {
-        self.reset_status(timestamp);
-    }
     #[inline]
     fn write_data(&mut self, rxd: DataState, timestamp: Self::Timestamp) -> ControlState {
         self.process_write(rxd, timestamp)
@@ -100,7 +121,7 @@ enum ReadStatus {
 }
 
 //V::vts_add_ts(timestamp, self.bit_interval / 2);
-impl<V: VideoFrame, R: Read, W: Write> SerPortIo<V, R, W> {
+impl<V: VideoFrame, R: Read, W: Write> Rs232Io<V, R, W> {
     fn reset_status(&mut self, _timestamp: VideoTs) {
         self.read_io = ReadStatus::NotReady;
         self.write_io = WriteStatus::Idle;
@@ -113,7 +134,7 @@ impl<V: VideoFrame, R: Read, W: Write> SerPortIo<V, R, W> {
             return match self.writer.write(buf) {
                 Ok(0) => false,
                 Ok(..) => true,
-                Err(ref e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
+                Err(ref e) if e.kind() == ErrorKind::Interrupted => continue,
                 Err(e) => panic!("an error occured while writing {}", e)
             }
         }
@@ -125,7 +146,7 @@ impl<V: VideoFrame, R: Read, W: Write> SerPortIo<V, R, W> {
             return match self.reader.read(slice::from_mut(&mut byte)) {
                 Ok(0) => None,
                 Ok(..) => Some(byte),
-                Err(ref e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
+                Err(ref e) if e.kind() == ErrorKind::Interrupted => continue,
                 Err(e) => panic!("an error occured while reading {}", e),
             };
         }

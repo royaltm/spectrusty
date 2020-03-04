@@ -8,7 +8,7 @@ use zxspecemu::bus::{DynamicBusDevice, OptionalBusDevice, NullDevice,
                     joystick::{JoystickSelect, MultiJoystickBusDevice},
                     zxprinter::*};
 use zxspecemu::clock::VideoTs;
-use zxspecemu::chip::{MemoryAccess, ula128::Ay3_8912KeypadRS232};
+use zxspecemu::chip::{MemoryAccess, ula128::Ay3_8912KeypadRs232};
 use zxspecemu::memory::ZxMemory;
 use zxspecemu::peripherals::{KeyboardInterface, ZXKeyboardMap};
 use zxspecemu::peripherals::joystick::Directions;
@@ -26,7 +26,7 @@ pub use nonblocking::*;
 
 pub type ZXPrinterToImage<V> = ZxPrinter<V, ImageSpooler>;
 pub type OptJoystickBusDevice<D=NullDevice<VideoTs>> = OptionalBusDevice<MultiJoystickBusDevice, D>;
-pub type Ay3_8912 = Ay3_8912KeypadRS232<OptJoystickBusDevice,
+pub type Ay3_8912 = Ay3_8912KeypadRs232<OptJoystickBusDevice,
                                         NonBlockingStdinReader,
                                         FilterGfxStdoutWriter>;
 

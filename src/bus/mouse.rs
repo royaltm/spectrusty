@@ -1,4 +1,4 @@
-//! Hosts [MouseBusDevice] implementing [BusDevice].
+//! A [BusDevice] for connecting pointing devices / mouses.
 use core::fmt::Debug;
 use core::convert::TryFrom;
 use core::fmt;

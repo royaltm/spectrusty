@@ -1,4 +1,4 @@
-//! This module hosts traits for interfacing joystick controllers and joystick device implementations.
+//! A joystick communication interface and emulators of various joysticks.
 use core::fmt::Debug;
 
 pub mod cursor;
@@ -7,9 +7,9 @@ pub mod kempston;
 pub mod sinclair;
 
 bitflags! {
-    /// Bitflags for reading and writing joystick state.
-    /// * Bit = 1 is active.
-    /// * Bit = 0 is inactive.
+    /// Flags for reading and writing the current stick direction.
+    /// * Bit = 1 a direction is active.
+    /// * Bit = 0 a direction is inactive.
     #[derive(Default)]
     pub struct Directions: u8 {
         const UP    = 0b0000_0001;
@@ -32,17 +32,19 @@ pub enum JoyDirection {
     UpLeft
 }
 
-/// A user input interface for a [JoystickDevice].
+/// An interface for providing user input data for a [JoystickDevice] implementation.
 pub trait JoystickInterface {
-    /// Press or release a fire button. `btn` is the button number for cases when joystick have more than one button.
+    /// Press or release a "fire" button. `btn` is the button number for cases when joystick have more than one button.
+    ///
+    /// Currently `btn` is not being used by any of the implemented devices.
     fn fire(&mut self, btn: u8, pressed: bool);
-    /// Returns a status of a `btn` fire button.
+    /// Returns a status of a `btn` "fire" button.
     fn get_fire(&self, btn: u8) -> bool;
-    /// Sets joystick direction using bit-flags.
+    /// Changes the stick direction using provided flags.
     fn set_directions(&mut self, dir: Directions);
-    /// Returns current joystick direction as bit-flags.
+    /// Returns the current stick direction.
     fn get_directions(&self) -> Directions;
-    /// Sets joystick direction using an anum.
+    /// Changes the stick direction using an anum.
     #[inline]
     fn direction(&mut self, dir: JoyDirection) {
         self.set_directions(match dir {
@@ -57,43 +59,43 @@ pub trait JoystickInterface {
             JoyDirection::UpLeft => Directions::UP|Directions::LEFT,
         })
     }
-    /// Resets joystick to a central (neutral) position.
+    /// Resets a joystick to a central (neutral) position.
     #[inline]
     fn center(&mut self) {
         self.set_directions(Directions::empty());
     }
-    /// Returns `true` if joystick is in up (forward) position.
+    /// Returns `true` if a joystick is in up (forward) position.
     #[inline]
     fn is_up(&self) -> bool {
         self.get_directions().intersects(Directions::UP)
     }
-    /// Returns `true` if joystick is in right position.
+    /// Returns `true` if a joystick is in right position.
     #[inline]
     fn is_right(&self) -> bool {
         self.get_directions().intersects(Directions::RIGHT)
     }
-    /// Returns `true` if joystick is in left position.
+    /// Returns `true` if a joystick is in left position.
     #[inline]
     fn is_left(&self) -> bool {
         self.get_directions().intersects(Directions::LEFT)
     }
-    /// Returns `true` if joystick is in down (backward) position.
+    /// Returns `true` if a joystick is in down (backward) position.
     #[inline]
     fn is_down(&self) -> bool {
         self.get_directions().intersects(Directions::DOWN)
     }
-    /// Returns `true` if joystick is in a center (neutral) position.
+    /// Returns `true` if a joystick is in a center (neutral) position.
     #[inline]
     fn is_center(&self) -> bool {
         self.get_directions().intersects(Directions::empty())
     }
 }
 
-/// A joystick device interface used by the joystick [bus][crate::bus::joystick] device.
+/// A joystick device interface used by the joystick [bus][crate::bus::joystick] device implementation.
 pub trait JoystickDevice: Debug {
-    /// Reads current joystick state as I/O data.
+    /// Should return the joystick state.
     fn port_read(&self, port: u16) -> u8;
-    /// Writes I/O data to a joystick device.
+    /// Allows to implement writing data to a joystick device.
     ///
     /// If a device does not support writes, this method should return `false`.
     /// A default implementation does exactly just that.

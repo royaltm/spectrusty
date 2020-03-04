@@ -1,45 +1,51 @@
-// http://www.fruitcake.plus.com/Sinclair/Spectrum128/Keypad/
 use core::fmt;
 use core::marker::PhantomData;
-use crate::clock::{VideoTs, Ts};
-// use crate::chip::ula128::{SerialIo, SerialPort};
-use crate::peripherals::serial::{SerialPort, DataState, ControlState};
+
 use rand::{Rng, SeedableRng};
 use rand::rngs::SmallRng;
+
+use crate::clock::{VideoTs, Ts};
+use crate::peripherals::serial::{SerialPortDevice, DataState, ControlState};
 use crate::video::VideoFrame;
 
 bitflags! {
     /// Every key's state is encoded as a single bit on this 20-bit flag type.
-    /// * Bit = 1 key is being pressed.
-    /// * Bit = 0 key not being pressed.
+    /// * Bit = 1 a key is being pressed.
+    /// * Bit = 0 a key is not being pressed.
     #[derive(Default)]
     pub struct KeypadKeys: u32 {
-        /// The 1st (top) physical keypad row's mask
+        /// The 1st (top) physical keypad row's mask.
         const ROW1_MASK = 0b0000_0000_1111_0000_0000;
-        /// The 2nd physical keypad row's mask
+        /// The 2nd physical keypad row's mask.
         const ROW2_MASK = 0b0000_1111_0000_0000_0000;
-        /// The 3rd physical keypad row's mask
+        /// The 3rd physical keypad row's mask.
         const ROW3_MASK = 0b1111_0000_0000_0000_0000;
-        /// The 4th physical keypad row's mask
+        /// The 4th physical keypad row's mask.
         const ROW4_MASK = 0b0000_0000_0000_1111_0000;
-        /// The 5th physical keypad row's mask
+        /// The 5th (bottom) physical keypad row's mask.
         const ROW5_MASK = 0b0000_0000_0000_0000_1111;
         const DOT       = 0b0000_0000_0000_0000_0010;
+        /// An alias of `DOT`.
         const PERIOD    = Self::DOT.bits();
-        const SHIFT     = 0b0000_0000_0000_0000_1000;
-        const N0        = Self::SHIFT.bits();
+        const N0        = 0b0000_0000_0000_0000_1000;
+        /// An alias of `N0`.
+        const SHIFT     = Self::N0.bits();
         const ENTER     = 0b0000_0000_0000_0001_0000;
         const N3        = 0b0000_0000_0000_0010_0000;
         const N2        = 0b0000_0000_0000_0100_0000;
         const N1        = 0b0000_0000_0000_1000_0000;
         const RPAREN    = 0b0000_0000_0001_0000_0000;
+        /// An alias of `RPAREN`
         const TOGGLE    = Self::RPAREN.bits();
         const LPAREN    = 0b0000_0000_0010_0000_0000;
         const ASTERISK  = 0b0000_0000_0100_0000_0000;
+        /// An alias of `ASTERISK`
         const MULTIPLY  = Self::ASTERISK.bits();
         const SLASH     = 0b0000_0000_1000_0000_0000;
+        /// An alias of `SLASH`
         const DIVIDE    = Self::SLASH.bits();
         const MINUS     = 0b0000_0001_0000_0000_0000;
+        /// An alias of `MINUS`
         const CMND      = Self::MINUS.bits();
         const N9        = 0b0000_0010_0000_0000_0000;
         const N8        = 0b0000_0100_0000_0000_0000;
@@ -69,7 +75,43 @@ mod intervals {
     pub const STOP_STAND_EASY_TIMEOUT: u32 = 4610; // 1.3 ms
 }
 use intervals::*;
-
+/// The ZX Spectrum 128 extension keypad.
+///
+/// For the history of this rare and often omitted in emulators device see:
+/// [Spectrum128Keypad.htm](http://www.fruitcake.plus.com/Sinclair/Spectrum128/Keypad/Spectrum128Keypad.htm).
+///
+/// ```text
+/// +-------+  +-------+  +-------+  +-------+
+/// | DEL ← |  | ↑     |  | DEL → |  |TOGGLE |
+/// |   /   |  |   *   |  |   (   |  |   )   |
+/// +-------+  +-------+  +-------+  +-------+
+///
+/// +-------+  +-------+  +-------+  +-------+
+/// | ←     |  | ↓     |  | →     |  | CMND  |
+/// |   7   |  |   8   |  |   9   |  |   -   |
+/// +-------+  +-------+  +-------+  +-------+
+///
+/// +-------+  +-------+  +-------+  +-------+
+/// |<< DEL |  |>> DEL |  |↑↑     |  |↑↑     |
+/// |   4   |  |   5   |  |   6   |  |   +   |
+/// +-------+  +-------+  +-------+  +-------+
+///
+/// +-------+  +-------+  +-------+  +-------+
+/// ||<< DEL|  |>>| DEL|  |⭱⭱     |  |   E   |
+/// |   1   |  |   2   |  |   3   |  |   N   |
+/// +-------+  +-------+  +-------+  |   T   |
+///                                  |   E   |
+/// +------------------+  +-------+  |   R   |
+/// |            SHIFT |  |⭳⭳     |  |       |
+/// |         0        |  |   .   |  |   =   |
+/// +------------------+  +-------+  +-------+
+///```
+///
+/// The extension keypad communicates with Spectrum using a unique protocol over the computer's serial connector.
+///
+/// This type implements [SerialPortDevice] bringing the extension keypad to it's virtual existence.
+///
+/// To change the keypad state use methods directly on the implementation of this type.
 #[derive(Clone, Debug)]
 pub struct SerialKeypad<V> {
     keys: KeypadKeys,
@@ -105,14 +147,14 @@ enum KeypadIoStatus {
     Stopped,
 }
 
-impl<V> Default for SerialKeypad<V> {
+impl<V: VideoFrame> Default for SerialKeypad<V> {
     fn default() -> Self {
         let keys = KeypadKeys::default();
         let keys_changed = 0;
         let next_row = 0;
         let output_bits = 0;
-        let keypad_event_ts = VideoTs::default();
         let rng = SmallRng::from_entropy();
+        let keypad_event_ts = V::vts_add_ts(VideoTs::default(), RESET_MAX_INTERVAL);
         let keypad_io = KeypadIoStatus::Reset;
         SerialKeypad {
             keys, keys_changed, next_row, output_bits,
@@ -121,12 +163,8 @@ impl<V> Default for SerialKeypad<V> {
     }
 }
 
-impl<V: VideoFrame> SerialPort for SerialKeypad<V> {
+impl<V: VideoFrame> SerialPortDevice for SerialKeypad<V> {
     type Timestamp = VideoTs;
-    fn reset(&mut self, timestamp: Self::Timestamp) {
-        self.rng = SmallRng::from_entropy();
-        self.reset_status(timestamp);
-    }
     #[inline(always)]
     fn write_data(&mut self, _rxd: DataState, _timestamp: Self::Timestamp) -> ControlState {
         ControlState::Inactive
@@ -150,11 +188,12 @@ impl<V: VideoFrame> SerialPort for SerialKeypad<V> {
 }
 
 impl<V: VideoFrame> SerialKeypad<V> {
+    /// Reads the current state of the keypad.
     #[inline]
     pub fn get_key_state(&self) -> KeypadKeys {
         self.keys
     }
-
+    /// Sets the state of the keypad.
     pub fn set_key_state(&mut self, keys: KeypadKeys) {
         let keys_changed = (self.keys ^ keys).bits();
         self.keys_changed |= keys_changed;

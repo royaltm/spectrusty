@@ -1,10 +1,20 @@
-//! Serial port api and implementations.
+//! Serial port related api and emulation of ZX Spectrum's peripheral devices using serial communication.
+//!
+//! The terminology regarding serial port pins/lines being used in ZX Spectrum's technical documentation:
+//!
+//! * `RxD` (Receive Data) Transmitted data from Spectrum to the remote device.
+//! * `CTS` (Clear to Send) Tells remote station that Spectrum wishes to send data.
+//! * `TxD` (Transmit Data) Received data from the remote device.
+//! * `DTR` (Data Terminal Ready) Tells Spectrum that remote station wishes to send data.
 mod keypad;
 mod rs232;
 
 pub use rs232::*;
 pub use keypad::*;
 
+/// A type representing a state on one of the `DATA` lines: `RxD` or `TxD`.
+///
+/// `Space` represents a logical 0 (positive voltage), while `Mark` represents a logical 1 (negative voltage).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(u8)]
 pub enum DataState {
@@ -12,6 +22,9 @@ pub enum DataState {
     Mark = 1
 }
 
+/// A type representing a state on one of the `CONTROL` lines: `CTS` or `DTR`.
+///
+/// `Active` represents a logical 0 (positive voltage), while `Inactive` represents a logical 1 (negative voltage).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(u8)]
 pub enum ControlState {
@@ -19,51 +32,50 @@ pub enum ControlState {
     Inactive = 1
 }
 
-pub trait SerialPort {
+/// An interface for emulating communication between a ZX Spectrum's hardware port and remote devices.
+///
+/// Emulators of peripheral devices should implement this trait.
+///
+/// Methods of this trait are being called by bus devices implementing serial port communication.
+pub trait SerialPortDevice {
     type Timestamp: Sized;
-    /// Resets an underlying device.
-    fn reset(&mut self, timestamp: Self::Timestamp);
-    /// Receives a current `RxD` state and should output a `DTR` state.
+    /// A device receives a current `RxD` state from Spectrum and should output a `DTR` line state.
     ///
-    /// This method is being called when a CPU writes to a port (OUT) and only when the `CTS` line isn't 
-    /// changed by the last write.
+    /// This method is being called when a `CPU` writes (OUT) to a port and only when the `CTS` line isn't 
+    /// changed by the write.
     fn write_data(&mut self, rxd: DataState, timestamp: Self::Timestamp) -> ControlState;
-    /// This method is being called once every frame, near the end of it and should return a `DTR` state.
+    /// This method is being called once every frame, near the end of it and should return a `DTR` line state.
     fn poll_ready(&mut self, timestamp: Self::Timestamp) -> ControlState;
-    /// Receives an updated `CTS` state.
+    /// Receives an updated `CTS` line state.
     ///
-    /// This method is being called:
-    ///
-    /// * when a CPU writes to a port (OUT) and only when the value of `CTS` changes.
+    /// This method is being called when a `CPU` writes (OUT) to a port and only when the value of `CTS` changes.
     fn update_cts(&mut self, cts: ControlState, timestamp: Self::Timestamp);
-    /// Receives a last `CTS` state, and should output a `TxD` state.
+    /// Receives the last `CTS` line state, and should output a `TxD` line state.
     ///
-    /// This method is being called:
-    ///
-    /// * when a CPU reads from a port (IN).
+    /// This method is being called when a `CPU` reads (IN) from a port.
     fn read_data(&mut self, timestamp: Self::Timestamp) -> DataState;
-    /// Called when the current frame ends to give opportunity to wrap stored timestamps.
+    /// Called when the current frame ends to allow emulators to wrap stored timestamps.
     fn end_frame(&mut self, timestamp: Self::Timestamp);
 }
 
 impl DataState {
     #[inline]
-    fn is_space(self) -> bool {
+    pub fn is_space(self) -> bool {
         self == DataState::Space
     }
     #[inline]
-    fn is_mark(self) -> bool {
+    pub fn is_mark(self) -> bool {
         self == DataState::Mark
     }
 }
 
 impl ControlState {
     #[inline]
-    fn is_active(self) -> bool {
+    pub fn is_active(self) -> bool {
         self == ControlState::Active
     }
     #[inline]
-    fn is_inactive(self) -> bool {
+    pub fn is_inactive(self) -> bool {
         self == ControlState::Inactive
     }
 }
@@ -119,14 +131,14 @@ impl From<bool> for ControlState {
     }
 }
 
+/// A serial port device that does nothing and provides a constant [ControlState::Inactive] signal
+/// on the `DTR` line and a [DataState::Mark] signal on the `TxD` line.
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
 pub struct NullSerialPort<T>(core::marker::PhantomData<T>);
 
-impl<T> SerialPort for NullSerialPort<T> {
+impl<T> SerialPortDevice for NullSerialPort<T> {
     type Timestamp = T;
 
-    #[inline(always)]
-    fn reset(&mut self, _timestamp: Self::Timestamp) {}
     #[inline(always)]
     fn write_data(&mut self, _rxd: DataState, _timestamp: Self::Timestamp) -> ControlState {
         ControlState::Inactive

@@ -1,10 +1,10 @@
-//! Zx Spectrum keyboard emulation helpers.
+//! **ZX Spectrum** keyboard emulation interface.
 //!
 //! Please see also [this](http://rk.nvg.ntnu.no/sinclair/computers/zxspectrum/spec48versions.htm#issue1)
 bitflags! {
     /// Every key's state is encoded as a single bit on this 40-bit flag type.
-    /// * Bit = 1 key is being pressed.
-    /// * Bit = 0 key not being pressed.
+    /// * Bit = 1 a key is being pressed.
+    /// * Bit = 0 a key is not being pressed.
     #[derive(Default)]
     pub struct ZXKeyboardMap: u64 {
         const V  = 0x00_0000_0001;
@@ -50,17 +50,18 @@ bitflags! {
     }
 }
 
-/// An interface implemented by the ZX Spectrum control unit.
-/// Used by a keyboard interface to change or read the state of the keyboard from the emulator.
+/// An interface for providing changes of a **ZX Spectrum** keyboard state to one of the `ULA` chipset emulators.
+///
+/// This trait is implemented by [crate::chip::ControlUnit] implementations which provide a keyboard interface.
 pub trait KeyboardInterface {
-    /// Read the current state of the keyboard.
+    /// Reads the current state of the keyboard.
     fn get_key_state(&self) -> ZXKeyboardMap;
-    /// Set the state of the keyboard.
+    /// Sets the state of the keyboard.
     fn set_key_state(&mut self, keymap: ZXKeyboardMap);
 }
 
 impl ZXKeyboardMap {
-    /// Reads the state of 4 key lines from `ZXKeyboardMap` suitable for ZX Spectrum I/O.
+    /// Reads the state of 4 key lines from `ZXKeyboardMap` suitable for **ZX Spectrum** internal I/O.
     ///
     ///
     /// ```text

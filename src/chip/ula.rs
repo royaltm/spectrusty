@@ -18,6 +18,7 @@ use frame_cache::UlaFrameCache;
 
 pub use video::{UlaVideoFrame, UlaMemoryContention, UlaTsCounter};
 
+/// The ZX Spectrum's CPU clock in cycles per second.
 pub const CPU_HZ: u32 = 3_500_000;
 
 /// A grouping trait of all common control traits for all emulated `Ula` chipsets except audio rendering.

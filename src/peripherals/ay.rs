@@ -1,4 +1,8 @@
-//! AY-3-8910/8912/8913 I/O.
+//! The **AY-3-8910** programmable sound generator chipset family.
+//!
+//! This module contains chipset I/O interface protocol traits and heler types.
+//!
+//! The sound emulation is in a separate module, please go to: [crate::audio::ay].
 use core::fmt;
 use core::ops::{Deref, DerefMut};
 use crate::clock::{FTs, VideoTs};
@@ -6,6 +10,7 @@ use crate::video::VideoFrame;
 use core::marker::PhantomData;
 use std::convert::TryFrom;
 
+/// An enumeration of AY-3-8910 registers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(u8)]
 pub enum AyRegister {
@@ -32,23 +37,32 @@ const REG_MASKS: [u8;16] = [
     0x1f, 0x1f, 0x1f, 0xff, 0xff, 0x0f, 0xff, 0xff
 ];
 
+/// A helper trait for matching I/O port addresses for AY-3-8910.
 pub trait AyPortDecode: fmt::Debug {
+    /// A mask of significant address bus bits for port decoding.
     const PORT_MASK: u16;
+    /// A mask of address bus bit values - for the register selection function.
     const PORT_SELECT: u16;
+    /// A mask of address bus bit values - for the reading from the selected register function.
     const PORT_DATA_READ: u16;
+    /// A mask of address bus bit values - for the writing to the selected register function.
     const PORT_DATA_WRITE: u16;
+    /// Return `true` if the port matches the register selection function.
     #[inline]
     fn is_select(port: u16) -> bool {
-        port & Self::PORT_MASK == Self::PORT_SELECT
+        port & Self::PORT_MASK == Self::PORT_SELECT & Self::PORT_MASK
     }
+    /// Return `true` if the port matches the register reading function.
     #[inline]
     fn is_data_read(port: u16) -> bool {
-        port & Self::PORT_MASK == Self::PORT_DATA_READ
+        port & Self::PORT_MASK == Self::PORT_DATA_READ & Self::PORT_MASK
     }
+    /// Return `true` if the port matches the register writing function.
     #[inline]
     fn is_data_write(port: u16) -> bool {
-        port & Self::PORT_MASK == Self::PORT_DATA_WRITE
+        port & Self::PORT_MASK == Self::PORT_DATA_WRITE & Self::PORT_MASK
     }
+    /// A helper for writing data to one of the functions decoded from `port` address.
     #[inline]
     fn write_ay_io<T,R,A,B>(
                 ay_io: &mut Ay3_891xIo<T,R,A,B>,
@@ -74,6 +88,7 @@ pub trait AyPortDecode: fmt::Debug {
     }
 }
 
+/// Matches I/O port addresses for AY-3-8912 used by the **ZX Spectrum+ 128k** or a *Melodik* interface.
 #[derive(Clone, Copy, Default, Debug)]
 pub struct Ay128kPortDecode;
 impl AyPortDecode for Ay128kPortDecode {
@@ -83,6 +98,7 @@ impl AyPortDecode for Ay128kPortDecode {
     const PORT_DATA_WRITE: u16 = 0b10000000_00000000;
 }
 
+/// Matches I/O port addresses for AY-3-8912 used by the *Fuller Box* interface.
 #[derive(Clone, Copy, Default, Debug)]
 pub struct AyFullerBoxPortDecode;
 impl AyPortDecode for AyFullerBoxPortDecode {
@@ -92,6 +108,7 @@ impl AyPortDecode for AyFullerBoxPortDecode {
     const PORT_DATA_WRITE: u16 = 0x005f;
 }
 
+/// Matches I/O port addresses for AY-3-8912 used by the *Timex TC2068* computer series.
 #[derive(Clone, Copy, Default, Debug)]
 pub struct AyTC2068PortDecode;
 impl AyPortDecode for AyTC2068PortDecode {
@@ -101,47 +118,48 @@ impl AyPortDecode for AyTC2068PortDecode {
     const PORT_DATA_WRITE: u16 = 0x00f6;
 }
 
-/// Timestamps a change to one of AY registers.
+/// A type for recording timestamped changes to one of AY-3-8910 audio registers.
 ///
 /// Instances of this type are being used by [Ay3_891xAudio][crate::audio::ay::Ay3_891xAudio]
 /// for sound generation. See also [AyRegRecorder].
 #[derive(Clone, Copy, Debug)]
 pub struct AyRegChange {
-    /// A timestamp in Cpu cycle (T-states) counter values, relative to the current frame.
+    /// A timestamp in `CPU` cycles (T-states), relative to the beginning of the current frame.
     pub time: FTs,
     /// Which register is being changed.
     pub reg: AyRegister,
-    /// New value loaded into the register.
+    /// A new value loaded into the register.
     ///
     /// *NOTE*: may contain bits set to 1 that are unused by the indicated register.
     pub val: u8
 }
 
-/// This trait should be implemented by devices attached to [Ay3_891xIo] A/B ports.
+/// This trait should be implemented by emulators of devices attached to one of two [Ay3_891xIo] I/O ports.
 pub trait AyIoPort: fmt::Debug {
     type Timestamp: Sized;
     /// Resets the device at the given `timestamp`.
     #[inline]
     fn ay_io_reset(&mut self, _timestamp: Self::Timestamp) {}
-    /// Writes value to the device at the given `timestamp`.
+    /// Writes data to the device at the given `timestamp`.
     #[inline]
-    fn ay_io_write(&mut self, _addr: u16, _val: u8, _timestamp: Self::Timestamp) {}
-    /// Reads value to the device at the given `timestamp`.
+    fn ay_io_write(&mut self, _addr: u16, _data: u8, _timestamp: Self::Timestamp) {}
+    /// Reads data from the device at the given `timestamp`.
     #[inline]
     fn ay_io_read(&mut self, _addr: u16, _timestamp: Self::Timestamp) -> u8 { 0xff }
-    /// Signals the device when the current frame ends.
+    /// Signals the device when the current frame ends, providing the value of the cycle clock after
+    /// the frame execution stopped.
     #[inline]
     fn end_frame(&mut self, _timestamp: Self::Timestamp) {}
 }
 
-/// An [Ay3_891xIo] port device implementation that does nothing.
+/// An [Ay3_891xIo] I/O device implementation that does nothing.
 #[derive(Default, Clone, Copy, Debug)]
 pub struct AyIoNullPort<T>(PhantomData<T>);
 
-/// Allows recording of changes to AY registers with timestamps.
+/// Allows recording of changes to AY-3-8910 audio registers with timestamps.
 pub trait AyRegRecorder {
     type Timestamp;
-    /// Records the new value of indicated register with the given `timestamp`.
+    /// Shoud record a new value of indicated register with the given `timestamp`.
     ///
     /// *NOTE*: It is up to the caller to ensure the timestamps are added in an ascending order.
     fn record_ay_reg_change(&mut self, reg: AyRegister, val: u8, timestamp: Self::Timestamp);
@@ -154,23 +172,29 @@ pub type Ay3_8912Io<T,A> = Ay3_8910Io<T, A>;
 /// The type of [Ay3_891xIo] without I/O ports and [AyRegVecRecorder].
 pub type Ay3_8913Io<T> = Ay3_8910Io<T>;
 
-/// Implements AY-3-8910/8912/8913 I/O ports and provides an interface for I/O operations.
+/// Implements a communication protocol with programmable sound generator AY-3-8910 / 8912 / 8913 and
+/// its I/O ports.
 ///
-/// For the implementation of a sound generator see [crate::audio::ay].
+/// Records values written to audio registers which can be used to produce sound using
+/// [crate::audio::ay::Ay3_891xAudio].
+///
+/// The `recorder` type `R` needs to implement [AyRegRecorder] trait.
+/// The port types `A` and `B` need to implement [AyIoPort] trait.
 #[derive(Default, Clone, Debug)]
-pub struct Ay3_891xIo<T,R,A,B> {
-    /// The recorded changes can be used to generate sound with [crate::audio::ay::Ay3_891xAudio].
+pub struct Ay3_891xIo<T, R, A, B> {
+    /// Provides access to the recorded changes of sound generator registers.
+    /// The changes are required to generate sound with [crate::audio::ay::Ay3_891xAudio].
     pub recorder: R,
-    /// Accesses port A device.
+    /// An instance of port `A` [AyIoPort] I/O device implementation.
     pub port_a: A,
-    /// Accesses port B device.
+    /// An instance of port `B` [AyIoPort] I/O device implementation.
     pub port_b: B,
     regs: [u8; 16],
     selected_reg: AyRegister,
     _ts: PhantomData<T>
 }
 
-/// A convenient recorder for [Ay3_891xIo] that records nothing.
+/// A recorder for [Ay3_891xIo] that records nothing.
 ///
 /// Usefull when no sound will be generated.
 #[derive(Default, Clone, Debug)]
@@ -185,7 +209,8 @@ where A: AyIoPort<Timestamp=T>,
       B: AyIoPort<Timestamp=T>,
       R: AyRegRecorder<Timestamp=T>
 {
-    /// Resets the state of internal registers, port devices and the selected register.
+    /// Resets the state of internal registers, port devices and which register is being
+    /// currently selected for reading and writing.
     ///
     /// *NOTE*: does nothing to the recorded register changes.
     pub fn reset(&mut self, timestamp: T) where T: Copy {
@@ -194,7 +219,7 @@ where A: AyIoPort<Timestamp=T>,
         self.port_a.ay_io_reset(timestamp);
         self.port_b.ay_io_reset(timestamp);
     }
-    /// Prepares port implementations for the next frame.
+    /// Forwards the call to I/O port implementations. Can be used to indicate an end-of-frame.
     pub fn next_frame(&mut self, timestamp: T) where T: Copy {
         self.port_a.end_frame(timestamp);
         self.port_b.end_frame(timestamp);
@@ -216,22 +241,22 @@ where A: AyIoPort<Timestamp=T>,
         let index = usize::from(reg);
         self.regs[index] = val & REG_MASKS[index];
     }
-    /// Returns true if the control register bit controlling I/O port A input is reset.
+    /// Returns `true` if the control register bit controlling I/O port `A` input is reset.
     #[inline]
     pub fn is_ioa_input(&self) -> bool {
         self.get(AyRegister::MixerControl) & 0x40 == 0
     }
-    /// Returns true if the control register bit controlling I/O port B input is reset.
+    /// Returns `true` if the control register bit controlling I/O port `B` input is reset.
     #[inline]
     pub fn is_iob_input(&self) -> bool {
         self.get(AyRegister::MixerControl) & 0x80 == 0
     }
-    /// Returns true if the control register bit controlling I/O port A input is set.
+    /// Returns `true` if the control register bit controlling I/O port `A` input is set.
     #[inline]
     pub fn is_ioa_output(&self) -> bool {
         !self.is_ioa_input()
     }
-    /// Returns true if the control register bit controlling I/O port B input is reset.
+    /// Returns `true` if the control register bit controlling I/O port `B` input is reset.
     #[inline]
     pub fn is_iob_output(&self) -> bool {
         !self.is_iob_input()

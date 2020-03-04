@@ -20,6 +20,7 @@ use crate::chip::ula::{Ula, UlaTimestamp, UlaCpuExt, UlaMemoryContention};
 pub use video::{Ula128VidFrame, Ula128MemContention};
 pub use ay::*;
 
+/// The ZX Spectrum 128's CPU clock in cycles per second.
 pub const CPU_HZ: u32 = 3_546_900;
 
 pub(self) type InnerUla<B> = Ula<Memory128k, B, Ula128VidFrame>;

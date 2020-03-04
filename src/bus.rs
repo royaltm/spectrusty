@@ -1,4 +1,4 @@
-//! This module hosts an emulation of system bus devices, that can be used with any [ControlUnit][crate::chip::ControlUnit].
+//! System bus related interfaces and device emulators to be used with [ControlUnit][crate::chip::ControlUnit]s.
 use core::fmt::{self, Debug};
 use core::any::{TypeId, Any};
 use core::marker::PhantomData;
@@ -70,10 +70,16 @@ impl<T: Debug + 'static> dyn NamedBusDevice<T> + 'static {
     }
 }
 
-/// An interface that allows attaching many, different devices in a daisy chain.
+/// An interface for emulating communication between `CPU` and a system bus via [ControlUnit].
 ///
-/// Implementations of bus devices should be provided to implementations of [ControlUnit][crate::chip::ControlUnit]
-/// for its associated type argument: `BusDevice`.
+/// Emulators of devices that communicates via CPU I/O requests should implement this trait.
+///
+/// This trait allows to attach many, different devices to form a so called "daisy chain".
+///
+/// Implementations of bus devices should be provided as [ControlUnit::BusDevice] associated types.
+///
+/// [ControlUnit]: crate::chip::ControlUnit
+/// [ControlUnit::BusDevice]: crate::chip::ControlUnit::BusDevice
 pub trait BusDevice: Debug {
     /// A frame timestamp type. Must be the same as `Io::Timestamp` implemented by a [ControlUnit][crate::chip::ControlUnit]
     /// and for all devices in a days chain.
@@ -221,7 +227,7 @@ impl<T> fmt::Display for NullDevice<T> {
     }
 }
 
-/// A [BusDevice] allowing for plugging in and out a device during run time.
+/// A [BusDevice] allowing for plugging in and out a device at run time.
 #[derive(Clone, Default, Debug)]
 pub struct OptionalBusDevice<D, N=NullDevice<VideoTs>> {
     pub device: Option<D>,

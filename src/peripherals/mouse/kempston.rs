@@ -1,9 +1,9 @@
-//! Kempston Mouse implementation.
+//! A Kempston Mouse device implementation.
 use super::{MouseInterface, MouseDevice, MouseMovement, MouseButtons};
 /*
-Horizontal position: IN 64479
-Vertical postition: IN 65503
-Buttons: IN 64223 [255 = None], [254 = Left], [253 = Right], [252 = Both]
+    Horizontal position: IN 64479
+    Vertical postition: IN 65503
+    Buttons: IN 64223 [255 = None], [254 = Left], [253 = Right], [252 = Both]
 */
 const LEFT_BTN_MASK:   u8 = 0b0000_0001;
 const RIGHT_BTN_MASK:  u8 = 0b0000_0010;
@@ -15,7 +15,18 @@ const PORT_POS_MASK: u16 = 0b0000_0101_0000_0000;
 const PORT_X_MASK:   u16 = 0b0000_0001_0000_0000;
 const PORT_Y_MASK:   u16 = 0b0000_0101_0000_0000;
 
-/// The Kempston Mouse device implements [MouseDevice] and [MouseInterface].
+/// The Kempston Mouse device implements [MouseDevice] and [MouseInterface] traits.
+///
+/// The horizontal position increases when moving to the right and decreases when moving to the left.
+/// The vertical position increases when moving from bottom to the top or forward (away from the user)
+/// and decreases then moving backward (towards the user).
+///
+/// A horizontal position is being provided when bits of the port address: A8 is 1 and A10 is 0.
+/// A vertical position is being provided when bits of the port address: A8 and A10 is 1.
+/// A button state is being provided when A8 bit of the port address is 0:
+///
+/// * bit 0 is 0 when the left button is being pressed and 1 when the left button is released.
+/// * bit 1 is 0 when the right button is being pressed and 1 when the right button is released.
 #[derive(Clone, Copy, Debug)]
 pub struct KempstonMouseDevice {
     data_btn: u8,

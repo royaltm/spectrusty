@@ -1,3 +1,4 @@
+//! A [BusDevice] for connecting **ZX Printer** family of printers.
 use core::fmt;
 use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
@@ -33,9 +34,11 @@ printer_names! {
     TS2040<V, S, D>: "TS2040 Printer"
 }
 
+/// Connects the [ZxPrinterDevice] emulator as a [BusDevice].
 #[derive(Clone, Default, Debug)]
 pub struct ZxPrinterBusDevice<P, V, S, D=NullDevice<VideoTs>>
 {
+    /// Provides a direct access to the [ZxPrinterDevice].
     pub printer: ZxPrinterDevice<V, S>,
     bus: D,
     _port_decode: PhantomData<P>
@@ -104,7 +107,7 @@ impl<P, V, S, D> BusDevice for ZxPrinterBusDevice<P, V, S, D>
 
     #[inline]
     fn next_frame(&mut self, timestamp: Self::Timestamp) {
-        self.printer.next_frame(timestamp);
+        self.printer.next_frame();
         self.bus.next_frame(timestamp)
     }
 

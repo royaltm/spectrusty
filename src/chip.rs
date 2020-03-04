@@ -39,8 +39,8 @@ pub trait ControlUnit {
     fn frame_tstate(&self) -> (u64, FTs);
     /// Returns a current frame's T state.
     /// 
-    /// Unlike [frame_tstate] these values can sometimes be negative as well as exceeding the maximum
-    /// nuber of T states per frame. See [execute_next_frame] to know why.
+    /// Unlike [ControlUnit::frame_tstate] these values can sometimes be negative as well as exceeding
+    /// the maximum nuber of T states per frame. See [ControlUnit::execute_next_frame] to know why.
     fn current_tstate(&self) -> FTs;
     /// Returns `true` if the current frame is over.
     fn is_frame_over(&self) -> bool;
@@ -58,9 +58,9 @@ pub trait ControlUnit {
     /// This method should be called after all side effects (e.g. video and audio rendering) has been performed.
     /// Implementations would usually clear some internal audio and video data from a previous frame.
     ///
-    /// Both [Chip::execute_next_frame] and [Chip::execute_single_step] invoke this method internally, so the only
-    /// reason to call this method from the emulator program would be to make sure internal buffers are clear
-    /// before feeding the implementation with external data to be consumed by devices during the next frame.
+    /// Both [ControlUnit::execute_next_frame] and [ControlUnit::execute_single_step] invoke this method internally,
+    /// so the only reason to call this method from the emulator program would be to make sure internal buffers are
+    /// clear before feeding the implementation with external data to be consumed by devices during the next frame.
     fn ensure_next_frame(&mut self);
     /// Executes a single cpu instruction with the option to pass a debugging function.
     fn execute_single_step<C: Cpu,

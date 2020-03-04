@@ -1,3 +1,13 @@
+//! The emulation of the family of printers: **ZX Printer** / **Alphacom 32** / **Timex TS2040**.
+//!
+//! **ZX Printer** is an extremely compact, 32 column printer which uses an aluminium coated paper.
+//! The printed image is being burned onto the surface of the paper by two metal pins which travel
+//! across the paper. A voltage is passed through these pins which causes a spark to be produced, leaving
+//! a black-ish (or blue-ish) dot.
+//!
+//! The printer uses a 110 mm wide, thermal roller paper.
+//!
+//! For more information, please see: [Printers](https://www.worldofspectrum.org/faq/reference/peripherals.htm#Printers).
 use core::fmt::Debug;
 use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
@@ -5,18 +15,73 @@ use std::io::Write;
 
 use crate::video::VideoFrame;
 use crate::clock::*;
-// ; bit 7 set - activate stylus.
-// ; bit 7 low - deactivate stylus.
-// ; bit 2 set - stops printer.
-// ; bit 2 reset - starts printer
-// ; bit 1 set - slows printer.
-// ; bit 1 reset - normal speed.
-// (D6) Will be read as low if the printer is there, high if it is not, and is used solely to check if the printer is connected.
-// (D0) This is high when the printer is ready for the next bit.
-// (D7) This line is high for the start of a new line.
-// 2 lines / sec
-pub const PIXEL_LINE_WIDTH: u32 = 256;
+
+/// A number of printed dots in each line.
+pub const DOTS_PER_LINE: u32 = 256;
+/// A maximum number of bytes in each line.
 pub const BYTES_PER_LINE: u32 = 32;
+
+/// An interface to the **ZX Printer** spooler.
+///
+/// An implementation of this trait must be provided in order to complete the emulation of [ZxPrinterDevice].
+///
+/// Both [Debug] and [Default] traits also need to be implemented.
+pub trait Spooler: Debug + Default {
+    /// Can be implemented to get the notification that the printing will begin shortly.
+    fn motor_on(&mut self) {}
+    /// Can be implemented to get the notification that the printing has ended.
+    fn motor_off(&mut self) {}
+    /// After each printed line this method is being called with a reference to a slice containing 
+    /// an information about up to 256 printed dots stored in up to 32 bytes.
+    ///
+    /// 8 dots are encoded from the most significant to the least significant bit in each byte.
+    /// So the leftmost dot is encoded in the bit 7 of the first byte in a given slice and the
+    /// rightmost dot is encoded in the bit 0 of the last byte.
+    ///
+    /// A value of 1 in each bit signifies a presence of a dot, a 0 means there is no dot.
+    ///
+    /// A received slice will never be larger than 32 bytes. If a user presses a `BREAK` key during
+    /// `COPY`, the slice may be smaller than 32 bytes but it will never be empty.
+    fn push_line(&mut self, line: &[u8]);
+}
+
+/// A simple **ZX Printer** spooler that outputs each line to the stdout as hexadecimal digits.
+#[derive(Clone, Copy, Default, Debug)]
+pub struct DebugSpooler;
+
+/// This type implements a communication protocol of the **ZX Printer**.
+///
+/// A data port is being used with the following bits for reading:
+///
+/// * bit 6 is 0 if the printer is there, 1 if it is not and is used solely to check if the printer
+///   is connected.
+/// * bit 0 is 1 if the printer is ready for the next bit or 0 if it's busy printing.
+/// * bit 7 is 1 if the printer is ready for the new line or 0 if it's not there yet.
+///
+/// and for writing:
+///
+/// * bit 7 - a value of 1 activates a stylus, a dot will be printed in this instance.
+///   When a 0 is written, the stylus is being dactivated.
+/// * bit 2 - a value of 1 stops the printer motor and when a 0 is written it starts
+///   the printer motor.
+/// * bit 1 - a value of 1 slows the printer motor, a value of 0 sets a normal motor speed.
+///
+/// An implementation of a [Spooler] trait is required as generic `S` to complete this type.
+/// Also an implementaion of a [VideoFrame] is required as `V` for timestamp calculations.
+///
+/// There's also a dedicated [ZxPrinterBusDevice][crate::bus::zxprinter::ZxPrinterBusDevice]
+/// [crate::bus::BusDevice] implementation to be used solely with the `ZxPrinterDevice`.
+#[derive(Clone, Default, Debug)]
+pub struct ZxPrinterDevice<V, S> {
+    /// An instance of the [Spooler] trait implementation type.
+    pub spooler: S,
+    motor: bool,
+    ready: bool,
+    cursor: u8,
+    last_ts: VideoTs,
+    line: [u8;32],
+    _video_frame: PhantomData<V>
+}
 
 const STATUS_OFF: u8       = 0b0011_1110;
 const STATUS_NEW_LINE: u8  = 0b1011_1111;
@@ -29,26 +94,6 @@ const SLOW_MASK: u8   = 0b0000_0010;
 
 const BIT_DELAY: FTs = 400;//6835;
 const LINE_DELAY: FTs = BIT_DELAY*8;
-
-pub trait Spooler: Debug {
-    fn motor_on(&mut self) {}
-    fn motor_off(&mut self) {}
-    fn push_line(&mut self, line: &[u8]);
-}
-
-#[derive(Clone, Copy, Default, Debug)]
-pub struct DebugSpooler;
-
-#[derive(Clone, Default, Debug)]
-pub struct ZxPrinterDevice<V, S> {
-    pub spooler: S,
-    motor: bool,
-    ready: bool,
-    cursor: u8,
-    last_ts: VideoTs,
-    line: [u8;32],
-    _video_frame: PhantomData<V>
-}
 
 impl<V, S> Deref for ZxPrinterDevice<V, S> {
     type Target = S;
@@ -63,11 +108,13 @@ impl<V, S> DerefMut for ZxPrinterDevice<V, S> {
     }
 }
 
+// 2 lines / sec
 impl<V: VideoFrame, S: Spooler> ZxPrinterDevice<V, S> {
-    pub fn next_frame(&mut self, _end_ts: VideoTs) {
+    /// This method should be called after each emulated frame.
+    pub fn next_frame(&mut self) {
         self.last_ts = V::vts_saturating_sub_frame(self.last_ts);
     }
-
+    /// This method should be called when device is being reset.
     pub fn reset(&mut self) {
         self.motor = false;
         self.ready = false;
@@ -76,7 +123,7 @@ impl<V: VideoFrame, S: Spooler> ZxPrinterDevice<V, S> {
         }
         self.cursor = 0;
     }
-
+    /// This method should be called when a `CPU` writes to the **ZX Printer** port.
     pub fn write_control(&mut self, data: u8, timestamp: VideoTs) {
         if data & MOTOR_MASK == 0 { // start 
             self.start(data, timestamp);
@@ -85,7 +132,7 @@ impl<V: VideoFrame, S: Spooler> ZxPrinterDevice<V, S> {
             self.stop();
         }
     }
-
+    /// This method should be called when a `CPU` reads from the **ZX Printer** port.
     pub fn read_status(&mut self, timestamp: VideoTs) -> u8 {
         if self.motor {
             if self.ready || self.update_ready(timestamp) {
@@ -113,22 +160,23 @@ impl<V: VideoFrame, S: Spooler> ZxPrinterDevice<V, S> {
         false
     }
 
+    #[inline(always)]
     fn flush(&mut self) {
-        let cursor = self.cursor;
-        self.cursor = 0;
-        let mask = 0x80 >> (cursor.wrapping_sub(1) & 7);
-        self.line[usize::from(cursor) >> 3] &= mask;
-        let index = (usize::from(cursor) + 7) >> 3;
-        self.spooler.push_line(&self.line[..index]);
+        if self.cursor != 0 {
+            let cursor = self.cursor;
+            self.cursor = 0;
+            let mask = 0x80 >> (cursor.wrapping_sub(1) & 7);
+            self.line[usize::from(cursor) >> 3] &= mask;
+            let index = (usize::from(cursor) + 7) >> 3;
+            self.spooler.push_line(&self.line[..index]);
+        }
     }
 
     fn stop(&mut self) {
         if self.motor {
             self.motor = false;
             self.ready = false;
-            if self.cursor != 0 {
-                self.flush()
-            }
+            self.flush();
             self.spooler.motor_off();
         }
     }

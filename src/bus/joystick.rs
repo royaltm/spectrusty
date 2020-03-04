@@ -1,4 +1,4 @@
-//! Hosts [JoystickBusDevice] implementing [BusDevice] for joysticks.
+//! A [BusDevice] for connecting joysticks.
 use core::convert::TryFrom;
 use core::fmt;
 use core::marker::PhantomData;
@@ -168,7 +168,7 @@ impl<T, P, J, D> BusDevice for JoystickBusDevice<T, P, J, D>
 
 /// A selectable joystick controller, providing a [BusDevice] implementation.
 ///
-/// This controller allows changing the implementation of joystick device in runtime.
+/// This controller allows changing the implementation of joystick device at run time.
 #[derive(Clone, Copy, Default, Debug)]
 pub struct MultiJoystickBusDevice<T=VideoTs, D=NullDevice<T>> {
     pub joystick: JoystickSelect,
@@ -226,6 +226,7 @@ impl Default for JoystickSelect {
     }
 }
 
+/// An error type from [TryFrom] implementation of converting a string to a [JoystickSelect] variant.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct JoystickSelectError<'a>(pub &'a str);
 impl fmt::Display for JoystickSelectError<'_> {
