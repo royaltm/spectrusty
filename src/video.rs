@@ -148,11 +148,6 @@ pub trait VideoFrame: Copy + Debug {
         let hc = ts % hts_count;
         VideoTs { vc: vc.try_into().unwrap(), hc: hc.try_into().unwrap() }
     }
-    /// Returns a maximum possible value of `VideoTs`.
-    #[inline]
-    fn max_vts() -> VideoTs {
-        VideoTs { vc: Ts::max_value(), hc: Self::HTS_COUNT - 1 }
-    }
     /// Converts a `VideoTs` timsetamp to a frame counter difference due to normalization and
     /// a normalized T states timestamp.
     ///
@@ -164,6 +159,11 @@ pub trait VideoFrame: Copy + Debug {
         let ts = ts.rem_euclid(Self::FRAME_TSTATES_COUNT);
         let frames = frames.wrapping_add(frmdlt as u64);
         (frames, ts)
+    }
+    /// Returns a maximum possible value of `VideoTs`.
+    #[inline]
+    fn max_vts() -> VideoTs {
+        VideoTs { vc: Ts::max_value(), hc: Self::HTS_COUNT - 1 }
     }
     /// Returns `true` if a video timestamp is at or past the last video scan line.
     #[inline]
@@ -177,6 +177,10 @@ pub trait VideoFrame: Copy + Debug {
             hc -= Self::HTS_COUNT as Ts;
             vc += 1;
         }
+        while hc < Self::HTS_RANGE.start {
+            hc += Self::HTS_COUNT as Ts;
+            vc -= 1;
+        }
         VideoTs::new(vc, hc)
     }
 
@@ -188,18 +192,22 @@ pub trait VideoFrame: Copy + Debug {
         Self::normalize_vts(VideoTs::new(vc, hc + dhc))
     }
 
-    fn saturating_wrap_with_normalized(ts: VideoTs, end_ts: VideoTs) -> VideoTs {
-        let mut vc = ts.vc.saturating_sub(end_ts.vc);
-        let mut hc = ts.hc - end_ts.hc;
-        while hc >= Self::HTS_RANGE.end {
-            hc -= Self::HTS_COUNT as Ts;
-            vc += 1;
-        }
-        while hc < Self::HTS_RANGE.start {
-            hc += Self::HTS_COUNT as Ts;
-            vc -= 1;
-        }
-        VideoTs::new(vc, hc)
+    #[inline]
+    fn vts_saturating_sub_frame(VideoTs { vc, hc }: VideoTs) -> VideoTs {
+        let vc = vc.saturating_sub(Self::VSL_COUNT);
+        VideoTs { vc, hc }
+    }
+
+    fn vts_saturating_sub_vts_normalized(VideoTs { vc, hc }: VideoTs, other_vts: VideoTs) -> VideoTs {
+        let vc = vc.saturating_sub(other_vts.vc);
+        let hc = hc - other_vts.hc;
+        Self::normalize_vts(VideoTs::new(vc, hc))
+    }
+
+    fn vts_saturating_add_vts_normalized(VideoTs { vc, hc }: VideoTs, other_vts: VideoTs) -> VideoTs {
+        let vc = vc.saturating_add(other_vts.vc);
+        let hc = hc + other_vts.hc;
+        Self::normalize_vts(VideoTs::new(vc, hc))
     }
 }
 

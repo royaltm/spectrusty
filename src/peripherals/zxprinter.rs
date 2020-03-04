@@ -64,8 +64,8 @@ impl<V, S> DerefMut for ZxPrinterDevice<V, S> {
 }
 
 impl<V: VideoFrame, S: Spooler> ZxPrinterDevice<V, S> {
-    pub fn next_frame(&mut self, end_ts: VideoTs) {
-        self.last_ts = V::saturating_wrap_with_normalized(self.last_ts, end_ts);
+    pub fn next_frame(&mut self, _end_ts: VideoTs) {
+        self.last_ts = V::vts_saturating_sub_frame(self.last_ts);
     }
 
     pub fn reset(&mut self) {
