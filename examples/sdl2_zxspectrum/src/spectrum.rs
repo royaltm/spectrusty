@@ -1,12 +1,16 @@
 use core::convert::TryFrom;
-use core::fmt::{self, Write};
+use core::fmt;
+// use core::mem::{replace, ManuallyDrop};
+use std::io::{Read};
 use std::path::Path;
 use std::ffi::OsStr;
-// use core::mem::{replace, ManuallyDrop};
+
+pub mod audio;
+pub mod printer;
+pub mod peripherals;
+
 #[allow(unused_imports)]
 use log::{error, warn, info, debug, trace};
-
-use std::io::{Read};
 
 use sdl2::{Sdl};
 use rand::prelude::*;
@@ -15,7 +19,6 @@ use zxspecemu::audio::sample::AudioSample;
 use zxspecemu::audio::carousel::AudioFrameResult;
 use zxspecemu::audio::synth::*;
 use zxspecemu::bus::ay::*;
-use zxspecemu::bus::zxprinter::*;
 use zxspecemu::bus::joystick::*;
 use zxspecemu::bus::mouse::*;
 use zxspecemu::formats::{
@@ -24,32 +27,29 @@ use zxspecemu::formats::{
 use zxspecemu::utils::tap::TapFileCabinet;
 use zxspecemu::video::*;
 
-use super::audio::Audio;
-use super::printer::ImageSpooler;
-use super::peripherals::*;
+use audio::Audio;
+pub use printer::*;
+use peripherals::*;
 
-pub use zxspecemu::peripherals::KeyboardInterface;
-pub use zxspecemu::audio::*;
-pub use zxspecemu::audio::ay::*;
+pub use zxspecemu::peripherals::{KeyboardInterface, serial::SerialKeypad};
+pub use zxspecemu::audio::{*, ay::*};
 pub use zxspecemu::bus::*;
-pub use zxspecemu::chip::*;
-pub use zxspecemu::chip::ula::*;
-pub use zxspecemu::chip::ula128::*;
+pub use zxspecemu::chip::{*, ula::*, ula128::*};
 pub use zxspecemu::clock::*;
 pub use zxspecemu::memory::{ZxMemory, Memory48k, Memory16k};
 pub use zxspecemu::video::{BorderSize, PixelBufRGB24, Video};
 pub use zxspecemu::z80emu::{Cpu, Z80NMOS};
 
-const ROM48: &[u8] = include_bytes!("../../../resources/48k.rom");
-const ROM128: &[u8] = include_bytes!("../../../resources/128k.rom");
+const ROM48: &[u8] = include_bytes!("../../../resources/48.rom");
+const ROM128_0: &[u8] = include_bytes!("../../../resources/128-0.rom");
+const ROM128_1: &[u8] = include_bytes!("../../../resources/128-1.rom");
 
-pub type ZXPrinterToImage = ZxPrinter<UlaVideoFrame, ImageSpooler>;
-pub type ZXSpectrum16 = ZXSpectrum<Z80NMOS, Ula<Memory16k, OptionalBusDevice<MultiJoystickBusDevice>>>;
-pub type ZXSpectrum48 = ZXSpectrum<Z80NMOS, Ula<Memory48k, OptionalBusDevice<MultiJoystickBusDevice>>>;
-pub type ZXSpectrum128 = ZXSpectrum<Z80NMOS, Ula128<OptionalBusDevice<MultiJoystickBusDevice>>>;
+pub type ZXSpectrum16 = ZXSpectrum<Z80NMOS, Ula<Memory16k, OptJoystickBusDevice>>;
+pub type ZXSpectrum48 = ZXSpectrum<Z80NMOS, Ula<Memory48k, OptJoystickBusDevice>>;
+pub type ZXSpectrum128 = ZXSpectrum<Z80NMOS, Ula128<Ay3_8912>>;
 pub type ZXSpectrum48DynBus = ZXSpectrum<Z80NMOS,
                                         Ula<Memory48k,
-                                            OptionalBusDevice<MultiJoystickBusDevice,
+                                            OptJoystickBusDevice<
                                                 DynamicBusDevice
                                         >>>;
 pub type ZXBlep = BlepAmpFilter<BlepStereo<BandLimited<f32>>>;
@@ -107,11 +107,6 @@ impl<C, U> ZXSpectrum<C, U>
           U: Default + UlaCommon + UlaAudioFrame<ZXBlep>
 {
     pub fn create(sdl_context: &Sdl, latency: usize) -> Result<Self, Box<dyn std::error::Error>> {
-        // let (tx, audio_rx) = sync_channel::<AudioBuffer>(3);
-        // let audio = sdl2_subs::setup(sdl_context, Self::FRAME_TIME, tx).unwrap();
-        // let audio_buffer = audio_rx.recv().unwrap();
-        // audio.tx.send(audio_buffer.clone()).unwrap();
-        // audio.tx.send(audio_buffer.clone()).unwrap();
         // let spec = hound::WavSpec {
         //     channels: 2,
         //     sample_rate: 44100,
@@ -143,7 +138,8 @@ impl<C, U> ZXSpectrum<C, U>
             zx.ula.memory_mut().load_into_rom(ROM48).unwrap();
         }
         else {
-            zx.ula.memory_mut().load_into_rom(ROM128).unwrap();
+            zx.ula.memory_mut().load_into_rom_bank(0, ROM128_0).unwrap();
+            zx.ula.memory_mut().load_into_rom_bank(1, ROM128_1).unwrap();
         }
         // Produce some noise in memory for nice visuals.
         zx.ula.memory_mut().fill_mem(0x4000.., random).unwrap();
@@ -271,34 +267,6 @@ impl<C, U> ZXSpectrum<C, U>
         }
     }
 
-    pub fn device_info(&self) -> String
-        where Self: JoystickAccess + DynBusAccess
-    {
-        let mut info = format!("{}kb", (self.ula.memory_ref().ram_ref().len() as u32)/1024);
-        if let Some(joy) = self.joystick_ref() {
-            if self.joystick_index != 0 {
-                write!(info, " + {} #{} Joy.", joy, self.joystick_index + 1).unwrap();
-            }
-            else {
-                write!(info, " + {} Joystick", joy).unwrap();
-            }
-        }
-        if let Some(devices) = self.dynbus_devices_ref() {
-            let pr_index = self.bus_index.printer;
-            for (i, dev) in devices.into_iter().enumerate() {
-                write!(info, " + {}", dev).unwrap();
-                if pr_index.filter(|&pri| pri == i).is_some() {
-                    let spooler: &ImageSpooler = dev.downcast_ref::<ZXPrinterToImage>().unwrap();
-                    let lines = spooler.lines_buffered();
-                    if lines != 0 || spooler.is_spooling() {
-                        write!(info, "[{}]", lines).unwrap();
-                    }
-                }
-            }
-        }
-        info
-    }
-
     pub fn print_current_tap_chunk(&self, no: u32) {
         println!("Current TAP file: #{} {} / chunk: {}",
             self.tap_cabinet.current_tap_index(),
@@ -386,50 +354,12 @@ impl ZXSpectrum48DynBus {
     pub fn add_printer(&mut self) {
         if self.bus_index.printer.is_none() {
             self.bus_index.printer = Some(self.dynbus_mut()
-                .append_device(ZXPrinterToImage::default()));
+                .append_device(ZXPrinterToImage::<UlaVideoFrame>::default()));
         }
     }
 }
 
-impl DynBusAccess for ZXSpectrum16 {}
-impl DynBusAccess for ZXSpectrum48 {}
-impl DynBusAccess for ZXSpectrum128 {}
-impl DynBusAccess for ZXSpectrum48DynBus {
-    fn dynbus_devices_mut(&mut self) -> Option<&mut DynamicBusDevice> {
-        Some(self.dynbus_mut())
-    }
-    fn dynbus_devices_ref(&self) -> Option<&DynamicBusDevice> {
-        Some(self.dynbus_ref())
-    }
-}
-
-impl MouseAccess for ZXSpectrum16 {}
-impl MouseAccess for ZXSpectrum48 {}
-impl MouseAccess for ZXSpectrum128 {}
-impl MouseAccess for ZXSpectrum48DynBus {
-    fn mouse_mut(&mut self) -> Option<&mut KempstonMouseDevice> {
-        self.bus_index.mouse.map(move |index| {
-            &mut **self.dynbus_mut().as_device_mut::<KempstonMouse>(index)
-        })
-    }    
-}
-impl SpoolerAccess for ZXSpectrum16 {}
-impl SpoolerAccess for ZXSpectrum48 {}
-impl SpoolerAccess for ZXSpectrum128 {}
-impl SpoolerAccess for ZXSpectrum48DynBus {
-    fn spooler_mut(&mut self) -> Option<&mut ImageSpooler> {
-        self.bus_index.printer.map(move |index| {
-            &mut ***self.dynbus_mut().as_device_mut::<ZXPrinterToImage>(index)
-        })
-    }
-    fn spooler_ref(&self) -> Option<&ImageSpooler> {
-        self.bus_index.printer.map(|index| {
-            &***self.dynbus_ref().as_device_ref::<ZXPrinterToImage>(index)
-        })
-    }
-}
-
-impl JoystickAccess for ZXSpectrum16 {
+impl DeviceAccess<UlaVideoFrame> for ZXSpectrum16 {
     fn joystick_device_mut(&mut self) -> &mut Option<MultiJoystickBusDevice> {
         self.ula.bus_device_mut()
     }
@@ -437,7 +367,8 @@ impl JoystickAccess for ZXSpectrum16 {
         self.ula.bus_device_ref()
     }
 }
-impl JoystickAccess for ZXSpectrum48 {
+
+impl DeviceAccess<UlaVideoFrame> for ZXSpectrum48 {
     fn joystick_device_mut(&mut self) -> &mut Option<MultiJoystickBusDevice> {
         self.ula.bus_device_mut()
     }
@@ -445,15 +376,64 @@ impl JoystickAccess for ZXSpectrum48 {
         self.ula.bus_device_ref()
     }
 }
-impl JoystickAccess for ZXSpectrum128 {
+
+impl DeviceAccess<Ula128VidFrame> for ZXSpectrum128 {
+    fn gfx_printer_mut(&mut self) -> Option<&mut dyn ZxGfxPrinter> {
+        Some(&mut self.ula.bus_device_mut().ay_io
+                                           .port_a
+                                           .serial2
+                                           .writer
+                                           .grabber)
+    }
+    fn gfx_printer_ref(&self) -> Option<&dyn ZxGfxPrinter> {
+        Some(&self.ula.bus_device_ref().ay_io
+                                       .port_a
+                                       .serial2
+                                       .writer
+                                       .grabber)
+    }
+    fn keypad_mut(&mut self) -> Option<&mut SerialKeypad<Ula128VidFrame>> {
+        Some(&mut self.ula.bus_device_mut().ay_io.port_a.serial1)
+    }
     fn joystick_device_mut(&mut self) -> &mut Option<MultiJoystickBusDevice> {
         self.ula.bus_device_mut().next_device_mut()
     }
     fn joystick_device_ref(&self) -> &Option<MultiJoystickBusDevice> {
         self.ula.bus_device_ref().next_device_ref()
     }
+    fn static_ay3_8912_ref(&self) -> Option<&Ay3_8912> {
+        Some(&self.ula.bus_device_ref())
+    }
 }
-impl JoystickAccess for ZXSpectrum48DynBus {
+
+impl DeviceAccess<UlaVideoFrame> for ZXSpectrum48DynBus {
+    fn spooler_mut(&mut self) -> Option<&mut ImageSpooler> {
+        self.bus_index.printer.map(move |index| {
+            &mut ***self.dynbus_mut().as_device_mut::<ZXPrinterToImage<UlaVideoFrame>>(index)
+        })
+    }
+    fn spooler_ref(&self) -> Option<&ImageSpooler> {
+        self.bus_index.printer.map(|index| {
+            &***self.dynbus_ref().as_device_ref::<ZXPrinterToImage<UlaVideoFrame>>(index)
+        })
+    }
+    fn gfx_printer_mut(&mut self) -> Option<&mut dyn ZxGfxPrinter> {
+        self.spooler_mut().map(|p| -> &mut dyn ZxGfxPrinter {p})
+    }
+    fn gfx_printer_ref(&self) -> Option<&dyn ZxGfxPrinter> {
+        self.spooler_ref().map(|p| -> &dyn ZxGfxPrinter {p})
+    }
+    fn dynbus_devices_mut(&mut self) -> Option<&mut DynamicBusDevice> {
+        Some(self.dynbus_mut())
+    }
+    fn dynbus_devices_ref(&self) -> Option<&DynamicBusDevice> {
+        Some(self.dynbus_ref())
+    }
+    fn mouse_mut(&mut self) -> Option<&mut KempstonMouseDevice> {
+        self.bus_index.mouse.map(move |index| {
+            &mut **self.dynbus_mut().as_device_mut::<KempstonMouse>(index)
+        })
+    }
     fn joystick_device_mut(&mut self) -> &mut Option<MultiJoystickBusDevice> {
         self.ula.bus_device_mut()
     }

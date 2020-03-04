@@ -1,35 +1,46 @@
 // use core::fmt::Display;
+mod nonblocking;
+
+use chrono::prelude::*;
 use sdl2::keyboard::{Mod as Modifier, Keycode};
 use sdl2::mouse::MouseButton;
-
-use zxspecemu::bus::DynamicBusDevice;
-use zxspecemu::bus::joystick::{JoystickSelect, MultiJoystickBusDevice};
+use zxspecemu::bus::{DynamicBusDevice, OptionalBusDevice, NullDevice,
+                    joystick::{JoystickSelect, MultiJoystickBusDevice},
+                    zxprinter::*};
+use zxspecemu::clock::VideoTs;
+use zxspecemu::chip::{MemoryAccess, ula128::Ay3_8912KeypadRS232};
+use zxspecemu::memory::ZxMemory;
 use zxspecemu::peripherals::{KeyboardInterface, ZXKeyboardMap};
 use zxspecemu::peripherals::joystick::Directions;
 use zxspecemu::peripherals::mouse::{MouseInterface, MouseButtons, kempston::KempstonMouseDevice};
+use zxspecemu::peripherals::serial::{KeypadKeys, SerialKeypad};
 use zxspecemu::video::{Video, BorderSize, VideoFrame};
 
 #[allow(unused_imports)]
 use log::{error, warn, info, debug, trace};
 
-use super::spectrum::ZXSpectrum;
-use super::printer::ImageSpooler;
+use crate::spectrum::ZXSpectrum;
+use super::printer::{ZxGfxPrinter, ImageSpooler};
 
-pub trait SpoolerAccess {
+pub use nonblocking::*;
+
+pub type ZXPrinterToImage<V> = ZxPrinter<V, ImageSpooler>;
+pub type OptJoystickBusDevice<D=NullDevice<VideoTs>> = OptionalBusDevice<MultiJoystickBusDevice, D>;
+pub type Ay3_8912 = Ay3_8912KeypadRS232<OptJoystickBusDevice,
+                                        NonBlockingStdinReader,
+                                        FilterGfxStdoutWriter>;
+
+pub trait DeviceAccess<V> {
     fn spooler_mut(&mut self) -> Option<&mut ImageSpooler> { None }
     fn spooler_ref(&self) -> Option<&ImageSpooler> { None }
-}
+    fn gfx_printer_mut(&mut self) -> Option<&mut dyn ZxGfxPrinter> { None }
+    fn gfx_printer_ref(&self) -> Option<&dyn ZxGfxPrinter> { None }
 
-pub trait DynBusAccess {
     fn dynbus_devices_mut(&mut self) -> Option<&mut DynamicBusDevice> { None }
     fn dynbus_devices_ref(&self) -> Option<&DynamicBusDevice> { None }
-}
 
-pub trait MouseAccess {
     fn mouse_mut(&mut self) -> Option<&mut KempstonMouseDevice> { None }
-}
 
-pub trait JoystickAccess {
     fn joystick_device_mut(&mut self) -> &mut Option<MultiJoystickBusDevice>;
     fn joystick_device_ref(&self) -> &Option<MultiJoystickBusDevice>;
     fn joystick_mut(&mut self) -> Option<&mut JoystickSelect> {
@@ -38,18 +49,92 @@ pub trait JoystickAccess {
     fn joystick_ref(&self) -> Option<&JoystickSelect> {
         self.joystick_device_ref().as_deref()
     }
+    fn keypad_mut(&mut self) -> Option<&mut SerialKeypad<V>> { None }
+    // fn static_ay3_8912_mut(&mut self) -> Option<&mut Ay3_8912<J>> { None }
+    fn static_ay3_8912_ref(&self) -> Option<&Ay3_8912> { None }
 }
 
-impl<C, U> ZXSpectrum<C, U> {
+impl<C, U> ZXSpectrum<C, U>
+    where U: Video + KeyboardInterface + MemoryAccess,
+          Self: DeviceAccess<U::VideoFrame>,
+          U::VideoFrame: 'static
+{
+    pub fn device_info(&self) -> String {
+        use std::fmt::Write;
+        let mut info = format!("{}kb", (self.ula.memory_ref().ram_ref().len() as u32)/1024);
+        if let Some(ay) = self.static_ay3_8912_ref() {
+            write!(info, " + {}", ay).unwrap();
+            if let Some(spooler) = self.gfx_printer_ref() {
+                info.write_str(" + Serial Printer").unwrap();
+                let lines = spooler.data_lines_buffered();
+                if lines != 0 || spooler.is_spooling() {
+                    write!(info, "[{}]", lines).unwrap();
+                }                
+            }
+        }
+        if let Some(joy) = self.joystick_ref() {
+            if self.joystick_index != 0 {
+                write!(info, " + {} #{} Joy.", joy, self.joystick_index + 1).unwrap();
+            }
+            else {
+                write!(info, " + {} Joystick", joy).unwrap();
+            }
+        }
+        if let Some(devices) = self.dynbus_devices_ref() {
+            let pr_index = self.bus_index.printer;
+            for (i, dev) in devices.into_iter().enumerate() {
+                write!(info, " + {}", dev).unwrap();
+                if pr_index.filter(|&pri| pri == i).is_some() {
+                    let spooler: &ImageSpooler = dev.downcast_ref::<ZXPrinterToImage<U::VideoFrame>>().unwrap();
+                    let lines = spooler.data_lines_buffered();
+                    if lines != 0 || spooler.is_spooling() {
+                        write!(info, "[{}]", lines).unwrap();
+                    }
+                }
+            }
+        }
+        info
+    }
+
+    pub fn save_printed_image(&mut self) ->  Result<(), Box<dyn std::error::Error>> {
+        if let Some(spooler) = self.gfx_printer_mut() {
+            if !spooler.is_spooling() {
+                if !spooler.is_empty() {
+                    let mut name = format!("printer_out_{}", Utc::now().format("%Y-%m-%d_%H%M%S%.f"));
+                    if let Some(img) = spooler.to_image() {
+                        name.push_str(".png");
+                        img.save(&name)?;
+                        info!("Printer output saved as: {}", name);
+                        name.truncate(name.len() - 4);
+                    }
+                    name.push_str(".svg");
+                    let mut file = std::fs::File::create(&name)?;
+                    spooler.svg_dot_printed_lines(&mut file)?;
+                    drop(file);
+                    info!("Printer output saved as: {}", name);
+                    spooler.clear();
+                }
+                else {
+                    info!("Printer spooler is empty.");
+                }
+            }
+            else {
+                info!("Printer is busy, can't save at the moment.");
+            }
+        }
+        else {
+            info!("There is no printer.");
+        }
+        Ok(())
+    }
+
     pub fn move_mouse(&mut self, dx: i32, dy: i32) {
         self.mouse_rel.0 += dx;
         self.mouse_rel.1 += dy;
     }
 
     /// Send mouse positions at most once every frame to prevent overflowing.
-    pub fn send_mouse_move(&mut self, border: BorderSize, viewport: (u32, u32))
-        where Self: MouseAccess, U: Video
-    {
+    pub fn send_mouse_move(&mut self, border: BorderSize, viewport: (u32, u32)) {
         match self.mouse_rel {
             (0, 0) => {},
             (dx, dy) => {
@@ -66,9 +151,7 @@ impl<C, U> ZXSpectrum<C, U> {
         }
     }
 
-    pub fn update_mouse_button(&mut self, button: MouseButton, pressed: bool)
-        where Self: MouseAccess
-    {
+    pub fn update_mouse_button(&mut self, button: MouseButton, pressed: bool) {
         if let Some(mouse) = self.mouse_mut() {
             let button_mask = match button {
                 MouseButton::Left => MouseButtons::LEFT,
@@ -86,17 +169,18 @@ impl<C, U> ZXSpectrum<C, U> {
     }
 
     #[inline]
-    pub fn update_keypress(&mut self, keycode: Keycode, modifier: Modifier, pressed: bool)
-        where Self: JoystickAccess, U: KeyboardInterface
-    {
+    pub fn update_keypress(&mut self, keycode: Keycode, modifier: Modifier, pressed: bool) {
         self.ula.set_key_state(
             map_keys(self.ula.get_key_state(), keycode, modifier, pressed,
                      self.joystick_ref().is_none()));
+        if let Some(keypad) = self.keypad_mut() {
+            keypad.set_key_state(
+                keypad_keys(keypad.get_key_state(), keycode, pressed, modifier)
+            );
+        }
     }
 
-    pub fn next_joystick(&mut self)
-        where Self: JoystickAccess
-    {
+    pub fn next_joystick(&mut self) {
         let joystick_index = self.joystick_index;
         if let Some(joystick) = self.joystick_mut() {
             if joystick.is_last() {
@@ -118,9 +202,7 @@ impl<C, U> ZXSpectrum<C, U> {
     }
 
     #[inline]
-    pub fn cursor_to_joystick(&mut self, keycode: Keycode, pressed: bool) -> bool
-        where Self: JoystickAccess
-    {
+    pub fn cursor_to_joystick(&mut self, keycode: Keycode, pressed: bool) -> bool {
         let joystick_index = self.joystick_index;
         if let Some(joy) = self.joystick_mut() {
             if let Some(directions) = try_keys_to_directions(keycode) {
@@ -154,6 +236,38 @@ pub fn try_keys_to_directions(keycode: Keycode) -> Option<Directions> {
     }
 }
 
+pub fn keypad_keys(mut keys: KeypadKeys, keycode: Keycode, pressed: bool, modifier: Modifier) -> KeypadKeys {
+    let key_chg = match keycode {
+        Keycode::KpDivide => KeypadKeys::DIVIDE,
+        Keycode::KpMultiply if modifier.intersects(Modifier::NUMMOD) => KeypadKeys::LPAREN,
+        Keycode::KpMultiply => KeypadKeys::MULTIPLY,
+        Keycode::KpMinus if modifier.intersects(Modifier::NUMMOD) => KeypadKeys::RPAREN,
+        Keycode::KpMinus => KeypadKeys::MINUS,
+        Keycode::KpPlus => KeypadKeys::PLUS,
+        Keycode::KpEnter => KeypadKeys::ENTER,
+        Keycode::Kp1 => KeypadKeys::N1,
+        Keycode::Kp2 => KeypadKeys::N2,
+        Keycode::Kp3 => KeypadKeys::N3,
+        Keycode::Kp4 => KeypadKeys::N4,
+        Keycode::Kp5 => KeypadKeys::N5,
+        Keycode::Kp6 => KeypadKeys::N6,
+        Keycode::Kp7 => KeypadKeys::N7,
+        Keycode::Kp8 => KeypadKeys::N8,
+        Keycode::Kp9 => KeypadKeys::N9,
+        Keycode::Kp0 => KeypadKeys::N0,
+        Keycode::KpPeriod => KeypadKeys::PERIOD,
+        Keycode::KpComma => KeypadKeys::PERIOD,
+        _ => return keys
+    };
+    // println!("{:?}", keycode);
+    if pressed {
+        keys.insert(key_chg);
+    }
+    else {
+        keys.remove(key_chg);
+    }
+    keys
+}
 /// Updates ZXKeyboardMap from SDL2 key event data
 pub fn map_keys(mut zxk: ZXKeyboardMap, keycode: Keycode, modifier: Modifier, pressed: bool, use_rctrl: bool) -> ZXKeyboardMap {
     type ZXk = ZXKeyboardMap;
@@ -197,7 +311,8 @@ pub fn map_keys(mut zxk: ZXKeyboardMap, keycode: Keycode, modifier: Modifier, pr
         Keycode::LShift|Keycode::RShift => ZXk::CS,
         Keycode::LCtrl|Keycode::RCtrl => ZXk::SS,
         Keycode::Space => ZXk::BR,
-        Keycode::Return|Keycode::KpEnter => ZXk::EN,
+        Keycode::Return => ZXk::EN,
+        // Keycode::Return|Keycode::KpEnter => ZXk::EN,
         Keycode::CapsLock => ZXk::CS|ZXk::N2,
         Keycode::Backspace => ZXk::CS|ZXk::N0,
         Keycode::LAlt|Keycode::RAlt => ZXk::CS|ZXk::SS,
@@ -259,10 +374,10 @@ pub fn map_keys(mut zxk: ZXKeyboardMap, keycode: Keycode, modifier: Modifier, pr
             ZXk::SS|ZXk::O
         },
         Keycode::Backquote => ZXk::SS|ZXk::X,
-        Keycode::KpDivide => ZXk::SS|ZXk::V,
-        Keycode::KpMultiply => ZXk::SS|ZXk::B,
-        Keycode::KpPlus => ZXk::SS|ZXk::K,
-        Keycode::KpMinus => ZXk::SS|ZXk::J,
+        // Keycode::KpDivide => ZXk::SS|ZXk::V,
+        // Keycode::KpMultiply => ZXk::SS|ZXk::B,
+        // Keycode::KpPlus => ZXk::SS|ZXk::K,
+        // Keycode::KpMinus => ZXk::SS|ZXk::J,
         _ => ZXk::empty()
     };
     if pressed {

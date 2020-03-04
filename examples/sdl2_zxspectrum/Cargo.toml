@@ -19,6 +19,7 @@ log = "0.4.8"
 image = "0.23.0"
 chrono = "0.4"
 simple_logger = "1.6.0"
+arrayvec = "0.5.1"
 
 [dependencies.zxspecemu]
 version = "*"

@@ -7,10 +7,7 @@
 
 #[macro_use]
 mod utils;
-mod audio;
 mod spectrum;
-mod printer;
-mod peripherals;
 
 use std::convert::TryInto;
 use std::collections::HashSet;
@@ -19,7 +16,7 @@ use std::collections::HashSet;
 use log::{error, warn, info, debug, trace};
 
 #[allow(unused_imports)]
-use sdl2::{Sdl, 
+use sdl2::{Sdl,
            event::{Event, WindowEvent},
            keyboard::{Scancode, Keycode, Mod as Modifier},
            mouse::MouseButton,
@@ -28,7 +25,7 @@ use sdl2::{Sdl,
            video::{WindowPos, FullscreenType, Window, WindowContext}};
 // use sdl2_sys::SDL_WindowFlags;
 use crate::spectrum::*;
-use crate::peripherals::{SpoolerAccess, MouseAccess, JoystickAccess, DynBusAccess};
+use crate::peripherals::DeviceAccess;
 use crate::utils::*;
 
 const REQUESTED_AUDIO_LATENCY: usize = 2;
@@ -118,7 +115,8 @@ fn run<C, U, I>(
     where I: IntoIterator<Item=String>,
           C: Cpu + std::fmt::Debug,
           U: Default + UlaCommon + UlaAudioFrame<ZXBlep>,
-          ZXSpectrum<C, U>: SpoolerAccess + MouseAccess + JoystickAccess + DynBusAccess
+          ZXSpectrum<C, U>: DeviceAccess<U::VideoFrame>,
+          U::VideoFrame: 'static
 {
     zx.reset();
 
@@ -176,7 +174,7 @@ fn run<C, U, I>(
     let mut counter_sum = 0.0;
     let mut file_count = 0;
     let mut status = EmulatorStatus::Normal;
-    let mut printing: Option<u32> = None;
+    let mut printing: Option<usize> = None;
     let mut move_keyboard: Option<(i32, i32)> = None;
 
     'mainloop: loop {
@@ -269,24 +267,8 @@ fn run<C, U, I>(
                     }
                 }
                 Event::KeyDown{ keycode: Some(Keycode::F3), repeat: false, ..} => {
-                    if let Some(spooler) = zx.spooler_mut() {
-                        if !spooler.is_spooling() {
-                            if let Some(name) = spooler.save_image()? {
-                                info!("Printer output saved as: {}", name);
-                                spooler.clear();
-                                canvas.window_mut().set_title(&window_title(&zx))?;
-                            }
-                            else {
-                                info!("Printer spooler is empty.");
-                            }
-                        }
-                        else {
-                            info!("Printer is busy, can't save at the moment.");
-                        }
-                    }
-                    else {
-                        info!("There is no printer.");
-                    }
+                    zx.save_printed_image()?;
+                    canvas.window_mut().set_title(&window_title(&zx))?;
                 }
                 Event::KeyUp{ keycode: Some(Keycode::F4), repeat: false, ..} => {
                     zx.next_joystick();
@@ -468,8 +450,8 @@ fn run<C, U, I>(
         canvas.present();
 
         {
-            let pr = zx.spooler_ref().filter(|sp| sp.is_spooling())
-                                     .map(|sp| sp.lines_buffered());
+            let pr = zx.gfx_printer_ref().filter(|sp| sp.is_spooling())
+                                         .map(|sp| sp.data_lines_buffered());
             if printing != pr {
                 printing = pr;
                 canvas.window_mut().set_title(&window_title(&zx))?;
