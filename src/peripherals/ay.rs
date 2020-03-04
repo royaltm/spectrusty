@@ -119,7 +119,7 @@ pub struct AyRegChange {
 
 /// This trait should be implemented by devices attached to [Ay3_891xIo] A/B ports.
 pub trait AyIoPort: fmt::Debug {
-    type Timestamp;
+    type Timestamp: Sized;
     /// Resets the device at the given `timestamp`.
     #[inline]
     fn ay_io_reset(&mut self, _timestamp: Self::Timestamp) {}
