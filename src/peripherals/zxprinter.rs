@@ -5,9 +5,16 @@
 //! across the paper. A voltage is passed through these pins which causes a spark to be produced, leaving
 //! a black-ish (or blue-ish) dot.
 //!
-//! The printer uses a 110 mm wide, thermal roller paper.
+//! The Alphacom 32 is compatible with software for the ZX Printer, but uses thermal paper instead
+//! of the ZX Printer's metallised paper.
 //!
-//! For more information, please see: [Printers](https://www.worldofspectrum.org/faq/reference/peripherals.htm#Printers).
+//! ZX Printer used special 4" (100 mm) wide black paper which was supplied coated with a thin layer of aluminium.
+//!
+//! Alphacom 32 printer's thermographic paper has 4.33" (110 mm) x 1.9" (48 mm) diameter.
+//! 
+//! TS2040 was a branded version of Alphacom 32 distributed by Timex to the US.
+//!
+//! Also see: [Printers](https://www.worldofspectrum.org/faq/reference/peripherals.htm#Printers).
 use core::fmt::Debug;
 use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
@@ -71,14 +78,16 @@ pub struct DebugSpooler;
 ///
 /// There's also a dedicated [ZxPrinterBusDevice][crate::bus::zxprinter::ZxPrinterBusDevice]
 /// [crate::bus::BusDevice] implementation to be used solely with the `ZxPrinterDevice`.
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Debug)]
 pub struct ZxPrinterDevice<V, S> {
     /// An instance of the [Spooler] trait implementation type.
     pub spooler: S,
+    /// Can be changed to adjust speed. Default is 855 T-states (~16 dot lines / sec.).
+    pub bit_delay: u16,
     motor: bool,
     ready: bool,
     cursor: u8,
-    last_ts: VideoTs,
+    ready_ts: VideoTs,
     line: [u8;32],
     _video_frame: PhantomData<V>
 }
@@ -92,8 +101,23 @@ const STYLUS_MASK: u8 = 0b1000_0000;
 const MOTOR_MASK: u8  = 0b0000_0100;
 const SLOW_MASK: u8   = 0b0000_0010;
 
-const BIT_DELAY: FTs = 400;//6835;
-const LINE_DELAY: FTs = BIT_DELAY*8;
+// the approximate speed of Alphacom 32
+const BIT_DELAY: u16 = 855;
+
+impl<V, S: Default> Default for ZxPrinterDevice<V, S> {
+    fn default() -> Self {
+        ZxPrinterDevice {
+            spooler: S::default(),
+            bit_delay: BIT_DELAY,
+            motor: false,
+            ready: false,
+            cursor: 0,
+            ready_ts: VideoTs::default(),
+            line: [0u8;32],
+            _video_frame: PhantomData
+        }
+    }
+}
 
 impl<V, S> Deref for ZxPrinterDevice<V, S> {
     type Target = S;
@@ -112,7 +136,7 @@ impl<V, S> DerefMut for ZxPrinterDevice<V, S> {
 impl<V: VideoFrame, S: Spooler> ZxPrinterDevice<V, S> {
     /// This method should be called after each emulated frame.
     pub fn next_frame(&mut self) {
-        self.last_ts = V::vts_saturating_sub_frame(self.last_ts);
+        self.ready_ts = V::vts_saturating_sub_frame(self.ready_ts);
     }
     /// This method should be called when device is being reset.
     pub fn reset(&mut self) {
@@ -153,14 +177,14 @@ impl<V: VideoFrame, S: Spooler> ZxPrinterDevice<V, S> {
     }
 
     fn update_ready(&mut self, timestamp: VideoTs) -> bool {
-        if timestamp > self.last_ts {
+        if timestamp > self.ready_ts {
             self.ready = true;
             return true;
         }
         false
     }
 
-    #[inline(always)]
+    #[inline]
     fn flush(&mut self) {
         if self.cursor != 0 {
             let cursor = self.cursor;
@@ -181,18 +205,20 @@ impl<V: VideoFrame, S: Spooler> ZxPrinterDevice<V, S> {
         }
     }
 
+    #[inline]
+    fn set_delay(&mut self, timestamp: VideoTs, data: u8) {
+        let mut delay = self.bit_delay.into();
+        if data & SLOW_MASK == SLOW_MASK {
+            delay *= 2;
+        }
+        self.ready_ts = V::vts_add_ts(timestamp, delay);
+    }
+
     fn start(&mut self, data: u8, timestamp: VideoTs) {
         if self.motor {
             if self.ready {
-                let delay = if self.write_bit(data & STYLUS_MASK == STYLUS_MASK) {
-                    LINE_DELAY
-                }
-                else {
-                    BIT_DELAY
-                };
-                let ts = V::vts_to_tstates(timestamp) +
-                         delay * if data & SLOW_MASK == SLOW_MASK { 2 } else { 1 };
-                self.last_ts = V::tstates_to_vts(ts);
+                self.write_bit(data & STYLUS_MASK == STYLUS_MASK);
+                self.set_delay(timestamp, data);
                 self.ready = false;
             }
         }
@@ -200,14 +226,12 @@ impl<V: VideoFrame, S: Spooler> ZxPrinterDevice<V, S> {
             self.motor = true;
             self.ready = false;
             self.cursor = 0;
-            let ts = V::vts_to_tstates(timestamp) +
-                     LINE_DELAY * if data & SLOW_MASK == SLOW_MASK { 2 } else { 1 };
-            self.last_ts = V::tstates_to_vts(ts);
+            self.set_delay(timestamp, data);
             self.spooler.motor_on();
         }
     }
 
-    fn write_bit(&mut self, stylus: bool) -> bool {
+    fn write_bit(&mut self, stylus: bool) {
         let cursor = self.cursor;
         let index = usize::from(cursor) >> 3;
         let mask = 0x80 >> (cursor & 7);
@@ -222,7 +246,6 @@ impl<V: VideoFrame, S: Spooler> ZxPrinterDevice<V, S> {
         if over {
             self.spooler.push_line(&self.line);
         }
-        over
     }
 }
 
