@@ -182,7 +182,7 @@ impl<V: VideoFrame> SerialPortDevice for SerialKeypad<V> {
         self.read_state(timestamp)   
     }
     #[inline]
-    fn end_frame(&mut self, _timestamp: Self::Timestamp) {
+    fn next_frame(&mut self, _timestamp: Self::Timestamp) {
         self.keypad_event_ts = V::vts_saturating_sub_frame(self.keypad_event_ts);
     }
 }

@@ -205,8 +205,8 @@ impl<S1, S2> AyIoPort for SerialPorts128<S1, S2>
     fn end_frame(&mut self, timestamp: Self::Timestamp) {
         self.io_state.set_ser1_dtr(self.serial1.poll_ready(timestamp));
         self.io_state.set_ser2_dtr(self.serial2.poll_ready(timestamp));
-        self.serial1.end_frame(timestamp);
-        self.serial2.end_frame(timestamp);
+        self.serial1.next_frame(timestamp);
+        self.serial2.next_frame(timestamp);
     }
 }
 

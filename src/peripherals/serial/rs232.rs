@@ -97,7 +97,7 @@ impl<V: VideoFrame, R: Read, W: Write> SerialPortDevice for Rs232Io<V, R, W> {
         self.process_read(timestamp) 
     }
     #[inline]
-    fn end_frame(&mut self, _timestamp: Self::Timestamp) {
+    fn next_frame(&mut self, _timestamp: Self::Timestamp) {
         self.read_event_ts = V::vts_saturating_sub_frame(self.read_event_ts);
         self.write_event_ts = V::vts_saturating_sub_frame(self.write_event_ts);
     }

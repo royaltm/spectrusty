@@ -50,12 +50,12 @@ pub trait SerialPortDevice {
     ///
     /// This method is being called when a `CPU` writes (OUT) to a port and only when the value of `CTS` changes.
     fn update_cts(&mut self, cts: ControlState, timestamp: Self::Timestamp);
-    /// Receives the last `CTS` line state, and should output a `TxD` line state.
+    /// Should return a `TxD` line state.
     ///
     /// This method is being called when a `CPU` reads (IN) from a port.
     fn read_data(&mut self, timestamp: Self::Timestamp) -> DataState;
     /// Called when the current frame ends to allow emulators to wrap stored timestamps.
-    fn end_frame(&mut self, timestamp: Self::Timestamp);
+    fn next_frame(&mut self, timestamp: Self::Timestamp);
 }
 
 impl DataState {
@@ -154,5 +154,5 @@ impl<T> SerialPortDevice for NullSerialPort<T> {
         DataState::Mark
     }
     #[inline(always)]
-    fn end_frame(&mut self, _timestamp: Self::Timestamp) {}
+    fn next_frame(&mut self, _timestamp: Self::Timestamp) {}
 }
