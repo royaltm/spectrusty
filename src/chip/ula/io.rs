@@ -24,9 +24,8 @@ impl<M, B, V> Io for Ula<M, B, V>
     }
 
     fn read_io(&mut self, port: u16, ts: VideoTs) -> (u8, Option<NonZeroU16>) {
-        let data = self.ula_read_io(port, ts)
-                       .unwrap_or_else(|| self.floating_bus(ts));
-        (data, None)
+        self.ula_read_io(port, ts)
+            .unwrap_or_else(|| (self.floating_bus(ts), None))
     }
 
     fn write_io(&mut self, port: u16, data: u8, ts: VideoTs) -> (Option<()>, Option<NonZeroU16>) {
@@ -44,7 +43,9 @@ impl<M, B, V> Io for Ula<M, B, V>
             }
         }
         else {
-            self.bus.write_io(port, data, ts);
+            if let Some(ws) = self.bus.write_io(port, data, ts) {
+                return (None, NonZeroU16::new(ws))
+            }
         }
         (None, None)
     }
@@ -98,13 +99,15 @@ impl<M, B, V> Ula<M, B, V>
     where M: ZxMemory, B: BusDevice<Timestamp=VideoTs>, V: VideoFrame
 {
     #[inline(always)]
-    pub(crate) fn ula_read_io(&mut self, port: u16, ts: VideoTs) -> Option<u8> {
+    pub(crate) fn ula_read_io(&mut self, port: u16, ts: VideoTs) -> Option<(u8, Option<NonZeroU16>)> {
         let bus_data = self.bus.read_io(port, ts);
         if port & 1 == 0 {
-            let data = self.keyboard.read_keyboard((port >> 8) as u8) &
-                      ((self.read_ear_in(ts) << 6) | 0b1011_1111) &
-                      bus_data.unwrap_or(u8::max_value());
-            Some(data)
+            let ula_data = self.keyboard.read_keyboard((port >> 8) as u8) &
+                      ((self.read_ear_in(ts) << 6) | 0b1011_1111);
+            if let Some((data, ws)) = bus_data {
+                return Some((ula_data & data, ws));
+            }
+            Some((ula_data, None))
         }
         else {
             bus_data

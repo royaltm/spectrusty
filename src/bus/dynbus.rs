@@ -1,3 +1,4 @@
+use core::num::NonZeroU16;
 use core::any::{TypeId, Any};
 use core::fmt::{Display, Debug};
 use core::iter::IntoIterator;
@@ -210,10 +211,12 @@ impl<D> BusDevice for DynamicBusDevice<D>
     fn next_device_mut(&mut self) -> &mut Self::NextDevice {
         &mut self.bus
     }
+
     #[inline]
     fn next_device_ref(&self) -> &Self::NextDevice {
         &self.bus
     }
+
     #[inline]
     fn reset(&mut self, timestamp: Self::Timestamp) {
         for dev in self.devices.iter_mut() {
@@ -221,6 +224,7 @@ impl<D> BusDevice for DynamicBusDevice<D>
         }
         self.bus.reset(timestamp);
     }
+
     #[inline]
     fn update_timestamp(&mut self, timestamp: Self::Timestamp) {
         for dev in self.devices.iter_mut() {
@@ -228,6 +232,7 @@ impl<D> BusDevice for DynamicBusDevice<D>
         }
         self.bus.update_timestamp(timestamp);
     }
+
     #[inline]
     fn next_frame(&mut self, timestamp: Self::Timestamp) {
         for dev in self.devices.iter_mut() {
@@ -235,21 +240,30 @@ impl<D> BusDevice for DynamicBusDevice<D>
         }
         self.bus.next_frame(timestamp);
     }
+
     #[inline]
-    fn read_io(&mut self, port: u16, timestamp: Self::Timestamp) -> Option<u8> {
-        let mut bus_data = self.bus.read_io(port, timestamp);
+    fn read_io(&mut self, port: u16, timestamp: Self::Timestamp) -> Option<(u8, Option<NonZeroU16>)> {
+        let mut bus_data = None;
         for dev in self.devices.iter_mut() {
-            if let Some(data) = dev.read_io(port, timestamp) {
-                bus_data = Some(data & bus_data.unwrap_or(!0));
+            if let Some((data, ws)) = dev.read_io(port, timestamp) {
+                let data = data & bus_data.unwrap_or(!0);
+                if ws.is_some() {
+                    return Some((data, ws));
+                }
+                bus_data = Some(data);
             }
         }
-        bus_data
+        if let Some((data, ws)) = self.bus.read_io(port, timestamp) {
+            return Some((data & bus_data.unwrap_or(!0), ws))
+        }
+        bus_data.map(|data| (data, None))
     }
+
     #[inline]
-    fn write_io(&mut self, port: u16, data: u8, timestamp: Self::Timestamp) -> bool {
+    fn write_io(&mut self, port: u16, data: u8, timestamp: Self::Timestamp) -> Option<u16> {
         for dev in self.devices.iter_mut() {
-            if dev.write_io(port, data, timestamp) {
-                return true;
+            if let Some(res) = dev.write_io(port, data, timestamp) {
+                return Some(res);
             }
         }
         self.bus.write_io(port, data, timestamp)
@@ -290,18 +304,18 @@ mod tests {
         fn update_timestamp(&mut self, timestamp: Self::Timestamp) {
             self.foo = timestamp
         }
-        fn read_io(&mut self, _port: u16, timestamp: Self::Timestamp) -> Option<u8> {
+        fn read_io(&mut self, _port: u16, timestamp: Self::Timestamp) -> Option<(u8, Option<NonZeroU16>)> {
             if self.foo == timestamp {
-                Some(self.data)
+                Some((self.data, None))
             }
             else {
                 None
             }
         }
-        fn write_io(&mut self, _port: u16, data: u8, timestamp: Self::Timestamp) -> bool {
+        fn write_io(&mut self, _port: u16, data: u8, timestamp: Self::Timestamp) -> Option<u16> {
             self.data = data;
             self.foo = timestamp;
-            true
+            Some(0)
         }
     }
 
@@ -309,7 +323,7 @@ mod tests {
     fn dynamic_bus_device_works() {
         let mut dchain: DynamicBusDevice<NullDevice<i32>> = Default::default();
         assert_eq!(dchain.len(), 0);
-        assert_eq!(dchain.write_io(0, 0, 0), false);
+        assert_eq!(dchain.write_io(0, 0, 0), None);
         assert_eq!(dchain.read_io(0, 0), None);
         let test_dev: Box<dyn NamedBusDevice<_>> = Box::new(TestDevice::default());
         let index = dchain.append_device(test_dev);
@@ -343,12 +357,12 @@ mod tests {
         if let Some(dev) = dchain.get_device_mut(index1) {
             dev.update_timestamp(777);
             assert_eq!(dev.read_io(0, 0), None);
-            assert_eq!(dev.read_io(0, 777), Some(0));
+            assert_eq!(dev.read_io(0, 777), Some((0, None)));
         }
         assert_eq!(dchain.len(), 2);
-        assert_eq!(dchain.write_io(0, 42, 131999), true);
+        assert_eq!(dchain.write_io(0, 42, 131999), Some(0));
         assert_eq!(dchain.read_io(0, 0), None);
-        assert_eq!(dchain.read_io(0, 131999), Some(42));
+        assert_eq!(dchain.read_io(0, 131999), Some((42, None)));
         let dev: &TestDevice = dchain.as_device_ref(index1);
         assert_eq!(dev.data, 42);
         assert_eq!(dev.foo, 131999);

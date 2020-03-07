@@ -1,4 +1,5 @@
 //! System bus related interfaces and device emulators to be used with [ControlUnit][crate::chip::ControlUnit]s.
+use core::num::NonZeroU16;
 use core::fmt::{self, Debug};
 use core::any::{TypeId, Any};
 use core::marker::PhantomData;
@@ -9,6 +10,7 @@ mod dynbus;
 pub mod debug;
 pub mod joystick;
 pub mod mouse;
+pub mod zxinterface1;
 pub mod zxprinter;
 
 use crate::clock::{FTs, VFrameTsCounter, VideoTs};
@@ -143,7 +145,7 @@ pub trait BusDevice: Debug {
     /// the result from the forwarded call should be logically `ANDed` with the result of reading from this
     ///  device and if the upstream result is `None` the result should be returned with all unused bits set to 1.
     #[inline(always)]
-    fn read_io(&mut self, port: u16, timestamp: Self::Timestamp) -> Option<u8> {
+    fn read_io(&mut self, port: u16, timestamp: Self::Timestamp) -> Option<(u8, Option<NonZeroU16>)> {
         self.next_device_mut().read_io(port, timestamp)
     }
     /// This method is called by the control unit during an I/O write cycle.
@@ -157,7 +159,7 @@ pub trait BusDevice: Debug {
     /// If the device blocks writing to next devices and the port matches this method must
     /// return `true`. Otherwise this method should return the forwarded result.
     #[inline(always)]
-    fn write_io(&mut self, port: u16, data: u8, timestamp: Self::Timestamp) -> bool {
+    fn write_io(&mut self, port: u16, data: u8, timestamp: Self::Timestamp) -> Option<u16> {
         self.next_device_mut().write_io(port, data, timestamp)
     }
     /// Gets the `TypeId` of `self`.
@@ -211,13 +213,13 @@ impl<T: Debug> BusDevice for NullDevice<T> {
     // fn m1<Z: ZxMemory>(&mut self, _memory: &mut Z, _pc: u16, _timestamp: Self::Timestamp) {}
 
     #[inline(always)]
-    fn read_io(&mut self, _port: u16, _timestamp: Self::Timestamp) -> Option<u8> {
+    fn read_io(&mut self, _port: u16, _timestamp: Self::Timestamp) -> Option<(u8, Option<NonZeroU16>)> {
         None
     }
 
     #[inline(always)]
-    fn write_io(&mut self, _port: u16, _data: u8, _timestamp: Self::Timestamp) -> bool {
-        false
+    fn write_io(&mut self, _port: u16, _data: u8, _timestamp: Self::Timestamp) -> Option<u16> {
+        None
     }
 }
 
@@ -300,20 +302,31 @@ impl<D, N> BusDevice for OptionalBusDevice<D, N>
     //     self.next_device.m1(memory, pc, timestamp);
     // }
     #[inline]
-    fn read_io(&mut self, port: u16, timestamp: Self::Timestamp) -> Option<u8> {
-        let bus_data = self.next_device.read_io(port, timestamp);
-        let dev_data = self.device.as_mut().and_then(|dev| dev.read_io(port, timestamp));
-        match (bus_data, dev_data) {
-            (Some(bus_data), Some(dev_data)) => Some(bus_data & dev_data),
-            (Some(data), None)|(None, Some(data)) => Some(data),
-            (None, None) => None
+    fn read_io(&mut self, port: u16, timestamp: Self::Timestamp) -> Option<(u8, Option<NonZeroU16>)> {
+        let dev_data = if let Some((data, ws)) = self.device
+                            .as_mut()
+                            .and_then(|dev| dev.read_io(port, timestamp)) {
+            if ws.is_some() {
+            // we assume a halting device takes highest priority in this request
+                return Some((data, ws))
+            }
+            Some(data)
         }
+        else {
+            None
+        };
+        if let Some((bus_data, ws)) = self.next_device.read_io(port, timestamp) {
+            let data = bus_data & dev_data.unwrap_or(!0);
+            return Some((data, ws))
+        }
+        None
     }
+
     #[inline]
-    fn write_io(&mut self, port: u16, data: u8, timestamp: Self::Timestamp) -> bool {
+    fn write_io(&mut self, port: u16, data: u8, timestamp: Self::Timestamp) -> Option<u16> {
         if let Some(device) = &mut self.device {
-            if device.write_io(port, data, timestamp) {
-                return true;
+            if let Some(ws) = device.write_io(port, data, timestamp) {
+                return Some(ws)
             }
         }
         self.next_device.write_io(port, data, timestamp)

@@ -1,4 +1,5 @@
 //! A [BusDevice] for connecting pointing devices / mouses.
+use core::num::NonZeroU16;
 use core::fmt::Debug;
 use core::convert::TryFrom;
 use core::fmt;
@@ -78,19 +79,23 @@ impl<T: Debug, P, M, D> BusDevice for MouseBusDevice<T, P, M, D>
     }
 
     #[inline]
-    fn read_io(&mut self, port: u16, timestamp: Self::Timestamp) -> Option<u8> {
-        let data = self.bus.read_io(port, timestamp);
+    fn read_io(&mut self, port: u16, timestamp: Self::Timestamp) -> Option<(u8, Option<NonZeroU16>)> {
+        let bus_data = self.bus.read_io(port, timestamp);
         if P::match_port(port) {
-            return Some(data.unwrap_or(!0) & self.mouse.port_read(port))
+            let mouse_data = self.mouse.port_read(port);
+            if let Some((data, ws)) = bus_data {
+                return Some((data & mouse_data, ws))
+            }
+            return Some((mouse_data, None))
         }
-        data
+        bus_data
     }
 
     #[inline]
-    fn write_io(&mut self, port: u16, data: u8, timestamp: Self::Timestamp) -> bool {
+    fn write_io(&mut self, port: u16, data: u8, timestamp: Self::Timestamp) -> Option<u16> {
         if P::match_port(port) {
             if self.mouse.port_write(port, data) {
-                return true;
+                return Some(0);
             }
         }
         self.bus.write_io(port, data, timestamp)

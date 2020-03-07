@@ -1,4 +1,5 @@
 //! A [BusDevice] for connecting joysticks.
+use core::num::NonZeroU16;
 use core::convert::TryFrom;
 use core::fmt;
 use core::marker::PhantomData;
@@ -147,19 +148,23 @@ impl<T, P, J, D> BusDevice for JoystickBusDevice<T, P, J, D>
     }
 
     #[inline]
-    fn read_io(&mut self, port: u16, timestamp: Self::Timestamp) -> Option<u8> {
-        let data = self.bus.read_io(port, timestamp);
+    fn read_io(&mut self, port: u16, timestamp: Self::Timestamp) -> Option<(u8, Option<NonZeroU16>)> {
+        let bus_data = self.bus.read_io(port, timestamp);
         if P::match_port(port) {
-            return Some(data.unwrap_or(!0) & self.joystick.port_read(port))
+            let joy_data = self.joystick.port_read(port);
+            if let Some((data, ws)) = bus_data {
+                return Some((data & joy_data, ws))
+            }
+            return Some((joy_data, None))
         }
-        data
+        bus_data
     }
 
     #[inline]
-    fn write_io(&mut self, port: u16, data: u8, timestamp: Self::Timestamp) -> bool {
+    fn write_io(&mut self, port: u16, data: u8, timestamp: Self::Timestamp) -> Option<u16> {
         if P::match_port(port) {
             if self.joystick.port_write(port, data) {
-                return true;
+                return Some(0);
             }
         }
         self.bus.write_io(port, data, timestamp)
@@ -392,7 +397,7 @@ impl<T: fmt::Debug, D> BusDevice for MultiJoystickBusDevice<T, D>
     }
 
     #[inline(always)]
-    fn read_io(&mut self, port: u16, timestamp: Self::Timestamp) -> Option<u8> {
+    fn read_io(&mut self, port: u16, timestamp: Self::Timestamp) -> Option<(u8, Option<NonZeroU16>)> {
         use JoystickSelect::*;
         let bus_data = self.bus.read_io(port, timestamp);
         let joy_data = match self.joystick {
@@ -427,8 +432,11 @@ impl<T: fmt::Debug, D> BusDevice for MultiJoystickBusDevice<T, D>
             }
             _ => None
         };
-        if let Some(data) = joy_data {
-            Some(bus_data.unwrap_or(!0) & data)
+        if let Some(joy_data) = joy_data {
+            if let Some((data, ws)) = bus_data {
+                return Some((data & joy_data, ws))
+            }
+            return Some((joy_data, None))
         }
         else {
             bus_data

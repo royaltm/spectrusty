@@ -1,14 +1,11 @@
 //! A [BusDevice] for connecting **ZX Printer** family of printers.
+use core::num::NonZeroU16;
 use core::fmt;
 use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
 use crate::clock::{VFrameTsCounter, VideoTs, FTs};
 use crate::bus::{BusDevice, NullDevice, PortAddress};
 use crate::chip::ula::{UlaTsCounter, Ula};
-use crate::audio::ay::*;
-use crate::audio::{Blep, AmpLevels};
-use crate::audio::sample::SampleDelta;
-use crate::memory::ZxMemory;
 use crate::video::VideoFrame;
 use super::ay::PassByAyAudioBusDevice;
 
@@ -112,21 +109,24 @@ impl<P, V, S, D> BusDevice for ZxPrinterBusDevice<P, V, S, D>
     }
 
     #[inline]
-    fn read_io(&mut self, port: u16, timestamp: Self::Timestamp) -> Option<u8> {
-        let data = self.bus.read_io(port, timestamp);
+    fn read_io(&mut self, port: u16, timestamp: Self::Timestamp) -> Option<(u8, Option<NonZeroU16>)> {
+        let bus_data = self.bus.read_io(port, timestamp);
         if P::match_port(port) {
-            // println!("reading: {:02x}", port);
-            return Some(data.unwrap_or(!0) & self.printer.read_status(timestamp))
+            let pr_data = self.printer.read_status(timestamp);
+            if let Some((data, ws)) = bus_data {
+                return Some((data & pr_data, ws))
+            }
+            return Some((pr_data, None))
         }
-        data
+        bus_data
     }
 
     #[inline]
-    fn write_io(&mut self, port: u16, data: u8, timestamp: Self::Timestamp) -> bool {
+    fn write_io(&mut self, port: u16, data: u8, timestamp: Self::Timestamp) -> Option<u16> {
         if P::match_port(port) {
             // println!("print: {:04x} {:b}", port, data);
             self.printer.write_control(data, timestamp);
-            return true;
+            return Some(0);
         }
         self.bus.write_io(port, data, timestamp)
     }

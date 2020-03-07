@@ -37,6 +37,12 @@ pub trait MemoryContention: Copy + Debug {
     }
 }
 
+/// If a vertival counter value of [VideoTs] exceeds this value, signals the control unit to emulate hanging
+/// CPU indefinitely.
+pub const HALT_VC_THRESHOLD: i16 = i16::max_value() >> 1;
+
+const WAIT_STATES_THRESHOLD: u16 = i16::max_value() as u16 - 256;
+
 macro_rules! video_ts_packed_data {
     ($name:ident, $bits:literal) => {
         /// A T-states timestamp with packed N-bits data.
@@ -219,12 +225,12 @@ impl<V: VideoFrame, C> VFrameTsCounter<V, C> {
         V::is_vts_eof(self.tsc)
     }
 
-    fn max_tstates() -> FTs {
+    pub fn max_tstates() -> FTs {
         V::vts_to_tstates(V::max_vts())
     }
 
     #[inline(always)]
-    fn set_hc(&mut self, mut hc: Ts) {
+    pub(crate) fn set_hc(&mut self, mut hc: Ts) {
         while hc >= V::HTS_RANGE.end {
             hc -= V::HTS_COUNT as Ts;
             self.tsc.vc += 1;
@@ -362,8 +368,15 @@ impl<V: VideoFrame, C: MemoryContention> Clock for VFrameTsCounter<V, C> {
         Self::new(vc, hc).as_timestamp()
     }
 
-    fn add_wait_states(&mut self, _bus: u16, _wait_states: NonZeroU16) {
-        unreachable!()
+    fn add_wait_states(&mut self, _bus: u16, wait_states: NonZeroU16) {
+        let ws = wait_states.get();
+        if ws > WAIT_STATES_THRESHOLD {
+            // emulate hanging the Spectrum
+            self.tsc.vc += HALT_VC_THRESHOLD;
+        }
+        else {
+            self.set_hc(self.tsc.hc + ws as i16);
+        }
     }
 
     #[inline(always)]

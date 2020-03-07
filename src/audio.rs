@@ -30,7 +30,9 @@ pub mod sample;
 pub mod ay;
 pub mod music;
 
-pub(crate) const MARGIN_TSTATES: FTs = 2 * 23;
+// This is an arbitrary value for Blep implementation to reserve memory for additional samples.
+// This is twice the value of the maximum number of wait-states added by an I/O device.
+pub(crate) const MARGIN_TSTATES: FTs = 2800;
 
 use core::ops::{Deref, DerefMut};
 use core::marker::PhantomData;

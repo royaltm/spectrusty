@@ -145,12 +145,12 @@ impl<B> ControlUnit for Ula128<B>
     fn execute_next_frame<C: Cpu>(&mut self, cpu: &mut C) {
         loop {
             if self.is_page3_contended() {
-                if self.ula_execute_next_frame_with_breaks::<Ula128VidFrame, Ula128MemContention, _>(cpu) {
+                if self.ula_execute_next_frame_with_breaks::<Ula128MemContention, _>(cpu) {
                     break
                 }
             }
             else {
-                if self.ula_execute_next_frame_with_breaks::<Ula128VidFrame, UlaMemoryContention, _>(cpu) {
+                if self.ula_execute_next_frame_with_breaks::<UlaMemoryContention, _>(cpu) {
                     break;
                 }
             }

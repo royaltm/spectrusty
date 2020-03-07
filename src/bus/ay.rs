@@ -1,4 +1,5 @@
 //! `AY-3-8910` programmable sound generator.
+use core::num::NonZeroU16;
 use core::fmt::{self, Debug};
 use core::ops::{Deref, DerefMut};
 use core::marker::PhantomData;
@@ -199,17 +200,17 @@ impl<T, P, A, B, D> BusDevice for Ay3_891xBusDevice<T, P, A, B, D>
     }
 
     #[inline]
-    fn read_io(&mut self, port: u16, timestamp: Self::Timestamp) -> Option<u8> {
+    fn read_io(&mut self, port: u16, timestamp: Self::Timestamp) -> Option<(u8, Option<NonZeroU16>)> {
         if P::is_data_read(port) {
-            return Some(self.ay_io.data_port_read(port, timestamp))
+            return Some((self.ay_io.data_port_read(port, timestamp), None))
         }
         self.bus.read_io(port, timestamp)
     }
 
     #[inline]
-    fn write_io(&mut self, port: u16, data: u8, timestamp: Self::Timestamp) -> bool {
+    fn write_io(&mut self, port: u16, data: u8, timestamp: Self::Timestamp) -> Option<u16> {
         if P::write_ay_io(&mut self.ay_io, port, data, timestamp) {
-            return true    
+            return Some(0)
         }
         self.bus.write_io(port, data, timestamp)
     }

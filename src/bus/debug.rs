@@ -1,4 +1,5 @@
 //! A passthrough debugging device.
+use core::num::NonZeroU16;
 use core::fmt::Debug;
 use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
@@ -26,12 +27,12 @@ impl<T: Debug, D: BusDevice<Timestamp=T>> BusDevice for DebugBusDevice<T, D> {
     fn next_device_ref(&self) -> &Self::NextDevice {
         &self.bus
     }
-    fn read_io(&mut self, port: u16, timestamp: Self::Timestamp) -> Option<u8> {
+    fn read_io(&mut self, port: u16, timestamp: Self::Timestamp) -> Option<(u8, Option<NonZeroU16>)> {
         debug!("read_io: {:04x} {:?}", port, timestamp);
         self.bus.read_io(port, timestamp)
     }
     /// Called by the control unit on IO::write_io.
-    fn write_io(&mut self, port: u16, data: u8, timestamp: Self::Timestamp) -> bool {
+    fn write_io(&mut self, port: u16, data: u8, timestamp: Self::Timestamp) -> Option<u16> {
         debug!("write_io: {:04x} {:02x} {:?}", port, data, timestamp);
         self.bus.write_io(port, data, timestamp)
     }
