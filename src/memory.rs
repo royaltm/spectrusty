@@ -2,14 +2,15 @@
 # Memory banks and pages.
 
 * [ZxMemory] ROM and RAM is a continuous slice of memory divided into logical banks.
-* 16 bit memory addresses are mapped constantly to pages depending on the implementation: [SingleBankMemory] or [PagedMemory].
+* 16 bit memory addresses are mapped constantly to pages depending on the implementation.
 * Each page can have any fitting bank of ROM or RAM memory switched in.
+* Some implementations allow to attach an external ROM bank to any of the pages.
 
-Below are examples of continuous memory slab: all ROM banks followed by RAM banks.
+Below are examples of continuous memory: all ROM banks followed by RAM banks.
 [ZxMemory::mem_ref] and [ZxMemory::mem_mut] both give access to the whole area.
 ```text
 |00000h  |04000h  |8000h   |0c000h  |10000h  |14000h  |18000h |1c000h  |20000h  | 24000h
-Memory16k
+Memory48k
 |ROM_SIZE|
 +--------+--------+
 |        | Screen |
@@ -86,9 +87,10 @@ RAMTOP | Bank 0 | 0xffff
        +--------+
 ```
 */
+use core::fmt;
 use core::ops::Range;
 use core::ops::{Bound, RangeBounds};
-use core::fmt;
+use std::rc::Rc;
 use std::io::{self, Read};
 
 mod single_page;
@@ -96,6 +98,9 @@ mod multi_page;
 
 pub use single_page::*;
 pub use multi_page::*;
+
+/// An external ROM is a shared pointer to a slice of bytes.
+pub type ExRom = Rc<[u8]>;
 
 // bitflags! {
 //     #[derive(Default)]
@@ -178,7 +183,7 @@ pub type Result<T> = core::result::Result<T, ZxMemoryError>;
 pub trait ZxMemory: Sized {
     /// This is just a hint. Actual page sizes may vary.
     const PAGE_SIZE: usize = 0x4000;
-    /// The size of the whole rom, not just one bank.
+    /// The size of the whole ROM, not just one bank.
     const ROM_SIZE: usize;
     /// The last available memory address.
     const RAMTOP: u16;
@@ -192,12 +197,14 @@ pub trait ZxMemory: Sized {
     const RAM_BANKS_MAX: usize;
     // /// A hint of available memory features.
     // const FEATURES: MemoryFeatures;
+    /// Resets memory banks.
+    fn reset(&mut self);
     /// If `addr` is above `RAMTOP` the function should return [std::u8::MAX].
     fn read(&self, addr: u16) -> u8;
     /// If `addr` is above `RAMTOP` the function should return [std::u16::MAX].
     fn read16(&self, addr: u16) -> u16;
     /// `addr` is in screen address space (0 addresses the first byte of screen memory).
-    /// #Panics
+    /// # Panics
     /// If `addr` is above upper limit of screen memory address space the function should panic.
     /// If `screen_bank` doesn't exist the function should also panic.
     fn read_screen(&self, screen_bank: usize, addr: u16) -> u8;
@@ -211,8 +218,6 @@ pub trait ZxMemory: Sized {
     fn mem_mut(&mut self) -> &mut[u8];
     /// Returns a slice of the screen memory.
     fn screen_ref(&self, screen_bank: usize) -> Result<&[u8]>;
-    /// Returns a mutable slice of the screen_page memory.
-    fn screen_mut(&mut self, screen_bank: usize) -> Result<&mut [u8]>;
     /// `page` should be less or euqal to PAGES_MAX.
     fn page_kind(&self, page: u8) -> Result<MemoryKind>;
     /// `page` should be less or euqal to PAGES_MAX.
@@ -229,10 +234,27 @@ pub trait ZxMemory: Sized {
     fn ram_bank_mut(&mut self, ram_bank: usize) -> Result<&mut[u8]>;
     /// `rom_bank` should be less or equal to `ROM_BANKS_MAX` and `page` should be less or euqal to PAGES_MAX.
     fn map_rom_bank(&mut self, rom_bank: usize, page: u8) -> Result<()>;
+    /// `exrom_bank` should be one of the attachable EX-ROMS and `page` should be less or euqal to PAGES_MAX.
+    ///
+    /// # Panics
+    /// [ExRom] byte size must equal [ZxMemory::PAGE_SIZE].
+    ///
+    /// Not all types of memory support attaching external ROMs.
+    fn map_exrom(&mut self, _exrom_bank: ExRom, _page: u8) -> Result<()> {
+        unimplemented!();
+    }
+    /// Unmaps an external ROM if the currently mapped EX-ROM is the same as in the argument.
+    /// Otherwise does nothing.
+    fn unmap_exrom(&mut self, _exrom_bank: &ExRom) { }
     /// `ram_bank` should be less or equal to `RAM_BANKS_MAX` and `page` should be less or euqal to PAGES_MAX.
     fn map_ram_bank(&mut self, ram_bank: usize, page: u8) -> Result<()>;
     /// Returns `Ok(MemPageOffset)` if address is equal to or less than [ZxMemory::RAMTOP].
-    fn page_index_at(&self, address: u16) -> Result<MemPageOffset>;
+    fn page_index_at(&self, address: u16) -> Result<MemPageOffset> {
+        let index = (address / Self::PAGE_SIZE as u16) as u8;
+        let offset = address % Self::PAGE_SIZE as u16;
+        let kind = self.page_kind(index)?;
+        Ok(MemPageOffset {kind, index, offset})
+    }
     /// Provides a continuous view into the ROM memory (all banks).
     fn rom_ref(&self) -> &[u8] {
         &self.mem_ref()[0..Self::ROM_SIZE]
@@ -286,7 +308,8 @@ pub trait ZxMemory: Sized {
     /// Fills currently paged-in pages with the data produced by the closure F.
     ///
     /// Usefull to fill RAM with random bytes.
-    /// Provide the address range, trying to write into the address above RAMTOP results in an Error.
+    /// Provide the address range.
+    /// *NOTE*: this will overwrite both ROM and RAM locations.
     fn fill_mem<R, F>(&mut self, address_range: R, mut f: F) -> Result<()>
     where R: RangeBounds<u16>, F: FnMut() -> u8
     {

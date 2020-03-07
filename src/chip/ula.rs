@@ -287,6 +287,7 @@ pub(super) trait UlaCpuExt: UlaTimestamp {
 impl<U, B> UlaCpuExt for U
     where U: UlaTimestamp +
              ControlUnit<BusDevice=B> +
+             MemoryAccess +
              Memory<Timestamp=VideoTs> +
              Io<Timestamp=VideoTs, WrIoBreak=(), RetiBreak=()>,
           B: BusDevice<Timestamp=VideoTs>
@@ -297,6 +298,7 @@ impl<U, B> UlaCpuExt for U
             cpu.reset();
             let vts = self.video_ts();
             self.bus_device_mut().reset(vts);
+            self.memory_mut().reset();
         }
         else {
             self.ula_execute_instruction::<T,_>(cpu, opconsts::RST_00H_OPCODE).unwrap();

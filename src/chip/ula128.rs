@@ -11,7 +11,7 @@ use crate::audio::{AudioFrame};
 use crate::bus::BusDevice;
 use crate::chip::{ControlUnit, MemoryAccess, nanos_from_frame_tc_cpu_hz, ula::frame_cache::UlaFrameCache};
 use crate::video::VideoFrame;
-use crate::memory::{ZxMemory, Memory128k, MemoryBanks};
+use crate::memory::{ZxMemory, Memory128k};
 use crate::peripherals::ZXKeyboardMap;
 // use crate::io::*;
 use crate::clock::{VideoTs, VideoTsData1, FTs, Ts, VFrameTsCounter, MemoryContention};
@@ -126,7 +126,6 @@ impl<B> ControlUnit for Ula128<B>
         else {
             self.ula_reset::<UlaMemoryContention, _>(cpu, hard)
         }
-        self.ula.memory.reset_banks();
         self.mem_page3_bank = 0;
         self.cur_screen_shadow = false;
         self.beg_screen_shadow = false;

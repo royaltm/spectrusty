@@ -1,3 +1,4 @@
+use std::rc::Rc;
 use core::ops::RangeBounds;
 use super::{Result,
     ZxMemory,
@@ -5,21 +6,22 @@ use super::{Result,
     // MemoryFeatures,
     MemPageOffset,
     MemoryKind,
+    ExRom,
     normalize_address_range};
 
-/// A memory type with 16kb RAM.
+/// A single page memory type with 16kb RAM.
 #[derive(Clone)]
 pub struct Memory16k {
     mem: Box<[u8;0x8000]>
 }
 
-/// A memory type with 48kb RAM.
+/// A single page memory type with 48kb RAM.
 #[derive(Clone)]
 pub struct Memory48k {
     mem: Box<[u8;0x10000]>
 }
 
-/// A memory type with 64kb RAM.
+/// A single page memory type with 64kb RAM.
 ///
 /// The first 16kb of RAM will be also available as ROM, however
 /// the implementation doesn't prevent writes to the ROM area.
@@ -135,7 +137,7 @@ impl SingleBankMemory for Memory64k {
     }
 }
 
-impl<M: SingleBankMemory> ZxMemory for M {
+impl<M: SingleBankMemory + Sized> ZxMemory for M {
     const ROM_SIZE: usize = M::ROMSIZE as usize;
     const RAMTOP: u16 = M::RAMTOP;
     const PAGES_MAX: u8 = 1;
@@ -143,6 +145,9 @@ impl<M: SingleBankMemory> ZxMemory for M {
     const ROM_BANKS_MAX: usize = 0;
     const RAM_BANKS_MAX: usize = 0;
     // const FEATURES: MemoryFeatures = MemoryFeatures::NONE;
+
+    #[inline(always)]
+    fn reset(&mut self) {}
 
     #[inline(always)]
     fn read(&self, addr: u16) -> u8 {
@@ -227,13 +232,6 @@ impl<M: SingleBankMemory> ZxMemory for M {
             return Err(ZxMemoryError::InvalidBankIndex)
         }
         Ok(&self.as_slice()[0x4000..0x5B00])
-    }
-    #[inline]
-    fn screen_mut(&mut self, screen_bank: usize) -> Result<&mut [u8]> {
-        if screen_bank > Self::SCR_BANKS_MAX {
-            return Err(ZxMemoryError::InvalidBankIndex)
-        }
-        Ok(&mut self.as_mut_slice()[0x4000..0x5B00])
     }
     #[inline]
     fn page_kind(&self, page: u8) -> Result<MemoryKind> {
