@@ -193,6 +193,12 @@ pub trait VideoFrame: Copy + Debug {
     }
 
     #[inline]
+    fn vts_diff(vts_from: VideoTs, vts_to: VideoTs) -> FTs {
+            (vts_to.vc - vts_from.vc) as FTs * Self::HTS_COUNT as FTs +
+            (vts_to.hc - vts_from.hc) as FTs
+    }
+
+    #[inline]
     fn vts_saturating_sub_frame(VideoTs { vc, hc }: VideoTs) -> VideoTs {
         let vc = vc.saturating_sub(Self::VSL_COUNT);
         VideoTs { vc, hc }
