@@ -230,8 +230,8 @@ impl<V: VideoFrame, C> VFrameTsCounter<V, C> {
     }
 
     #[inline(always)]
-    pub(crate) fn set_hc(&mut self, mut hc: Ts) {
-        while hc >= V::HTS_RANGE.end {
+    fn set_hc_after_small_increment(&mut self, mut hc: Ts) {
+        if hc >= V::HTS_RANGE.end {
             hc -= V::HTS_COUNT as Ts;
             self.tsc.vc += 1;
         }
@@ -240,7 +240,6 @@ impl<V: VideoFrame, C> VFrameTsCounter<V, C> {
 }
 
 impl<V: VideoFrame, C> AddAssign<u32> for VFrameTsCounter<V, C> {
-    #[allow(clippy::suspicious_op_assign_impl)]
     fn add_assign(&mut self, delta: u32) {
         self.tsc = V::vts_add_ts(self.tsc, delta);
     }
@@ -254,7 +253,7 @@ impl<V: VideoFrame, C: MemoryContention> Clock for VFrameTsCounter<V, C> {
     }
 
     fn add_irq(&mut self, _pc: u16) -> Self::Timestamp {
-        self.set_hc(self.tsc.hc + IRQ_ACK_CYCLE_TS as Ts);
+        self.set_hc_after_small_increment(self.tsc.hc + IRQ_ACK_CYCLE_TS as Ts);
         self.tsc
     }
 
@@ -268,7 +267,7 @@ impl<V: VideoFrame, C: MemoryContention> Clock for VFrameTsCounter<V, C> {
         else {
             hc += add_ts.get() as Ts;
         }
-        self.set_hc(hc);
+        self.set_hc_after_small_increment(hc);
     }
 
     fn add_m1(&mut self, address: u16) -> Self::Timestamp {
@@ -284,7 +283,7 @@ impl<V: VideoFrame, C: MemoryContention> Clock for VFrameTsCounter<V, C> {
         else {
             self.tsc.hc
         };
-        self.set_hc(hc + M1_CYCLE_TS as Ts);
+        self.set_hc_after_small_increment(hc + M1_CYCLE_TS as Ts);
         self.tsc
     }
 
@@ -295,7 +294,7 @@ impl<V: VideoFrame, C: MemoryContention> Clock for VFrameTsCounter<V, C> {
         else {
             self.tsc.hc
         };
-        self.set_hc(hc + MEMRW_CYCLE_TS as Ts);
+        self.set_hc_after_small_increment(hc + MEMRW_CYCLE_TS as Ts);
         self.tsc
     }
 
@@ -327,7 +326,7 @@ impl<V: VideoFrame, C: MemoryContention> Clock for VFrameTsCounter<V, C> {
     //     else { // N:4
     //         hc + IO_CYCLE_TS as Ts
     //     };
-    //     self.set_hc(hc);
+    //     self.set_hc_after_small_increment(hc);
     //     Self::new(vc, hc - 1).as_timestamp() // data read at last cycle
     // }
 
@@ -364,7 +363,7 @@ impl<V: VideoFrame, C: MemoryContention> Clock for VFrameTsCounter<V, C> {
             hc += IO_IORQ_LOW_TS as Ts;
             hc + (IO_CYCLE_TS - IO_IORQ_LOW_TS) as Ts
         };
-        self.set_hc(hc1);
+        self.set_hc_after_small_increment(hc1);
         Self::new(vc, hc).as_timestamp()
     }
 
@@ -374,8 +373,11 @@ impl<V: VideoFrame, C: MemoryContention> Clock for VFrameTsCounter<V, C> {
             // emulate hanging the Spectrum
             self.tsc.vc += HALT_VC_THRESHOLD;
         }
+        else if ws < V::HTS_COUNT as u16 {
+            self.set_hc_after_small_increment(self.tsc.hc + ws as i16);
+        }
         else {
-            self.set_hc(self.tsc.hc + ws as i16);
+            *self += ws as u32;
         }
     }
 

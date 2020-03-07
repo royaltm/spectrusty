@@ -752,17 +752,17 @@ mod tests {
         for _ in 0..10 {
             let delay = drive.write_data(0, utsc.into());
             println!("delay 0x00: {} {:?}", delay, utsc.tsc);
-            utsc.set_hc(utsc.hc + delay as i16 + 21 + 16);
+            utsc += delay as u32 + 21 + 16;
         }
         for _ in 0..2 {
             let delay = drive.write_data(!0, utsc.into());
             println!("delay 0xff: {} {:?}", delay, utsc.tsc);
-            utsc.set_hc(utsc.hc + delay as i16 + 11 + 13);
+            utsc += delay as u32 + 11 + 13;
         }
         for i in 1..19 {
             let delay = drive.write_data(i, utsc.into());
             println!("delay: 0x{:02x} {} {:?}", i, delay, utsc.tsc);
-            utsc.set_hc(utsc.hc + delay as i16 + 21 + 16);
+            utsc += delay as u32 + 21 + 16;
         }
         let cartridge = drive.current_drive().unwrap();
         assert_eq!(cartridge.sector_map, [0x00000000, 0x00000000, 0x00000000, 0x00000000,
@@ -775,7 +775,7 @@ mod tests {
             sector: 0,
             secpos: SecPosition::Gap1,
         });
-        utsc.set_hc(utsc.hc + 36);
+        utsc += 36;
         // writing ends, erasing contitnues
         drive.write_control(utsc.into(), true, false, false, false);
         let cartridge = drive.current_drive().unwrap();
@@ -793,19 +793,19 @@ mod tests {
             secpos: SecPosition::Gap1,
         });
         // erasing gap
-        utsc.set_hc(utsc.hc + 11443);
+        utsc += 11443;
         // will write data block
         drive.write_control(utsc.into(), true, true, false, false);
-        utsc.set_hc(utsc.hc + 48);
+        utsc += 48;
         for _ in 0..10 {
             let delay = drive.write_data(0, utsc.into());
             println!("delay 0x00: {} {:?}", delay, utsc.tsc);
-            utsc.set_hc(utsc.hc + delay as i16 + 11 + 13);
+            utsc += delay as u32 + 11 + 13;
         }
         for _ in 0..2 {
             let delay = drive.write_data(!0, utsc.into());
             println!("delay 0xff: {} {:?}", delay, utsc.tsc);
-            utsc.set_hc(utsc.hc + delay as i16 + 19);
+            utsc += delay as u32 + 19;
         }
         for i in 1..630u16 { // format block
             if utsc.is_eof() {
@@ -814,7 +814,7 @@ mod tests {
             }
             let delay = drive.write_data(!(i as u8), utsc.into());
             println!("delay: 0x{:02x} {} {:?}", i, delay, utsc.tsc);
-            utsc.set_hc(utsc.hc + delay as i16 + 11 + 13);
+            utsc += delay as u32 + 11 + 13;
         }
         let cartridge = drive.current_drive().unwrap();
         assert_eq!(cartridge.written, NonZeroU16::new(641));
@@ -832,7 +832,7 @@ mod tests {
         let sector_map = cartridge.sector_map.bits::<Local>();
         assert_eq!(sector_map[0], true);
         // erasing gap
-        utsc.set_hc(utsc.hc + 8941);
+        utsc += 8941;
         // writing ends
         drive.write_control(utsc.into(), false, false, false, false);
         let cartridge = drive.current_drive().unwrap();
@@ -848,7 +848,7 @@ mod tests {
             let mut counter = 0;
             while !drive.read_state(utsc.into()).gap {
                 counter += 1;
-                utsc.set_hc(utsc.hc + 108);
+                utsc += 108;
                 if utsc.is_eof() {
                     drive.next_frame(utsc.into());
                     utsc.wrap_frame();
@@ -856,14 +856,14 @@ mod tests {
             }
             println!("counter: {}", counter);
             for _ in 1..6 {
-                utsc.set_hc(utsc.hc + 88);
+                utsc += 88;
                 assert!(drive.read_state(utsc.into()).gap);
             }
-            utsc.set_hc(utsc.hc + 25);
+            utsc += 25;
             'outer: loop {
                 for i in 1..=60 {
                     let state = drive.read_state(utsc.into());
-                    utsc.set_hc(utsc.hc + 38);
+                    utsc += 38;
                     assert!(state.gap);
                     if state.syn { break 'outer }
                     println!("sync not found: {}", i);
@@ -874,35 +874,35 @@ mod tests {
         }
 
         // find a gap and read header
-        utsc.set_hc(utsc.hc + 108);
+        utsc += 108;
         utsc = find_gap_sync(utsc, &mut drive);
         let cartridge = drive.current_drive().unwrap();
         println!("{:?} {:?}", cartridge.tape_cursor, utsc);
-        utsc.set_hc(utsc.hc + 92);
+        utsc += 92;
         for i in 1..=15 {
             let (data, delay) = drive.read_data(utsc.into());
             println!("data: {:02x} delay: {:?}  {:?}", data, delay, utsc);
             assert_eq!(i, data);
-            utsc.set_hc(utsc.hc + delay.unwrap().get() as i16 + 21 + 16);
+            utsc += delay.unwrap().get() as u32 + 21 + 16;
         }
         let (data, delay) = drive.read_data(utsc.into());
         println!("data: {:02x} delay: {:?}  {:?}", data, delay, utsc);
         assert_eq!(data, !0);
-        utsc.set_hc(utsc.hc + delay.unwrap().get() as i16 + 121);
+        utsc += delay.unwrap().get() as u32 + 121;
 
         // find a gap and read data
         assert_eq!(drive.read_state(utsc.into()).gap, false);
-        utsc.set_hc(utsc.hc + 10000);
+        utsc += 10000;
         assert_eq!(drive.read_state(utsc.into()).gap, false);
         utsc = find_gap_sync(utsc, &mut drive);
         let cartridge = drive.current_drive().unwrap();
         println!("{:?} {:?}", cartridge.tape_cursor, utsc);
-        utsc.set_hc(utsc.hc + 92);
+        utsc += 92;
         for i in 1..=528 {
             let (data, delay) = drive.read_data(utsc.into());
             println!("data: {:02x} delay: {:?}  {:?}", data, delay, utsc);
             assert_eq!(!i as u8, data);
-            utsc.set_hc(utsc.hc + delay.unwrap().get() as i16 + 21 + 16);
+            utsc += delay.unwrap().get() as u32 + 21 + 16;
             if utsc.is_eof() {
                 drive.next_frame(utsc.into());
                 utsc.wrap_frame();
@@ -911,38 +911,38 @@ mod tests {
         let (data, delay) = drive.read_data(utsc.into());
         println!("data: {:02x} delay: {:?}  {:?}", data, delay, utsc);
         assert_eq!(data, !0);
-        utsc.set_hc(utsc.hc + delay.unwrap().get() as i16 + 21);
+        utsc += delay.unwrap().get() as u32 + 21;
 
         // find a gap again but this time override data after reading header
-        utsc.set_hc(utsc.hc + 10800);
+        utsc += 10800;
         utsc = find_gap_sync(utsc, &mut drive);
         let cartridge = drive.current_drive().unwrap();
         println!("{:?} {:?}", cartridge.tape_cursor, utsc);
-        utsc.set_hc(utsc.hc + 92);
+        utsc += 92;
         for i in 1..=15 {
             let (data, delay) = drive.read_data(utsc.into());
             println!("data: {:02x} delay: {:?}  {:?}", data, delay, utsc);
             assert_eq!(i, data);
-            utsc.set_hc(utsc.hc + delay.unwrap().get() as i16 + 21 + 16);
+            utsc += delay.unwrap().get() as u32 + 21 + 16;
         }
         // overwrite data sector
         assert_eq!(drive.read_state(utsc.into()), CartridgeState {
             gap: false, syn: false, write_protect: false});
-        utsc.set_hc(utsc.hc + 98);
+        utsc += 98;
         drive.write_control(utsc.into(), true, false, false, false);
-        utsc.set_hc(utsc.hc + 9524);
+        utsc += 9524;
         drive.write_control(utsc.into(), true, true, false, false);
         // now write data
-        utsc.set_hc(utsc.hc + 47);
+        utsc += 47;
         for _ in 0..10 {
             let delay = drive.write_data(0, utsc.into());
             println!("delay 0x00: {} {:?}", delay, utsc.tsc);
-            utsc.set_hc(utsc.hc + delay as i16 + 21);
+            utsc += delay as u32 + 21;
         }
         for _ in 0..2 {
             let delay = drive.write_data(!0, utsc.into());
             println!("delay 0xff: {} {:?}", delay, utsc.tsc);
-            utsc.set_hc(utsc.hc + delay as i16 + 21);
+            utsc += delay as u32 + 21;
         }
         for i in 0..531u16 { // format block
             if utsc.is_eof() {
@@ -951,7 +951,7 @@ mod tests {
             }
             let delay = drive.write_data(0xA5^(i as u8), utsc.into());
             println!("delay: 0x{:02x} {} {:?}", i, delay, utsc.tsc);
-            utsc.set_hc(utsc.hc + delay as i16 + 21 + 16);
+            utsc += delay as u32 + 21 + 16;
         }
         let cartridge = drive.current_drive().unwrap();
         assert_eq!(cartridge.written, NonZeroU16::new(543));
@@ -964,10 +964,10 @@ mod tests {
         let sector_map = cartridge.sector_map.bits::<Local>();
         assert_eq!(sector_map[0], true);
         // writing ends, erasing continues for short time
-        utsc.set_hc(utsc.hc + 18);
+        utsc += 18;
         drive.write_control(utsc.into(), true, false, false, false);
         // writing ends
-        utsc.set_hc(utsc.hc + 112);
+        utsc += 112;
         drive.write_control(utsc.into(), false, false, false, false);
         let cartridge = drive.current_drive().unwrap();
         assert_eq!(cartridge.tape_cursor, TapeCursor {
@@ -978,7 +978,7 @@ mod tests {
             assert_eq!(*valid, false);
         }
         // turn all motors off
-        utsc.set_hc(utsc.hc + 1000);
+        utsc += 1000;
         if utsc.is_eof() {
             drive.next_frame(utsc.into());
             utsc.wrap_frame();
@@ -986,9 +986,9 @@ mod tests {
         for i in 0..7 {
             assert_eq!(drive.motor_on_drive, NonZeroU8::new(i + 2));
             drive.write_control(utsc.into(), true, false, true, false);
-            utsc.set_hc(utsc.hc + 3500);
+            utsc += 3500;
             drive.write_control(utsc.into(), true, false, false, false);
-            utsc.set_hc(utsc.hc + 3500);
+            utsc += 3500;
         }
         assert_eq!(drive.motor_on_drive, None);
     }

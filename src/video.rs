@@ -130,17 +130,17 @@ pub trait VideoFrame: Copy + Debug {
     fn is_contended_line_no_mreq(vsl: Ts) -> bool {
         vsl >= Self::VSL_PIXELS.start && vsl < Self::VSL_PIXELS.end
     }
-    /// Convert video scan line and horizontal T-state counters to the frame T-state counter without wrapping.
+    /// Converts video scan line and horizontal T-state counters to the frame T-state timestamp without wrapping.
     #[inline]
     fn vc_hc_to_tstates(vc: Ts, hc: Ts) -> FTs {
         vc as FTs * Self::HTS_COUNT as FTs + hc as FTs
     }
-    /// Convert a video timestamp to the T state timestamp.
+    /// Converts a video timestamp to the frame T-state timestamp.
     #[inline(always)]
     fn vts_to_tstates(VideoTs { vc, hc }: VideoTs) -> FTs {
         Self::vc_hc_to_tstates(vc, hc)
     }
-    /// Convert a T state timestamp to a video timestamp.
+    /// Converts a frame T-state timestamp to a video timestamp.
     #[inline]
     fn tstates_to_vts(ts: FTs) -> VideoTs {
         let hts_count: FTs = Self::HTS_COUNT as FTs;
@@ -148,8 +148,8 @@ pub trait VideoFrame: Copy + Debug {
         let hc = ts % hts_count;
         VideoTs { vc: vc.try_into().unwrap(), hc: hc.try_into().unwrap() }
     }
-    /// Converts a `VideoTs` timsetamp to a frame counter difference due to normalization and
-    /// a normalized T states timestamp.
+    /// Converts a `VideoTs` timestamp and a frame counter to a frame counter and
+    /// a normalized frame timestamp.
     ///
     /// The timestamp value returned is between: `[0, [VideoFrame::FRAME_TSTATES_COUNT])`.
     #[inline]
@@ -160,26 +160,35 @@ pub trait VideoFrame: Copy + Debug {
         let frames = frames.wrapping_add(frmdlt as u64);
         (frames, ts)
     }
-    /// Returns a maximum possible value of `VideoTs`.
+    /// Returns the largest value that can be represented by a `VideoTs`
+    /// with normalized horizontal counter.
     #[inline]
     fn max_vts() -> VideoTs {
-        VideoTs { vc: Ts::max_value(), hc: Self::HTS_COUNT - 1 }
+        VideoTs { vc: Ts::max_value(), hc: Self::HTS_RANGE.end - 1 }
+    }
+    /// Returns the smallest value that can be represented by a `VideoTs`
+    /// with a normalized horizontal counter.
+    #[inline]
+    fn min_vts() -> VideoTs {
+        VideoTs { vc: Ts::min_value(), hc: Self::HTS_RANGE.start }
     }
     /// Returns `true` if a video timestamp is at or past the last video scan line.
     #[inline]
     fn is_vts_eof(VideoTs { vc, .. }: VideoTs) -> bool {
         vc >= Self::VSL_COUNT
     }
-
+    /// Returns a video timestamp with a horizontal counter within the normal range.
     #[inline]
     fn normalize_vts(VideoTs { mut vc, mut hc }: VideoTs) -> VideoTs {
-        while hc >= Self::HTS_RANGE.end {
-            hc -= Self::HTS_COUNT as Ts;
-            vc += 1;
-        }
-        while hc < Self::HTS_RANGE.start {
-            hc += Self::HTS_COUNT as Ts;
-            vc -= 1;
+        if hc < Self::HTS_RANGE.start || hc >= Self::HTS_RANGE.end {
+            let fhc: FTs = hc as FTs - if hc < 0 {
+                Self::HTS_RANGE.end
+            }
+            else {
+                Self::HTS_RANGE.start
+            } as FTs;
+            vc = vc.checked_add((fhc / Self::HTS_COUNT as FTs) as Ts).expect("video ts overflow");
+            hc = fhc.rem_euclid(Self::HTS_COUNT as FTs) as Ts + Self::HTS_RANGE.start;
         }
         VideoTs::new(vc, hc)
     }
@@ -194,8 +203,8 @@ pub trait VideoFrame: Copy + Debug {
 
     #[inline]
     fn vts_diff(vts_from: VideoTs, vts_to: VideoTs) -> FTs {
-            (vts_to.vc - vts_from.vc) as FTs * Self::HTS_COUNT as FTs +
-            (vts_to.hc - vts_from.hc) as FTs
+        (vts_to.vc as FTs - vts_from.vc as FTs) * Self::HTS_COUNT as FTs +
+        (vts_to.hc as FTs - vts_from.hc as FTs)
     }
 
     #[inline]
