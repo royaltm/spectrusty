@@ -22,10 +22,12 @@ pub const MAX_HALT_TS: FTs = 2 * BYTE_TS as FTs;
 
 /// The number of T-states to signal to the control unit that the IF-I has hanged the Spectrum indefinitely
 /// (IN 0 bug).
-pub const HALT_FOREVER_TS: Option<NonZeroU16> = unsafe { Some(NonZeroU16::new_unchecked(u16::max_value())) };
+pub const HALT_FOREVER_TS: Option<NonZeroU16> = unsafe {
+    Some(NonZeroU16::new_unchecked(u16::max_value()))
+};
 
 /// The maximum number of sectors that the ZX Interface 1 software can handle.
-pub const MAX_SECTORS: usize = 254;
+pub const MAX_SECTORS: usize = 256;
 /// The maximum number of drives that the ZX Interface 1 software can handle.
 pub const MAX_DRIVES: usize = 8;
 
@@ -344,23 +346,21 @@ impl MicroCartridge {
 
     fn write_end(&mut self, delta_ts: u32) { // switched r/w w -> r, erase off, or motor off
         self.forward(delta_ts);
-        println!("wr: {:?}, delta: {} cur: {} {:?}", self.written, delta_ts, self.tape_cursor.cursor, self.tape_cursor.secpos);
+        // println!("wr: {:?}, delta: {} sec: {} cur: {} {:?}", self.written, delta_ts, self.tape_cursor.sector, self.tape_cursor.cursor, self.tape_cursor.secpos);
         if let Some(written) = self.written {
             if delta_ts < 2*BYTE_TS {
-                println!("ok");
                 const HEAD_SIZE_MIN: u16 = PREAMBLE_SIZE + HEAD_SIZE as u16;
                 const HEAD_SIZE_MAX: u16 = HEAD_SIZE_MIN + 55;
-                const DATA_SIZE_MIN: u16 = PREAMBLE_SIZE + DATA_SIZE as u16;
-                const DATA_SIZE_MAX: u16 = DATA_SIZE_MIN + 110;
+                // const DATA_SIZE_MIN: u16 = PREAMBLE_SIZE + DATA_SIZE as u16;
+                // const DATA_SIZE_MAX: u16 = DATA_SIZE_MIN + 110;
                 match (written.get(), self.tape_cursor.secpos) {
                     (HEAD_SIZE_MIN..=HEAD_SIZE_MAX, SecPosition::Gap1) => {
                         // this may yield a "valid" sector with invalid data, but harmless
-                        println!("ok valid header");
                         self.set_valid_sector(self.tape_cursor.sector, true);
                     }
-                    (DATA_SIZE_MIN..=DATA_SIZE_MAX, SecPosition::Gap2) => {
-                        println!("ok valid data");
-                    }
+                    // (DATA_SIZE_MIN..=DATA_SIZE_MAX, SecPosition::Gap2) => {
+                    //     println!("ok valid data");
+                    // }
                     _ => {}
                 }
             }
@@ -374,7 +374,7 @@ impl MicroCartridge {
             self.forward(delta_ts);
             let TapeCursor { sector, cursor, secpos } = self.tape_cursor;
             if delta_ts < BYTE_TS*3/2 {
-                println!("wr: {}, data: {:x}, cur: {} {:?}", written.get(), data, cursor, secpos);
+                // println!("wr: {}, data: {:x}, sec: {} cur: {} {:?}", written.get(), data, sector, cursor, secpos);
                 match (written.get(), data, secpos) {
                     (wr, 0x00, SecPosition::Preamble1(offs @ 1..=9))|
                     (wr, 0xff, SecPosition::Preamble1(offs @ 10..=11)) if wr == offs => {
@@ -409,19 +409,18 @@ impl MicroCartridge {
                     _=> {}
                 }
             }
-            println!("muka: {}", delta_ts);
             self.set_valid_sector(sector, false); // just erase all sector
             (BYTE_TS - cursor % BYTE_TS) as u16
         }
         else {
-            println!("start: {}", delta_ts);
+            // println!("start: {}", delta_ts);
             self.erase_forward(delta_ts);
             self.written = NonZeroU16::new(1);
             let TapeCursor { mut sector, secpos, .. } = self.tape_cursor;
-            println!("sector: {} cur: {} wr: {:?}, data: {:x}, {:?}", sector, self.tape_cursor.cursor, self.written, data, secpos);
+            // println!("sector: {} cur: {} wr: {:?}, data: {:x}, {:?}", sector, self.tape_cursor.cursor, self.written, data, secpos);
             if data == 0 {
                 if self.is_valid_sector(sector) {
-                    println!("overwrite data");
+                    // println!("overwrite data block");
                     if let SecPosition::Preamble2(0..=2)|SecPosition::Gap1 = secpos { // synchronized write data sector
                         self.tape_cursor.cursor = DATA_PREAMBLE;
                         self.tape_cursor.secpos = SecPosition::Preamble2(0);
@@ -431,7 +430,7 @@ impl MicroCartridge {
                 if let SecPosition::Gap2 = secpos { // write starts on next sector
                     sector = TapeCursor::add_sectors(sector, 1, self.sectors.len() as u32);
                 }
-                println!("begin write sector");
+                // println!("begin sector");
                 // write start somewhere in the middle of the sector, we just make it the new beginning of a sector 
                 self.tape_cursor.sector = sector;
                 self.tape_cursor.cursor = 0;
@@ -446,7 +445,7 @@ impl MicroCartridge {
         self.forward(delta_ts);
         let TapeCursor { sector, cursor, secpos, .. } = self.tape_cursor;
         if self.is_valid_sector(sector) {
-            println!("sec: {} cur: {} {:?}", sector, cursor, secpos);
+            // println!("sec: {} cur: {} {:?} {:?}", sector, cursor, secpos, res);
             return match secpos {
                 SecPosition::Preamble1(10..=11) => {
                     let data = self.sectors[sector as usize].head[0];
@@ -459,7 +458,7 @@ impl MicroCartridge {
                     (data, delay as u16)
                 }
                 SecPosition::Preamble1(..) => {
-                    (!0, (BYTE_TS - (cursor - HEAD_PREAMBLE) % BYTE_TS) as u16)
+                    (0, (BYTE_TS - (cursor - HEAD_PREAMBLE) % BYTE_TS) as u16)
                 }
                 SecPosition::Gap1 => {
                     (!0, (BYTE_TS - (cursor - GAP1_START) % BYTE_TS) as u16)
@@ -475,10 +474,11 @@ impl MicroCartridge {
                     (data, delay as u16)
                 }
                 SecPosition::Preamble2(..) => {
-                    (!0, (BYTE_TS - (cursor - HEAD_PREAMBLE) % BYTE_TS) as u16)
+                    (0, (BYTE_TS - (cursor - HEAD_PREAMBLE) % BYTE_TS) as u16)
                 }
                 SecPosition::Gap2 => {
-                    (!0, (BYTE_TS - (cursor - GAP2_START) % BYTE_TS) as u16)
+                    let data = self.sectors[sector as usize].data[DATA_SIZE - 1];
+                    (data, (BYTE_TS - (cursor - GAP2_START) % BYTE_TS) as u16)
                 }
             }
         }
@@ -910,7 +910,7 @@ mod tests {
         }
         let (data, delay) = drive.read_data(utsc.into());
         println!("data: {:02x} delay: {:?}  {:?}", data, delay, utsc);
-        assert_eq!(data, !0);
+        assert_eq!(data, 239);
         utsc += delay.unwrap().get() as u32 + 21;
 
         // find a gap again but this time override data after reading header
