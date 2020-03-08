@@ -117,6 +117,10 @@ impl Default for Serial128Io {
 
 impl Serial128Io {
     #[inline]
+    fn is_ser_any_cts(self) -> bool {
+        self.intersects(Serial128Io::SER1_CTS|Serial128Io::SER2_CTS)
+    }
+    #[inline]
     fn is_ser1_cts(self) -> bool {
         self.intersects(Serial128Io::SER1_CTS)
     }
@@ -176,15 +180,13 @@ impl<S1, S2> AyIoPort for SerialPorts128<S1, S2>
         if io_diff.is_ser1_cts() {
             self.serial1.update_cts(io_state.ser1_cts_state(), timestamp);
         }
-        else {
-            io_state.set_ser1_dtr(
-                self.serial1.write_data(io_state.ser1_rxd_state(), timestamp)
-            );
-        }
         if io_diff.is_ser2_cts() {
             self.serial2.update_cts(io_state.ser2_cts_state(), timestamp);
         }
-        else {
+        if !io_diff.is_ser_any_cts() {
+            io_state.set_ser1_dtr(
+                self.serial1.write_data(io_state.ser1_rxd_state(), timestamp)
+            );
             io_state.set_ser2_dtr(
                 self.serial2.write_data(io_state.ser2_rxd_state(), timestamp)
             );
