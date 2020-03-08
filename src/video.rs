@@ -163,13 +163,13 @@ pub trait VideoFrame: Copy + Debug {
     /// Returns the largest value that can be represented by a `VideoTs`
     /// with normalized horizontal counter.
     #[inline]
-    fn max_vts() -> VideoTs {
+    fn vts_max() -> VideoTs {
         VideoTs { vc: Ts::max_value(), hc: Self::HTS_RANGE.end - 1 }
     }
     /// Returns the smallest value that can be represented by a `VideoTs`
     /// with a normalized horizontal counter.
     #[inline]
-    fn min_vts() -> VideoTs {
+    fn vts_min() -> VideoTs {
         VideoTs { vc: Ts::min_value(), hc: Self::HTS_RANGE.start }
     }
     /// Returns `true` if a video timestamp is at or past the last video scan line.

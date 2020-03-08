@@ -226,7 +226,7 @@ impl<V: VideoFrame, C> VFrameTsCounter<V, C> {
     }
 
     pub fn max_tstates() -> FTs {
-        V::vts_to_tstates(V::max_vts())
+        V::vts_to_tstates(V::vts_max())
     }
 
     #[inline(always)]
