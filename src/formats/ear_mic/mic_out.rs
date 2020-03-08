@@ -189,7 +189,7 @@ impl<W> MicPulseWriter<W>
 
     #[inline]
     fn write_byte(&mut self, byte: u8) -> Result<()> {
-        eprint!("{:02x} ", byte);
+        // eprint!("{:02x} ", byte);
         if let Err(e) = self.wr.write_all(slice::from_ref(&byte)) {
             self.state = PulseState::Idle;
             return Err(e);
