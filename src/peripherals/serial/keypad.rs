@@ -182,7 +182,13 @@ impl<V: VideoFrame> SerialPortDevice for SerialKeypad<V> {
         self.read_state(timestamp)   
     }
     #[inline]
-    fn next_frame(&mut self, _timestamp: Self::Timestamp) {
+    fn next_frame(&mut self, timestamp: Self::Timestamp) {
+        if self.keypad_io != KeypadIoStatus::Reset {
+            // timeout everything other than reset state
+            if V::vts_diff(self.keypad_event_ts, timestamp) > RESET_MIN_INTERVAL as i32 {
+                self.reset_status(timestamp);
+            }
+        }
         self.keypad_event_ts = V::vts_saturating_sub_frame(self.keypad_event_ts);
     }
 }
