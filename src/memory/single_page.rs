@@ -234,6 +234,13 @@ impl<M: SingleBankMemory + Sized> ZxMemory for M {
         Ok(&self.as_slice()[0x4000..0x5B00])
     }
     #[inline]
+    fn screen_mut(&mut self, screen_bank: usize) -> Result<&mut [u8]> {
+        if screen_bank > Self::SCR_BANKS_MAX {
+            return Err(ZxMemoryError::InvalidBankIndex)
+        }
+        Ok(&mut self.as_mut_slice()[0x4000..0x5B00])
+    }
+    #[inline]
     fn page_kind(&self, page: u8) -> Result<MemoryKind> {
         match page {
             0 => Ok(MemoryKind::Rom),

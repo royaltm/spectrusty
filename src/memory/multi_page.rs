@@ -412,6 +412,14 @@ impl<M> ZxMemory for MemPageableRomRamExRom<M>
         Ok(&self.as_slice()[offset..offset + SCREEN_SIZE as usize])
     }
     #[inline]
+    fn screen_mut(&mut self, screen_bank: usize) -> Result<&mut [u8]> {
+        if screen_bank >= M::SCR_BANK_OFFSETS.len() {
+            return Err(ZxMemoryError::InvalidBankIndex)
+        }
+        let offset = M::SCR_BANK_OFFSETS[screen_bank];
+        Ok(&mut self.as_mut_slice()[offset..offset + SCREEN_SIZE as usize])
+    }
+    #[inline]
     fn page_kind(&self, page: u8) -> Result<MemoryKind> {
         if page > Self::PAGES_MAX {
             Err(ZxMemoryError::InvalidPageIndex)
@@ -890,7 +898,7 @@ mod tests {
         mem.map_ram_bank(6, 1).unwrap();
         assert_eq!(Rc::strong_count(&exrom2), 1);
         assert_eq!(Rc::strong_count(&exrom), 2);
-        let mem3 = mem.clone();
+        let mut mem3 = mem.clone();
         assert_eq!(Rc::strong_count(&exrom2), 1);
         assert_eq!(Rc::strong_count(&exrom), 3);
         assert_eq!(mem.page_kind(0).unwrap(), MemoryKind::Rom);
@@ -953,7 +961,15 @@ mod tests {
         test_page(&mem3, 2, b"RAM7");
         test_page(&mem3, 3, b"ROM1");
         assert_eq!(Rc::strong_count(&exrom), 2);
-        drop(mem3);
+        mem3.reset();
         assert_eq!(Rc::strong_count(&exrom), 1);
+        assert_eq!(mem3.page_kind(0).unwrap(), MemoryKind::Rom);
+        assert_eq!(mem3.page_kind(1).unwrap(), MemoryKind::Ram);
+        assert_eq!(mem3.page_kind(2).unwrap(), MemoryKind::Ram);
+        assert_eq!(mem3.page_kind(3).unwrap(), MemoryKind::Ram);
+        test_page(&mem3, 0, b"ROM0");
+        test_page(&mem3, 1, b"RAM5");
+        test_page(&mem3, 2, b"RAM2");
+        test_page(&mem3, 3, b"RAM0");
     }
 }

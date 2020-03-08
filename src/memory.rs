@@ -220,6 +220,8 @@ pub trait ZxMemory: Sized {
     fn mem_mut(&mut self) -> &mut[u8];
     /// Returns a slice of the screen memory.
     fn screen_ref(&self, screen_bank: usize) -> Result<&[u8]>;
+    /// Returns a mutable slice of the screen memory.
+    fn screen_mut(&mut self, screen_bank: usize) -> Result<&mut [u8]>;
     /// `page` should be less or euqal to PAGES_MAX.
     fn page_kind(&self, page: u8) -> Result<MemoryKind>;
     /// `page` should be less or euqal to PAGES_MAX.
