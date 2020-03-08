@@ -2,11 +2,11 @@ use core::fmt::{self, Debug};
 use core::marker::PhantomData;
 
 use crate::clock::{FTs, VideoTs, Ts};
-use crate::peripherals::ay::{AyIoPort, AyIoNullPort, Ay128kPortDecode};
 use crate::peripherals::serial::{SerialPortDevice, DataState, ControlState, NullSerialPort, SerialKeypad, Rs232Io};
 use crate::bus::ay::{Ay3_891xBusDevice};
 use crate::video::VideoFrame;
-use super::video::Ula128VidFrame;
+use crate::chip::ula128::Ula128VidFrame;
+use super::{AyIoPort, AyIoNullPort, Ay128kPortDecode};
 
 /// The bridge between ZX Spectrum 128 [AY-3-8912][crate::peripherals::ay::Ay3_891xIo] I/O ports and emulators
 /// of serial port devices.
@@ -172,6 +172,7 @@ impl<S1, S2> AyIoPort for SerialPorts128<S1, S2>
         let mut io_state = self.io_state;
         let io_diff = (io_state ^ Serial128Io::from_bits_truncate(data)) & Serial128Io::OUTPUT_MASK;
         io_state ^= io_diff;
+        // println!("port A write: {:02x} {:?} {:?}", data, io_diff, timestamp);
         if io_diff.is_ser1_cts() {
             self.serial1.update_cts(io_state.ser1_cts_state(), timestamp);
         }

@@ -5,10 +5,13 @@
 //! The sound emulation is in a separate module, please go to: [crate::audio::ay].
 use core::fmt;
 use core::ops::{Deref, DerefMut};
+use core::marker::PhantomData;
+use core::convert::TryFrom;
+
+pub mod serial128;
+
 use crate::clock::{FTs, VideoTs};
 use crate::video::VideoFrame;
-use core::marker::PhantomData;
-use std::convert::TryFrom;
 
 /// An enumeration of AY-3-8910 registers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
