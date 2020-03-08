@@ -6,18 +6,17 @@ use core::ops::{Deref, DerefMut};
 use std::io;
 use crate::clock::{VFrameTsCounter, VideoTs, FTs};
 use crate::bus::{BusDevice, NullDevice, PortAddress};
-// use crate::chip::ula::{UlaTsCounter, Ula};
 use crate::memory::ZxMemory;
 use crate::video::VideoFrame;
 use super::ay::PassByAyAudioBusDevice;
 
 pub use crate::peripherals::{storage::microdrives::*, serial::*};
 
-// impl<V, S, D> fmt::Display for $ty {
-//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-//         f.write_str($name)
-//     }
-// }
+impl<V, R, W, D> fmt::Display for ZxInterface1BusDevice<V, R, W, D> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("ZX Interface I")
+    }
+}
 
 /// Connects the [ZxInterface1BusDevice] emulator as a [BusDevice].
 #[derive(Clone, Default, Debug)]
