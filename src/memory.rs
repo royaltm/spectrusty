@@ -244,7 +244,7 @@ pub trait ZxMemory: Sized {
     /// [ExRom] byte size must equal [ZxMemory::PAGE_SIZE].
     ///
     /// Not all types of memory support attaching external ROMs.
-    fn map_exrom(&mut self, _exrom_bank: ExRom, _page: u8) -> Result<()> {
+    fn map_exrom(&mut self, _exrom_bank: ExRom, _page: u8) {
         unimplemented!();
     }
     /// Unmaps an external ROM if the currently mapped EX-ROM is the same as in the argument.

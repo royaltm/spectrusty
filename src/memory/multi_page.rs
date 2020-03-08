@@ -505,12 +505,11 @@ impl<M> ZxMemory for MemPageableRomRamExRom<M>
     }
     /// # Panics
     /// Panics if provided `exrom_bank` size does not match [ZxMemory::PAGE_SIZE].
-    fn map_exrom(&mut self, exrom_bank: ExRom, page: u8) -> Result<()> {
+    fn map_exrom(&mut self, exrom_bank: ExRom, page: u8) {
         if page > Self::PAGES_MAX {
-            return Err(ZxMemoryError::InvalidPageIndex)
+            panic!("{}", ZxMemoryError::InvalidPageIndex);
         }
         self.attach_exrom(exrom_bank, page);
-        Ok(())
     }
     fn unmap_exrom(&mut self, exrom_bank: &ExRom) {
         if self.is_exrom_attached(exrom_bank) {
@@ -794,7 +793,7 @@ mod tests {
         test_page(&mem, 2, b"RAM2");
         test_page(&mem, 3, b"RAM0");
         let mem2 = mem.clone();
-        mem.map_exrom(exrom.clone(), 0).unwrap();
+        mem.map_exrom(exrom.clone(), 0);
         assert_eq!(mem.page_kind(0).unwrap(), MemoryKind::Rom);
         assert_eq!(mem.page_kind(1).unwrap(), MemoryKind::Ram);
         assert_eq!(mem.page_kind(2).unwrap(), MemoryKind::Ram);
@@ -823,7 +822,7 @@ mod tests {
         test_page(&mem, 2, b"RAM2");
         test_page(&mem, 3, b"RAM0");
         assert_eq!(Rc::strong_count(&exrom), 1);
-        mem.map_exrom(exrom.clone(), 2).unwrap();
+        mem.map_exrom(exrom.clone(), 2);
         assert_eq!(Rc::strong_count(&exrom), 2);
         assert_eq!(mem.page_kind(0).unwrap(), MemoryKind::Rom);
         assert_eq!(mem.page_kind(1).unwrap(), MemoryKind::Ram);
@@ -854,7 +853,7 @@ mod tests {
         test_page(&mem, 1, b"RAM3");
         test_page(&mem, 2, b"RAM7");
         test_page(&mem, 3, b"RAM0");
-        mem.map_exrom(exrom.clone(), 3).unwrap();
+        mem.map_exrom(exrom.clone(), 3);
         assert_eq!(mem.page_kind(0).unwrap(), MemoryKind::Rom);
         assert_eq!(mem.page_kind(1).unwrap(), MemoryKind::Ram);
         assert_eq!(mem.page_kind(2).unwrap(), MemoryKind::Ram);
@@ -894,7 +893,7 @@ mod tests {
         test_page(&mem, 1, b"ROM1");
         test_page(&mem, 2, b"RAM7");
         test_page(&mem, 3, b"ROM1");
-        mem.map_exrom(exrom.clone(), 1).unwrap();
+        mem.map_exrom(exrom.clone(), 1);
         mem.map_ram_bank(6, 1).unwrap();
         assert_eq!(Rc::strong_count(&exrom2), 1);
         assert_eq!(Rc::strong_count(&exrom), 2);
@@ -910,7 +909,7 @@ mod tests {
         test_page(&mem, 2, b"RAM7");
         test_page(&mem, 3, b"ROM1");
         assert_eq!(Rc::strong_count(&exrom), 3);
-        mem.map_exrom(exrom2.clone(), 3).unwrap();
+        mem.map_exrom(exrom2.clone(), 3);
         mem.map_ram_bank(4, 3).unwrap();
         assert_eq!(Rc::strong_count(&exrom2), 2);
         assert_eq!(Rc::strong_count(&exrom), 2);
