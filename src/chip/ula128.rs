@@ -1,7 +1,6 @@
 mod audio;
 pub(crate) mod frame_cache;
 mod io;
-mod ay;
 mod video;
 
 use core::num::Wrapping;
@@ -11,24 +10,24 @@ use crate::audio::{AudioFrame};
 use crate::bus::BusDevice;
 use crate::chip::{ControlUnit, MemoryAccess, nanos_from_frame_tc_cpu_hz, ula::frame_cache::UlaFrameCache};
 use crate::video::VideoFrame;
-use crate::memory::{ZxMemory, Memory128k};
+use crate::memory::{ZxMemory, Memory128k, MemoryExtension, NoMemoryExtension};
 use crate::peripherals::ZXKeyboardMap;
 // use crate::io::*;
 use crate::clock::{VideoTs, VideoTsData1, FTs, Ts, VFrameTsCounter, MemoryContention};
 use crate::chip::ula::{Ula, UlaTimestamp, UlaCpuExt, UlaMemoryContention};
 
 pub use video::{Ula128VidFrame, Ula128MemContention};
-pub use ay::*;
+// pub use ay::*;
 
 /// The ZX Spectrum 128's CPU clock in cycles per second.
 pub const CPU_HZ: u32 = 3_546_900;
 
-pub(self) type InnerUla<B> = Ula<Memory128k, B, Ula128VidFrame>;
+pub(self) type InnerUla<B, X> = Ula<Memory128k, B, X, Ula128VidFrame>;
 
 /// ZX Spectrum 128k ULA.
 #[derive(Clone, Debug)]
-pub struct Ula128<B> {
-    ula: InnerUla<B>,
+pub struct Ula128<B, X=NoMemoryExtension> {
+    ula: InnerUla<B, X>,
     mem_page3_bank: u8,
     cur_screen_shadow: bool, // current shadow screen
     beg_screen_shadow: bool, // shadow screen when a frame began
@@ -37,9 +36,7 @@ pub struct Ula128<B> {
     screen_changes: Vec<VideoTs>,
 }
 
-impl<B> Default for Ula128<B>
-where B: Default
-{
+impl<B: Default, X: Default> Default for Ula128<B, X> {
     fn default() -> Self {
         Ula128 {
             ula: Default::default(),
@@ -53,7 +50,7 @@ where B: Default
     }
 }
 
-impl<B> Ula128<B> {
+impl<B, X> Ula128<B, X> {
     #[inline(always)]
     fn is_page3_contended(&self) -> bool {
         self.mem_page3_bank & 1 == 1
@@ -69,21 +66,32 @@ impl<B> Ula128<B> {
     }
 }
 
-impl<B> MemoryAccess for Ula128<B>
+impl<B, X> MemoryAccess for Ula128<B, X>
+    where X: MemoryExtension
 {
     type Memory = Memory128k;
-    /// Returns a mutable reference to the memory.
+    type MemoryExt = X;
+
+    #[inline(always)]
+    fn memory_ext_ref(&self) -> &Self::MemoryExt {
+        &self.ula.memext
+    }
+    #[inline(always)]
+    fn memory_ext_mut(&mut self) -> &mut Self::MemoryExt {
+        &mut self.ula.memext
+    }
+    #[inline(always)]
     fn memory_mut(&mut self) -> &mut Self::Memory {
         &mut self.ula.memory
     }
-    /// Returns a reference to the memory.
+    #[inline(always)]
     fn memory_ref(&self) -> &Self::Memory {
         &self.ula.memory
     }
 }
 
-impl<B> ControlUnit for Ula128<B>
-    where B: BusDevice<Timestamp=VideoTs>
+impl<B, X> ControlUnit for Ula128<B, X>
+    where B: BusDevice<Timestamp=VideoTs>, X: MemoryExtension
 {
     type BusDevice = B;
 
@@ -175,7 +183,7 @@ impl<B> ControlUnit for Ula128<B>
     }
 }
 
-impl<B> Ula128<B>
+impl<B, X> Ula128<B, X>
     where B: BusDevice<Timestamp=VideoTs>
 {
     #[inline]
@@ -193,7 +201,7 @@ impl<B> Ula128<B>
 
 }
 
-impl<B> UlaTimestamp for Ula128<B>
+impl<B, X> UlaTimestamp for Ula128<B, X>
     where B: BusDevice<Timestamp=VideoTs>
 {
     type VideoFrame = Ula128VidFrame;

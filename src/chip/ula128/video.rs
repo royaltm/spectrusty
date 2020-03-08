@@ -76,7 +76,7 @@ impl VideoFrame for Ula128VidFrame {
     }
 }
 
-impl<B> Video for Ula128<B> {
+impl<B, X> Video for Ula128<B, X> {
     type VideoFrame = Ula128VidFrame;
 
     #[inline]
@@ -93,7 +93,7 @@ impl<B> Video for Ula128<B> {
     }
 }
 
-impl<B> Ula128<B> {
+impl<B, X> Ula128<B, X> {
     #[inline(always)]
     pub(super) fn update_frame_pixels_and_colors(&mut self, addr: u16, ts: VideoTs) {
         let (frame_cache, match_addr) = match self.page3_screen_bank() {
@@ -112,7 +112,7 @@ impl<B> Ula128<B> {
     }
 }
 
-impl<B> Ula128<B> {
+impl<B, X> Ula128<B, X> {
     fn create_renderer<'a>(
             &'a mut self,
             border_size: BorderSize

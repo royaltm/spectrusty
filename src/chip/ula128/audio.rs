@@ -10,7 +10,7 @@ use crate::memory::ZxMemory;
 use crate::video::{Video, VideoFrame};
 use super::{CPU_HZ, Ula128, Ula128VidFrame, InnerUla};
 
-impl<A, B> AyAudioFrame<A> for Ula128<B>
+impl<A, B, X> AyAudioFrame<A> for Ula128<B, X>
     where A: Blep,
           B: AyAudioVBusDevice
 {
@@ -20,9 +20,9 @@ impl<A, B> AyAudioFrame<A> for Ula128<B>
     }
 }
 
-impl<A, B> AudioFrame<A> for Ula128<B>
+impl<A, B, X> AudioFrame<A> for Ula128<B, X>
     where A: Blep,
-          InnerUla<B>: AudioFrame<A>
+          InnerUla<B, X>: AudioFrame<A>
 {
     #[inline]
     fn ensure_audio_frame_time(&self, blep: &mut A, sample_rate: u32) {
@@ -35,7 +35,7 @@ impl<A, B> AudioFrame<A> for Ula128<B>
     }
 }
 
-impl<A, B> EarMicOutAudioFrame<A> for Ula128<B>
+impl<A, B, X> EarMicOutAudioFrame<A> for Ula128<B, X>
     where A: Blep
 {
     #[inline(always)]
@@ -44,7 +44,7 @@ impl<A, B> EarMicOutAudioFrame<A> for Ula128<B>
     }
 }
 
-impl<A, B> EarInAudioFrame<A> for Ula128<B>
+impl<A, B, X> EarInAudioFrame<A> for Ula128<B, X>
     where A: Blep
 {
     #[inline(always)]
@@ -53,7 +53,7 @@ impl<A, B> EarInAudioFrame<A> for Ula128<B>
     }
 }
 
-impl<B> EarIn for Ula128<B> {
+impl<B, X> EarIn for Ula128<B, X> {
     fn set_ear_in(&mut self, ear_in: bool, delta_fts: u32) {
         self.ula.set_ear_in(ear_in, delta_fts)
     }
@@ -70,8 +70,8 @@ impl<B> EarIn for Ula128<B> {
 }
 
 /// A trait for reading `MIC` output.
-impl<'a, B: 'a> MicOut<'a> for Ula128<B> {
-    type PulseIter = <InnerUla<B> as MicOut<'a>>::PulseIter;
+impl<'a, B: 'a, X: 'a> MicOut<'a> for Ula128<B, X> {
+    type PulseIter = <InnerUla<B, X> as MicOut<'a>>::PulseIter;
     /// Returns a frame buffered mic output as a pulse iterator.
     fn mic_out_iter_pulses(&'a self) -> Self::PulseIter {
         self.ula.mic_out_iter_pulses()

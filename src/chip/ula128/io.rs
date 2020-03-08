@@ -3,7 +3,7 @@ use z80emu::{Io, Memory};
 use crate::bus::{BusDevice, PortAddress};
 use crate::clock::VideoTs;
 use crate::peripherals::{KeyboardInterface, ZXKeyboardMap};
-use crate::memory::ZxMemory;
+use crate::memory::{ZxMemory, MemoryExtension};
 use crate::video::{VideoFrame, pixel_line_offset, color_line_offset};
 // use crate::io::keyboard::*;
 // use crate::ts::*;
@@ -29,7 +29,7 @@ bitflags! {
 const ROM_SWAP_PAGE: u8 = 0;
 const RAM_SWAP_PAGE: u8 = 3;
 
-impl<B> Io for Ula128<B>
+impl<B, X> Io for Ula128<B, X>
     where B: BusDevice<Timestamp=VideoTs>
 {
     type Timestamp = VideoTs;
@@ -70,8 +70,8 @@ impl<B> Io for Ula128<B>
     }
 }
 
-impl<B> Memory for Ula128<B>
-    where B: BusDevice<Timestamp=VideoTs>
+impl<B, X> Memory for Ula128<B, X>
+    where B: BusDevice<Timestamp=VideoTs>, X: MemoryExtension
 {
     type Timestamp = VideoTs;
 
@@ -92,8 +92,7 @@ impl<B> Memory for Ula128<B>
 
     #[inline(always)]
     fn read_opcode(&mut self, pc: u16, _ir: u16, _ts: VideoTs) -> u8 {
-        // self.bus.m1(&mut self.memory, pc, ts);
-        self.ula.memory.read(pc)
+        self.ula.memext.opcode_read(pc, &mut self.ula.memory)
     }
 
     #[inline(always)]
@@ -103,7 +102,7 @@ impl<B> Memory for Ula128<B>
     }
 }
 
-impl<B> KeyboardInterface for Ula128<B>
+impl<B, X> KeyboardInterface for Ula128<B, X>
 {
     #[inline(always)]
     fn get_key_state(&self) -> ZXKeyboardMap {
@@ -115,7 +114,7 @@ impl<B> KeyboardInterface for Ula128<B>
     }
 }
 
-impl<B> Ula128<B> {
+impl<B, X> Ula128<B, X> {
     #[inline]
     fn write_mem_port(&mut self, data: u8, ts: VideoTs) -> bool {
         if !self.mem_locked {

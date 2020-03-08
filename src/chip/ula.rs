@@ -16,7 +16,7 @@ use crate::audio::{AudioFrame, EarIn, MicOut, Blep, EarInAudioFrame, EarMicOutAu
 use crate::bus::BusDevice;
 use crate::chip::{ControlUnit, MemoryAccess, nanos_from_frame_tc_cpu_hz};
 use crate::video::{Video, VideoFrame};
-use crate::memory::ZxMemory;
+use crate::memory::{ZxMemory, MemoryExtension, NoMemoryExtension};
 use crate::peripherals::{KeyboardInterface, ZXKeyboardMap};
 use crate::clock::{
     HALT_VC_THRESHOLD, VideoTs, FTs, Ts, VFrameTsCounter,
@@ -59,11 +59,12 @@ impl<B: Blep, U> UlaAudioFrame<B> for U
 
 /// ZX Spectrum 16k/48k ULA.
 #[derive(Clone)]
-pub struct Ula<M, B, V=UlaVideoFrame> {
+pub struct Ula<M, B, X=NoMemoryExtension, V=UlaVideoFrame> {
     pub(super) frames: Wrapping<u64>, // frame counter
     pub(super) tsc: VideoTs, // current T-state timestamp
     pub(super) memory: M,
     pub(super) bus: B,
+    pub(super) memext: X,
     // keyboard
     keyboard: ZXKeyboardMap,
     // video related
@@ -84,8 +85,10 @@ pub struct Ula<M, B, V=UlaVideoFrame> {
     _vframe: PhantomData<V>
 }
 
-impl<M, B, V> Default for Ula<M, B, V>
-where M: ZxMemory + Default, B: Default, V: VideoFrame
+impl<M, B, X, V> Default for Ula<M, B, X, V>
+where M: Default,
+      B: Default, V: VideoFrame,
+      X: Default
 {
     fn default() -> Self {
         Ula {
@@ -93,6 +96,7 @@ where M: ZxMemory + Default, B: Default, V: VideoFrame
             tsc: VideoTs::default(),
             memory: M::default(),
             bus: B::default(),
+            memext: X::default(),
             // video related
             frame_cache: Default::default(),
             border_out_changes: Vec::new(),
@@ -115,7 +119,7 @@ where M: ZxMemory + Default, B: Default, V: VideoFrame
     }
 }
 
-impl<M, B, V> core::fmt::Debug for Ula<M, B, V> where M: ZxMemory
+impl<M, B, X, V> core::fmt::Debug for Ula<M, B, X, V> where M: ZxMemory
 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "Ula {{ frames: {:?}, tsc: {:?}, border: {} border_changes: {} earmic_changes: {} }}",
@@ -123,8 +127,8 @@ impl<M, B, V> core::fmt::Debug for Ula<M, B, V> where M: ZxMemory
     }
 }
 
-impl<M, B> ControlUnit for Ula<M, B, UlaVideoFrame>
-    where M: ZxMemory, B: BusDevice<Timestamp=VideoTs>
+impl<M, B, X> ControlUnit for Ula<M, B, X, UlaVideoFrame>
+    where M: ZxMemory, B: BusDevice<Timestamp=VideoTs>, X: MemoryExtension
 {
     type BusDevice = B;
 
@@ -186,11 +190,20 @@ impl<M, B> ControlUnit for Ula<M, B, UlaVideoFrame>
     }
 }
 
-impl<M, B, V> MemoryAccess for Ula<M, B, V>
-    where M: ZxMemory
+impl<M, B, X, V> MemoryAccess for Ula<M, B, X, V>
+    where M: ZxMemory, X: MemoryExtension
 {
     type Memory = M;
-    /// Returns a mutable reference to the memory.
+    type MemoryExt = X;
+
+    #[inline(always)]
+    fn memory_ext_ref(&self) -> &Self::MemoryExt {
+        &self.memext
+    }
+    #[inline(always)]
+    fn memory_ext_mut(&mut self) -> &mut Self::MemoryExt {
+        &mut self.memext
+    }
     #[inline(always)]
     fn memory_mut(&mut self) -> &mut Self::Memory {
         &mut self.memory
@@ -202,7 +215,7 @@ impl<M, B, V> MemoryAccess for Ula<M, B, V>
     }
 }
 
-impl<M, B, V> Ula<M, B, V>
+impl<M, B, X, V> Ula<M, B, X, V>
     where M: ZxMemory, B: BusDevice<Timestamp=VideoTs>, V: VideoFrame
 {
     #[inline]
@@ -228,7 +241,7 @@ pub(super) trait UlaTimestamp {
     fn ensure_next_frame_vtsc<T: MemoryContention>(&mut self) -> VFrameTsCounter<Self::VideoFrame, T>;
 }
 
-impl<M, B, V> UlaTimestamp for Ula<M, B, V>
+impl<M, B, X, V> UlaTimestamp for Ula<M, B, X, V>
     where M: ZxMemory, B: BusDevice<Timestamp=VideoTs>, V: VideoFrame
 {
     type VideoFrame = V;
@@ -284,13 +297,14 @@ pub(super) trait UlaCpuExt: UlaTimestamp {
     }
 }
 
-impl<U, B> UlaCpuExt for U
+impl<U, B, X> UlaCpuExt for U
     where U: UlaTimestamp +
              ControlUnit<BusDevice=B> +
-             MemoryAccess +
+             MemoryAccess<MemoryExt=X> +
              Memory<Timestamp=VideoTs> +
              Io<Timestamp=VideoTs, WrIoBreak=(), RetiBreak=()>,
-          B: BusDevice<Timestamp=VideoTs>
+          B: BusDevice<Timestamp=VideoTs>,
+          X: MemoryExtension
 {
     fn ula_reset<T: MemoryContention, C: Cpu>(&mut self, cpu: &mut C, hard: bool)
     {

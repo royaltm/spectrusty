@@ -10,7 +10,7 @@ use crate::memory::ZxMemory;
 use crate::video::{Video, VideoFrame};
 use super::{CPU_HZ, Ula};
 
-impl<A, M, D, F> AyAudioFrame<A> for Ula<M, D, F>
+impl<A, M, D, X, F> AyAudioFrame<A> for Ula<M, D, X, F>
     where A: Blep,
           D: AyAudioVBusDevice,
           F: VideoFrame
@@ -21,7 +21,7 @@ impl<A, M, D, F> AyAudioFrame<A> for Ula<M, D, F>
     }
 }
 
-impl<A, M, B, F> AudioFrame<A> for Ula<M, B, F>
+impl<A, M, B, X, F> AudioFrame<A> for Ula<M, B, X, F>
     where A: Blep,
           F: VideoFrame
 {
@@ -38,7 +38,7 @@ impl<A, M, B, F> AudioFrame<A> for Ula<M, B, F>
     }
 }
 
-impl<A, M, B, F> EarMicOutAudioFrame<A> for Ula<M, B, F>
+impl<A, M, B, X, F> EarMicOutAudioFrame<A> for Ula<M, B, X, F>
     where A: Blep,
           F: VideoFrame
 {
@@ -51,7 +51,7 @@ impl<A, M, B, F> EarMicOutAudioFrame<A> for Ula<M, B, F>
     }
 }
 
-impl<A, M, B, F> EarInAudioFrame<A> for Ula<M, B, F>
+impl<A, M, B, X, F> EarInAudioFrame<A> for Ula<M, B, X, F>
     where A: Blep,
           F: VideoFrame
 {
@@ -64,7 +64,7 @@ impl<A, M, B, F> EarInAudioFrame<A> for Ula<M, B, F>
     }
 }
 
-impl<M, B, F> EarIn for Ula<M, B, F>
+impl<M, B, X, F> EarIn for Ula<M, B, X, F>
     where F: VideoFrame
 {
     fn set_ear_in(&mut self, ear_in: bool, delta_fts: u32) {
@@ -117,7 +117,7 @@ impl<M, B, F> EarIn for Ula<M, B, F>
 }
 
 /// A trait for reading `MIC` output.
-impl<'a, M: 'a, B: 'a, F: 'a> MicOut<'a> for Ula<M, B, F>
+impl<'a, M: 'a, B: 'a, X: 'a, F: 'a> MicOut<'a> for Ula<M, B, X, F>
     where F: VideoFrame
 {
     type PulseIter = MicPulseIter<core::slice::Iter<'a, VideoTsData2>, F>;
@@ -186,7 +186,7 @@ impl<'a, I, V> Iterator for MicPulseIter<I, V>
     }
 }
 
-impl<M, B, F> Ula<M, B, F>
+impl<M, B, X, F> Ula<M, B, X, F>
     where F: VideoFrame
 {
     pub(super) fn cleanup_audio_frame_data(&mut self) {

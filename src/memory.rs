@@ -93,9 +93,11 @@ use core::ops::{Bound, RangeBounds};
 use std::rc::Rc;
 use std::io::{self, Read};
 
+mod extension;
 mod single_page;
 mod multi_page;
 
+pub use extension::*;
 pub use single_page::*;
 pub use multi_page::*;
 

@@ -8,20 +8,28 @@ use std::time::Instant;
 use z80emu::{Clock, CpuDebug, Io, Cpu, host::Result};
 use crate::bus::BusDevice;
 use crate::clock::FTs;
-use crate::memory::ZxMemory;
+use crate::memory::{ZxMemory, MemoryExtension};
 
-/// A trait for directly accessing an emulated memory implementation.
+/// A trait for directly accessing an emulated memory implementation and memory extensions.
 pub trait MemoryAccess {
     type Memory: ZxMemory;
-    /// Returns a mutable reference to the memory.
-    fn memory_mut(&mut self) -> &mut Self::Memory;
+    type MemoryExt: MemoryExtension;
+    /// Returns a read-only reference to the memory extension.
+    fn memory_ext_ref(&self) -> &Self::MemoryExt;
+    /// Returns a mutable reference to the memory extension.
+    fn memory_ext_mut(&mut self) -> &mut Self::MemoryExt;
     /// Returns a reference to the memory.
     fn memory_ref(&self) -> &Self::Memory;    
+    /// Returns a mutable reference to the memory.
+    fn memory_mut(&mut self) -> &mut Self::Memory;
 }
 
 /// A trait for controling an emulated chipset implementation.
 pub trait ControlUnit {
+    /// A type of the first attached [BusDevice].
     type BusDevice: BusDevice;
+    // /// A memory extension type.
+    // type MemoryExt: MemoryExtension;
     /// A frequency in Hz of the Cpu unit. This is the same as a number of cycles (T states) per second.
     fn cpu_clock_rate(&self) -> u32;
     /// A single frame duration in nanoseconds.

@@ -3,13 +3,13 @@ use z80emu::{Io, Memory};
 use crate::bus::BusDevice;
 use crate::clock::VideoTs;
 use crate::peripherals::{KeyboardInterface, ZXKeyboardMap};
-use crate::memory::ZxMemory;
+use crate::memory::{ZxMemory, MemoryExtension};
 use crate::video::{VideoFrame, pixel_line_offset, color_line_offset};
 // use crate::io::keyboard::*;
 // use crate::ts::*;
 use super::{Ula, UlaVideoFrame};
 
-impl<M, B, V> Io for Ula<M, B, V>
+impl<M, B, X, V> Io for Ula<M, B, X, V>
     where M: ZxMemory,
           B: BusDevice<Timestamp=VideoTs>,
           V: VideoFrame
@@ -51,9 +51,10 @@ impl<M, B, V> Io for Ula<M, B, V>
     }
 }
 
-impl<M, B> Memory for Ula<M, B>
+impl<M, B, X> Memory for Ula<M, B, X>
     where M: ZxMemory,
-          B: BusDevice<Timestamp=VideoTs>
+          B: BusDevice<Timestamp=VideoTs>,
+          X: MemoryExtension
 {
     type Timestamp = VideoTs;
 
@@ -74,8 +75,7 @@ impl<M, B> Memory for Ula<M, B>
 
     #[inline(always)]
     fn read_opcode(&mut self, pc: u16, _ir: u16, _ts: VideoTs) -> u8 {
-        // self.bus.m1(&mut self.memory, pc, ts);
-        self.memory.read(pc)
+        self.memext.opcode_read(pc, &mut self.memory)
     }
 
     #[inline(always)]
@@ -85,7 +85,7 @@ impl<M, B> Memory for Ula<M, B>
     }
 }
 
-impl<M, B, V> KeyboardInterface for Ula<M, B, V>
+impl<M, B, X, V> KeyboardInterface for Ula<M, B, X, V>
 {
     fn get_key_state(&self) -> ZXKeyboardMap {
         self.keyboard
@@ -95,7 +95,7 @@ impl<M, B, V> KeyboardInterface for Ula<M, B, V>
     }
 }
 
-impl<M, B, V> Ula<M, B, V>
+impl<M, B, X, V> Ula<M, B, X, V>
     where M: ZxMemory, B: BusDevice<Timestamp=VideoTs>, V: VideoFrame
 {
     #[inline(always)]

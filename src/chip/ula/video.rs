@@ -72,7 +72,7 @@ impl VideoFrame for UlaVideoFrame {
     }
 }
 
-impl<M: ZxMemory, B> Video for Ula<M, B> {
+impl<M: ZxMemory, B, X> Video for Ula<M, B, X> {
     type VideoFrame = UlaVideoFrame;
 
     #[inline]
@@ -89,7 +89,7 @@ impl<M: ZxMemory, B> Video for Ula<M, B> {
     }
 }
 
-impl<M: ZxMemory, B> Ula<M, B> {
+impl<M: ZxMemory, B, X> Ula<M, B, X> {
     #[inline(always)]
     pub(super) fn update_frame_pixels_and_colors(&mut self, addr: u16, ts: VideoTs) {
         if let Some(coords) = pixel_address_coords(addr) {
@@ -101,7 +101,7 @@ impl<M: ZxMemory, B> Ula<M, B> {
     }
 }
 
-impl<M: ZxMemory, B, V> Ula<M, B, V> {
+impl<M: ZxMemory, B, X, V> Ula<M, B, X, V> {
     #[inline]
     pub(crate) fn ula_border_color(&self) -> u8 {
         self.last_border
