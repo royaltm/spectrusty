@@ -190,7 +190,6 @@ impl<S1, S2> AyIoPort for SerialPorts128<S1, S2>
             );
         }
         self.io_state = io_state;
-        // println!("port a write: {:02x} {:?} {:?} {:?}", data, timestamp, self.keypad_io, self.keypad_event_ts);
     }
 
     #[inline]
@@ -199,7 +198,8 @@ impl<S1, S2> AyIoPort for SerialPorts128<S1, S2>
         io_state.set_ser1_txd(self.serial1.read_data(timestamp));
         io_state.set_ser2_txd(self.serial2.read_data(timestamp));
         self.io_state = io_state;
-        io_state.bits()
+        // println!("port A read: {:02x}", io_state.bits());
+        (io_state | Serial128Io::OUTPUT_MASK).bits()
     }
 
     #[inline]
