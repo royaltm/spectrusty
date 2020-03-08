@@ -6,11 +6,13 @@ use sdl2::keyboard::{Mod as Modifier, Keycode};
 use sdl2::mouse::MouseButton;
 use zxspecemu::bus::{DynamicBusDevice, OptionalBusDevice, NullDevice,
                     joystick::{JoystickSelect, MultiJoystickBusDevice},
+                    zxinterface1::*,
                     zxprinter::*};
 use zxspecemu::clock::VideoTs;
-use zxspecemu::chip::{MemoryAccess, ula128::Ay3_8912KeypadRs232};
+use zxspecemu::chip::MemoryAccess;
 use zxspecemu::memory::ZxMemory;
 use zxspecemu::peripherals::{KeyboardInterface, ZXKeyboardMap};
+use zxspecemu::peripherals::ay::serial128::Ay3_8912KeypadRs232;
 use zxspecemu::peripherals::joystick::Directions;
 use zxspecemu::peripherals::mouse::{MouseInterface, MouseButtons, kempston::KempstonMouseDevice};
 use zxspecemu::peripherals::serial::{KeypadKeys, SerialKeypad};
@@ -22,19 +24,32 @@ use log::{error, warn, info, debug, trace};
 use crate::spectrum::ZXSpectrum;
 use super::printer::{ZxGfxPrinter, ImageSpooler};
 
+pub use zxspecemu::bus::zxinterface1::{MicroCartridge, ZXMicrodrives};
 pub use nonblocking::*;
 
+
+pub type ZxInterface1<V,D=NullDevice<VideoTs>> = ZxInterface1BusDevice<V,
+                                        NonBlockingStdinReader,
+                                        FilterGfxStdoutWriter,
+                                        D>;
 pub type ZXPrinterToImage<V> = ZxPrinter<V, ImageSpooler>;
 pub type OptJoystickBusDevice<D=NullDevice<VideoTs>> = OptionalBusDevice<MultiJoystickBusDevice, D>;
 pub type Ay3_8912 = Ay3_8912KeypadRs232<OptJoystickBusDevice,
                                         NonBlockingStdinReader,
                                         FilterGfxStdoutWriter>;
+pub type Rs232<V> = Rs232Io<V, NonBlockingStdinReader, FilterGfxStdoutWriter>;
 
 pub trait DeviceAccess<V> {
     fn spooler_mut(&mut self) -> Option<&mut ImageSpooler> { None }
     fn spooler_ref(&self) -> Option<&ImageSpooler> { None }
-    fn gfx_printer_mut(&mut self) -> Option<&mut dyn ZxGfxPrinter> { None }
-    fn gfx_printer_ref(&self) -> Option<&dyn ZxGfxPrinter> { None }
+    fn gfx_printer_mut(&mut self) -> Option<&mut dyn ZxGfxPrinter> {
+        self.spooler_mut().map(|p| -> &mut dyn ZxGfxPrinter {p})
+    }
+    fn gfx_printer_ref(&self) -> Option<&dyn ZxGfxPrinter> {
+        self.spooler_ref().map(|p| -> &dyn ZxGfxPrinter {p})
+    }
+    // fn gfx_printer_mut(&mut self) -> Option<&mut dyn ZxGfxPrinter> { None }
+    // fn gfx_printer_ref(&self) -> Option<&dyn ZxGfxPrinter> { None }
 
     fn dynbus_devices_mut(&mut self) -> Option<&mut DynamicBusDevice> { None }
     fn dynbus_devices_ref(&self) -> Option<&DynamicBusDevice> { None }
@@ -52,6 +67,19 @@ pub trait DeviceAccess<V> {
     fn keypad_mut(&mut self) -> Option<&mut SerialKeypad<V>> { None }
     // fn static_ay3_8912_mut(&mut self) -> Option<&mut Ay3_8912<J>> { None }
     fn static_ay3_8912_ref(&self) -> Option<&Ay3_8912> { None }
+    fn microdrives_ref(&self) -> Option<&ZXMicrodrives<V>> { None }
+    fn microdrives_mut(&mut self) -> Option<&mut ZXMicrodrives<V>> { None }
+    // fn serial_ref(&self) -> Option<&Rs232<V>> { None }
+    // fn serial_mut(&self) -> Option<&mut Rs232<V>> { None }
+}
+
+pub trait DynamicDeviceAccess {
+    // dynamic devices
+    fn remove_all_devices(&mut self) { unimplemented!() }
+    fn add_mouse(&mut self) { unimplemented!() }
+    fn add_ay_melodik(&mut self) { unimplemented!() }
+    fn add_fullerbox(&mut self) { unimplemented!() }
+    fn add_printer(&mut self) { unimplemented!() }
 }
 
 impl<C, U> ZXSpectrum<C, U>
@@ -71,6 +99,9 @@ impl<C, U> ZXSpectrum<C, U>
                     write!(info, "[{}]", lines).unwrap();
                 }                
             }
+        }
+        if let Some(microdrives) = self.microdrives_ref() {
+            write!(info, " + ZX Interface 1").unwrap();
         }
         if let Some(joy) = self.joystick_ref() {
             if self.joystick_index != 0 {
@@ -238,10 +269,10 @@ pub fn try_keys_to_directions(keycode: Keycode) -> Option<Directions> {
 
 pub fn keypad_keys(mut keys: KeypadKeys, keycode: Keycode, pressed: bool, modifier: Modifier) -> KeypadKeys {
     let key_chg = match keycode {
+        Keycode::KpDivide if modifier.intersects(Modifier::NUMMOD) => KeypadKeys::LPAREN,
         Keycode::KpDivide => KeypadKeys::DIVIDE,
-        Keycode::KpMultiply if modifier.intersects(Modifier::NUMMOD) => KeypadKeys::LPAREN,
+        Keycode::KpMultiply if modifier.intersects(Modifier::NUMMOD) => KeypadKeys::RPAREN,
         Keycode::KpMultiply => KeypadKeys::MULTIPLY,
-        Keycode::KpMinus if modifier.intersects(Modifier::NUMMOD) => KeypadKeys::RPAREN,
         Keycode::KpMinus => KeypadKeys::MINUS,
         Keycode::KpPlus => KeypadKeys::PLUS,
         Keycode::KpEnter => KeypadKeys::ENTER,

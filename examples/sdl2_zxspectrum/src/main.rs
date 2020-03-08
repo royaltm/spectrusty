@@ -25,7 +25,7 @@ use sdl2::{Sdl,
            video::{WindowPos, FullscreenType, Window, WindowContext}};
 // use sdl2_sys::SDL_WindowFlags;
 use crate::spectrum::*;
-use crate::peripherals::DeviceAccess;
+use crate::peripherals::{DeviceAccess, DynamicDeviceAccess, MicroCartridge};
 use crate::utils::*;
 
 const REQUESTED_AUDIO_LATENCY: usize = 2;
@@ -82,29 +82,44 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let zx = ZXSpectrum128::create(&sdl_context, REQUESTED_AUDIO_LATENCY)?;
         run(zx, sdl_context, files)
     }
+    else if cfg.remove("+if1") {
+        let mut zx = ZXSpectrum48If1DynBus::create(&sdl_context, REQUESTED_AUDIO_LATENCY)?;
+        dyn_config(cfg, &mut zx)?;
+        zx.load_if1_rom()?;
+        zx.microdrives_mut().unwrap().replace_cartridge(0, MicroCartridge::default());
+        run(zx, sdl_context, files)
+    }
     else {
         let mut zx = ZXSpectrum48DynBus::create(&sdl_context, REQUESTED_AUDIO_LATENCY)?;
-        let all = cfg.remove("+all");
-        if cfg.remove("+mouse") || all {
-            zx.add_mouse();
-        }
-        if cfg.remove("+printer") || all {
-            zx.add_printer();
-        }
-        if cfg.remove("+ay") || cfg.remove("+melodik") || all {
-            zx.add_ay_melodik();
-        }
-        if cfg.remove("+fullerbox") || all {
-            zx.add_fullerbox();
-        }
-        if cfg.is_empty() {
-            run(zx, sdl_context, files)
-        }
-        else {
-            Err(format!("Unrecognized options: {}. Provide one of: +mouse, +printer, +ay|melodik, +fullerbox",
-                cfg.drain().collect::<Vec<_>>().join(" ")))?
-        }
+        dyn_config(cfg, &mut zx)?;
+        run(zx, sdl_context, files)
     }
+}
+
+fn dyn_config<C, U>(
+        mut cfg: HashSet<String>, zx: &mut ZXSpectrum<C, U>
+    ) -> Result<(), Box<dyn std::error::Error>>
+    where ZXSpectrum<C, U>: DynamicDeviceAccess + DeviceAccess<U::VideoFrame>,
+          U: Video
+{
+    let all = cfg.remove("+all");
+    if cfg.remove("+mouse") || all {
+        zx.add_mouse();
+    }
+    if cfg.remove("+printer") || all {
+        zx.add_printer();
+    }
+    if cfg.remove("+ay") || cfg.remove("+melodik") || all {
+        zx.add_ay_melodik();
+    }
+    if cfg.remove("+fullerbox") || all {
+        zx.add_fullerbox();
+    }
+    if !cfg.is_empty() {
+        Err(format!("Unrecognized options: {}. Provide one of: +mouse, +printer, +ay|melodik, +fullerbox",
+            cfg.drain().collect::<Vec<_>>().join(" ")))?
+    }
+    Ok(())
 }
 
 fn run<C, U, I>(
