@@ -27,6 +27,7 @@ use sdl2::{Sdl,
 use crate::spectrum::*;
 use crate::peripherals::{DeviceAccess, DynamicDeviceAccess, MicroCartridge};
 use crate::utils::*;
+use zxspecemu::formats::mdr::MicroCartridgeExt;
 
 const REQUESTED_AUDIO_LATENCY: usize = 2;
 
@@ -71,7 +72,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     set_dpi_awareness()?;
     let sdl_context = sdl2::init()?;
 
-    let (mut cfg, files): (HashSet<_>,HashSet<_>) = std::env::args().skip(1)
+    let (mut cfg, mut files): (HashSet<_>,HashSet<_>) = std::env::args().skip(1)
                                         .partition(|arg| arg.starts_with("+"));
 
     if cfg.is_empty() {
@@ -79,14 +80,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         run(zx, sdl_context, files)
     }
     else if cfg.remove("+128") {
-        let zx = ZXSpectrum128::create(&sdl_context, REQUESTED_AUDIO_LATENCY)?;
-        run(zx, sdl_context, files)
+        if cfg.remove("+if1") {
+            let mut zx = ZXSpectrum128If1::create(&sdl_context, REQUESTED_AUDIO_LATENCY)?;
+            zx.load_if1_rom()?;
+            if1_config(&mut files, &mut zx)?;
+            run(zx, sdl_context, files)
+        }
+        else {
+            let zx = ZXSpectrum128::create(&sdl_context, REQUESTED_AUDIO_LATENCY)?;
+            run(zx, sdl_context, files)
+        }
     }
     else if cfg.remove("+if1") {
         let mut zx = ZXSpectrum48If1DynBus::create(&sdl_context, REQUESTED_AUDIO_LATENCY)?;
         dyn_config(cfg, &mut zx)?;
         zx.load_if1_rom()?;
-        zx.microdrives_mut().unwrap().replace_cartridge(0, MicroCartridge::default());
+        if1_config(&mut files, &mut zx)?;
         run(zx, sdl_context, files)
     }
     else {
@@ -94,6 +103,31 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         dyn_config(cfg, &mut zx)?;
         run(zx, sdl_context, files)
     }
+}
+
+fn if1_config<C, U>(
+        files: &mut HashSet<String>, zx: &mut ZXSpectrum<C, U>
+    ) -> Result<(), Box<dyn std::error::Error>>
+    where ZXSpectrum<C, U>: DeviceAccess<U::VideoFrame>,
+          U: Video
+
+{
+    for c in 0..8 {
+        zx.microdrives_mut().unwrap().replace_cartridge(c,
+                MicroCartridge::new_formatted(180, format!("blank {}", c+1)));
+    }
+    let network = zx.network_mut().unwrap();
+    if files.remove(":1") {
+        info!("network: 1");
+        network.bind("127.0.0.1:11000")?;
+        network.connect("127.0.0.1:12000")?;
+    }
+    else if files.remove(":2") {
+        info!("network: 2");
+        network.bind("127.0.0.1:12000")?;
+        network.connect("127.0.0.1:11000")?;
+    }
+    Ok(())
 }
 
 fn dyn_config<C, U>(
@@ -190,6 +224,7 @@ fn run<C, U, I>(
     let mut file_count = 0;
     let mut status = EmulatorStatus::Normal;
     let mut printing: Option<usize> = None;
+    let mut md_index: Option<usize> = None;
     let mut move_keyboard: Option<(i32, i32)> = None;
 
     'mainloop: loop {
@@ -470,6 +505,13 @@ fn run<C, U, I>(
             if printing != pr {
                 printing = pr;
                 canvas.window_mut().set_title(&window_title(&zx))?;
+            }
+            else {
+                let mdi = zx.microdrives_ref().and_then(|m| m.cartridge_in_use()).map(|(i,_)| i);
+                if mdi.is_some() || md_index.is_some() {
+                    md_index = mdi;
+                    canvas.window_mut().set_title(&window_title(&zx))?;
+                }
             }
         }
 

@@ -49,6 +49,7 @@ const ROM128_1: &[u8] = include_bytes!("../../../resources/128-1.rom");
 pub type ZXSpectrum16 = ZXSpectrum<Z80NMOS, Ula<Memory16k, OptJoystickBusDevice>>;
 pub type ZXSpectrum48 = ZXSpectrum<Z80NMOS, Ula<Memory48k, OptJoystickBusDevice>>;
 pub type ZXSpectrum128 = ZXSpectrum<Z80NMOS, Ula128<Ay3_8912>>;
+pub type ZXSpectrum128If1 = ZXSpectrum<Z80NMOS, Ula128<ZxInterface1<Ula128VidFrame, Ay3_8912>, ZxInterface1MemExt>>;
 pub type ZXSpectrum48DynBus = ZXSpectrum<Z80NMOS,
                                         Ula<Memory48k,
                                             OptJoystickBusDevice<
@@ -341,13 +342,20 @@ impl ZXSpectrum48DynBus {
 impl ZXSpectrum48If1DynBus {
     pub fn load_if1_rom(&mut self) -> std::io::Result<()> {
         let file = fs::File::open(IF1_ROM_PATH)?;
-        self.ula.memory_ext_mut().load_ex_rom(file)
+        self.ula.memory_ext_mut().load_if1_rom(file)
     }
     fn dynbus_mut(&mut self) -> &mut DynamicBusDevice {
         self.ula.bus_device_mut().next_device_mut().next_device_mut()
     }
     fn dynbus_ref(&self) -> &DynamicBusDevice {
         self.ula.bus_device_ref().next_device_ref().next_device_ref()
+    }
+}
+
+impl ZXSpectrum128If1 {
+    pub fn load_if1_rom(&mut self) -> std::io::Result<()> {
+        let file = fs::File::open(IF1_ROM_PATH)?;
+        self.ula.memory_ext_mut().load_if1_rom(file)
     }
 }
 
@@ -446,6 +454,47 @@ impl DeviceAccess<Ula128VidFrame> for ZXSpectrum128 {
     }
 }
 
+impl DeviceAccess<Ula128VidFrame> for ZXSpectrum128If1 {
+    fn microdrives_ref(&self) -> Option<&ZXMicrodrives<Ula128VidFrame>> {
+        Some(&self.ula.bus_device_ref().microdrives)
+    }
+    fn microdrives_mut(&mut self) -> Option<&mut ZXMicrodrives<Ula128VidFrame>> {
+        Some(&mut self.ula.bus_device_mut().microdrives)
+    }
+    fn network_ref(&self) -> Option<&ZxNetUdpSyncSocket> {
+        Some(&self.ula.bus_device_ref().network.socket)
+    }
+    fn network_mut(&mut self) -> Option<&mut ZxNetUdpSyncSocket> {
+        Some(&mut self.ula.bus_device_mut().network.socket)
+    }
+    fn gfx_printer_mut(&mut self) -> Option<&mut dyn ZxGfxPrinter> {
+        Some(&mut self.ula.bus_device_mut().next_device_mut().ay_io
+                                                             .port_a
+                                                             .serial2
+                                                             .writer
+                                                             .grabber)
+    }
+    fn gfx_printer_ref(&self) -> Option<&dyn ZxGfxPrinter> {
+        Some(&self.ula.bus_device_ref().next_device_ref().ay_io
+                                                         .port_a
+                                                         .serial2
+                                                         .writer
+                                                         .grabber)
+    }
+    fn keypad_mut(&mut self) -> Option<&mut SerialKeypad<Ula128VidFrame>> {
+        Some(&mut self.ula.bus_device_mut().next_device_mut().ay_io.port_a.serial1)
+    }
+    fn joystick_device_mut(&mut self) -> &mut Option<MultiJoystickBusDevice> {
+        self.ula.bus_device_mut().next_device_mut().next_device_mut()
+    }
+    fn joystick_device_ref(&self) -> &Option<MultiJoystickBusDevice> {
+        self.ula.bus_device_ref().next_device_ref().next_device_ref()
+    }
+    fn static_ay3_8912_ref(&self) -> Option<&Ay3_8912> {
+        Some(&self.ula.bus_device_ref().next_device_ref())
+    }
+}
+
 impl DeviceAccess<UlaVideoFrame> for ZXSpectrum48DynBus {
     fn spooler_mut(&mut self) -> Option<&mut ImageSpooler> {
         self.bus_index.printer.map(move |index| {
@@ -480,9 +529,14 @@ impl DeviceAccess<UlaVideoFrame> for ZXSpectrum48If1DynBus {
     fn microdrives_ref(&self) -> Option<&ZXMicrodrives<UlaVideoFrame>> {
         Some(&self.ula.bus_device_ref().microdrives)
     }
-
     fn microdrives_mut(&mut self) -> Option<&mut ZXMicrodrives<UlaVideoFrame>> {
         Some(&mut self.ula.bus_device_mut().microdrives)
+    }
+    fn network_ref(&self) -> Option<&ZxNetUdpSyncSocket> {
+        Some(&self.ula.bus_device_ref().network.socket)
+    }
+    fn network_mut(&mut self) -> Option<&mut ZxNetUdpSyncSocket> {
+        Some(&mut self.ula.bus_device_mut().network.socket)
     }
     // fn gfx_printer_mut(&mut self) -> Option<&mut dyn ZxGfxPrinter> {
     //     Some(&mut self.ula.bus_device_mut().serial

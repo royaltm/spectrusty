@@ -24,13 +24,14 @@ use log::{error, warn, info, debug, trace};
 use crate::spectrum::ZXSpectrum;
 use super::printer::{ZxGfxPrinter, ImageSpooler};
 
-pub use zxspecemu::bus::zxinterface1::{MicroCartridge, ZXMicrodrives};
+pub use zxspecemu::bus::zxinterface1::{ZxNetUdpSyncSocket, MicroCartridge, ZXMicrodrives};
 pub use nonblocking::*;
 
 
 pub type ZxInterface1<V,D=NullDevice<VideoTs>> = ZxInterface1BusDevice<V,
                                         NonBlockingStdinReader,
                                         FilterGfxStdoutWriter,
+                                        ZxNetUdpSyncSocket,
                                         D>;
 pub type ZXPrinterToImage<V> = ZxPrinter<V, ImageSpooler>;
 pub type OptJoystickBusDevice<D=NullDevice<VideoTs>> = OptionalBusDevice<MultiJoystickBusDevice, D>;
@@ -69,6 +70,8 @@ pub trait DeviceAccess<V> {
     fn static_ay3_8912_ref(&self) -> Option<&Ay3_8912> { None }
     fn microdrives_ref(&self) -> Option<&ZXMicrodrives<V>> { None }
     fn microdrives_mut(&mut self) -> Option<&mut ZXMicrodrives<V>> { None }
+    fn network_ref(&self) -> Option<&ZxNetUdpSyncSocket> { None }
+    fn network_mut(&mut self) -> Option<&mut ZxNetUdpSyncSocket> { None }
     // fn serial_ref(&self) -> Option<&Rs232<V>> { None }
     // fn serial_mut(&self) -> Option<&mut Rs232<V>> { None }
 }
@@ -90,6 +93,12 @@ impl<C, U> ZXSpectrum<C, U>
     pub fn device_info(&self) -> String {
         use std::fmt::Write;
         let mut info = format!("{}kb", (self.ula.memory_ref().ram_ref().len() as u32)/1024);
+        if let Some(microdrives) = self.microdrives_ref() {
+            write!(info, " + ZX Interface 1").unwrap();
+            if let Some((index, md)) = microdrives.cartridge_in_use() {
+                write!(info, "[M{}*{:.2}]", index + 1, md.head_at()).unwrap();
+            }
+        }
         if let Some(ay) = self.static_ay3_8912_ref() {
             write!(info, " + {}", ay).unwrap();
             if let Some(spooler) = self.gfx_printer_ref() {
@@ -99,9 +108,6 @@ impl<C, U> ZXSpectrum<C, U>
                     write!(info, "[{}]", lines).unwrap();
                 }                
             }
-        }
-        if let Some(microdrives) = self.microdrives_ref() {
-            write!(info, " + ZX Interface 1").unwrap();
         }
         if let Some(joy) = self.joystick_ref() {
             if self.joystick_index != 0 {
