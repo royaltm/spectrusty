@@ -1,8 +1,9 @@
+use core::slice;
 use core::convert::{TryFrom, TryInto};
 use core::num::{NonZeroU16, NonZeroU32};
 use std::io::{ErrorKind, Error, Write, Seek, SeekFrom, Result};
 use crate::formats::ear_mic::MicPulseWriter;
-use super::Header;
+use super::{Header, checksum};
 
 /// A tool for writing *TAP* file chunks.
 pub struct TapChunkWriter<W> {
@@ -12,6 +13,7 @@ pub struct TapChunkWriter<W> {
 
 /// A [TapChunkWriter] transaction holder. Created by [TapChunkWriter::begin].
 pub struct TapChunkWriteTran<'a, W: Write + Seek> {
+    pub checksum: u8,
     nchunks: usize,
     uncommitted: u16,
     writer: &'a mut TapChunkWriter<W>
@@ -48,22 +50,46 @@ impl<'a, W: Write + Seek> Drop for TapChunkWriteTran<'a, W> {
     }
 }
 
-impl<'a, W> TapChunkWriteTran<'a, W>
-    where W: Write + Seek
-{
+impl<'a, W: Write + Seek> Write for TapChunkWriteTran<'a, W> {
     /// Appends data to the current chunk.
     /// 
     /// Any number of writes should be followed by [TapChunkWriteTran::commit].
-    pub fn write<D: AsRef<[u8]>>(&mut self, frag: D) -> Result<()> {
-        let data = frag.as_ref();
-        self.uncommitted = (self.uncommitted as usize).checked_add(data.len()).unwrap()
-                           .try_into().map_err(|e| Error::new(ErrorKind::WriteZero, e))?;
-        self.writer.mpwr.get_mut().write_all(data)
+    fn write(&mut self, buf: &[u8]) -> Result<usize> {
+        let _: u16 = (self.uncommitted as usize).checked_add(buf.len()).unwrap()
+                    .try_into().map_err(|e| Error::new(ErrorKind::WriteZero, e))?;
+        let written = self.writer.mpwr.get_mut().write(buf)?;
+        self.checksum ^= checksum(&buf[..written]);
+        self.uncommitted += written as u16;
+        Ok(written)
     }
-    /// Commits data chunk.
-    pub fn commit(self) -> Result<usize> {
+
+    fn flush(&mut self) -> Result<()> {
+        self.writer.mpwr.get_mut().flush()
+    }
+}
+
+impl<'a, W> TapChunkWriteTran<'a, W>
+    where W: Write + Seek
+{
+    /// Commits a *TAP* chunk.
+    ///
+    /// If `with_checksum` is `true` additionally writes a checksum of bytes written so far.
+    ///
+    /// Returns number of *TAP* chunks written including the call to `begin`.
+    pub fn commit(mut self, with_checksum: bool) -> Result<usize> {
         let mut nchunks = self.nchunks;
-        if let Some(size) = NonZeroU32::new(self.uncommitted.into()) {
+        let mut uncommitted = self.uncommitted;
+        if with_checksum {
+            if let Some(size) = uncommitted.checked_add(1) {
+                uncommitted = size;
+                let checksum = self.checksum;
+                self.write_all(slice::from_ref(&checksum))?;
+            }
+            else {
+                return Err(Error::new(ErrorKind::WriteZero, "chunk is larger than the maximum allowed size"))
+            }
+        }
+        if let Some(size) = NonZeroU32::new(uncommitted.into()) {
             self.writer.flush_chunk(size)?;
             nchunks += 1;
         }
@@ -125,7 +151,7 @@ impl<W> TapChunkWriter<W>
     pub fn begin(&mut self) -> Result<TapChunkWriteTran<'_, W>> {
         let nchunks = self.flush()?;
         self.ensure_tap_head(0)?;
-        Ok(TapChunkWriteTran { nchunks, uncommitted: 0, writer: self })
+        Ok(TapChunkWriteTran { checksum: 0, nchunks, uncommitted: 0, writer: self })
     }
     /// Interprets pulses from the provided frame pulse iterator as *TAPE* bytes and writes them
     /// to the underlying writer as *TAP* chunks.

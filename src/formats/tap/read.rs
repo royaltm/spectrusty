@@ -10,6 +10,8 @@ use super::{Header, TapChunkInfo, HEAD_BLOCK_FLAG, DATA_BLOCK_FLAG, HEADER_SIZE,
 /// Implements reader that reads only up to the size of the current *TAP* chunk.
 #[derive(Debug)]
 pub struct TapChunkReader<R> {
+    /// Checksum is being updated during [Read] methods for [TapChunkReader].
+    pub checksum: u8,
     next_pos: u64,
     chunk_index: u32,
     inner: Take<R>,
@@ -91,10 +93,13 @@ impl<R> TapChunkReader<R> {
 }
 
 impl<R: Read> TapChunkReader<R> {
+    /// Returns this chunk's number.
+    ///
+    /// The first chunk's number is 1. If this method returns 0 the cursor is before the first chunk.
     pub fn chunk_no(&self) -> u32 {
         self.chunk_index
     }
-    /// Returns this chunk's remaining bytes limit to be read.
+    /// Returns this chunk's remaining bytes to be read.
     pub fn chunk_limit(&self) -> u16 {
         self.inner.limit() as u16
     }
@@ -102,9 +107,13 @@ impl<R: Read> TapChunkReader<R> {
 
 impl<R: Read + Seek> TapChunkReader<R> {
     /// Forwards the inner reader to the position of a next *TAP* chunk.
+    ///
     /// Returns `Ok(None)` if end of file has been reached.
+    ///
     /// On success returns `Ok(size)` in bytes of the next *TAP* chunk
     /// and limits the inner [Take] reader to that size.
+    ///
+    /// Clears [TapChunkReader.checksum].
     pub fn next_chunk(&mut self) -> Result<Option<u16>> {
         let rd = self.inner.get_mut();
         if self.next_pos != rd.seek(SeekFrom::Start(self.next_pos))? {
@@ -126,6 +135,7 @@ impl<R: Read + Seek> TapChunkReader<R> {
         }
         let size = u16::from_le_bytes(size);
         self.chunk_index += 1;
+        self.checksum = 0;
         self.inner.set_limit(size as u64);
         self.next_pos += size as u64 + 2;
         Ok(Some(size))
@@ -148,6 +158,7 @@ impl<R: Read + Seek> TapChunkReader<R> {
     /// To read the first chunk you need to call [TapChunkReader::next_chunk] first.
     pub fn rewind(&mut self) {
         self.inner.set_limit(0);
+        self.checksum = 0;
         self.chunk_index = 0;
         self.next_pos = 0;
     }
@@ -156,12 +167,24 @@ impl<R: Read + Seek> TapChunkReader<R> {
 impl<R: Read> Read for TapChunkReader<R> {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        self.inner.read(buf)
+        match self.inner.read(buf) {
+            Ok(size) => {
+                self.checksum ^= checksum(&buf[..size]);
+                Ok(size)
+            }
+            e => e
+        }
     }
 
     #[inline]
     fn read_to_end(&mut self, buf: &mut Vec<u8>) -> Result<usize> {
-        self.inner.read_to_end(buf)
+        match self.inner.read_to_end(buf) {
+            Ok(size) => {
+                self.checksum ^= checksum(&buf[buf.len() - size..]);
+                Ok(size)
+            }
+            e => e
+        }
     }
 }
 
@@ -169,7 +192,7 @@ impl<R: Read + Seek> From<R> for TapChunkReader<R> {
     fn from(mut rd: R) -> Self {
         let next_pos = rd.seek(SeekFrom::Current(0)).unwrap();
         let inner = rd.take(0);
-        TapChunkReader { next_pos, chunk_index: 0, inner }
+        TapChunkReader { next_pos, chunk_index: 0, checksum: 0, inner }
     }
 }
 
