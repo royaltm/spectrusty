@@ -1,8 +1,9 @@
 //! ZX Microdrives for the ZX Interface 1.
+use core::ops::{Index, IndexMut};
 use core::marker::PhantomData;
 use core::num::{NonZeroU8, NonZeroU16};
 use core::fmt;
-use core::iter::{FilterMap, Zip, IntoIterator};
+use core::iter::{Enumerate, FilterMap, Zip, IntoIterator};
 use core::slice;
 
 use std::io::{self, Read, Write};
@@ -17,16 +18,41 @@ use crate::video::VideoFrame;
 ///
 ///
 /// Normally accessing port 0xe7 will halt the Z80 until the Interface I has collected 8 bits from the
-/// microdrive head.
+/// microdrive head. Reading from this port while the drive motor is off results in halting the Spectrum.
 pub const MAX_HALT_TS: FTs = 2 * BYTE_TS as FTs;
 
-/// The number of T-states to signal to the control unit that the IF-I has hanged the Spectrum indefinitely
+/// The number of T-states to signal to the control unit that the IF-1 has hanged the Spectrum indefinitely
 /// (IN 0 bug).
 pub const HALT_FOREVER_TS: Option<NonZeroU16> = unsafe {
     Some(NonZeroU16::new_unchecked(u16::max_value()))
 };
 
-/// The maximum number of sectors that the ZX Interface 1 software can handle.
+/// A type used by the [IntoIterator] implementation for [MicroCartridge].
+pub type MicroCartridgeSecIter<'a> = FilterMap<
+                                            Zip<
+                                                slice::Iter<'a, Sector>,
+                                                bitvec::slice::Iter<'a, Local, u32>
+                                            >,
+                                            &'a dyn Fn((&'a Sector, &'a bool)) -> Option<&'a Sector>
+                                        >;
+
+pub type MicroCartridgeSecIterMut<'a> = FilterMap<
+                                            Zip<
+                                                slice::IterMut<'a, Sector>,
+                                                bitvec::slice::Iter<'a, Local, u32>
+                                            >,
+                                            &'a dyn Fn((&'a mut Sector, &'a bool)) -> Option<&'a mut Sector>
+                                        >;
+
+pub type MicroCartridgeIdSecIter<'a> = FilterMap<
+                                            Enumerate<
+                                                Zip<
+                                                    slice::Iter<'a, Sector>,
+                                                    bitvec::slice::Iter<'a, Local, u32>
+                                            >>,
+                                            &'a dyn Fn((usize, (&'a Sector, &'a bool))) -> Option<(u8, &'a Sector)>
+                                        >;
+/// The maximum number of emulated physical ZX Microdrive tape sectors.
 pub const MAX_SECTORS: usize = 256;
 /// The maximum number of drives that the ZX Interface 1 software can handle.
 pub const MAX_DRIVES: usize = 8;
@@ -57,7 +83,7 @@ const GAP2_TS: u32 = 24500; // 7 ms
 // T-states / sector
 const SECTOR_TS: u32 = HEAD_TS + GAP1_TS + DATA_TS + GAP2_TS; // 37 ms
 
-const SECTOR_MAP_SIZE: usize = (MAX_SECTORS + 31)/32;
+pub(crate) const SECTOR_MAP_SIZE: usize = (MAX_SECTORS + 31)/32;
 
 #[derive(Clone, Copy)]
 pub struct Sector {
@@ -154,7 +180,15 @@ impl fmt::Debug for MicroCartridge {
 }
 
 impl MicroCartridge {
-    /// Returns the number of all available sectors.
+    /// Returns the current read/write head position in sectors as floating point value.
+    ///
+    /// The fractional part indicates how far the head position is in the sector indicated by the integer part.
+    pub fn head_at(&self) -> f32 {
+        let TapeCursor { sector, cursor, .. } = self.tape_cursor;
+        sector as f32 + cursor as f32 / SECTOR_TS as f32
+    }
+    /// Returns the number of the emulated physical sectors on the tape.
+    #[inline]
     pub fn max_sectors(&self) -> usize {
         self.sectors.len()
     }
@@ -162,10 +196,38 @@ impl MicroCartridge {
     pub fn count_formatted(&self) -> usize {
         self.sector_map.bits::<Local>().count_ones()
     }
+    /// Returns an iterator of formatted sectors with their original indices.
+    pub fn iter_with_indices(&self) -> MicroCartridgeIdSecIter<'_> {
+        let iter_map = self.sector_map.bits::<Local>().iter();
+        self.sectors.iter().zip(iter_map).enumerate().filter_map(&|(i, (s, &valid))| {
+            if valid { Some((i as u8, s)) } else { None }
+        })
+    }
+    /// Returns `true` if the cartridge is write protected.
+    #[inline]
+    pub fn is_write_protected(&self) -> bool {
+        self.protec
+    }
+    /// Changes the write protected flag of the cartridge.
+    #[inline]
+    pub fn set_write_protected(&mut self, protect: bool) {
+        self.protec = protect;
+    }
+    /// Returns `true` for the given `sector` if its formatted.
+    ///
+    /// # Panics
+    /// Panics if `sector` equals to or is above the `max_sectors` limit.
+    #[inline]
+    pub fn is_sector_formatted(&self, sector: u8) -> bool {
+        self.sector_map.bits::<Local>()[sector as usize]
+    }
     /// Creates a new instance of [MicroCartridge] with provided sectors.
     ///
-    /// #Panics
-    /// The number of sectors provided must not be greater than [MAX_SECTORS] (254).
+    /// # Note
+    /// Sectors's content is not verified and is assumed to be properly formatted.
+    ///
+    /// # Panics
+    /// The number of sectors provided must not be greater than [MAX_SECTORS].
     /// `max_sectors` must not be 0 and must be grater or equal to number of provided sectors and must not
     /// be greater than [MAX_SECTORS].
     pub fn new_with_sectors<S: Into<Vec<Sector>>>(
@@ -190,8 +252,8 @@ impl MicroCartridge {
     }
     /// Creates a new instance of [MicroCartridge] with custom `max_sectors` number.
     ///
-    /// #Panics
-    /// `max_sectors` must not be 0 and must not be greater than [MAX_SECTORS] (254).
+    /// # Panics
+    /// `max_sectors` must not be 0 and must not be greater than [MAX_SECTORS].
     pub fn new(max_sectors: usize) -> Self {
         assert!(max_sectors > 0 && max_sectors <= MAX_SECTORS);
         MicroCartridge {
@@ -207,19 +269,41 @@ impl MicroCartridge {
 /// Iterates through formatted sectors.
 impl<'a> IntoIterator for &'a MicroCartridge {
     type Item = &'a Sector;
-    type IntoIter = FilterMap<
-                        Zip<
-                            slice::Iter<'a, Sector>,
-                            bitvec::slice::Iter<'a, Local, u32>
-                        >,
-                        &'a dyn Fn((&'a Sector, &'a bool)) -> Option<&'a Sector>
-                    >;
+    type IntoIter = MicroCartridgeSecIter<'a>;
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
         let iter_map = self.sector_map.bits::<Local>().iter();
         self.sectors.iter().zip(iter_map).filter_map(&|(s, &valid)| {
             if valid { Some(s) } else { None }
         })
+    }
+}
+
+/// Iterates through formatted sectors.
+impl<'a> IntoIterator for &'a mut MicroCartridge {
+    type Item = &'a mut Sector;
+    type IntoIter = MicroCartridgeSecIterMut<'a>;
+    #[inline]
+    fn into_iter(self) -> Self::IntoIter {
+        let iter_map = self.sector_map.bits::<Local>().iter();
+        self.sectors.iter_mut().zip(iter_map).filter_map(&|(s, &valid)| {
+            if valid { Some(s) } else { None }
+        })
+    }
+}
+
+impl Index<u8> for MicroCartridge {
+    type Output = Sector;
+    #[inline]
+    fn index(&self, index: u8) -> &Self::Output {
+        &self.sectors[index as usize]
+    }
+}
+
+impl IndexMut<u8> for MicroCartridge {
+    #[inline]
+    fn index_mut(&mut self, index: u8) -> &mut Self::Output {
+        &mut self.sectors[index as usize]
     }
 }
 
@@ -272,11 +356,6 @@ impl TapeCursor {
 
 impl MicroCartridge {
     #[inline(always)]
-    fn is_valid_sector(&self, sector: u8) -> bool {
-        self.sector_map.bits::<Local>()[sector as usize]
-    }
-
-    #[inline(always)]
     fn set_valid_sector(&mut self, sector: u8, valid: bool) {
         self.sector_map.bits_mut::<Local>().set(sector as usize, valid);
     }
@@ -293,7 +372,7 @@ impl MicroCartridge {
         self.forward(delta_ts);
         let TapeCursor { sector, secpos, .. } = self.tape_cursor;
         self.written = None;
-        if self.is_valid_sector(sector) {
+        if self.is_sector_formatted(sector) {
             match secpos {
                 SecPosition::Gap2 |
                 SecPosition::Gap1 => {} // synchronized sector write may follow
@@ -419,7 +498,7 @@ impl MicroCartridge {
             let TapeCursor { mut sector, secpos, .. } = self.tape_cursor;
             // println!("sector: {} cur: {} wr: {:?}, data: {:x}, {:?}", sector, self.tape_cursor.cursor, self.written, data, secpos);
             if data == 0 {
-                if self.is_valid_sector(sector) {
+                if self.is_sector_formatted(sector) {
                     // println!("overwrite data block");
                     if let SecPosition::Preamble2(0..=2)|SecPosition::Gap1 = secpos { // synchronized write data sector
                         self.tape_cursor.cursor = DATA_PREAMBLE;
@@ -444,7 +523,7 @@ impl MicroCartridge {
     fn read_data_forward(&mut self, delta_ts: u32) -> (u8, u16) { // data, delay
         self.forward(delta_ts);
         let TapeCursor { sector, cursor, secpos, .. } = self.tape_cursor;
-        if self.is_valid_sector(sector) {
+        if self.is_sector_formatted(sector) {
             // println!("sec: {} cur: {} {:?} {:?}", sector, cursor, secpos, res);
             return match secpos {
                 SecPosition::Preamble1(10..=11) => {
@@ -495,7 +574,7 @@ impl MicroCartridge {
         let mut gap = false;
         let mut syn = false;
         let TapeCursor { sector, secpos, .. } = self.tape_cursor;
-        if self.is_valid_sector(sector) {
+        if self.is_sector_formatted(sector) {
             match secpos {
                 SecPosition::Preamble1(0..=9)|
                 SecPosition::Preamble2(0..=9) => {
@@ -515,13 +594,13 @@ impl MicroCartridge {
     }
 }
 
-impl<V: VideoFrame> ZXMicrodrives<V> {
-    /// Inserts a provided `cartridge` into the `drive_index` optionally returning a cartridge
+impl<V> ZXMicrodrives<V> {
+    /// Inserts a `cartridge` into the `drive_index` optionally returning a cartridge
     /// that was previously in the same drive.
     ///
     /// `drive_index` is a drive index number from 0 to 7.
     ///
-    /// #Panics
+    /// # Panics
     /// Panics if the `drive_index` is above 7.
     pub fn replace_cartridge(
             &mut self,
@@ -542,13 +621,41 @@ impl<V: VideoFrame> ZXMicrodrives<V> {
     ///
     /// `drive_index` is a drive index number from 0 to 7.
     ///
-    /// #Panics
+    /// # Panics
     /// Panics if the `drive_index` is above 7.
     pub fn take_cartridge(&mut self, index: usize) -> Option<MicroCartridge> {
         assert!(index < MAX_DRIVES);
         self.drives[index].take()
     }
+    /// Returns a reference to the cartridge that is being currently in use along with its drive index.
+    pub fn cartridge_in_use(&self) -> Option<(usize, &MicroCartridge)> {
+        self.motor_on_drive.and_then(move |drive_on| {
+            let drive_index = (drive_on.get() - 1) as usize;
+            self.drives[drive_index & 7].as_ref()
+            .map(|mc| (drive_index, mc))
+        })
+    }
 
+    fn current_drive(&mut self) -> Option<&mut MicroCartridge> {
+        self.motor_on_drive.and_then(move |drive_on|
+            self.drives[(drive_on.get() - 1) as usize & 7].as_mut()
+        )
+    }
+
+    fn drive_if_current(&mut self, index: usize) -> Option<&mut MicroCartridge> {
+        self.motor_on_drive.and_then(move |drive_on| {
+            let drive_index = (drive_on.get() - 1) as usize;
+            if drive_index == index {
+                self.drives[drive_index & 7].as_mut()
+            }
+            else {
+                None
+            }
+        })
+    }
+}
+
+impl<V: VideoFrame> ZXMicrodrives<V> {
     fn vts_diff_update(&mut self, timestamp: VideoTs) -> u32 {
         let delta_ts = V::vts_diff(self.last_ts, timestamp);
         self.last_ts = timestamp;
@@ -675,24 +782,6 @@ impl<V: VideoFrame> ZXMicrodrives<V> {
         }
         // we could hang Spectrum here according to ZX Interface 1 IN 0 bug.
         (!0, HALT_FOREVER_TS)
-    }
-
-    fn current_drive(&mut self) -> Option<&mut MicroCartridge> {
-        self.motor_on_drive.and_then(move |drive_on|
-            self.drives[(drive_on.get() - 1) as usize & 7].as_mut()
-        )
-    }
-
-    fn drive_if_current(&mut self, index: usize) -> Option<&mut MicroCartridge> {
-        self.motor_on_drive.and_then(move |drive_on| {
-            let drive_index = (drive_on.get() - 1) as usize;
-            if drive_index == index {
-                self.drives[drive_index & 7].as_mut()
-            }
-            else {
-                None
-            }
-        })
     }
 
     fn stop_motor(&mut self, delta_ts: u32) -> Option<NonZeroU8> {
