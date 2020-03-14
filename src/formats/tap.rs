@@ -150,9 +150,9 @@ pub enum BlockType {
 pub struct Header {
     /// Length of the data block excluding a block flag and checksum byte.
     pub length: u16,
-    /// The type of the block following this header.
+    /// A type of the block following this header.
     pub block_type: BlockType,
-    /// The name of this chunk.
+    /// A name of the file.
     pub name: [u8;10],
     /// Additional header data.
     pub par1: [u8;2],
@@ -215,7 +215,28 @@ impl fmt::Display for TapChunkInfo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             TapChunkInfo::Head(header) => {
-                write!(f, "{}: {}", header.block_type, header.name_str())
+                write!(f, "{}: \"{}\"", header.block_type, header.name_str().trim_end())?;
+                match header.block_type {
+                    BlockType::Program => {
+                        if header.start() < 10000 {
+                            write!(f, " LINE {}", header.start())?;
+                        }
+                        if header.vars() != header.length {
+                            write!(f, " PROG {} VARS {}",
+                                header.vars(), header.length - header.vars())?;
+                        }
+                        Ok(())
+                    }
+                    BlockType::NumberArray => {
+                        write!(f, " DATA {}()", header.array_name())
+                    }
+                    BlockType::CharArray => {
+                        write!(f, " DATA {}$()", header.array_name())
+                    }
+                    BlockType::Code => {
+                        write!(f, " CODE {},{}", header.start(), header.length)
+                    }
+                }
             }
             TapChunkInfo::Data {length, ..} => {
                 write!(f, "(data {})", length)
@@ -295,14 +316,6 @@ impl Header {
         let par2 = length.to_le_bytes();
         Header { length, block_type, name, par1, par2 }
     }
-    /// Creates a `CharArray` header.
-    pub fn new_char_array(length: u16) -> Self {
-        let block_type = BlockType::CharArray;
-        let name = [b' ';10];
-        let par1 = [0, char_array_var('A')];
-        let par2 = 0x8000u16.to_le_bytes();
-        Header { length, block_type, name, par1, par2 }
-    }
     /// Creates a `NumberArray` header.
     pub fn new_number_array(length: u16) -> Self {
         let block_type = BlockType::NumberArray;
@@ -311,9 +324,18 @@ impl Header {
         let par2 = 0x8000u16.to_le_bytes();
         Header { length, block_type, name, par1, par2 }
     }
+    /// Creates a `CharArray` header.
+    pub fn new_char_array(length: u16) -> Self {
+        let block_type = BlockType::CharArray;
+        let name = [b' ';10];
+        let par1 = [0, char_array_var('A')];
+        let par2 = 0x8000u16.to_le_bytes();
+        Header { length, block_type, name, par1, par2 }
+    }
     /// Changes `name`, builder style.
-    pub fn with_name(mut self, name: &str) -> Self {
-        let bname = &name.as_bytes()[0..name.len().max(10)];
+    pub fn with_name<S: AsRef<[u8]>>(mut self, name: S) -> Self {
+        let name = name.as_ref();
+        let bname = &name[0..name.len().max(10)];
         self.name[0..bname.len()].copy_from_slice(bname);
         for p in self.name[bname.len()..].iter_mut() {
             *p = b' ';
@@ -701,7 +723,7 @@ mod tests {
             ).collect()
         };
         assert_eq!(2, chunks.len());
-        assert_eq!("Bytes: ROM       ", format!("{}", chunks[0]));
+        assert_eq!("Bytes: \"ROM\" CODE 0,2", format!("{}", chunks[0]));
         assert_eq!(true, chunks[0].is_head());
         assert_eq!(false, chunks[0].is_data());
         assert_eq!(Some(Cow::Borrowed("ROM       ")), chunks[0].name());
@@ -755,17 +777,17 @@ mod tests {
             res.push(format!("{}", chunk));
         }
         assert_eq!(res.len(), 6);
-        assert_eq!("Program: HelloWorld", res[0]);
+        assert_eq!("Program: \"HelloWorld\" LINE 10", res[0]);
         assert_eq!("(data 6)", res[1]);
-        assert_eq!("Number array: a(10)     ", res[2]);
+        assert_eq!("Number array: \"a(10)\" DATA A()", res[2]);
         assert_eq!("(data 53)", res[3]);
-        assert_eq!("Character array: weekdays  ", res[4]);
+        assert_eq!("Character array: \"weekdays\" DATA W$()", res[4]);
         assert_eq!("(data 26)", res[5]);
 
         tap_reader.rewind();
         let infos: Vec<_> = TapReadInfoIter::from(&mut tap_reader).collect::<Result<Vec<_>>>()?;
         assert_eq!(6, infos.len());
-        assert_eq!("Program: HelloWorld", format!("{}", infos[0]));
+        assert_eq!("Program: \"HelloWorld\" LINE 10", format!("{}", infos[0]));
         if let TapChunkInfo::Head(header) = infos[0] {
             assert_eq!("HelloWorld", header.name_str());
             assert_eq!(6, header.length);
@@ -778,7 +800,7 @@ mod tests {
         assert_eq!(19, infos[0].tap_chunk_size());
         assert_eq!("(data 6)", format!("{}", infos[1]));
         assert_eq!(8, infos[1].tap_chunk_size());
-        assert_eq!("Number array: a(10)     ", format!("{}", infos[2]));
+        assert_eq!("Number array: \"a(10)\" DATA A()", format!("{}", infos[2]));
         if let TapChunkInfo::Head(header) = infos[2] {
             assert_eq!("a(10)     ", header.name_str());
             assert_eq!(53, header.length);
@@ -790,7 +812,7 @@ mod tests {
         assert_eq!(19, infos[2].tap_chunk_size());
         assert_eq!("(data 53)", format!("{}", infos[3]));
         assert_eq!(55, infos[3].tap_chunk_size());
-        assert_eq!("Character array: weekdays  ", format!("{}", infos[4]));
+        assert_eq!("Character array: \"weekdays\" DATA W$()", format!("{}", infos[4]));
         if let TapChunkInfo::Head(header) = infos[4] {
             assert_eq!("weekdays  ", header.name_str());
             assert_eq!(26, header.length);
