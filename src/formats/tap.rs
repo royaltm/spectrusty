@@ -44,9 +44,9 @@ mod write;
 pub use read::*;
 pub use write::*;
 
-pub(self) const HEAD_BLOCK_FLAG: u8 = 0x00;
-pub(self) const DATA_BLOCK_FLAG: u8 = 0xFF;
-pub(self) const HEADER_SIZE: usize = 19;
+pub const HEAD_BLOCK_FLAG: u8 = 0x00;
+pub const DATA_BLOCK_FLAG: u8 = 0xFF;
+pub const HEADER_SIZE: usize = 19;
 
 /*
 let tapfile = File.open()?;
@@ -112,29 +112,6 @@ pub fn write_tap<W>(wr: W) -> TapChunkWriter<W>
     wr.into()
 }
 
-#[inline(always)]
-fn array_name(c: u8) -> char {
-    (c & 0b0001_1111 | 0b0100_0000).into()
-}
-
-#[inline(always)]
-fn char_array_var(n: char) -> u8 {
-    if !n.is_ascii_alphabetic() {
-        panic!("Only ascii alphabetic characters are allowed!");
-    }
-    let c = n as u8;
-    c & 0b0001_1111 | 0b1100_0000
-}
-
-#[inline(always)]
-fn number_array_var(n: char) -> u8 {
-    if !n.is_ascii_alphabetic() {
-        panic!("Only ascii alphabetic characters are allowed!");
-    }
-    let c = n as u8;
-    c & 0b0001_1111 | 0b1000_0000
-}
-
 /// The *TAP* block type of the next chunk following a [Header].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
@@ -150,7 +127,7 @@ pub enum BlockType {
 pub struct Header {
     /// Length of the data block excluding a block flag and checksum byte.
     pub length: u16,
-    /// A type of the block following this header.
+    /// The type of the file this header represents.
     pub block_type: BlockType,
     /// A name of the file.
     pub name: [u8;10],
@@ -197,6 +174,29 @@ pub struct TapChunk<T> {
 pub struct TapChunkIter<'a> {
     position: usize,
     data: &'a[u8]
+}
+
+#[inline(always)]
+pub(super) fn array_name(c: u8) -> char {
+    (c & 0b0001_1111 | 0b0100_0000).into()
+}
+
+#[inline(always)]
+pub(super) fn char_array_var(n: char) -> u8 {
+    if !n.is_ascii_alphabetic() {
+        panic!("Only ascii alphabetic characters are allowed!");
+    }
+    let c = n as u8;
+    c & 0b0001_1111 | 0b1100_0000
+}
+
+#[inline(always)]
+pub(super) fn number_array_var(n: char) -> u8 {
+    if !n.is_ascii_alphabetic() {
+        panic!("Only ascii alphabetic characters are allowed!");
+    }
+    let c = n as u8;
+    c & 0b0001_1111 | 0b1000_0000
 }
 
 impl fmt::Display for BlockType {
@@ -448,7 +448,8 @@ impl TryFrom<&'_[u8]> for Header {
 }
 
 impl TapChunkInfo {
-    fn tap_chunk_size(&self) -> usize {
+    /// Returns size in bytes of this chunk.
+    pub fn tap_chunk_size(&self) -> usize {
         match self {
             TapChunkInfo::Head(_) => HEADER_SIZE,
             &TapChunkInfo::Data {length, ..} => length as usize + 2,
