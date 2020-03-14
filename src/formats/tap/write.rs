@@ -1,5 +1,5 @@
-use core::convert::TryFrom;
-use core::num::NonZeroU32;
+use core::convert::{TryFrom, TryInto};
+use core::num::{NonZeroU16, NonZeroU32};
 use std::io::{ErrorKind, Error, Write, Seek, SeekFrom, Result};
 use crate::formats::ear_mic::MicPulseWriter;
 use super::Header;
@@ -8,6 +8,13 @@ use super::Header;
 pub struct TapChunkWriter<W> {
     chunk_start: Option<u64>,
     mpwr: MicPulseWriter<W>
+}
+
+/// A [TapChunkWriter] transaction holder. Created by [TapChunkWriter::begin].
+pub struct TapChunkWriteTran<'a, W: Write + Seek> {
+    nchunks: usize,
+    uncommitted: u16,
+    writer: &'a mut TapChunkWriter<W>
 }
 
 impl<W> From<W> for TapChunkWriter<W> where W: Write + Seek {
@@ -31,9 +38,43 @@ impl<W> TapChunkWriter<W> {
     }
 }
 
+impl<'a, W: Write + Seek> Drop for TapChunkWriteTran<'a, W> {
+    /// Rollbacks if uncommitted. In this instance moves the cursor back to where it was before the
+    /// transaction has started.
+    fn drop(&mut self) {
+        if let Some(start) = self.writer.chunk_start.take() {
+            self.writer.mpwr.get_mut().seek(SeekFrom::Start(start)).unwrap();
+        }
+    }
+}
+
+impl<'a, W> TapChunkWriteTran<'a, W>
+    where W: Write + Seek
+{
+    /// Appends data to the current chunk.
+    /// 
+    /// Any number of writes should be followed by [TapChunkWriteTran::commit].
+    pub fn write<D: AsRef<[u8]>>(&mut self, frag: D) -> Result<()> {
+        let data = frag.as_ref();
+        self.uncommitted = (self.uncommitted as usize).checked_add(data.len()).unwrap()
+                           .try_into().map_err(|e| Error::new(ErrorKind::WriteZero, e))?;
+        self.writer.mpwr.get_mut().write_all(data)
+    }
+    /// Commits data chunk.
+    pub fn commit(self) -> Result<usize> {
+        let mut nchunks = self.nchunks;
+        if let Some(size) = NonZeroU32::new(self.uncommitted.into()) {
+            self.writer.flush_chunk(size)?;
+            nchunks += 1;
+        }
+        Ok(nchunks)
+    }
+}
+
 impl<W> TapChunkWriter<W>
     where W: Write + Seek
 {
+    /// Returns a new instance of `TapChunkWriter` wrapped around the given writer.
     pub fn new(wr: W) -> Self {
         let mpwr = MicPulseWriter::new(wr);
         TapChunkWriter { chunk_start: None, mpwr }
@@ -76,6 +117,16 @@ impl<W> TapChunkWriter<W>
         self.chunk_start = None;
         Ok(nchunks + 1)
     }
+    /// Creates a transaction allowing for multiple data writes to the same *TAP* chunk.
+    ///
+    /// Flushes internal [mic pulse writer][MicPulseWriter::flush].
+    ///
+    /// Returns a transaction holder, use it to write data to the current chunk.
+    pub fn begin(&mut self) -> Result<TapChunkWriteTran<'_, W>> {
+        let nchunks = self.flush()?;
+        self.ensure_tap_head(0)?;
+        Ok(TapChunkWriteTran { nchunks, uncommitted: 0, writer: self })
+    }
     /// Interprets pulses from the provided frame pulse iterator as *TAPE* bytes and writes them
     /// to the underlying writer as *TAP* chunks.
     ///
@@ -91,7 +142,7 @@ impl<W> TapChunkWriter<W>
                 Some(size)  => {
                     chunks += 1;
                     let chunk_start = self.flush_chunk(size)?;
-                    println!("new head at: {}", chunk_start);
+                    // println!("new head at: {}", chunk_start);
                     self.mpwr.get_mut().write_all(&[0, 0])?;
                     self.chunk_start = Some(chunk_start);
                 }
@@ -103,7 +154,7 @@ impl<W> TapChunkWriter<W>
         let size = u16::try_from(size.get()).map_err(|_|
                     Error::new(ErrorKind::InvalidData, "TAP chunk too large."))?;
         let start = self.chunk_start.expect("there should be a header");
-        println!("flush chunk: {} at {}", size, start);
+        // println!("flush chunk: {} at {}", size, start);
         self.chunk_start = None;
         let wr = self.mpwr.get_mut();
         let pos_cur = wr.seek(SeekFrom::Current(0))?;
@@ -117,7 +168,7 @@ impl<W> TapChunkWriter<W>
         if self.chunk_start.is_none() {
             let wr = self.mpwr.get_mut();
             let chunk_start = wr.seek(SeekFrom::Current(0))?;
-            println!("tap head at: {}", chunk_start);
+            // println!("tap head at: {}", chunk_start);
             wr.write_all(&size.to_le_bytes())?;
             self.chunk_start = Some(chunk_start);
             Ok(true)
