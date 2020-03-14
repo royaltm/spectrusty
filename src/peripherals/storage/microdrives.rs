@@ -27,7 +27,7 @@ pub const HALT_FOREVER_TS: Option<NonZeroU16> = unsafe {
     Some(NonZeroU16::new_unchecked(u16::max_value()))
 };
 
-/// A type used by the [IntoIterator] implementation for [MicroCartridge].
+/// [Sector] reference iterator of the [IntoIterator] implementation for [MicroCartridge].
 pub type MicroCartridgeSecIter<'a> = FilterMap<
                                             Zip<
                                                 slice::Iter<'a, Sector>,
@@ -36,6 +36,7 @@ pub type MicroCartridgeSecIter<'a> = FilterMap<
                                             &'a dyn Fn((&'a Sector, &'a bool)) -> Option<&'a Sector>
                                         >;
 
+/// [Sector] mutable reference iterator of the [IntoIterator] implementation for [MicroCartridge].
 pub type MicroCartridgeSecIterMut<'a> = FilterMap<
                                             Zip<
                                                 slice::IterMut<'a, Sector>,
@@ -43,7 +44,7 @@ pub type MicroCartridgeSecIterMut<'a> = FilterMap<
                                             >,
                                             &'a dyn Fn((&'a mut Sector, &'a bool)) -> Option<&'a mut Sector>
                                         >;
-
+/// An iterator returned by [MicroCartridge::iter_with_indices] method.
 pub type MicroCartridgeIdSecIter<'a> = FilterMap<
                                             Enumerate<
                                                 Zip<
@@ -54,6 +55,8 @@ pub type MicroCartridgeIdSecIter<'a> = FilterMap<
                                         >;
 /// The maximum number of emulated physical ZX Microdrive tape sectors.
 pub const MAX_SECTORS: usize = 256;
+/// The maximum number of usable ZX Microdrive tape sectors.
+pub const MAX_USABLE_SECTORS: usize = 254;
 /// The maximum number of drives that the ZX Interface 1 software can handle.
 pub const MAX_DRIVES: usize = 8;
 
@@ -85,12 +88,19 @@ const SECTOR_TS: u32 = HEAD_TS + GAP1_TS + DATA_TS + GAP2_TS; // 37 ms
 
 pub(crate) const SECTOR_MAP_SIZE: usize = (MAX_SECTORS + 31)/32;
 
+/// This struct represents a single [MicroCartridge] tape sector.
 #[derive(Clone, Copy)]
 pub struct Sector {
+    /// Header data.
     pub head: [u8;HEAD_SIZE],
+    /// Block data.
     pub data: [u8;DATA_SIZE],
 }
 
+/// This struct represents an emulated Microdrive tape cartridge.
+///
+/// It consist of up to [MAX_SECTORS] [Sector]s. Instances of this struct can be "inserted" into one
+/// of 8 [ZXMicrodrives]'s emulator drives.
 #[derive(Clone)]
 pub struct MicroCartridge {
     sectors: Box<[Sector]>,
@@ -100,6 +110,9 @@ pub struct MicroCartridge {
     written: Option<NonZeroU16>
 }
 
+/// Implementation of this type emulates ZX Microdrives.
+///
+/// Used by [ZX Interface 1][crate::bus::zxinterface1::ZxInterface1BusDevice] emulator.
 #[derive(Clone, Default, Debug)]
 pub struct ZXMicrodrives<V> {
     drives: [Option<MicroCartridge>;MAX_DRIVES],
@@ -180,9 +193,9 @@ impl fmt::Debug for MicroCartridge {
 }
 
 impl MicroCartridge {
-    /// Returns the current read/write head position in sectors as floating point value.
+    /// Returns the current drive's head position counted in sectors as floating point value.
     ///
-    /// The fractional part indicates how far the head position is in the sector indicated by the integer part.
+    /// The fractional part indicates how far the head position is within a sector.
     pub fn head_at(&self) -> f32 {
         let TapeCursor { sector, cursor, .. } = self.tape_cursor;
         sector as f32 + cursor as f32 / SECTOR_TS as f32
@@ -213,7 +226,7 @@ impl MicroCartridge {
     pub fn set_write_protected(&mut self, protect: bool) {
         self.protec = protect;
     }
-    /// Returns `true` for the given `sector` if its formatted.
+    /// Returns `true` if the given `sector` is formatted.
     ///
     /// # Panics
     /// Panics if `sector` equals to or is above the `max_sectors` limit.
@@ -224,12 +237,12 @@ impl MicroCartridge {
     /// Creates a new instance of [MicroCartridge] with provided sectors.
     ///
     /// # Note
-    /// Sectors's content is not verified and is assumed to be properly formatted.
+    /// Content of the sectors is not verified and is assumed to be properly formatted.
     ///
     /// # Panics
-    /// The number of sectors provided must not be greater than [MAX_SECTORS].
-    /// `max_sectors` must not be 0 and must be grater or equal to number of provided sectors and must not
-    /// be greater than [MAX_SECTORS].
+    /// The number of sectors provided must not be greater than [MAX_USABLE_SECTORS].
+    /// `max_sectors` must not be 0 and must be grater or equal to the number of provided sectors and
+    ///  must not be greater than [MAX_SECTORS].
     pub fn new_with_sectors<S: Into<Vec<Sector>>>(
             sectors: S,
             write_protect: bool,
@@ -237,7 +250,8 @@ impl MicroCartridge {
         ) -> Self
     {
         let mut sectors = sectors.into();
-        assert!(max_sectors > 0 && max_sectors <= MAX_SECTORS && sectors.len() <= max_sectors);
+        assert!(max_sectors > 0 && max_sectors <= MAX_SECTORS &&
+                sectors.len() <= max_sectors && sectors.len() <= MAX_USABLE_SECTORS);
         let mut sector_map = [0u32;SECTOR_MAP_SIZE];
         sector_map.bits_mut::<Local>()[0..sectors.len()].set_all(true);
         sectors.resize(max_sectors, Sector::default());
