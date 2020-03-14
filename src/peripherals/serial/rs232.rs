@@ -17,8 +17,8 @@ use crate::chip::ula::CPU_HZ;
 /// Both ZX Spectrum's Interface 1 and 128k for communication via RS-232 use `DTR` and `CTS` lines to signal
 /// readiness and transmit or receive data using one `START` bit, 8 data bits and 2 `STOP` bits without parity.
 ///
-/// Spectrum's ROM routines can send and transmit data with the following baud rates only:
-/// 50, 110, 300, 600, 1200, 2400, 4800, 9600 (default).
+/// Spectrum's 128k ROM routines can send and transmit data with the following baud rates:
+/// 50, 110, 300, 600, 1200, 2400, 4800, 9600 (default). The ZX Interface 1 allows additionally for 19200.
 ///
 /// This type implements [SerialPortDevice] that transforms Spectrum's RS-232 signals to byte streams
 /// and vice-versa.
@@ -26,12 +26,14 @@ use crate::chip::ula::CPU_HZ;
 /// `Rs232Io` actually doesn't emulate any particular device, but rather writes transmitted bytes to a
 /// generic [writer][Write] and reads bytes from a generic [reader][Read].
 ///
-/// Both `reader` and `writer` needs to be implemented by the user and its types should be provided as
+/// Both `reader` and `writer` need to be implemented by the user and its types should be provided as
 /// generics `R` and `W` accordingly.
 ///
 /// An implementaion of [VideoFrame] is required to be provided as `V` for timestamp calculations.
 ///
 /// The baud rate is not needed to be set up, as it is being auto-detected.
+///
+/// You may read the currently transmitted data baud rate for reading and writing using [Rs232Io::baud_rate].
 ///
 /// # Panics
 /// The [Read] and [Write] implementation methods must not return any error other than [ErrorKind::Interrupted].
@@ -51,6 +53,12 @@ pub struct Rs232Io<V, R, W> {
     write_event_ts: VideoTs,
     _video_frame: PhantomData<V>
 }
+
+/// Spectrum's *BAUD RATES*.
+pub const BAUD_RATES: &[u32;9] = &[50, 110, 300, 600, 1200, 2400, 4800, 9600, 19200];
+
+/// A default *BAUD RATE* used by Spectrum.
+pub const DEFAULT_BAUD_RATE: u32 = 9600;
 
 const MIN_STOP_BIT_DELAY: u32 = CPU_HZ / 19200;
 const MAX_STOP_BIT_DELAY: u32 = CPU_HZ / 49;
@@ -104,26 +112,56 @@ impl<V: VideoFrame, R: Read, W: Write> SerialPortDevice for Rs232Io<V, R, W> {
     }
 }
 
-
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum WriteStatus {
-    Idle(ControlState), // waiting for a start bit, DTR = 0
+    Idle(ControlState),
     StartBit,
-    ReceivingData(u8), // ts of next bit after write -> Idle
+    ReceivingData(u8),
     StopBits(u8),
-    Full(u8), // writer full DTR = 1
+    Full(u8),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum ReadStatus {
     NotReady,
-    StartBit(u8), // ts
-    Synchronize(u8),     // ts of next bit
-    SendingData(u8),     // ts of next bit
+    StartBit(u8),
+    Synchronize(u8),
+    SendingData(u8),
 }
 
-//V::vts_add_ts(timestamp, self.bit_interval / 2);
 impl<V: VideoFrame, R: Read, W: Write> Rs232Io<V, R, W> {
+    /// Returns the detected *BAUD RATE* of the current or the last transmission.
+    ///
+    /// If there was no transmission since the start of the emulator, returns the default.
+    pub fn baud_rate(&self) -> u32 {
+        let bit_period = if self.write_event_ts > self.read_event_ts {
+            self.write_max_delay
+        }
+        else {
+            self.read_max_delay
+        } * 2 / 3;
+        if bit_period == 0 {
+            return DEFAULT_BAUD_RATE;
+        }
+
+        let rate = CPU_HZ / bit_period;
+        match BAUD_RATES.binary_search(&rate) {
+            Ok(index) => BAUD_RATES[index],
+            Err(0) => BAUD_RATES[0],
+            Err(index) => if let Some(&max_rate) = BAUD_RATES.get(index) {
+                if rate < (max_rate + BAUD_RATES[index - 1]) / 2 {
+                    BAUD_RATES[index - 1]
+                }
+                else {
+                    max_rate
+                }
+            }
+            else {
+                BAUD_RATES[index - 1]
+            }
+        }
+    }
+
     fn write_byte_to_writer(&mut self, data: u8) -> bool {
         let buf = slice::from_ref(&data);
         loop {
@@ -172,11 +210,8 @@ impl<V: VideoFrame, R: Read, W: Write> Rs232Io<V, R, W> {
                 if timestamp >= self.read_event_ts {
                     let delay_fts = V::vts_diff(self.read_event_ts, timestamp) as u32;
                     if delay_fts < MAX_STOP_BIT_DELAY * 3 / 2 {
-                        let one_half_bit_delta = delay_fts + MIN_STOP_BIT_DELAY;
-                        let bit_delta_fts = one_half_bit_delta * 2 / 3;
-                        debug!("read: {} ts ~{} bauds", bit_delta_fts, CPU_HZ / bit_delta_fts);
-                        self.read_max_delay = one_half_bit_delta;
-                        self.read_event_ts = V::vts_add_ts(timestamp, one_half_bit_delta);
+                        self.read_max_delay = delay_fts + MIN_STOP_BIT_DELAY;
+                        self.read_event_ts = V::vts_add_ts(timestamp, self.read_max_delay);
                         self.read_io = ReadStatus::SendingData(0x80 | (byte >> 1));
                         let bit = byte & 1 == 1;
                         bit.into()
@@ -257,10 +292,9 @@ impl<V: VideoFrame, R: Read, W: Write> Rs232Io<V, R, W> {
                     let delta_fts = V::vts_diff(self.write_event_ts, timestamp) as u32;
                     if delta_fts < MAX_STOP_BIT_DELAY {
                         let bit: u8 = rxd.into();
-                        let bit_delta_fts = delta_fts + MIN_STOP_BIT_DELAY;
-                        self.write_max_delay = bit_delta_fts * 3 / 2;
-                        debug!("write: {} ts ~{} bauds", bit_delta_fts, CPU_HZ / bit_delta_fts);
+                        self.write_max_delay = (delta_fts + MIN_STOP_BIT_DELAY) * 3 / 2;
                         self.write_event_ts = V::vts_add_ts(timestamp, self.write_max_delay);
+                        // println!("bauds: {} {}", self.baud_rate(), (delta_fts + MIN_STOP_BIT_DELAY));
                         self.write_io = WriteStatus::ReceivingData((bit|0x80).rotate_right(1));
                         return ControlState::Active
                     }
@@ -287,7 +321,8 @@ impl<V: VideoFrame, R: Read, W: Write> Rs232Io<V, R, W> {
             WriteStatus::StopBits(data) => {
                 if rxd.is_mark() && timestamp < self.write_event_ts {
                     if self.write_byte_to_writer(data) {
-                        self.write_event_ts = V::vts_add_ts(timestamp, self.write_max_delay * 4 / 3 + STOP_BIT_GRACE_DELAY);
+                        self.write_event_ts = V::vts_add_ts(timestamp,
+                                              self.write_max_delay * 4 / 3 + STOP_BIT_GRACE_DELAY);
                         self.write_io = WriteStatus::Idle(ControlState::Active);
                         ControlState::Active
                     }
