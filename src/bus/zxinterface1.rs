@@ -1,4 +1,51 @@
 //! A [BusDevice] for **ZX Interface I**.
+/*!
+
+For the ZX Interface 1 ROM extension see [ZxInterface1MemExt][crate::memory::extension::ZxInterface1MemExt].
+
+### I/O Port **0xe7**.
+
+Used to send or receive data to and from the microdrive.
+
+Accessing this port will halt the Z80 until the Interface I has collected 8 bits from the microdrive head;
+therefore, if the microdrive motor isn't running, or there is no formatted cartridge in the microdrive,
+the Spectrum hangs. This is the famous 'IN 0 crash'.
+
+### I/O Port **0xef**.
+
+Bits *DTR* and *CTS* are used by the RS-232 interface.
+
+The *WAIT* bit is used by the ZX Network to synchronise incoming bytes.
+It is being activated just before reading bits of each incoming byte.
+
+*GAP*, *SYNC*, *WR_PROT*, *ERASE*, *R/W*, *COMMS CLK* and *COMMS DATA* are used by the microdrive system.
+
+```text
+       Bit    7   6    5    4    3    2    1     0
+            +---------------------------------------+
+        READ|   |   |    |busy| dtr |gap| sync|write|
+            |   |   |    |    |     |   |     |prot.|
+            |---+---+----+----+-----+---+-----+-----|
+       WRITE|   |   |wait| cts|erase|r/w|comms|comms|
+            |   |   |    |    |     |   | clk | data|
+            +---------------------------------------+
+```
+### I/O Port **0xf7**.
+
+If the microdrive is not being used, the *COMMS DATA* output selects the function of OUT bit 0 of **0xf7** port:
+```text
+       Bit      7    6   5   4   3   2   1       0
+            +------------------------------------------+
+        READ|txdata|   |   |   |   |   |   |    net    |
+            |      |   |   |   |   |   |   |   input   |
+            |------+---+---+---+---+---+---+-----------|
+       WRITE|      |   |   |   |   |   |   |net output/|
+            |      |   |   |   |   |   |   |   rxdata  |
+            +------------------------------------------+
+```
+If a 0 was written to *COMMS DATA* the lowest bit is written to the *net output*, if 1 was written to *COMMS DATA*
+the lowest written bit is *rxdata*.
+!*/
 use core::num::NonZeroU16;
 use core::fmt;
 use core::marker::PhantomData;
@@ -10,7 +57,11 @@ use crate::memory::ZxMemory;
 use crate::video::VideoFrame;
 use super::ay::PassByAyAudioBusDevice;
 
-pub use crate::peripherals::{storage::microdrives::*, serial::*};
+pub use crate::peripherals::{
+            storage::microdrives::*,
+            serial::*,
+            network::zxnet::*
+        };
 
 impl<V, R, W, D> fmt::Display for ZxInterface1BusDevice<V, R, W, D> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -18,14 +69,19 @@ impl<V, R, W, D> fmt::Display for ZxInterface1BusDevice<V, R, W, D> {
     }
 }
 
-/// Connects the [ZxInterface1BusDevice] emulator as a [BusDevice].
-#[derive(Clone, Default, Debug)]
-pub struct ZxInterface1BusDevice<V, R, W, D=NullDevice<VideoTs>>
+/// Connects the ZX Interface 1 I/O port emulator as a [BusDevice].
+///
+/// [Rs232Io]'s [io::Read] as `R` and [io::Write] as `W` implementations are needed to complete this type.
+/// [ZxNetSocket] implmentation is needed as `N` for the underlying [ZxNet].
+#[derive(Default, Debug)]
+pub struct ZxInterface1BusDevice<V, R, W, N, D=NullDevice<VideoTs>>
 {
-    /// Provides a direct access to the [ZXMicrodrives].
+    /// A direct access to the **Microdrives**.
     pub microdrives: ZXMicrodrives<V>,
+    /// A direct access to the **RS-232** implementation.
     pub serial: Rs232Io<V, R, W>,
-    // pub network: ???
+    /// A direct access to the **ZX NET** implementation.
+    pub network: ZxNet<V, N>,
     sernet: If1SerNetIo,
     ctrl_in: If1ControlIn,
     ctrl_out: If1ControlOut,
@@ -33,7 +89,7 @@ pub struct ZxInterface1BusDevice<V, R, W, D=NullDevice<VideoTs>>
 }
 
 bitflags! {
-    pub struct If1SerNetIo: u8 {
+    struct If1SerNetIo: u8 {
         const RXD     = 0b0000_0001;
         const TXD     = 0b1000_0000;
         const NET     = 0b0000_0001;
@@ -42,7 +98,7 @@ bitflags! {
 }
 
 bitflags! {
-    pub struct If1ControlIn: u8 {
+    struct If1ControlIn: u8 {
         const MD_MASK  = 0b0000_0111;
         const MD_PROT  = 0b0000_0001;
         const MD_SYN   = 0b0000_0010;
@@ -54,7 +110,7 @@ bitflags! {
 }
 
 bitflags! {
-    pub struct If1ControlOut: u8 {
+    struct If1ControlOut: u8 {
         const MD_MASK   = 0b0000_1111;
         const COMMS_OUT = 0b0000_0001;
         const COMMS_CLK = 0b0000_0010;
@@ -84,8 +140,16 @@ impl If1SerNetIo {
         DataState::from(!self.intersects(If1SerNetIo::RXD))
     }
     #[inline(always)]
+    fn net(self) -> bool {
+        !self.intersects(If1SerNetIo::NET)
+    }
+    #[inline(always)]
     fn set_txd(&mut self, txd: DataState) {
         self.set(If1SerNetIo::TXD, !bool::from(txd))
+    }
+    #[inline(always)]
+    fn set_net(&mut self, net: bool) {
+        self.set(If1SerNetIo::NET, net)
     }
 }
 
@@ -138,6 +202,10 @@ impl If1ControlOut {
     fn cts(self) -> ControlState {
         ControlState::from(!self.intersects(If1ControlOut::SER_CTS))
     }
+    #[inline(always)]
+    fn wait(self) -> bool {
+        !self.intersects(If1ControlOut::NET_WAIT)
+    }
 }
 
 const IF1_MASK:      u16 = 0b0000_0000_0001_1000;
@@ -146,12 +214,13 @@ const IF1_CTRL_BITS: u16 = 0b0000_0000_0000_1000;
 const IF1_DATA_BITS: u16 = 0b0000_0000_0000_0000;
 
 
-impl<V, R, W, D> PassByAyAudioBusDevice for ZxInterface1BusDevice<V, R, W, D> {}
+impl<V, R, W, N, D> PassByAyAudioBusDevice for ZxInterface1BusDevice<V, R, W, N, D> {}
 
-impl<V, R, W, D> BusDevice for ZxInterface1BusDevice<V, R, W, D>
+impl<V, R, W, N, D> BusDevice for ZxInterface1BusDevice<V, R, W, N, D>
     where V: VideoFrame,
           R: io::Read + fmt::Debug,
           W: io::Write + fmt::Debug,
+          N: ZxNetSocket + fmt::Debug,
           D: BusDevice<Timestamp=VideoTs>
 {
     type Timestamp = VideoTs;
@@ -175,9 +244,11 @@ impl<V, R, W, D> BusDevice for ZxInterface1BusDevice<V, R, W, D>
 
     #[inline]
     fn next_frame(&mut self, timestamp: Self::Timestamp) {
+        // println!("frame ends");
         self.microdrives.next_frame(timestamp);
         self.ctrl_in.set_dtr(self.serial.poll_ready(timestamp));
         self.serial.next_frame(timestamp);
+        self.network.next_frame(timestamp);
         self.bus.next_frame(timestamp)
     }
 
@@ -186,11 +257,15 @@ impl<V, R, W, D> BusDevice for ZxInterface1BusDevice<V, R, W, D>
         match port & IF1_MASK {
             IF1_SERN_BITS => {
                 self.sernet.set_txd(self.serial.read_data(timestamp));
-                // TODO: read network
+                if self.ctrl_out.cts().is_inactive() {
+                    self.sernet.set_net(self.network.poll_state(timestamp));
+                }
+                // println!("net read: {:02x} {:?}", self.sernet.bits(), timestamp);
                 Some((self.sernet.bits(), None))
             }
             IF1_CTRL_BITS => {
                 self.ctrl_in.set_md_state(self.microdrives.read_state(timestamp));
+                // println!("ctrl read: {:02x} {:?}", self.ctrl_in.bits(), timestamp);
                 // TODO: poll busy?
                 Some((self.ctrl_in.bits(), None))
             }
@@ -205,11 +280,13 @@ impl<V, R, W, D> BusDevice for ZxInterface1BusDevice<V, R, W, D>
     fn write_io(&mut self, port: u16, data: u8, timestamp: Self::Timestamp) -> Option<u16> {
         match port & IF1_MASK {
             IF1_SERN_BITS => {
-                let rxd = If1SerNetIo::from_bits_truncate(data).rxd();
+                let data = If1SerNetIo::from_bits_truncate(data);
                 if self.ctrl_out.is_comms_out_ser() {
-                    self.ctrl_in.set_dtr(self.serial.write_data(rxd, timestamp));
+                    self.ctrl_in.set_dtr(self.serial.write_data(data.rxd(), timestamp));
                 }
                 else {
+                    // println!("net write rxs: {:?} {:?}", (rxd as u8)^1, timestamp);
+                    self.network.send_state(data.net(), timestamp);
                     // TODO: handle network
                 }
                 Some(0)
@@ -217,6 +294,7 @@ impl<V, R, W, D> BusDevice for ZxInterface1BusDevice<V, R, W, D>
             IF1_CTRL_BITS => {
                 let data = If1ControlOut::from_bits_truncate(data);
                 let diff = self.ctrl_out ^ data;
+                // println!("ctrl write: {:?}", data);
                 self.ctrl_out ^= diff;
                 if !(diff & If1ControlOut::MD_MASK).is_empty() {
                     self.microdrives.write_control(timestamp,
@@ -225,7 +303,8 @@ impl<V, R, W, D> BusDevice for ZxInterface1BusDevice<V, R, W, D>
                 if !(diff & If1ControlOut::SER_CTS).is_empty() {
                     self.serial.update_cts(data.cts(), timestamp);
                 }
-                if !(diff & If1ControlOut::NET_WAIT).is_empty() {
+                if data.wait() {
+                    self.network.wait_data(timestamp);
                     // TODO: handle network
                 }
                 Some(0)
@@ -235,33 +314,3 @@ impl<V, R, W, D> BusDevice for ZxInterface1BusDevice<V, R, W, D>
         }
     }
 }
-
-/*
-I/O Port 0xe7 is used to send or receive data to and from the microdrive.
-Accessing this port will halt the Z80 until the Interface I has collected 8 bits from the microdrive head;
-therefore, it the microdrive motor isn't running, or there is no formatted cartridge in the microdrive,
-the Spectrum hangs. This is the famous 'IN 0 crash'.
-
-Port 0xef
-Bits DTR and CTS are used by the RS232 interface. The WAIT bit is used by the Network to synchronise, GAP, SYNC, WR_PROT, ERASE, R/W, COMMS CLK and COMMS DATA are used by the microdrive system.
-
-       Bit    7   6    5    4    3    2    1     0
-            +---------------------------------------+
-        READ|   |   |    |busy| dtr |gap| sync|write|
-            |   |   |    |    |     |   |     |prot.|
-            |---+---+----+----+-----+---+-----+-----|
-       WRITE|   |   |wait| cts|erase|r/w|comms|comms|
-            |   |   |    |    |     |   | clk | data|
-            +---------------------------------------+
-Port 0xf7
-If the microdrive is not being used, the COMMS DATA output selects the function of bit 0 of OUT-Port 0xf7:
-
-       Bit      7    6   5   4   3   2   1       0
-            +------------------------------------------+
-        READ|txdata|   |   |   |   |   |   |    net    |
-            |      |   |   |   |   |   |   |   input   |
-            |------+---+---+---+---+---+---+-----------|
-       WRITE|      |   |   |   |   |   |   |net output/|
-            |      |   |   |   |   |   |   |   rxdata  |
-            +------------------------------------------+
-*/

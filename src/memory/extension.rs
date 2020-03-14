@@ -2,9 +2,12 @@ use std::rc::Rc;
 use std::io::{self, Read};
 use super::{ExRom, ZxMemory};
 
-/// An interface for memory paging extensions for the [ZxMemory].
+/// An interface for memory paging extensions of [ZxMemory].
+///
+/// Provide an implementation as the associated type [crate::chip::MemoryAccess::MemoryExt].
 pub trait MemoryExtension {
     /// Read op-code from the given `memory` at the given `pc` address, optionally altering provided memory.
+    #[inline]
     fn opcode_read<M: ZxMemory>(&mut self, pc: u16, memory: &mut M) -> u8 {
         memory.read(pc)
     }
@@ -15,11 +18,10 @@ pub struct NoMemoryExtension;
 
 impl MemoryExtension for NoMemoryExtension {}
 
-// pub struct DynamicMemoryExtension {
-//     extensions: 
-// }
-
-
+/// The ZX Interface 1 memory [extension][MemoryExtension].
+///
+/// Interface 1 ROM is paged in if the processor executes the instruction at address `0x0008` or `0x1708`,
+/// the error handler and `CLOSE #` routines. It is paged out after the Z80 executes the `RET` at address `0x0700`.
 #[derive(Clone, Debug)]
 pub struct ZxInterface1MemExt {
     exrom: ExRom
@@ -51,7 +53,7 @@ impl MemoryExtension for ZxInterface1MemExt {
 
 impl ZxInterface1MemExt {
     /// Provide a reader with 8kb of ZX Interface 1 ROM program code.
-    pub fn load_ex_rom<R: Read>(&mut self, mut rd: R) -> io::Result<()> {
+    pub fn load_if1_rom<R: Read>(&mut self, mut rd: R) -> io::Result<()> {
         let mut exrom = Rc::new([!0u8;0x4000]);
         let exrom_slice = &mut Rc::get_mut(&mut exrom).unwrap()[0..0x2000];
         rd.read_exact(exrom_slice)?;
