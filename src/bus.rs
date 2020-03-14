@@ -123,19 +123,6 @@ pub trait BusDevice: Debug {
     fn next_frame(&mut self, timestamp: Self::Timestamp) {
         self.next_device_mut().next_frame(timestamp)
     }
-/*
-    /// This method is called by the control unit during an op-code fetch `M1` cycles of Cpu.
-    ///
-    /// It can be used e.g. for implementing ROM traps.
-    ///
-    /// Default implementation forwards this call to the next device.
-    ///
-    /// **NOTE**: Implementors of bus devices should always forward this call after optionally applying it to `self`.
-    #[inline(always)]
-    fn m1<Z: ZxMemory>(&mut self, memory: &mut Z, pc: u16, timestamp: Self::Timestamp) {
-        self.next_device_mut().m1(memory, pc, timestamp)
-    }
-*/
     /// This method is called by the control unit during an I/O read cycle.
     ///
     /// Default implementation forwards this call to the next device.
@@ -208,9 +195,6 @@ impl<T: Debug> BusDevice for NullDevice<T> {
 
     #[inline(always)]
     fn next_frame(&mut self, _timestamp: Self::Timestamp) {}
-
-    // #[inline(always)]
-    // fn m1<Z: ZxMemory>(&mut self, _memory: &mut Z, _pc: u16, _timestamp: Self::Timestamp) {}
 
     #[inline(always)]
     fn read_io(&mut self, _port: u16, _timestamp: Self::Timestamp) -> Option<(u8, Option<NonZeroU16>)> {
@@ -294,13 +278,6 @@ impl<D, N> BusDevice for OptionalBusDevice<D, N>
         }
         self.next_device.next_frame(timestamp);
     }
-    // #[inline]
-    // fn m1<Z: ZxMemory>(&mut self, memory: &mut Z, pc: u16, timestamp: Self::Timestamp) {
-    //     if let Some(device) = &mut self.device {
-    //         device.m1(memory, pc, timestamp);
-    //     }
-    //     self.next_device.m1(memory, pc, timestamp);
-    // }
     #[inline]
     fn read_io(&mut self, port: u16, timestamp: Self::Timestamp) -> Option<(u8, Option<NonZeroU16>)> {
         let dev_data = if let Some((data, ws)) = self.device
@@ -319,7 +296,7 @@ impl<D, N> BusDevice for OptionalBusDevice<D, N>
             let data = bus_data & dev_data.unwrap_or(!0);
             return Some((data, ws))
         }
-        None
+        dev_data.map(|data| (data, None))
     }
 
     #[inline]
