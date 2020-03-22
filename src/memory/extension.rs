@@ -1,6 +1,12 @@
 use std::rc::Rc;
 use std::io::{self, Read};
+
 use super::{ExRom, ZxMemory};
+#[cfg(feature = "snapshot")]
+use super::serde::{serialize_mem, deserialize_mem};
+
+#[cfg(feature = "snapshot")]
+use serde::{Serialize, Deserialize};
 
 /// An interface for memory paging extensions of [ZxMemory].
 ///
@@ -14,6 +20,7 @@ pub trait MemoryExtension {
 }
 
 #[derive(Clone, Copy, Default, Debug)]
+#[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 pub struct NoMemoryExtension;
 
 impl MemoryExtension for NoMemoryExtension {}
@@ -23,7 +30,9 @@ impl MemoryExtension for NoMemoryExtension {}
 /// Interface 1 ROM is paged in if the processor executes the instruction at address `0x0008` or `0x1708`,
 /// the error handler and `CLOSE #` routines. It is paged out after the Z80 executes the `RET` at address `0x0700`.
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 pub struct ZxInterface1MemExt {
+    #[cfg_attr(feature = "snapshot", serde(serialize_with = "serialize_mem", deserialize_with = "deserialize_mem"))]
     exrom: ExRom
 }
 

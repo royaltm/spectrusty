@@ -3,6 +3,10 @@ use core::num::NonZeroU16;
 use core::fmt;
 use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
+
+#[cfg(feature = "snapshot")]
+use serde::{Serialize, Deserialize};
+
 use crate::clock::{VFrameTsCounter, VideoTs, FTs};
 use crate::bus::{BusDevice, NullDevice, PortAddress};
 use crate::chip::ula::{UlaTsCounter, Ula};
@@ -33,11 +37,15 @@ printer_names! {
 
 /// Connects the [ZxPrinterDevice] emulator as a [BusDevice].
 #[derive(Clone, Default, Debug)]
+#[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 pub struct ZxPrinterBusDevice<P, V, S, D=NullDevice<VideoTs>>
 {
     /// Provides a direct access to the [ZxPrinterDevice].
+    #[cfg_attr(feature = "snapshot", serde(default))]
     pub printer: ZxPrinterDevice<V, S>,
+    #[cfg_attr(feature = "snapshot", serde(default))]
     bus: D,
+    #[cfg_attr(feature = "snapshot", serde(skip))]
     _port_decode: PhantomData<P>
 }
 

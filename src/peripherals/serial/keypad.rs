@@ -1,6 +1,9 @@
 use core::fmt;
 use core::marker::PhantomData;
 
+#[cfg(feature = "snapshot")]
+use serde::{Serialize, Deserialize};
+
 use rand::{Rng, SeedableRng};
 use rand::rngs::SmallRng;
 
@@ -13,6 +16,7 @@ bitflags! {
     /// * Bit = 1 a key is being pressed.
     /// * Bit = 0 a key is not being pressed.
     #[derive(Default)]
+    #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
     pub struct KeypadKeys: u32 {
         /// The 1st (top) physical keypad row's mask.
         const ROW1_MASK = 0b0000_0000_1111_0000_0000;
@@ -113,6 +117,8 @@ use intervals::*;
 ///
 /// To change the keypad state use methods directly on the implementation of this type.
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]
 pub struct SerialKeypad<V> {
     keys: KeypadKeys,
     keys_changed: u32,
@@ -120,7 +126,9 @@ pub struct SerialKeypad<V> {
     output_bits: u8,
     keypad_io: KeypadIoStatus,
     keypad_event_ts: VideoTs,
+    #[cfg_attr(feature = "snapshot", serde(skip, default = "SmallRng::from_entropy"))]
     rng: SmallRng,
+    #[cfg_attr(feature = "snapshot", serde(skip))]
     _video_frame: PhantomData<V>
 }
 
@@ -137,6 +145,7 @@ fn row_data_to_output_bits(nibble: u8) -> u8 {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 enum KeypadIoStatus {
     Reset,
     SyncPreset,

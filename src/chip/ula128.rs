@@ -6,6 +6,9 @@ mod video;
 use core::num::Wrapping;
 // use core::ops::{Deref, DerefMut};
 use z80emu::{*, host::{Result, cycles::M1_CYCLE_TS}};
+#[cfg(feature = "snapshot")]
+use serde::{Serialize, Deserialize};
+
 use crate::audio::{AudioFrame};
 use crate::bus::BusDevice;
 use crate::chip::{ControlUnit, MemoryAccess, nanos_from_frame_tc_cpu_hz, ula::frame_cache::UlaFrameCache};
@@ -17,22 +20,25 @@ use crate::clock::{VideoTs, VideoTsData1, FTs, Ts, VFrameTsCounter, MemoryConten
 use crate::chip::ula::{Ula, UlaTimestamp, UlaCpuExt, UlaMemoryContention};
 
 pub use video::{Ula128VidFrame, Ula128MemContention};
-// pub use ay::*;
 
-/// The ZX Spectrum 128's CPU clock in cycles per second.
+/// The ZX Spectrum 128k CPU clock in cycles per second.
 pub const CPU_HZ: u32 = 3_546_900;
 
 pub(self) type InnerUla<B, X> = Ula<Memory128k, B, X, Ula128VidFrame>;
 
 /// ZX Spectrum 128k ULA.
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]
 pub struct Ula128<B, X=NoMemoryExtension> {
     ula: InnerUla<B, X>,
     mem_page3_bank: u8,
     cur_screen_shadow: bool, // current shadow screen
     beg_screen_shadow: bool, // shadow screen when a frame began
     mem_locked: bool,
+    #[cfg_attr(feature = "snapshot", serde(skip))]
     shadow_frame_cache: UlaFrameCache<Ula128VidFrame>,
+    #[cfg_attr(feature = "snapshot", serde(skip))]
     screen_changes: Vec<VideoTs>,
 }
 
@@ -229,7 +235,7 @@ impl<B, X> UlaTimestamp for Ula128<B, X>
 
 #[cfg(test)]
 mod tests {
-    use core::convert::TryInto;
+    use core::convert::TryFrom;
     use crate::bus::NullDevice;
     use crate::video::Video;
     use super::*;
@@ -241,6 +247,6 @@ mod tests {
         assert_eq!(<TestUla128 as Video>::VideoFrame::FRAME_TSTATES_COUNT, 70908);
         assert_eq!(ula128.cpu_clock_rate(), CPU_HZ);
         assert_eq!(ula128.cpu_clock_rate(), 3_546_900);
-        assert_eq!(ula128.frame_duration_nanos(), (70908u64 * 1_000_000_000 / 3_546_900).try_into().unwrap());
+        assert_eq!(ula128.frame_duration_nanos(), u32::try_from(70908u64 * 1_000_000_000 / 3_546_900).unwrap());
     }
 }

@@ -8,6 +8,9 @@ use core::ops::{Deref, DerefMut};
 use core::marker::PhantomData;
 use core::convert::TryFrom;
 
+#[cfg(feature = "snapshot")]
+use serde::{Serialize, Deserialize};
+
 pub mod serial128;
 
 use crate::clock::{FTs, VideoTs};
@@ -15,6 +18,7 @@ use crate::video::VideoFrame;
 
 /// An enumeration of AY-3-8910 registers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 #[repr(u8)]
 pub enum AyRegister {
       ToneFineA      =  0,
@@ -157,6 +161,7 @@ pub trait AyIoPort: fmt::Debug {
 
 /// An [Ay3_891xIo] I/O device implementation that does nothing.
 #[derive(Default, Clone, Copy, Debug)]
+#[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 pub struct AyIoNullPort<T>(PhantomData<T>);
 
 /// Allows recording of changes to AY-3-8910 audio registers with timestamps.
@@ -184,16 +189,22 @@ pub type Ay3_8913Io<T> = Ay3_8910Io<T>;
 /// The `recorder` type `R` needs to implement [AyRegRecorder] trait.
 /// The port types `A` and `B` need to implement [AyIoPort] trait.
 #[derive(Default, Clone, Debug)]
+#[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]
 pub struct Ay3_891xIo<T, R, A, B> {
     /// Provides access to the recorded changes of sound generator registers.
     /// The changes are required to generate sound with [crate::audio::ay::Ay3_891xAudio].
+    #[cfg_attr(feature = "snapshot", serde(skip))]
     pub recorder: R,
     /// An instance of port `A` [AyIoPort] I/O device implementation.
+    #[cfg_attr(feature = "snapshot", serde(default))]
     pub port_a: A,
     /// An instance of port `B` [AyIoPort] I/O device implementation.
+    #[cfg_attr(feature = "snapshot", serde(default))]
     pub port_b: B,
     regs: [u8; 16],
     selected_reg: AyRegister,
+    #[cfg_attr(feature = "snapshot", serde(skip))]
     _ts: PhantomData<T>
 }
 

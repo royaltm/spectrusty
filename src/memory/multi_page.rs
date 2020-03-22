@@ -1,8 +1,15 @@
+use core::result;
 use core::ops::{Deref, DerefMut};
 use core::ops::RangeBounds;
 use core::ptr::NonNull;
 use core::slice;
 use std::rc::Rc;
+
+#[cfg(feature = "snapshot")] mod serde;
+#[cfg(feature = "snapshot")]
+use ::serde::Serialize;
+#[cfg(feature = "snapshot")]
+use super::serde::{MemSerExt, MemDeExt, serialize_mem, deserialize_mem};
 
 use super::{
     Result,
@@ -12,7 +19,8 @@ use super::{
     MemoryKind,
     MemPageOffset,
     ExRom,
-    normalize_address_range};
+    normalize_address_range
+};
 
 /// An EX-ROM attachable memory type with 16kb RAM and 16kb ROM.
 pub type Memory16kEx = MemPageableRomRamExRom<[u8; MEM48K_SIZE]>;
@@ -23,11 +31,12 @@ pub type Memory128k = MemPageableRomRamExRom<[u8; MEM32K_SIZE + MEM128K_SIZE]>;
 /// An EX-ROM attachable memory type with 128kb RAM and 64kb ROM.
 pub type Memory128kPlus = MemPageableRomRamExRom<[u8; MEM64K_SIZE + MEM128K_SIZE]>;
 
+const MAX_PAGES: usize = 8;
 const MEM16K_SIZE : usize = 0x4000;
-const MEM32K_SIZE : usize = 2 * MEM16K_SIZE;
-const MEM48K_SIZE : usize = 3 * MEM16K_SIZE;
-const MEM64K_SIZE : usize = 4 * MEM16K_SIZE;
-const MEM128K_SIZE: usize = 8 * MEM16K_SIZE;
+pub(super) const MEM32K_SIZE : usize = 2 * MEM16K_SIZE;
+pub(super) const MEM48K_SIZE : usize = 3 * MEM16K_SIZE;
+pub(super) const MEM64K_SIZE : usize = 4 * MEM16K_SIZE;
+pub(super) const MEM128K_SIZE: usize = 8 * MEM16K_SIZE;
 const BANK16K_MASK: u16 = (MEM16K_SIZE - 1) as u16;
 const NUM_BANK16K_PAGES: usize = 4;
 const SCREEN_SIZE: u16 = 0x1B00;
@@ -40,7 +49,7 @@ pub struct MemPageableRomRamExRom<M: MemoryBlock> {
 }
 
 #[doc(hidden)]
-pub trait MemoryBlock {
+pub trait MemoryBlock: Sized {
     type Pages: MemoryPages;
     const ROM_BANKS: usize;
     const RAM_BANKS: usize;
@@ -49,16 +58,8 @@ pub trait MemoryBlock {
     const DEFAULT_PAGES: &'static [usize];
     const SCR_BANK_OFFSETS: &'static [usize];
     fn new() -> Self;
-    // fn as_slice(&self) -> &[u8] where Self: AsRef<[u8]> {
-    //     self.as_ref()
-    // }
-    // fn as_mut_slice(&mut self) -> &mut [u8] where Self: AsMut<[u8]> {
-    //     self.as_mut()
-    // }
     fn as_slice(&self) -> &[u8];
     fn as_mut_slice(&mut self) -> &mut [u8];
-    // fn pages_ref(&self) -> &Self::Pages;
-    // fn pages_mut(&mut self) -> &mut Self::Pages;
     fn cast_slice_as_bank_ptr(slice: &[u8]) -> NonNull<<Self::Pages as MemoryPages>::PagePtrType> {
         assert_eq!(slice.len(), Self::BANK_SIZE);
         let ptr = slice.as_ptr() as *const <Self::Pages as MemoryPages>::PagePtrType;
@@ -75,7 +76,7 @@ pub trait MemoryPages {
     fn len() -> usize {
         Self::PAGES_MASK as usize + 1
     }
-    fn page_ref(&self, page: u8) -> &NonNull<Self::PagePtrType>;
+    fn page(&self, page: u8) -> NonNull<Self::PagePtrType>;
     fn page_mut(&mut self, page: u8) -> &mut NonNull<Self::PagePtrType>;
 }
 
@@ -86,8 +87,8 @@ impl MemoryPages for [NonNull<[u8; MEM16K_SIZE]>; NUM_BANK16K_PAGES] {
         [NonNull::dangling();NUM_BANK16K_PAGES]
     }
     #[inline(always)]
-    fn page_ref(&self, page: u8) -> &NonNull<[u8; MEM16K_SIZE]> {
-        &self[(page & Self::PAGES_MASK) as usize]
+    fn page(&self, page: u8) -> NonNull<[u8; MEM16K_SIZE]> {
+        self[(page & Self::PAGES_MASK) as usize]
     }
     #[inline(always)]
     fn page_mut(&mut self, page: u8) -> &mut NonNull<[u8; MEM16K_SIZE]> {
@@ -134,10 +135,14 @@ impl_memory_block!(MEM64K_SIZE, 1, 3, [ROM 0, RAM 0, RAM 1, RAM 2], [0]);
 impl_memory_block!(MEM32K_SIZE + MEM128K_SIZE, 2, 8, [ROM 0, RAM 5, RAM 2, RAM 0], [5, 7]);
 impl_memory_block!(MEM64K_SIZE + MEM128K_SIZE, 4, 6, [ROM 0, RAM 5, RAM 2, RAM 0], [5, 7]);
 
+#[cfg_attr(feature = "snapshot", derive(Serialize))]
 struct ExRomAttachment<P> {
     page: u8,
+    #[cfg_attr(feature = "snapshot", serde(skip_serializing))]
     ro: bool,
+    #[cfg_attr(feature = "snapshot", serde(skip_serializing))]
     ptr: NonNull<P>,
+    #[cfg_attr(feature = "snapshot", serde(serialize_with = "serialize_mem"))]
     rom: ExRom
 }
 
@@ -163,12 +168,14 @@ impl<M: MemoryBlock> Default for MemPageableRomRamExRom<M> {
 }
 
 impl<M: MemoryBlock> Clone for MemPageableRomRamExRom<M>
-    where M: Clone, M::Pages: Clone
+    where M: Clone,
+          M::Pages: Copy,
+          for <'a> &'a mut M::Pages: IntoIterator<Item=&'a mut NonNull<<M::Pages as MemoryPages>::PagePtrType>>
 {
     fn clone(&self) -> Self {
         let ro_pages = self.ro_pages;
         let mem = self.mem.clone(); // just an array of bytes
-        let mut pages = self.pages.clone(); // need to re-create
+        let mut pages = self.pages; // need to re-create
         let mut ex_rom = self.ex_rom.as_ref().map(|exr| {
             let pages_p = pages.page_mut(exr.page);
             let ptr = *pages_p; // get pointer to exrom temporarily
@@ -182,8 +189,7 @@ impl<M: MemoryBlock> Clone for MemPageableRomRamExRom<M>
         });
         // now lets re-map pointers to our copy of mem
         let old_mem_ptr = self.mem.as_slice().as_ptr() as usize;
-        for page in 0..M::Pages::len() as u8 {
-            let p = pages.page_mut(page);
+        for p in pages.into_iter() {
             let offset = p.as_ptr() as usize - old_mem_ptr;
             *p = M::cast_slice_as_bank_ptr(&mem.as_slice()[offset..offset + M::BANK_SIZE]);
         }
@@ -210,7 +216,7 @@ impl<M: MemoryBlock> MemPageableRomRamExRom<M> {
     }
     #[inline]
     fn mem_page_ptr(&self, page: u8) -> *const u8 {
-        self.pages.page_ref(page).as_ptr() as *const u8
+        self.pages.page(page).as_ptr() as *const u8
     }
     #[inline]
     fn mem_page_mut_ptr(&mut self, page: u8) -> *mut u8 {
@@ -526,7 +532,7 @@ mod tests {
 
     fn page_mem_offset(mem: &Memory128k, page: u8) -> usize {
         let mem_ptr = mem.mem_ref().as_ptr() as usize;
-        mem.pages.page_ref(page).as_ptr() as usize - mem_ptr
+        mem.pages.page(page).as_ptr() as usize - mem_ptr
     }
 
     fn test_page(mem: &Memory128k, page: u8, patt: &[u8;4]) {
@@ -703,7 +709,7 @@ mod tests {
         }
         let mut rng2 = rng.clone();
         for addr in 0x4000..=0xffff {
-            assert_eq!(mem.read(addr), rng.gen());
+            assert_eq!(mem.read(addr), rng.gen::<u8>());
         }
         test_rom_bank(&mem, 0, b"ROM0");
         test_rom_bank(&mem, 1, b"ROM1");
@@ -713,13 +719,13 @@ mod tests {
         test_ram_bank(&mem, 6, b"RAM6");
         test_ram_bank(&mem, 7, b"RAM7");
         for byte in mem.ram_bank_ref(5).unwrap().iter().copied() {
-            assert_eq!(byte, rng2.gen());
+            assert_eq!(byte, rng2.gen::<u8>());
         }
         for byte in mem.ram_bank_ref(2).unwrap().iter().copied() {
-            assert_eq!(byte, rng2.gen());
+            assert_eq!(byte, rng2.gen::<u8>());
         }
         for byte in mem.ram_bank_ref(0).unwrap().iter().copied() {
-            assert_eq!(byte, rng2.gen());
+            assert_eq!(byte, rng2.gen::<u8>());
         }
 
         let mut rng = SmallRng::seed_from_u64(667);
@@ -738,7 +744,7 @@ mod tests {
         let [_, hi] = last.to_le_bytes();
         assert_eq!(mem.read(0x4000), hi);
         for addr in (0x4001..=0xfffd).step_by(2) {
-            assert_eq!(mem.read16(addr), rng.gen());
+            assert_eq!(mem.read16(addr), rng.gen::<u16>());
         }
         let [lo, _] = rng.gen::<u16>().to_le_bytes();
         assert_eq!(mem.read(0xffff), lo);

@@ -5,6 +5,9 @@ use core::any::{TypeId, Any};
 use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
 
+#[cfg(feature = "snapshot")]
+use serde::{Serialize, Deserialize};
+
 pub mod ay;
 mod dynbus;
 pub mod debug;
@@ -173,6 +176,7 @@ pub trait PortAddress: Debug {
 
 /// A daisy-chain terminator device. Use it as the last device in a chain.
 #[derive(Clone, Default, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 pub struct NullDevice<T>(PhantomData<T>);
 
 impl<T: Debug> BusDevice for NullDevice<T> {
@@ -215,8 +219,12 @@ impl<T> fmt::Display for NullDevice<T> {
 
 /// A [BusDevice] allowing for plugging in and out a device at run time.
 #[derive(Clone, Default, Debug)]
+#[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]
 pub struct OptionalBusDevice<D, N=NullDevice<VideoTs>> {
+    #[cfg_attr(feature = "snapshot", serde(default))]
     pub device: Option<D>,
+    #[cfg_attr(feature = "snapshot", serde(default))]
     next_device: N
 }
 

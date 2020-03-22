@@ -156,7 +156,7 @@ impl<'a, V> Iterator for UlaFrameProducer<'a, V> {
     }
 }
 
-impl<V: VideoFrame> Default for UlaFrameCache<V> {
+impl<V> Default for UlaFrameCache<V> {
     fn default() -> Self {
         UlaFrameCache {
             frame_pixels: [(0, [0;32]);192],

@@ -1,5 +1,12 @@
-use std::rc::Rc;
 use core::ops::RangeBounds;
+use std::rc::Rc;
+
+#[cfg(feature = "snapshot")]
+use serde::{Serialize, Deserialize};
+
+#[cfg(feature = "snapshot")]
+use super::serde::{serialize_mem, deserialize_mem};
+
 use super::{Result,
     ZxMemory,
     ZxMemoryError,
@@ -7,17 +14,22 @@ use super::{Result,
     MemPageOffset,
     MemoryKind,
     ExRom,
-    normalize_address_range};
+    normalize_address_range,
+};
 
 /// A single page memory type with 16kb RAM.
 #[derive(Clone)]
+#[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 pub struct Memory16k {
+    #[cfg_attr(feature = "snapshot", serde(serialize_with = "serialize_mem", deserialize_with = "deserialize_mem"))]
     mem: Box<[u8;0x8000]>
 }
 
 /// A single page memory type with 48kb RAM.
 #[derive(Clone)]
+#[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 pub struct Memory48k {
+    #[cfg_attr(feature = "snapshot", serde(serialize_with = "serialize_mem", deserialize_with = "deserialize_mem"))]
     mem: Box<[u8;0x10000]>
 }
 
@@ -26,7 +38,9 @@ pub struct Memory48k {
 /// The first 16kb of RAM will be also available as ROM, however
 /// the implementation doesn't prevent writes to the ROM area.
 #[derive(Clone)]
+#[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 pub struct Memory64k {
+    #[cfg_attr(feature = "snapshot", serde(serialize_with = "serialize_mem", deserialize_with = "deserialize_mem"))]
     mem: Box<[u8;0x10000]>
 }
 

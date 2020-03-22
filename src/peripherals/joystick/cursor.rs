@@ -1,5 +1,6 @@
 //! Cursor Joystick implementation.
 use super::{JoystickDevice, Directions, JoystickInterface};
+
 const PORT1_MASK:  u16 = 0b0000_1000_0000_0000;
                     //        5_4321
 const UNUSED_MASK1: u8 = 0b1110_1111;

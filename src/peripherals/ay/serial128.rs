@@ -1,5 +1,7 @@
 use core::fmt::{self, Debug};
-use core::marker::PhantomData;
+
+#[cfg(feature = "snapshot")]
+use serde::{Serialize, Deserialize};
 
 use crate::clock::{FTs, VideoTs, Ts};
 use crate::peripherals::serial::{SerialPortDevice, DataState, ControlState, NullSerialPort, SerialKeypad, Rs232Io};
@@ -34,6 +36,8 @@ use super::{AyIoPort, AyIoNullPort, Ay128kPortDecode};
 /// To "connect" something to these ports, provide some types implementing [SerialPortDevice] as
 /// `S1` and `S2`.
 #[derive(Clone, Debug, Default)]
+#[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]
 pub struct SerialPorts128<S1,S2> {
     /// A [SerialPortDevice] connected to a `KEYPAD` port.
     pub serial1: S1,
@@ -92,6 +96,7 @@ impl<D, R, W> fmt::Display for Ay3_8912KeypadRs232<D, R, W> {
 
 
 bitflags! {
+    #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
     struct Serial128Io: u8 {
         const SER1_CTS      = 0b0000_0001;
         const SER1_RXD      = 0b0000_0010;

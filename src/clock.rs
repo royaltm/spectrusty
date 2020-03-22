@@ -3,7 +3,11 @@ use core::marker::PhantomData;
 use core::num::{NonZeroU8, NonZeroU16};
 use core::ops::{AddAssign, Deref, DerefMut};
 use core::convert::TryInto;
+
 use z80emu::{Clock, host::cycles::*};
+#[cfg(feature = "snapshot")]
+use serde::{Serialize, Deserialize};
+
 use crate::video::VideoFrame;
 
 // Frame timestamp measured in T-states.
@@ -13,6 +17,7 @@ pub type Ts = i16;
 
 /// A video timestamp that consist of two counters: vertical and horizontal.
 #[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Debug)]
+#[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 pub struct VideoTs {
     // A vertical position and a video scan-line index.
     pub vc: Ts,

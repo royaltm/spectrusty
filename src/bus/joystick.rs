@@ -5,6 +5,9 @@ use core::fmt;
 use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
 
+#[cfg(feature = "snapshot")]
+use serde::{Serialize, Deserialize};
+
 use super::ay::PassByAyAudioBusDevice;
 use crate::bus::{BusDevice, NullDevice, PortAddress};
 use crate::clock::VideoTs;
@@ -62,13 +65,18 @@ joystick_names! {
 
 /// A joystick controller, providing a [BusDevice] implementation that can be used with [joystick devices][JoystickDevice].
 #[derive(Clone, Default, Debug)]
+#[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 pub struct JoystickBusDevice<T, P, J, D=NullDevice<T>>
 {
     /// A [JoystickDevice] implementation, which may also implement [JoystickInterface] trait
     /// for providing user input.
+    #[cfg_attr(feature = "snapshot", serde(skip))]
     pub joystick: J,
+    #[cfg_attr(feature = "snapshot", serde(default))]
     bus: D,
+    #[cfg_attr(feature = "snapshot", serde(skip))]
     _port_decode: PhantomData<P>,
+    #[cfg_attr(feature = "snapshot", serde(skip))]
     _ts: PhantomData<T>
 }
 
@@ -175,9 +183,13 @@ impl<T, P, J, D> BusDevice for JoystickBusDevice<T, P, J, D>
 ///
 /// This controller allows changing the implementation of joystick device at run time.
 #[derive(Clone, Copy, Default, Debug)]
+#[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 pub struct MultiJoystickBusDevice<T=VideoTs, D=NullDevice<T>> {
+    #[cfg_attr(feature = "snapshot", serde(default))]
     pub joystick: JoystickSelect,
+    #[cfg_attr(feature = "snapshot", serde(default))]
     bus: D,
+    #[cfg_attr(feature = "snapshot", serde(skip))]
     _ts: PhantomData<T>
 }
 
@@ -206,6 +218,8 @@ impl<T, D> DerefMut for MultiJoystickBusDevice<T, D> {
 ///
 /// Some of the variants contain more than one joystick device.
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "snapshot", serde(try_from = "&str", into = "&str"))]
 pub enum JoystickSelect {
     Kempston(KempstonJoystickDevice),
     Fuller(FullerJoystickDevice),
@@ -213,21 +227,27 @@ pub enum JoystickSelect {
     Cursor(CursorJoystickDevice),
 }
 
+impl Default for JoystickSelect {
+    fn default() -> Self {
+        JoystickSelect::Kempston(Default::default())
+    }
+}
+
 impl fmt::Display for JoystickSelect {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", <&str>::from(*self))
+    }
+}
+
+impl From<JoystickSelect> for &str {
+    fn from(joy: JoystickSelect) -> Self {
         use JoystickSelect::*;
-        write!(f, "{}", match self {
+        match joy {
             Kempston(..) => "Kempston",
             Fuller(..)   => "Fuller",
             Sinclair(..) => "Sinclair",
             Cursor(..)   => "Cursor",
-        })
-    }
-}
-
-impl Default for JoystickSelect {
-    fn default() -> Self {
-        JoystickSelect::Kempston(Default::default())
+        }
     }
 }
 

@@ -96,6 +96,7 @@ use std::io::{self, Read};
 mod extension;
 mod single_page;
 mod multi_page;
+#[cfg(feature = "snapshot")] mod serde;
 
 pub use extension::*;
 pub use single_page::*;

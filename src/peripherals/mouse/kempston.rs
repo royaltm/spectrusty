@@ -1,4 +1,7 @@
 //! A Kempston Mouse device implementation.
+#[cfg(feature = "snapshot")]
+use serde::{Serialize, Deserialize};
+
 use super::{MouseInterface, MouseDevice, MouseMovement, MouseButtons};
 /*
     Horizontal position: IN 64479
@@ -28,10 +31,14 @@ const PORT_Y_MASK:   u16 = 0b0000_0101_0000_0000;
 /// * bit 0 is 0 when the left button is being pressed and 1 when the left button is released.
 /// * bit 1 is 0 when the right button is being pressed and 1 when the right button is released.
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]
 pub struct KempstonMouseDevice {
+    #[cfg_attr(feature = "snapshot", serde(skip, default = "u8::max_value"))]
     data_btn: u8,
     data_x: u8,
     data_y: u8,
+    #[cfg_attr(feature = "snapshot", serde(skip))]
     buttons: MouseButtons,
 }
 

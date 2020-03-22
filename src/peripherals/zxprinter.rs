@@ -20,6 +20,9 @@ use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
 use std::io::Write;
 
+#[cfg(feature = "snapshot")]
+use serde::{Serialize, Deserialize};
+
 use crate::video::VideoFrame;
 use crate::clock::*;
 
@@ -54,6 +57,7 @@ pub trait Spooler: Debug + Default {
 
 /// A simple **ZX Printer** spooler that outputs each line to the stdout as hexadecimal digits.
 #[derive(Clone, Copy, Default, Debug)]
+#[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 pub struct DebugSpooler;
 
 /// This type implements a communication protocol of the **ZX Printer**.
@@ -79,8 +83,11 @@ pub struct DebugSpooler;
 /// There's also a dedicated [ZxPrinterBusDevice][crate::bus::zxprinter::ZxPrinterBusDevice]
 /// [crate::bus::BusDevice] implementation to be used solely with the `ZxPrinterDevice`.
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "snapshot", serde(rename_all="camelCase"))]
 pub struct ZxPrinterDevice<V, S> {
     /// An instance of the [Spooler] trait implementation type.
+    #[cfg_attr(feature = "snapshot", serde(default))]
     pub spooler: S,
     /// Can be changed to adjust speed. Default is 855 T-states (~16 dot lines / sec.).
     pub bit_delay: u16,
@@ -89,6 +96,7 @@ pub struct ZxPrinterDevice<V, S> {
     cursor: u8,
     ready_ts: VideoTs,
     line: [u8;32],
+    #[cfg_attr(feature = "snapshot", serde(skip))]
     _video_frame: PhantomData<V>
 }
 

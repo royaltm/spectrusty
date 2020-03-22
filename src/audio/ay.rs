@@ -1,7 +1,11 @@
 //! The emulation of the AY-3-8910/8912/8913 sound generator.
 use core::marker::PhantomData;
-use super::*;
+
+#[cfg(feature = "snapshot")]
+use serde::{Serialize, Deserialize};
+
 use crate::peripherals::ay::{AyRegister, AyRegChange};
+use super::*;
 
 /// Internal clock divisor.
 pub const INTERNAL_CLOCK_DIVISOR: FTs = 16;
@@ -113,6 +117,8 @@ pub trait AyAudioFrame<B: Blep> {
 ///
 /// For the implementation of I/O ports see [crate::peripherals::ay].
 #[derive(Default, Clone, Debug)]
+#[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]
 pub struct Ay3_891xAudio {
     current_ts: FTs,
     last_levels: [u8; 3],
@@ -125,6 +131,7 @@ pub struct Ay3_891xAudio {
 
 /// A type for AY-3-891x amplitude level register values.
 #[derive(Default, Clone, Copy, Debug)]
+#[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 struct AmpLevel(pub u8);
 
 impl AmpLevel {
@@ -144,6 +151,7 @@ impl AmpLevel {
 
 /// A type for AY-3-891x mixer controller register values.
 #[derive(Default, Clone, Copy, Debug)]
+#[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 struct Mixer(pub u8);
 
 impl Mixer {
@@ -173,6 +181,7 @@ const ENV_CYCLE_MASK:        u8 = 0xF0;
 
 /// A type implementing AY-3-891x volume envelope progression.
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 struct EnvelopeControl {
     period: u16,
     tick: u16,
@@ -263,6 +272,7 @@ const NOISE_PERIOD_MASK: u8 = 0x1F;
 
 /// A type implementing AY-3-891x noise progression.
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 struct NoiseControl {
     rng: i32,
     period: u8,
@@ -310,6 +320,7 @@ const TONE_PERIOD_MASK: u16 = 0xFFF;
 
 /// A type implementing AY-3-891x tone progression.
 #[derive(Default, Clone, Copy, Debug)]
+#[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 struct ToneControl {
     period: u16,
     tick: u16,

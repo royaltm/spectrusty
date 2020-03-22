@@ -6,6 +6,9 @@ use core::fmt;
 use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
 
+#[cfg(feature = "snapshot")]
+use serde::{Serialize, Deserialize};
+
 use super::ay::PassByAyAudioBusDevice;
 use crate::bus::{BusDevice, NullDevice, PortAddress};
 use crate::clock::VideoTs;
@@ -28,12 +31,17 @@ impl<D> fmt::Display for KempstonMouse<D> {
 }
 /// A mouse controller, providing a [BusDevice] implementation that can be used with [mouse devices][MouseDevice].
 #[derive(Clone, Default, Debug)]
+#[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 pub struct MouseBusDevice<T, P, M, D=NullDevice<T>> {
     /// A [MouseDevice] implementation, which may also implement [MouseInterface] trait
     /// for providing user input.
+    #[cfg_attr(feature = "snapshot", serde(default))]
     pub mouse: M,
+    #[cfg_attr(feature = "snapshot", serde(default))]
     bus: D,
+    #[cfg_attr(feature = "snapshot", serde(skip))]
     _port_decode: PhantomData<P>,
+    #[cfg_attr(feature = "snapshot", serde(skip))]
     _ts: PhantomData<T>
 }
 

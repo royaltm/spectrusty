@@ -4,6 +4,9 @@ use core::fmt::Debug;
 use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
 
+#[cfg(feature = "snapshot")]
+use serde::{Serialize, Deserialize};
+
 #[allow(unused_imports)]
 use log::{error, warn, info, debug, trace};
 
@@ -12,8 +15,11 @@ use super::ay::PassByAyAudioBusDevice;
 
 /// A passthrough [BusDevice] that outputs I/O data read and written by CPU using [log] `debug`.
 #[derive(Clone, Default, Debug)]
+#[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 pub struct DebugBusDevice<T, D> {
+    #[cfg_attr(feature = "snapshot", serde(default))]
     bus: D,
+    #[cfg_attr(feature = "snapshot", serde(skip))]
     _ts: PhantomData<T>
 }
 

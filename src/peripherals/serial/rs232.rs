@@ -3,6 +3,8 @@ use core::marker::PhantomData;
 use core::slice;
 use std::io::{Read, Write, ErrorKind};
 
+#[cfg(feature = "snapshot")]
+use serde::{Serialize, Deserialize};
 #[allow(unused_imports)]
 use log::{error, warn, info, debug, trace};
 
@@ -39,6 +41,8 @@ use crate::chip::ula::CPU_HZ;
 /// The [Read] and [Write] implementation methods must not return any error other than [ErrorKind::Interrupted].
 /// If any other error is returned the [SerialPortDevice] implementation will panic.
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]
 pub struct Rs232Io<V, R, W> {
     /// A reader providing data received by Spectrum.
     pub reader: R,
@@ -51,6 +55,7 @@ pub struct Rs232Io<V, R, W> {
     write_io: WriteStatus,
     write_max_delay: u32,
     write_event_ts: VideoTs,
+    #[cfg_attr(feature = "snapshot", serde(skip))]
     _video_frame: PhantomData<V>
 }
 
@@ -113,6 +118,7 @@ impl<V: VideoFrame, R: Read, W: Write> SerialPortDevice for Rs232Io<V, R, W> {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 enum WriteStatus {
     Idle(ControlState),
     StartBit,
@@ -122,6 +128,7 @@ enum WriteStatus {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 enum ReadStatus {
     NotReady,
     StartBit(u8),

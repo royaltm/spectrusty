@@ -9,6 +9,9 @@ use core::slice;
 use std::io::{self, Read, Write};
 use std::vec;
 
+#[cfg(feature = "snapshot")] mod serde;
+#[cfg(feature = "snapshot")]
+use ::serde::{Serialize, Deserialize};
 use bitvec::prelude::*;
 
 use crate::clock::{FTs, VideoTs};
@@ -90,6 +93,7 @@ pub(crate) const SECTOR_MAP_SIZE: usize = (MAX_SECTORS + 31)/32;
 
 /// This struct represents a single [MicroCartridge] tape sector.
 #[derive(Clone, Copy)]
+#[repr(C, packed)]
 pub struct Sector {
     /// Header data.
     pub head: [u8;HEAD_SIZE],
@@ -102,6 +106,8 @@ pub struct Sector {
 /// It consist of up to [MAX_SECTORS] [Sector]s. Instances of this struct can be "inserted" into one
 /// of 8 [ZXMicrodrives]'s emulator drives.
 #[derive(Clone)]
+#[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]
 pub struct MicroCartridge {
     sectors: Box<[Sector]>,
     sector_map: [u32;SECTOR_MAP_SIZE],
@@ -114,6 +120,8 @@ pub struct MicroCartridge {
 ///
 /// Used by [ZX Interface 1][crate::bus::zxinterface1::ZxInterface1BusDevice] emulator.
 #[derive(Clone, Default, Debug)]
+#[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]
 pub struct ZXMicrodrives<V> {
     drives: [Option<MicroCartridge>;MAX_DRIVES],
     write: bool,
@@ -121,6 +129,7 @@ pub struct ZXMicrodrives<V> {
     comms_clk: bool,
     motor_on_drive: Option<NonZeroU8>,
     last_ts: VideoTs,
+    #[cfg_attr(feature = "snapshot", serde(skip))]
     _video_frame: PhantomData<V>
 }
 
@@ -132,6 +141,7 @@ pub(crate) struct CartridgeState {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 enum SecPosition {
     Preamble1(u16),
     Header(u16),
@@ -142,6 +152,7 @@ enum SecPosition {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 struct TapeCursor {
     cursor: u32,
     sector: u8,

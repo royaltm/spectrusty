@@ -48,9 +48,12 @@ the lowest written bit is *rxdata*.
 !*/
 use core::num::NonZeroU16;
 use core::fmt;
-use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
 use std::io;
+
+#[cfg(feature = "snapshot")]
+use serde::{Serialize, Deserialize};
+
 use crate::clock::{VFrameTsCounter, VideoTs, FTs};
 use crate::bus::{BusDevice, NullDevice, PortAddress};
 use crate::memory::ZxMemory;
@@ -74,21 +77,28 @@ impl<V, R, W, D> fmt::Display for ZxInterface1BusDevice<V, R, W, D> {
 /// [Rs232Io]'s [io::Read] as `R` and [io::Write] as `W` implementations are needed to complete this type.
 /// [ZxNetSocket] implmentation is needed as `N` for the underlying [ZxNet].
 #[derive(Default, Debug)]
+#[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]
 pub struct ZxInterface1BusDevice<V, R, W, N, D=NullDevice<VideoTs>>
 {
     /// A direct access to the **Microdrives**.
+    #[cfg_attr(feature = "snapshot", serde(default))]
     pub microdrives: ZXMicrodrives<V>,
     /// A direct access to the **RS-232** implementation.
+    #[cfg_attr(feature = "snapshot", serde(default))]
     pub serial: Rs232Io<V, R, W>,
     /// A direct access to the **ZX NET** implementation.
+    #[cfg_attr(feature = "snapshot", serde(skip))]
     pub network: ZxNet<V, N>,
     sernet: If1SerNetIo,
     ctrl_in: If1ControlIn,
     ctrl_out: If1ControlOut,
+    #[cfg_attr(feature = "snapshot", serde(default))]
     bus: D
 }
 
 bitflags! {
+    #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
     struct If1SerNetIo: u8 {
         const RXD     = 0b0000_0001;
         const TXD     = 0b1000_0000;
@@ -98,6 +108,7 @@ bitflags! {
 }
 
 bitflags! {
+    #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
     struct If1ControlIn: u8 {
         const MD_MASK  = 0b0000_0111;
         const MD_PROT  = 0b0000_0001;
@@ -110,6 +121,7 @@ bitflags! {
 }
 
 bitflags! {
+    #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
     struct If1ControlOut: u8 {
         const MD_MASK   = 0b0000_1111;
         const COMMS_OUT = 0b0000_0001;

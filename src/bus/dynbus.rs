@@ -2,8 +2,10 @@ use core::num::NonZeroU16;
 use core::any::{TypeId, Any};
 use core::fmt::{Display, Debug};
 use core::iter::IntoIterator;
-use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut, Index, IndexMut};
+
+#[cfg(feature = "snapshot")]
+use serde::{Serialize, Deserialize};
 
 use crate::clock::VideoTs;
 use crate::memory::ZxMemory;
@@ -15,7 +17,7 @@ use super::{BusDevice, NullDevice};
 /// Implemented for all types that implement dependent traits.
 pub trait NamedBusDevice<T: Debug>: Display + BusDevice<Timestamp=T, NextDevice=NullDevice<T>>{}
 
-impl<T: Debug, D> NamedBusDevice<T> for D where D: Display + BusDevice<Timestamp=T, NextDevice=NullDevice<T>> {}
+impl<T: Debug, D> NamedBusDevice<T> for D where D: Display + BusDevice<Timestamp=T, NextDevice=NullDevice<T>>{}
 
 /// A type of a dynamic [NamedBusDevice] with a constraint on a timestamp type.
 pub type LinkedDynDevice<D> = dyn NamedBusDevice<<D as BusDevice>::Timestamp>;
@@ -36,8 +38,11 @@ pub type BoxLinkedDynDevice<D> = Box<dyn NamedBusDevice<<D as BusDevice>::Timest
 /// Currently only types implementing [BusDevice] terminated with [NullDevice] can be appended as
 /// dynamically dispatched objects.
 #[derive(Default, Debug)]
+#[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 pub struct DynamicBusDevice<D: BusDevice=NullDevice<VideoTs>> {
+    #[cfg_attr(feature = "snapshot", serde(skip))]
     devices: Vec<BoxLinkedDynDevice<D>>,
+    #[cfg_attr(feature = "snapshot", serde(default))]
     bus: D
 }
 

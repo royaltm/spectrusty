@@ -1,5 +1,9 @@
 use core::iter::StepBy;
 use core::ops::Range;
+
+#[cfg(feature = "snapshot")]
+use serde::{Serialize, Deserialize};
+
 use crate::memory::ZxMemory;
 use crate::clock::{VFrameTsCounter, MemoryContention, VideoTs, Ts, VideoTsData3};
 use crate::chip::ula::{Ula, UlaMemoryContention,
@@ -9,6 +13,7 @@ use crate::video::{Renderer, BorderSize, PixelBuffer, VideoFrame, Video, MAX_BOR
 use super::{Ula128, frame_cache::Ula128FrameProducer};
 
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
+#[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 pub struct Ula128VidFrame;
 
 #[derive(Clone, Copy, Default, Debug, PartialEq)]

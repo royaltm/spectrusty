@@ -5,6 +5,9 @@ use core::num::Wrapping;
 use z80emu::{Cpu, Clock, Io, Memory, CpuDebug, CpuDebugFn, BreakCause, opconsts, host::{
         TsCounter, Result, cycles::M1_CYCLE_TS
     }};
+#[cfg(feature = "snapshot")]
+use serde::{Serialize, Deserialize};
+
 use crate::audio::*;
 use crate::audio::sample::SampleDelta;
 use crate::audio::ay::*;
@@ -15,18 +18,22 @@ use crate::bus::{BusDevice, NullDevice};
 use crate::chip::{ControlUnit, nanos_from_frame_tc_cpu_hz, HostConfig128k, HostConfig};
 
 #[derive(Clone)]
+#[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]
 pub struct AyPlayer<P> {
     pub frames: Wrapping<u64>,
     pub tsc: TsCounter<FTs>,
     pub memory: Memory64k,
     pub ay_sound: Ay3_891xAudio,
     pub ay_io: Ay3_8913Io<FTs>,
+    #[cfg_attr(feature = "snapshot", serde(skip))]
     pub earmic_changes: Vec<FTsData2>,
     pub last_earmic: u8,
     pub prev_earmic: u8,
         cpu_rate: u32,
         frame_tstates: FTs,
         bus: NullDevice<FTs>,
+    #[cfg_attr(feature = "snapshot", serde(skip))]
         _port_decode: PhantomData<P>
 }
 

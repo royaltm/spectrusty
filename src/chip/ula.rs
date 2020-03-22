@@ -5,12 +5,13 @@ mod video;
 
 use core::ops::{Deref, DerefMut};
 use core::num::Wrapping;
-use core::marker::PhantomData;
 
 #[allow(unused_imports)]
 use log::{error, warn, info, debug, trace};
 
 use z80emu::{*, host::{Result, cycles::M1_CYCLE_TS}};
+#[cfg(feature = "snapshot")]
+use serde::{Serialize, Deserialize};
 
 use crate::audio::{AudioFrame, EarIn, MicOut, Blep, EarInAudioFrame, EarMicOutAudioFrame, ay::AyAudioFrame};
 use crate::bus::BusDevice;
@@ -59,6 +60,8 @@ impl<B: Blep, U> UlaAudioFrame<B> for U
 
 /// ZX Spectrum 16k/48k ULA.
 #[derive(Clone)]
+#[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]
 pub struct Ula<M, B, X=NoMemoryExtension, V=UlaVideoFrame> {
     pub(super) frames: Wrapping<u64>, // frame counter
     pub(super) tsc: VideoTs, // current T-state timestamp
@@ -66,13 +69,17 @@ pub struct Ula<M, B, X=NoMemoryExtension, V=UlaVideoFrame> {
     pub(super) bus: B,
     pub(super) memext: X,
     // keyboard
+    #[cfg_attr(feature = "snapshot", serde(skip))]
     keyboard: ZXKeyboardMap,
     // video related
+    #[cfg_attr(feature = "snapshot", serde(skip))]
     pub(super) frame_cache: UlaFrameCache<V>,
+    #[cfg_attr(feature = "snapshot", serde(skip))]
     border_out_changes: Vec<VideoTsData3>, // frame timestamp with packed border on 3 bits
+    #[cfg_attr(feature = "snapshot", serde(skip))]
     earmic_out_changes: Vec<VideoTsData2>, // frame timestamp with packed earmic on 2 bits
+    #[cfg_attr(feature = "snapshot", serde(skip))]
     ear_in_changes: Vec<VideoTsData1>,  // frame timestamp with packed earin on 1 bit
-    // read_ear: MaybeReadEar,
     border: u8, // video frame start border color
     last_border: u8, // last recorded change
     // audio related
@@ -82,12 +89,11 @@ pub struct Ula<M, B, X=NoMemoryExtension, V=UlaVideoFrame> {
     prev_earmic_ts: FTs, // prev recorded change timestamp
     prev_earmic_data: u8, // prev recorded change data
     last_earmic_data: u8, // last recorded change data
-    _vframe: PhantomData<V>
 }
 
 impl<M, B, X, V> Default for Ula<M, B, X, V>
 where M: Default,
-      B: Default, V: VideoFrame,
+      B: Default,
       X: Default
 {
     fn default() -> Self {
@@ -114,7 +120,6 @@ where M: Default,
             last_earmic_data: 0,
             // keyboard
             keyboard: ZXKeyboardMap::empty(),
-            _vframe: PhantomData
         }
     }
 }
@@ -455,7 +460,7 @@ pub fn execute_halted_state_until_eof<V: VideoFrame,
 
 #[cfg(test)]
 mod tests {
-    use core::convert::TryInto;
+    use core::convert::TryFrom;
     use z80emu::opconsts::HALT_OPCODE;
     use crate::bus::NullDevice;
     use crate::memory::Memory64k;
@@ -468,7 +473,7 @@ mod tests {
         assert_eq!(<TestUla as Video>::VideoFrame::FRAME_TSTATES_COUNT, 69888);
         assert_eq!(ula.cpu_clock_rate(), CPU_HZ);
         assert_eq!(ula.cpu_clock_rate(), 3_500_000);
-        assert_eq!(ula.frame_duration_nanos(), (69888u64 * 1_000_000_000 / 3_500_000).try_into().unwrap());
+        assert_eq!(ula.frame_duration_nanos(), u32::try_from(69888u64 * 1_000_000_000 / 3_500_000).unwrap());
     }
 
     fn test_ula_contended_halt(addr: u16, vc: Ts, hc: Ts) {
