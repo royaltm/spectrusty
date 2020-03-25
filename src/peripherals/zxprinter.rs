@@ -1,4 +1,4 @@
-//! The emulation of the family of printers: **ZX Printer** / **Alphacom 32** / **Timex TS2040**.
+//! An emulator of the family of printers: **ZX Printer** / **Alphacom 32** / **Timex TS2040**.
 //!
 //! **ZX Printer** is an extremely compact, 32 column printer which uses an aluminium coated paper.
 //! The printed image is being burned onto the surface of the paper by two metal pins which travel

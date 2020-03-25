@@ -9,8 +9,7 @@ use zxspecemu::audio::carousel::*;
 use zxspecemu::audio::sample::*;
 use zxspecemu::audio::*;
 use zxspecemu::audio::synth::*;
-use zxspecemu::formats::ear_mic::*;
-use zxspecemu::formats::tap::*;
+use zxspecemu::formats::tap::{*, pulse::*};
 /****************************************************************************/
 /*                                   MAIN                                   */
 /****************************************************************************/
@@ -34,8 +33,8 @@ where i16: IntoSample<T>
     // let mut delta: f32 = 1.0;
     // create TapChunkReader
     let mut tap_reader = read_tap(read);
-    // create EarPulseIter from a cursor from a vector
-    let mut tap_pulse_iter = EarPulseIter::new(Cursor::new(Vec::new()));
+    // create ReadEncPulseIter from a cursor from a vector
+    let mut tap_pulse_iter = ReadEncPulseIter::new(Cursor::new(Vec::new()));
     let mut done = false;
     // render frames
     while !done {
@@ -43,7 +42,7 @@ where i16: IntoSample<T>
         while tstamp < FRAME_TSTATES {
             bandlim.add_step(0, tstamp, delta);
             delta = -delta;
-            // EarPulseIter yields delta timestamps (in T-states) between pulses
+            // ReadEncPulseIter yields delta timestamps (in T-states) between pulses
             match tap_pulse_iter.next() {
                 Some(delta) => {
                     tstamp += delta.get() as i32;

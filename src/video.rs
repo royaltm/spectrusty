@@ -1,4 +1,4 @@
-//! ZX Spectrum video interface
+//! # Video API
 mod color;
 pub mod frame_cache;
 mod pixel_buffer;
@@ -20,6 +20,7 @@ pub const PAL_HC: u32 = 704/2;
 /// Maximum border size measured in low resolution pixels.
 pub const MAX_BORDER_SIZE: u32 = 6*8;
 
+/// An enum used to select border size when rendering video frames.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum BorderSize {
@@ -35,31 +36,58 @@ pub enum BorderSize {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct BorderSizeTryFromError(pub u8);
 
+/// An interface for renderering Spectrum's pixel data to frame buffers.
 pub trait Video {
+    /// The [VideoFrame] implementation used by the chipset emulator.
     type VideoFrame: VideoFrame;
-    /// Get the current border area color number 0..7.
+    /// Returns the current border color number [0, 7].
     fn border_color(&self) -> u8;
-    /// Sets the border area to the given color number 0..7.
+    /// Force sets the border area to the given color number [0, 7].
     fn set_border_color(&mut self, border: u8);
-    /// This should be called after emulating each frame.
+    /// Renders last emulated frame's video data into the provided frame `buffer`.
+    ///
+    /// * `pitch` is the number of bytes in a single row of pixel data, including padding between lines.
+    /// * `border_size` determines the size of border rendered around the INK and PAPER area.
+    ///
+    /// Note that different [BorderSize]s will result in a different size of the rendered buffer area.
+    ///
+    /// To predetermine the resolution of the rendered buffer area use [VideoFrame::screen_size_pixels].
+    ///
+    /// The `PixelBuffer` implementation is used to write pixels into buffer data.
     fn render_video_frame<B: PixelBuffer>(&mut self, buffer: &mut [u8], pitch: usize, border_size: BorderSize);
 }
-
-/// A collection of static and methods and tools raleted to video parameters.
+/// A collection of static methods and constants raleted to video parameters.
+/// ```text
+///                               - 0
+///     +-------------------------+ VSL_BORDER_TOP
+///     |                         |
+///     |  +-------------------+  | -
+///     |  |                   |  | |
+///     |  |                   |  |  
+///     |  |                   |  | VSL_PIXELS
+///     |  |                   |  |  
+///     |  |                   |  | |
+///     |  +-------------------+  | -
+///     |                         |
+///     +-------------------------+ VSL_BORDER_BOT
+///                               - VSL_COUNT
+/// |----- 0 -- HTS_RANGE ---------|
+/// |           HTS_COUNT          |
+/// ```
 pub trait VideoFrame: Copy + Debug {
     /// A range of horizontal T-states, 0 should be where the frame starts.
     const HTS_RANGE: Range<Ts>;
-    /// Number of horizontal T-states.
+    /// The number of horizontal T-states.
     const HTS_COUNT: Ts = Self::HTS_RANGE.end - Self::HTS_RANGE.start;
     /// The first video scan line index of the top border.
     const VSL_BORDER_TOP: Ts;
-    /// A range of video scan line indexes for the pixel area.
+    /// A range of video scan line indexes for the INK and PAPER area.
     const VSL_PIXELS: Range<Ts>;
     /// The last video scan line index of the bottom border.
     const VSL_BORDER_BOT: Ts;
-    /// A total number of video scan lines.
+    /// The total number of video scan lines including the beam retrace.
     const VSL_COUNT: Ts;
-    /// Total number of T-states per frame.
+    /// The total number of T-states per frame.
     const FRAME_TSTATES_COUNT: FTs = Self::HTS_COUNT as FTs * Self::VSL_COUNT as FTs;
     /// A rendered screen border size in pixels depending on the border size selection.
     fn border_size_pixels(border_size: BorderSize) -> u32 {
@@ -90,7 +118,7 @@ pub trait VideoFrame: Copy + Debug {
         Self::VSL_PIXELS.end..(Self::VSL_PIXELS.end + border)
     }
 
-    /// Used for border rendering.
+    /// Used for rendering border.
     type HtsIter: Iterator<Item=Ts>;
     /// An iterator of border latch horizontal T-states.
     fn border_whole_line_hts_iter(border_size: BorderSize) -> Self::HtsIter;
@@ -99,7 +127,7 @@ pub trait VideoFrame: Copy + Debug {
     /// An iterator of right border latch horizontal T-states.
     fn border_right_hts_iter(border_size: BorderSize) -> Self::HtsIter;
 
-    /// Cycle contention while rendering ink+paper lines.
+    /// T-state contention while rendering ink+paper lines.
     fn contention(hc: Ts) -> Ts;
     /// Returns an optional floating bus horizontal offset for the given timestamp.
     fn floating_bus_offset(vts: VideoTs) -> Option<u16>;

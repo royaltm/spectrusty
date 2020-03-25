@@ -1137,7 +1137,7 @@ mod tests {
         assert_eq!(mdr.file_info("weekdays").unwrap().unwrap(),
                 CatFile { size: 9+26, blocks: 1, copies: 1, file_type: CatFileType::File(BlockType::CharArray)});
         let tap_data = io::Cursor::new(Vec::new());
-        let mut writer = tap::write_tap(tap_data);
+        let mut writer = tap::write_tap(tap_data).unwrap();
         assert_eq!(mdr.file_to_tap_writer("HelloWorld", &mut writer).unwrap(), true);
         assert_eq!(mdr.file_to_tap_writer("a(10)", &mut writer).unwrap(), true);
         assert_eq!(mdr.file_to_tap_writer("weekdays", &mut writer).unwrap(), true);

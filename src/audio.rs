@@ -1,5 +1,4 @@
-/*!
-# Audio API
+/*! # Audio API
 ```text
                      /---- ensure_audio_frame_time ----\
   +----------------------+                         +--------+
@@ -42,37 +41,77 @@ use crate::video::VideoFrame;
 pub use sample::{SampleDelta, MulNorm, FromSample};
 pub use crate::clock::FTs;
 
-/// A trait for interfacing Bandwidth-Limited Pulse Buffer implementations by audio generators.
+/// A trait for interfacing Bandwidth-Limited Pulse Buffer implementations by square-wave audio generators.
 ///
-/// The digitalization of square-waveish sound is being performed via this interface.
+/// The perfect square wave can be represented as an infinite sum of sinusoidal waves. The problem is
+/// that the frequency of those waves tends to infinity. The digitalization of sound is limited by the
+/// finite sample frequency and the maximum frequency that can be sampled is called the [Nyquist frequency].
+///
+/// When sampling of square wave is naivly implemented it produces a perceptible, unpleasant aliasing noise.
+///
+/// Square waves that sounds "clear" should be constructed from a limited number of sinusoidal waves,
+/// but the computation of such wave could be costly.
+///
+/// However thanks to the [Hard Sync] technique it is not necessary. Instead a precomputed pattern is being
+/// applied to each "pulse step". The implementation of this is called the Bandwidth-Limited Pulse Buffer
+/// in short `Blimp` or `Blep`.
+///
+/// The audio stream is being produced in frames by the `Blep` implementation. First the pulse steps are
+/// being added, then the frame is being finalized and after that the audio samples can be generated from
+/// the collected pulses.
+///
+/// The way audio samples are being generated is left to the `Blep` implementation. This trait
+/// only defines an interface for adding pulse steps and finilizing frames.
+///
+/// [Nyquist frequency]: https://en.wikipedia.org/wiki/Nyquist_frequency
+/// [Hard Sync]: https://www.cs.cmu.edu/~eli/papers/icmc01-hardsync.pdf
 pub trait Blep {
     /// A type for sample ∆ amplitudes (pulse height).
     type SampleDelta: SampleDelta;
-    /// Calculates a time rate and ensures that the `Blep` implementation has enough memory reserved
-    /// for the whole audio frame with an additional margin.
+    /// This method allows the `Blep` implementation to reserve enough memory for the audio 
+    /// frame with an additional margin and to set up a sample time rate and other internals.
     ///
-    /// There should be no need to call this method again unless any of the provided parameters changes.
+    /// This method shloud not be called again unless any of the provided parameters changes.
     ///
-    /// * `sample_rate` is a number of audio samples per second.
-    /// * `ts_rate` is a number of units per second which are being used as time units.
-    /// * `frame_ts` is the duration of a single frame measured in time units.
-    /// * `margin_ts` specifies a required margin in time units for frame duration fluctuations.
+    /// * `sample_rate` is a number of output audio samples per second.
+    /// * `ts_rate` is a number of time units per second which are being used as input time stamps.
+    /// * `frame_ts` is a duration of a single frame measured in time units specified with `ts_rate`.
+    /// * `margin_ts` specifies a largest required margin in time units for frame duration fluctuations.
+    ///
+    /// Each frame's duration may fluctuate randomly as long as it's not constantly growing nor shrinking
+    /// and on average equals to `frame_ts`.
+    ///
+    /// Specifically `frame_ts` + `margin_ts` - `frame start` specifies the largest value of a time stamp
+    /// that can be passed to [Blep::add_step] or [Blep::end_frame].
+    /// `frame_ts` - `margin_ts` - `frame start` specifies the smallest value of a time stamp
+    /// that can be passed to [Blep::end_frame].
+    ///
+    /// The smallest possible time stamp value that can be passed to [Blep::add_step] is a `frame start`
+    /// time stamp. It starts at 0 after calling this method and is modified by the `timestamp` value passed
+    /// to the last [Blep::end_frame] to `timestamp` - `frame_ts`. In other words, the next frame starts
+    /// when the previous ends minus frame duration.
     fn ensure_frame_time(&mut self, sample_rate: u32, ts_rate: u32, frame_ts: FTs, margin_ts: FTs);
+    /// This method is being used to add square-wave pulse steps within a boundary of a single frame.
+    ///
+    //  * `channel` specifies an output audio channel.
+    /// * `timestamp` specifies the time stamp of the pulse.
+    /// * `delta` specifies the pulse height (∆ amplitude).
+    ///
+    /// The implementation may panic if `timestamp` boundary limits are not uphold.
+    fn add_step(&mut self, channel: usize, timestamp: FTs, delta: Self::SampleDelta);
     /// Finalizes audio frame.
     ///
-    /// `timestamp` (measured in time units defined with [Blep::ensure_frame_time]) when the frame should
-    /// be finalized.
+    /// Some frames can end little late or earlier and this method should allow for such a flexibility.
     ///
-    /// Returns the number of samples, single channel wise, ready to be rendered.
+    /// `timestamp` specifies when the frame should be finalized marking the timestamp of the next frame.
     ///
-    /// The caller must ensure that no pulse should be generated within the finalized frame past
-    /// `timestamp` given here.
+    /// Returns the number of samples that will be produced, single channel wise.
+    ///
+    /// The caller must ensure that no pulse step should be generated with a time stamp past `timstamp`
+    /// given here.
+    ///
     /// The implementation may panic if this requirement is not uphold.
     fn end_frame(&mut self, timestamp: FTs) -> usize;
-    /// This method is being used to generate square-wave pulses within a single frame.
-    ///
-    /// `timestamp` is the time of the pulse measured in time units, `delta` is the pulse height (∆ amplitude).
-    fn add_step(&mut self, channel: usize, timestamp: FTs, delta: Self::SampleDelta);
 }
 
 /// A wrapper [Blep] implementation that filters pulses' ∆ amplitude before sending them to the
@@ -171,7 +210,7 @@ pub trait EarInAudioFrame<B: Blep> {
 pub trait MicOut<'a> {
     type PulseIter: Iterator<Item=NonZeroU32> + 'a;
     /// Returns a frame buffered mic output as a pulse iterator.
-    fn mic_out_iter_pulses(&'a self) -> Self::PulseIter;
+    fn mic_out_pulse_iter(&'a self) -> Self::PulseIter;
 }
 
 /// A trait for feeding EAR input.
@@ -183,11 +222,11 @@ pub trait EarIn {
     /// The provided iterator should yield time intervals measured in T-state ∆ differences after which the state
     /// of the `EAR in` bit should be toggled.
     ///
-    /// See also [ear_mic][crate::formats::ear_mic].
+    /// See also [tap::pulse][crate::formats::tap::pulse].
     ///
     /// `max_frames_threshold` may be optionally provided as a number of frames to limit the buffered changes.
     /// This is usefull if the given iterator provides data largely exceeding the duration of a single frame.
-    fn feed_ear_in<I: Iterator<Item=NonZeroU32>>(&mut self, fts_deltas: &mut I, max_frames_threshold: Option<usize>);
+    fn feed_ear_in<I: Iterator<Item=NonZeroU32>>(&mut self, fts_deltas: I, max_frames_threshold: Option<usize>);
     /// Removes all buffered so far `EAR in` changes.
     ///
     /// Changes are usually consumed only when a call is made to [crate::chip::ControlUnit::ensure_next_frame].

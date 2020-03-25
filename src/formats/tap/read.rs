@@ -2,7 +2,7 @@ use core::slice;
 use core::num::NonZeroU32;
 use core::convert::TryFrom;
 use std::io::{ErrorKind, Error, Read, Seek, SeekFrom, Result, Take};
-use crate::formats::ear_mic::{EarPulseIter, consts::PAUSE_PULSE_LENGTH};
+use super::pulse::{ReadEncPulseIter, consts::PAUSE_PULSE_LENGTH};
 use super::{Header, TapChunkInfo, HEAD_BLOCK_FLAG, DATA_BLOCK_FLAG, HEADER_SIZE, checksum, try_checksum};
 
 /// Implements a [Reader][Read] of *TAP* chunks data.
@@ -10,24 +10,32 @@ use super::{Header, TapChunkInfo, HEAD_BLOCK_FLAG, DATA_BLOCK_FLAG, HEADER_SIZE,
 /// Implements reader that reads only up to the size of the current *TAP* chunk.
 #[derive(Debug)]
 pub struct TapChunkReader<R> {
-    /// Checksum is being updated during [Read] methods for [TapChunkReader].
+    /// Checksum is being updated when reading via [Read] methods from a [TapChunkReader].
     pub checksum: u8,
     next_pos: u64,
     chunk_index: u32,
     inner: Take<R>,
 }
 
-/// Implements an iterator of [TapChunkInfo] over the [TapChunkReader].
+/// Implements an iterator of [TapChunkInfo] instances from the [TapChunkReader].
 #[derive(Debug)]
 pub struct TapReadInfoIter<'a, R> {
     inner: &'a mut TapChunkReader<R>,
 }
 
 /// Implements an iterator of T-state pulse intervals over the [TapChunkReader].
-/// See also: [EarPulseIter].
+/// See also: [ReadEncPulseIter].
 #[derive(Debug)]
-pub struct TapEarPulseIter<R> {
-    ep_iter: EarPulseIter<TapChunkReader<R>>
+pub struct TapChunkPulseIter<R> {
+    /// Determines if a next chunk should be processed after the previous one ends.
+    ///
+    /// If `false` to start iterating over pulses of the next chunk a [TapChunkPulseIter::next_chunk]
+    /// method should be called first. Until then the [Iterator::next] will return `None`.
+    ///
+    /// If `true` the next chunk will be processed automatically and a single pulse of interval of
+    /// [PAUSE_PULSE_LENGTH] T-states is emitted before lead pulses of the next chunk.
+    pub auto_next: bool,
+    ep_iter: ReadEncPulseIter<TapChunkReader<R>>
 }
 
 impl<R: Read> TryFrom<&'_ mut Take<R>> for TapChunkInfo {
@@ -106,14 +114,14 @@ impl<R: Read> TapChunkReader<R> {
 }
 
 impl<R: Read + Seek> TapChunkReader<R> {
-    /// Forwards the inner reader to the position of a next *TAP* chunk.
+    /// Forwards the inner reader to the position of the next *TAP* chunk.
     ///
     /// Returns `Ok(None)` if end of file has been reached.
     ///
     /// On success returns `Ok(size)` in bytes of the next *TAP* chunk
     /// and limits the inner [Take] reader to that size.
     ///
-    /// Clears [TapChunkReader.checksum].
+    /// Clears [TapChunkReader::checksum].
     pub fn next_chunk(&mut self) -> Result<Option<u16>> {
         let rd = self.inner.get_mut();
         if self.next_pos != rd.seek(SeekFrom::Start(self.next_pos))? {
@@ -217,65 +225,82 @@ impl<'a, R: Read + Seek> Iterator for TapReadInfoIter<'a, R> {
     }
 }
 
-impl<R: Read + Seek> From<TapChunkReader<R>> for TapEarPulseIter<R> {
+impl<R: Read + Seek> From<TapChunkReader<R>> for TapChunkPulseIter<R> {
     fn from(rd: TapChunkReader<R>) -> Self {
-        TapEarPulseIter::from(EarPulseIter::new(rd))
+        TapChunkPulseIter::from(ReadEncPulseIter::new(rd))
     }
 }
 
-impl<R: Read + Seek> From<EarPulseIter<TapChunkReader<R>>> for TapEarPulseIter<R> {
-    fn from(ep_iter: EarPulseIter<TapChunkReader<R>>) -> Self {
-        TapEarPulseIter { ep_iter }        
+impl<R: Read + Seek> From<ReadEncPulseIter<TapChunkReader<R>>> for TapChunkPulseIter<R> {
+    fn from(ep_iter: ReadEncPulseIter<TapChunkReader<R>>) -> Self {
+        TapChunkPulseIter { auto_next: true, ep_iter }
     }
 }
 
-impl<R> TapEarPulseIter<R>
+impl<R> TapChunkPulseIter<R>
     where R: Read + Seek
 {
+    /// Returns the current chunk's number.
+    ///
+    /// The first chunk's number is 1. If this method returns 0 the cursor is before the first chunk.
     pub fn chunk_no(&self) -> u32 {
         self.ep_iter.get_ref().chunk_no()
     }
 
+    /// Invokes underlying [TapChunkReader::rewind] and [resets][ReadEncPulseIter::reset] the internal
+    /// pulse iterator. Returns the result from [TapChunkReader::rewind].
     pub fn rewind(&mut self) {
         self.ep_iter.get_mut().rewind();
         self.ep_iter.reset();
     }
 
+    /// Invokes underlying [TapChunkReader::next_chunk] and [resets][ReadEncPulseIter::reset] the internal
+    /// pulse iterator. Returns the result from [TapChunkReader::next_chunk].
     pub fn next_chunk(&mut self) -> Result<Option<u16>> {
         let res = self.ep_iter.get_mut().next_chunk()?;
         self.ep_iter.reset();
         Ok(res)
     }
 
+    /// Invokes underlying [TapChunkReader::skip_chunks] and [resets][ReadEncPulseIter::reset] the internal
+    /// pulse iterator. Returns the result from [TapChunkReader::skip_chunks].
     pub fn skip_chunks(&mut self, skip: usize) -> Result<Option<u16>> {
         let res = self.ep_iter.get_mut().skip_chunks(skip)?;
         self.ep_iter.reset();
         Ok(res)        
     }
-
+    /// Returns `true` if there are no more pulses to emit or there
+    /// was an error while reading bytes.
+    ///
+    /// If [TapChunkPulseIter::auto_next] is `false` returns `true` after processing each chunk.
+    /// Otherwise returns `true` after all chunks has been processed.
+    pub fn is_done(&self) -> bool {
+        self.ep_iter.is_done()
+    }
 }
 
-impl<R> TapEarPulseIter<R> {
-    pub fn into_inner(self) -> EarPulseIter<TapChunkReader<R>> {
+impl<R> TapChunkPulseIter<R> {
+    /// Returns the wrapped iterator.
+    pub fn into_inner(self) -> ReadEncPulseIter<TapChunkReader<R>> {
         self.ep_iter
     }
-
-    pub fn get_mut(&mut self) -> &mut EarPulseIter<TapChunkReader<R>> {
-        &mut self.ep_iter
-    }
-
-    pub fn get_ref(&self) -> &EarPulseIter<TapChunkReader<R>> {
+    /// Returns a reference to the iterator.
+    pub fn get_ref(&self) -> &ReadEncPulseIter<TapChunkReader<R>> {
         &self.ep_iter
+    }
+    /// Returns a mutable reference to the iterator.
+    pub fn get_mut(&mut self) -> &mut ReadEncPulseIter<TapChunkReader<R>> {
+        &mut self.ep_iter
     }
 }
 
-impl<R: Read + Seek> Iterator for TapEarPulseIter<R> {
+impl<R: Read + Seek> Iterator for TapChunkPulseIter<R> {
     type Item = NonZeroU32;
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.ep_iter.next() {
             pulse @ Some(_) => pulse,
-            None => {
+            None if self.auto_next => {
                 if self.ep_iter.err().is_some() ||
                         self.ep_iter.get_mut().next_chunk().is_err() {
                     return None;
@@ -288,6 +313,7 @@ impl<R: Read + Seek> Iterator for TapEarPulseIter<R> {
                     Some(PAUSE_PULSE_LENGTH)
                 }
             }
+            None => None
         }
     }
 }

@@ -1,4 +1,4 @@
-//! System bus related interfaces and device emulators to be used with [ControlUnit][crate::chip::ControlUnit]s.
+//! System bus device emulators to be used with [ControlUnit][crate::chip::ControlUnit]s.
 use core::num::NonZeroU16;
 use core::fmt::{self, Debug};
 use core::any::{TypeId, Any};
@@ -75,19 +75,18 @@ impl<T: Debug + 'static> dyn NamedBusDevice<T> + 'static {
     }
 }
 
-/// An interface for emulating communication between `CPU` and a system bus via [ControlUnit].
-///
-/// Emulators of devices that communicates via CPU I/O requests should implement this trait.
+/// An interface for emulating devices that communicate with the emulated `CPU` via I/O requests.
 ///
 /// This trait allows to attach many, different devices to form a so called "daisy chain".
 ///
-/// Implementations of bus devices should be provided as [ControlUnit::BusDevice] associated types.
+/// Implementations of of this trait should be provided as [ControlUnit::BusDevice] associated type.
 ///
 /// [ControlUnit]: crate::chip::ControlUnit
 /// [ControlUnit::BusDevice]: crate::chip::ControlUnit::BusDevice
 pub trait BusDevice: Debug {
-    /// A frame timestamp type. Must be the same as `Io::Timestamp` implemented by a [ControlUnit][crate::chip::ControlUnit]
-    /// and for all devices in a days chain.
+    /// A type used as a time stamp. Must be the same as [Io::Timestamp][z80emu::Io::Timestamp]
+    /// implemented by a [ControlUnit][crate::chip::ControlUnit] and for all the following devices
+    /// in a daisy chain.
     type Timestamp: Sized;
     /// A type of the next device in a daisy chain.
     type NextDevice: BusDevice<Timestamp=Self::Timestamp>;
@@ -114,10 +113,13 @@ pub trait BusDevice: Debug {
     fn update_timestamp(&mut self, timestamp: Self::Timestamp) {
         self.next_device_mut().update_timestamp(timestamp)
     }
-    /// This method should be called just before a clock of control unit is adjusted when preparing for the next frame.
+    /// This method should be called just before the T-state counter of the control unit is wrapped when preparing
+    /// for the next frame.
     ///
-    /// It allows the devices that are tracking time to adjust stored timestamps accordingly using the provided
-    /// end-of-frame `timestamp`, usually by subtracting it from the stored ones.
+    /// It allows the devices that are tracking time to adjust stored timestamps accordingly by subtracting the
+    /// total number of T-states per frame from the stored ones.
+    ///
+    /// Optionally enables implementations to perform an end-of-frame action using the provided `timestamp`.
     ///
     /// Default implementation forwards this call to the next device.
     ///

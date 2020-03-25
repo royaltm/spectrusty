@@ -10,7 +10,7 @@ use z80emu::{*, host::{Result, cycles::M1_CYCLE_TS}};
 use serde::{Serialize, Deserialize};
 
 use crate::audio::{AudioFrame};
-use crate::bus::BusDevice;
+use crate::bus::{BusDevice, NullDevice};
 use crate::chip::{ControlUnit, MemoryAccess, nanos_from_frame_tc_cpu_hz, ula::frame_cache::UlaFrameCache};
 use crate::video::VideoFrame;
 use crate::memory::{ZxMemory, Memory128k, MemoryExtension, NoMemoryExtension};
@@ -30,7 +30,7 @@ pub(self) type InnerUla<B, X> = Ula<Memory128k, B, X, Ula128VidFrame>;
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]
-pub struct Ula128<B, X=NoMemoryExtension> {
+pub struct Ula128<B=NullDevice<VideoTs>, X=NoMemoryExtension> {
     ula: InnerUla<B, X>,
     mem_page3_bank: u8,
     cur_screen_shadow: bool, // current shadow screen

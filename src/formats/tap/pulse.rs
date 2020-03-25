@@ -1,8 +1,8 @@
-//! **TAPE** EAR IN pulse signal feeder.
+//! **TAPE** pulse signal encoding and decoding.
 #![warn(unused_imports)]
 
-mod ear_in;
-mod mic_out;
+mod decoding;
+mod encoding;
 
 pub mod consts {
     use core::num::NonZeroU32;
@@ -25,8 +25,8 @@ pub mod consts {
     pub const LEAD_PULSES_DATA: u16 = 3223;
 }
 
-pub use ear_in::*;
-pub use mic_out::*;
+pub use decoding::*;
+pub use encoding::*;
 
 #[cfg(test)]
 mod tests {
@@ -35,12 +35,12 @@ mod tests {
     use crate::formats::tap::*;
 
     #[test]
-    fn mic_ear_works() -> Result<()> {
+    fn tap_pulse_works() -> Result<()> {
         let file = File::open("tests/read_tap_test.tap")?;
-        let mut pulse_iter = read_tap_ear_pulse_iter(file);
-        let mut tap_writer = write_tap(Cursor::new(Vec::new()));
+        let mut pulse_iter = read_tap_pulse_iter(file);
+        let mut tap_writer = write_tap(Cursor::new(Vec::new()))?;
         assert_eq!(5, tap_writer.write_pulses_as_tap_chunks(&mut pulse_iter)?);
-        assert_eq!(1, tap_writer.flush()?);
+        assert_eq!(1, tap_writer.end_pulse_chunk()?);
         let tgt: Vec<u8> = tap_writer.into_inner().into_inner().into_inner();
         let mut file: File = pulse_iter.into_inner().into_inner().into_inner();
         file.seek(SeekFrom::Start(0))?;

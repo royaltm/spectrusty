@@ -14,7 +14,7 @@ use z80emu::{*, host::{Result, cycles::M1_CYCLE_TS}};
 use serde::{Serialize, Deserialize};
 
 use crate::audio::{AudioFrame, EarIn, MicOut, Blep, EarInAudioFrame, EarMicOutAudioFrame, ay::AyAudioFrame};
-use crate::bus::BusDevice;
+use crate::bus::{BusDevice, NullDevice};
 use crate::chip::{ControlUnit, MemoryAccess, nanos_from_frame_tc_cpu_hz};
 use crate::video::{Video, VideoFrame};
 use crate::memory::{ZxMemory, MemoryExtension, NoMemoryExtension};
@@ -62,7 +62,7 @@ impl<B: Blep, U> UlaAudioFrame<B> for U
 #[derive(Clone)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]
-pub struct Ula<M, B, X=NoMemoryExtension, V=UlaVideoFrame> {
+pub struct Ula<M, B=NullDevice<VideoTs>, X=NoMemoryExtension, V=UlaVideoFrame> {
     pub(super) frames: Wrapping<u64>, // frame counter
     pub(super) tsc: VideoTs, // current T-state timestamp
     pub(super) memory: M,
@@ -465,7 +465,7 @@ mod tests {
     use crate::bus::NullDevice;
     use crate::memory::Memory64k;
     use super::*;
-    type TestUla = Ula::<Memory64k, NullDevice<VideoTs>>;
+    type TestUla = Ula::<Memory64k>;
 
     #[test]
     fn test_ula() {

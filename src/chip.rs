@@ -68,7 +68,8 @@ pub trait ControlUnit {
     ///
     /// Both [ControlUnit::execute_next_frame] and [ControlUnit::execute_single_step] invoke this method internally,
     /// so the only reason to call this method from the emulator program would be to make sure internal buffers are
-    /// clear before feeding the implementation with external data to be consumed by devices during the next frame.
+    /// clear before feeding the implementation with external data to be consumed by devices during the next frame
+    /// or to serialize the structure.
     fn ensure_next_frame(&mut self);
     /// Executes a single cpu instruction with the option to pass a debugging function.
     fn execute_single_step<C: Cpu,

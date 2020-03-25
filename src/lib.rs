@@ -1,3 +1,30 @@
+/*! # SPECTRUSTY
+```text
++-----------+------------------+-----------+------------+
+| component |       ULA        |    BUS    |    CPU     |
++-----------+------------------+-----------+------------+
+|   trait   |    UlaCommon     | BusDevice |    Cpu     |
+|           +------------------+-----------+------------+
+| interface |  UlaAudioFrame   | 
++-----------+------------------+
+```
+* [UlaCommon][chip::ula::UlaCommon] 
+* [UlaAudioFrame][chip::ula::UlaAudioFrame]
+* [BusDevice][chip::BusDevice]
+* [Cpu][z80emu::Cpu]
+
+## Implementations
+
+* [Ula][chip::ula::Ula]`<M, B, X, V>`
+* [Ula128][chip::ula128::Ula128]`<B, X>`
+
+### Generics
+
+* `B`: [BusDevice][chip::BusDevice]
+* `X`: [MemoryExtension][memory::MemoryExtension]
+* `M`: [ZxMemory][memory::ZxMemory]
+* `V`: [VideoFrame][video::VideoFrame]
+*/
 #![allow(dead_code)]
 #![allow(unused_imports)]
 

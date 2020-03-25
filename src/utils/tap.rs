@@ -4,8 +4,7 @@ use core::num::NonZeroU32;
 use std::fs::{OpenOptions, File};
 use std::io::{Read, Write, Result, Error, Seek, SeekFrom, ErrorKind};
 
-use crate::formats::tap::*;
-use crate::formats::ear_mic::*;
+use crate::formats::tap::{*, pulse::*};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum TapState {
@@ -15,7 +14,7 @@ enum TapState {
 }
 
 enum TapFile<F> {
-    Reader(TapEarPulseIter<F>),
+    Reader(TapChunkPulseIter<F>),
     Writer(TapChunkWriter<F>)
 }
 
@@ -37,7 +36,7 @@ impl TapFileCabinet {
     pub fn create_file<P: AsRef<Path>>(&mut self, name: P) -> Result<()> {
         let file = OpenOptions::new().create_new(true).read(true).write(true).open(name.as_ref())?;
         self.taps.push((
-            TapFile::Writer(TapChunkWriter::from(file)),
+            TapFile::Writer(TapChunkWriter::try_new(file)?),
             name.as_ref().to_path_buf()
         ));
         Ok(())
@@ -68,7 +67,7 @@ impl<F, S> TapCabinet<F, S>
 
     pub fn add(&mut self, file: F, meta: S) {
         self.taps.push((
-            TapFile::Reader(TapEarPulseIter::from(TapChunkReader::from(file))),
+            TapFile::Reader(TapChunkPulseIter::from(TapChunkReader::from(file))),
             meta
         ));
     }
@@ -274,7 +273,7 @@ impl<F, S> TapCabinet<F, S>
     }
 
     fn with_tap_reader<'a, C, B>(&'a mut self, f: C) -> Result<B>
-        where C: FnOnce(&'a mut TapEarPulseIter<F>) -> Result<B>, B: Default
+        where C: FnOnce(&'a mut TapChunkPulseIter<F>) -> Result<B>, B: Default
     {
         if !self.taps.is_empty() {
             if self.is_idle() {
@@ -303,7 +302,7 @@ impl<F, S> TapCabinet<F, S>
             file.seek(SeekFrom::End(0))?;
             taps.push((
                 TapFile::Writer(
-                    TapChunkWriter::from(file)),
+                    TapChunkWriter::try_new(file)?),
                 meta
             ));
             let last_index = taps.len() - 1;
@@ -323,7 +322,7 @@ impl<F, S> TapCabinet<F, S>
             file.seek(SeekFrom::Start(0))?;
             taps.push((
                 TapFile::Reader(
-                    TapEarPulseIter::from(TapChunkReader::from(file))),
+                    TapChunkPulseIter::from(TapChunkReader::from(file))),
                 meta
             ));
             let last_index = taps.len() - 1;

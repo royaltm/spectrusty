@@ -2,9 +2,9 @@ use core::num::NonZeroU32;
 use std::io::{Error, Read};
 use super::consts::*;
 
-/// The state of the [EarPulseIter].
+/// The current state of the [ReadEncPulseIter].
 #[derive(Debug)]
-pub enum IterState {
+pub enum PulseIterState {
     /// Emitting lead pulses.
     Lead{
         /// How many pulses left to the end of this lead.
@@ -16,8 +16,8 @@ pub enum IterState {
     Sync2,
     /// Emitting data pulses.
     Data{
-        /// A current data byte.
-        /// The highest bit represent the last or current pulse being emitted.
+        /// A current byte.
+        /// The highest bit determines the last (`pulse` is odd) or next (`pulse` is even) pulse being emitted.
         current: u8,
         /// A pulse counter for the current byte.
         /// There are two pulses per each bit (16 pulses per byte).
@@ -28,11 +28,34 @@ pub enum IterState {
     Error(Error)
 }
 
-impl IterState {
+/// Encodes data read from an underlying reader as *TAPE* T-state pulse intervals via an [Iterator] interface.
+///
+/// The timing of the pulses matches those expected by ZX Spactrum's ROM loading routines.
+///
+/// After invoking [ReadEncPulseIter::reset] or [ReadEncPulseIter::new] the first byte is read and checked
+/// to determine the duration of the *LEAD PULSE* signal. If it's less than 128 the number of 
+/// generated lead pulses is [LEAD_PULSES_HEAD]. Otherwise it's [LEAD_PULSES_DATA].
+///
+/// After the lead pulses two synchronization pulses are being emitted following by data pulses
+/// for each byte read including the initial flag byte.
+///
+/// This iterator may be used to feed pulses to the `EAR in` buffer of the ZX Spectrum emulator
+/// (e.g. via [EarIn::feed_ear_in][crate::audio::EarIn::feed_ear_in])
+/// or to produce sound with a help of [Bandwidth-Limited Pulse Buffer](crate::audio::Blep).
+///
+/// Best used with [tap][crate::formats::tap] utilites.
+#[derive(Debug)]
+pub struct ReadEncPulseIter<R> {
+    rd: R,
+    state: PulseIterState,
+    flag: u8,
+}
+
+impl PulseIterState {
     /// Returns an error from the underying reader if there was one.
     pub fn err(&self) -> Option<&Error> {
         match self {
-            IterState::Error(ref error) => Some(error),
+            PulseIterState::Error(ref error) => Some(error),
             _ => None
         }
     }
@@ -40,64 +63,55 @@ impl IterState {
     /// was an error while reading bytes.
     pub fn is_done(&self) -> bool {
         match self {
-            IterState::Done|IterState::Error(_) => true,
+            PulseIterState::Done|PulseIterState::Error(_) => true,
             _ => false
         }
     }
     /// Returns `true` if emitting lead pulses.
     pub fn is_lead(&self) -> bool {
         match self {
-            IterState::Lead {..} => true,
+            PulseIterState::Lead {..} => true,
             _ => false
         }
     }
     /// Returns `true` if emitting data pulses.
     pub fn is_data(&self) -> bool {
         match self {
-            IterState::Data {..} => true,
+            PulseIterState::Data {..} => true,
             _ => false
         }
     }
     /// Returns `true` if emitting sync1 pulse.
     pub fn is_sync1(&self) -> bool {
         match self {
-            IterState::Sync1 => true,
+            PulseIterState::Sync1 => true,
             _ => false
         }
     }
     /// Returns `true` if emitting sync2 pulse.
     pub fn is_sync2(&self) -> bool {
         match self {
-            IterState::Sync2 => true,
+            PulseIterState::Sync2 => true,
             _ => false
         }
     }
 }
 
-/// Encodes bytes read from an underlying reader as T-state pulse intervals as expected by ZX Spactrum's *TAPE*
-/// loading ROM routines.
-///
-/// Expects that the underlying reader provides bytes in the *TAP* compatible format.
-///
-/// Best used with [tap][crate::formats::tap] utilites.
-///
-/// This iterator may be used to feed the pulses to the `EAR in` buffer of the ZX Spectrum emulator
-/// (e.g. with [EarIn::feed_ear_in][crate::audio::EarIn::feed_ear_in])
-/// or to produce *TAPE* sound with a help of [Bandwidth-Limited Pulse Buffer](crate::audio::Blep).
-#[derive(Debug)]
-pub struct EarPulseIter<R> {
-    rd: R,
-    state: IterState,
-    head: u8,
-}
-
-impl<R> EarPulseIter<R> {
+impl<R> ReadEncPulseIter<R> {
     /// Returns a reference to the current state.
-    pub fn state(&self) -> &IterState {
+    pub fn state(&self) -> &PulseIterState {
         &self.state
     }
+    /// Returns a flag byte.
+    pub fn flag(&self) -> u8 {
+        self.flag
+    }
+    /// Returns an error from the underying reader if there was one.
+    pub fn err(&self) -> Option<&Error> {
+        self.state.err()
+    }
     /// Returns `true` if there are no more pulses to emit or there
-    /// was an error while reading bytes.
+    /// was an error while bytes were read.
     pub fn is_done(&self) -> bool {
         self.state.is_done()
     }
@@ -113,46 +127,55 @@ impl<R> EarPulseIter<R> {
     pub fn into_inner(self) -> R {
         self.rd
     }
+    /// Allows to manually assign a `state` and a `flag`.
+    /// Can be used to deseriale ReadEncPulseIter.
+    pub fn with_state_and_flag(mut self, state: PulseIterState, flag: u8) -> Self {
+        self.state = state;
+        self.flag = flag;
+        self
+    }
 }
 
-impl<R: Read> EarPulseIter<R> {
-    /// Creates a new `EarPulseIter` from a given [Reader][Read].
+impl<R: Read> ReadEncPulseIter<R> {
+    /// Creates a new `ReadEncPulseIter` from a given [Reader][Read].
     pub fn new(rd: R) -> Self {
-        let mut epi = EarPulseIter { rd, state: IterState::Done, head: 0 };
+        let mut epi = ReadEncPulseIter { rd, state: PulseIterState::Done, flag: 0 };
         epi.reset();
         epi
     }
-    /// Resets own state to [IterState::Lead] as if the next byte read from the inner reader was
-    /// the first *TAP* byte (a flag).
+    /// Resets state of the iterator.
+    ///
+    /// The next byte read from the inner reader is interpreted as a flag byte to determine
+    /// the number of lead pulses. In this instance the `state` becomes [PulseIterState::Lead].
+    ///
+    /// If there are no more bytes to be read the `state` becomes [PulseIterState::Done].
+    ///
+    /// In case of an error while reading from the underlying reader the `state` becomes [PulseIterState::Error].
     pub fn reset(&mut self) {
-        let (head, state) = match self.rd.by_ref().bytes().next() {
-            Some(Ok(head)) => (head, IterState::Lead {
-                countdown: if head & 0x80 == 0 {
+        let (flag, state) = match self.rd.by_ref().bytes().next() {
+            Some(Ok(flag)) => (flag, PulseIterState::Lead {
+                countdown: if flag & 0x80 == 0 {
                     LEAD_PULSES_HEAD
                 } else {
                     LEAD_PULSES_DATA
                 }
             }),
-            Some(Err(error)) => (0, IterState::Error(error)),
-            None => (0, IterState::Done)
+            Some(Err(error)) => (0, PulseIterState::Error(error)),
+            None => (0, PulseIterState::Done)
         };
-        self.head = head;
+        self.flag = flag;
         self.state = state;
-    }
-    /// Returns an error from the underying reader if there was one.
-    pub fn err(&self) -> Option<&Error> {
-        self.state.err()
     }
 }
 
-impl<R: Read> Iterator for EarPulseIter<R> {
+impl<R: Read> Iterator for ReadEncPulseIter<R> {
     type Item = NonZeroU32;
     fn next(&mut self) -> Option<NonZeroU32> {
         match self.state {
-            IterState::Lead {ref mut countdown} => {
+            PulseIterState::Lead {ref mut countdown} => {
                 match *countdown - 1 {
                     0 => {
-                        self.state = IterState::Sync1
+                        self.state = PulseIterState::Sync1
                     }
                     res => {
                         *countdown = res
@@ -160,21 +183,21 @@ impl<R: Read> Iterator for EarPulseIter<R> {
                 }
                 Some(LEAD_PULSE_LENGTH)
             }
-            IterState::Sync1 => {
-                self.state = IterState::Sync2;
+            PulseIterState::Sync1 => {
+                self.state = PulseIterState::Sync2;
                 Some(SYNC_PULSE1_LENGTH)
             }
-            IterState::Sync2 => {
-                self.state = IterState::Data { current: self.head, pulse: 0 };
+            PulseIterState::Sync2 => {
+                self.state = PulseIterState::Data { current: self.flag, pulse: 0 };
                 Some(SYNC_PULSE2_LENGTH)
             }
-            IterState::Data { ref mut current, ref mut pulse } => {
+            PulseIterState::Data { ref mut current, ref mut pulse } => {
                 let bit_one: bool = *current & 0x80 != 0;
                 if *pulse == 15 {
                     self.state = match self.rd.by_ref().bytes().next() {
-                        Some(Ok(current)) => IterState::Data { current, pulse: 0 },
-                        Some(Err(error)) => IterState::Error(error),
-                        None => IterState::Done
+                        Some(Ok(current)) => PulseIterState::Data { current, pulse: 0 },
+                        Some(Err(error)) => PulseIterState::Error(error),
+                        None => PulseIterState::Done
                     };
                 }
                 else {
@@ -197,9 +220,9 @@ mod tests {
     use std::io::Cursor;
 
     #[test]
-    fn read_ear_works() {
+    fn read_enc_pulse_iter_works() {
         let data = [0xFF, 0xA5, 0x00];
-        let mut iter = EarPulseIter::new(Cursor::new(data));
+        let mut iter = ReadEncPulseIter::new(Cursor::new(data));
         assert_eq!(false, iter.is_done());
         for delta in iter.by_ref().take(LEAD_PULSES_DATA as usize) {
             assert_eq!(LEAD_PULSE_LENGTH, delta);
@@ -227,7 +250,7 @@ mod tests {
         assert_eq!(true, iter.is_done());
 
         let data = [0x00];
-        let mut iter = EarPulseIter::new(Cursor::new(data));
+        let mut iter = ReadEncPulseIter::new(Cursor::new(data));
         assert_eq!(false, iter.is_done());
         for delta in iter.by_ref().take(LEAD_PULSES_HEAD as usize) {
             assert_eq!(LEAD_PULSE_LENGTH, delta);
@@ -239,7 +262,7 @@ mod tests {
         assert_eq!(vec![ZERO_PULSE_LENGTH; 16], iter.by_ref().collect::<Vec<_>>());
         assert_eq!(true, iter.is_done());
 
-        let mut iter = EarPulseIter::new(Cursor::new([]));
+        let mut iter = ReadEncPulseIter::new(Cursor::new([]));
         assert_eq!(true, iter.is_done());
         assert_eq!(None, iter.next());
     }

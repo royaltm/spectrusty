@@ -87,7 +87,7 @@ impl<M, B, X, F> EarIn for Ula<M, B, X, F>
     ///
     /// # Panics
     /// Panics if adding the delta would exceed the TsCounter max_value (Ts::max_value() as u32 * F::HTS_COUNT as u32).
-    fn feed_ear_in<I>(&mut self, fts_deltas: &mut I, max_frames_threshold: Option<usize>)
+    fn feed_ear_in<I>(&mut self, fts_deltas: I, max_frames_threshold: Option<usize>)
         where I: Iterator<Item=NonZeroU32>
     {
         let (mut vts, mut ear_in) = self.ear_in_changes.last()
@@ -122,7 +122,7 @@ impl<'a, M: 'a, B: 'a, X: 'a, F: 'a> MicOut<'a> for Ula<M, B, X, F>
 {
     type PulseIter = MicPulseIter<core::slice::Iter<'a, VideoTsData2>, F>;
     /// Returns a frame buffered mic output as a pulse iterator.
-    fn mic_out_iter_pulses(&'a self) -> Self::PulseIter {
+    fn mic_out_pulse_iter(&'a self) -> Self::PulseIter {
         MicPulseIter::new(
                 self.prev_earmic_ts,
                 self.prev_earmic_data,

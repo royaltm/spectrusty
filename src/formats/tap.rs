@@ -1,12 +1,26 @@
 /*! **TAP** file format utilities.
 
-[TAP_format](https://faqwiki.zxnet.co.uk/wiki/TAP_format)
-```text
-A flag byte: this is 0x00 for header blocks and 0xff for data blocks.
-The actual data.
-A checksum byte, calculated such that XORing all the data bytes together (including the flag byte) produces 0x00.
-The structure of the 17 byte tape header is as follows.
+# TAP format
 
+Based on [faqwiki.zxnet.co.uk](https://faqwiki.zxnet.co.uk/wiki/TAP_format):
+
+A **TAP** file consist of blocks of data each prepended by a 2 byte (LSB) block length indicator.
+Those blocks will be referenced here as *TAP chunks*.
+
+The standard Spectrum's ROM *TAPE* routine produces 2 kind of blocks:
+
+* a [header][Header] block
+* a data block
+
+This is determined by the first byte of each block, here called a `flag` byte.
+
+A flag byte is `0x00` for header blocks and `0xff` for data blocks.
+After the flag byte the actual data follows, after which a checksum byte, calculated such that
+XORing all the data bytes together (including the flag byte) produces `0`.
+
+The structure of the 17 byte header is as follows.
+
+```text
 Byte    Length  Description
 ---------------------------
 0       1       Type (0,1,2 or 3)
@@ -14,10 +28,17 @@ Byte    Length  Description
 11      2       Length of data block
 13      2       Parameter 1
 15      2       Parameter 2
-These 17 bytes are prefixed by the flag byte (0x00) and suffixed by the checksum byte to produce the 19 byte block seen on tape. The type is 0,1,2 or 3 for a PROGRAM, Number array, Character array or CODE file. A SCREEN$ file is regarded as a CODE file with start address 16384 and length 6912 decimal. If the file is a PROGRAM file, parameter 1 holds the autostart line number (or a number >=32768 if no LINE parameter was given) and parameter 2 holds the start of the variable area relative to the start of the program. If it's a CODE file, parameter 1 holds the start of the code block when saved, and parameter 2 holds 32768. For data files finally, the byte at position 14 decimal holds the variable name.
+```
+These 17 bytes are prefixed by the flag byte (0x00) and suffixed by the checksum byte to produce
+the 19 byte block seen on tape. The type is 0,1,2 or 3 for a `PROGRAM`, `Number array`, `Character array` or
+`CODE` file. A `SCREEN$` file is regarded as a `CODE` file with start address 16384 and length 6912 decimal.
+If the file is a `PROGRAM` file, parameter 1 holds the autostart line number (or a number >=32768 if
+no LINE parameter was given) and parameter 2 holds the start of the variable area relative to the start
+of the program. If it's a `CODE` file, parameter 1 holds the start of the code block when saved, and
+parameter 2 holds 32768. For array files finally, the byte at position 14 decimal holds the variable name.
 
-For example, SAVE "ROM" CODE 0,2 will produce the following data on tape (the vertical bar denotes the break between blocks):
-
+For example, SAVE "ROM" CODE 0,2 will produce the following data on tape:
+```text
       |-------------- TAP chunk -------------|       |TAP chunk|
 13 00 00 03 52 4f 4d 7x20 02 00 00 00 00 80 f1 04 00 ff f3 af a3
 ^^^^^...... first block is 19 bytes (17 bytes+flag+checksum)
@@ -31,14 +52,162 @@ flag byte ...........................................^^
 first two bytes of rom .................................^^^^^
 checksum (checkbittoggle would be a better name!).............^^
 ```
+
+## Interpreting *TAP* files
+
+### Reading byte containers
+
+To interpret a byte container as a *TAP chunk* the [TapChunk] wrapper is provided.
+The [TapChunkIter] iterator can be used to produce [TapChunk]s over the byte container in the
+*TAP* format.
+
+```no_run
+use std::io::Read;
+use zxspecemu::formats::tap::*;
+
+let mut tapfile = std::fs::File::open("some.tap")?;
+let mut buffer = Vec::new();
+tapfile.read_to_end(&mut buffer)?;
+for chunk in TapChunkIter::from(&buffer) {
+    // do something with chunk
+    println!("{}", chunk);
+}
+# Ok::<(), std::io::Error>(())
+```
+
+### Directly from readers
+
+[TapChunkReader] helps to read *TAP* chunks directly from a byte stream that implements both [Read]
+and [Seek] interfaces.
+
+```no_run
+use std::io::Read;
+use zxspecemu::formats::tap::*;
+
+let mut tapfile = std::fs::File::open("some.tap")?;
+let mut tap_reader = read_tap(tapfile);
+
+let mut buf = Vec::new();
+while let Some(size) = tap_reader.next_chunk()? {
+    buf.clear();
+    tap_reader.read_to_end(&mut buf)?;
+    let chunk = TapChunk::from(&buf);
+    // do something with chunk
+    println!("{}", chunk);
+}
+# Ok::<(), std::io::Error>(())
+```
+
+### Browsing *TAP* chunks
+
+A [TapChunkInfo] is an enum providing information about the chunk and can be created from both
+byte containers as well as from [std::io::Take] readers using [TryFrom] interface.
+
+An [iterator][TapReadInfoIter] producing [TapChunkInfo] can be created [from][From] [TapChunkReader].
+
+```no_run
+use zxspecemu::formats::tap::*;
+
+let mut tapfile = std::fs::File::open("some.tap")?;
+let mut tap_reader = read_tap(tapfile);
+for info in TapReadInfoIter::from(&mut tap_reader) {
+    println!("{}", info?);
+}
+# Ok::<(), std::io::Error>(())
+```
+
+### *TAPE* pulses
+
+To provide a *TAPE* signal for the Spectrum emulator a pulse interval [encoder][pulse::ReadEncPulseIter]
+is provided. It encodes data as *TAPE* pulse intervals providing results via [Iterator] interface, while
+reading bytes from the underlying [reader][std::io::Read].
+
+[pulse::ReadEncPulseIter] emits lead pulses following the sync and data pulses for the bytes read 
+until the reader reaches end of file or the [pulse::ReadEncPulseIter::reset] method is called.
+
+For a more convenient way to encode *TAP* data which contain many chunks the [TapChunkPulseIter] is provided.
+It wraps [pulse::ReadEncPulseIter] providing it with the chunk data resetting it before each next chunk.
+
+```no_run
+use zxspecemu::{memory::Memory48k, chip::ula::Ula, audio::EarIn};
+
+let mut ula = Ula::<Memory48k>::default();
+//...
+use zxspecemu::formats::tap::*;
+
+let mut tapfile = std::fs::File::open("some.tap")?;
+let mut pulse_iter = read_tap_pulse_iter(tapfile);
+
+// feed the buffer fragmentarily before each emulated frame
+ula.feed_ear_in(&mut pulse_iter, Some(1));
+
+// ... or feed the buffer at once ...
+ula.feed_ear_in(pulse_iter, None);
+# Ok::<(), std::io::Error>(())
+```
+
+## Writing data to *TAP* files
+
+The structure of *TAP* files allows to easily append more blocks to them.
+
+[TapChunkWriter] allows to write *TAP chunks* to streams implementing [Write] and [Seek] interfaces.
+
+```no_run
+use std::io::Write;
+use zxspecemu::formats::tap::*;
+
+let mut tapfile = std::fs::File::create("output.tap")?;
+let mut tap_writer = write_tap(tapfile)?;
+
+// let's create a TAP header for a CODE block
+let header = Header::new_code(1)
+                    .with_start(0x8000)
+                    .with_name("return");
+// now write it
+tap_writer.write_header(&header)?;
+
+// now the data block
+let mut tran = tap_writer.begin()?;
+tran.write(&[DATA_BLOCK_FLAG, 201])?;
+// appends checksum byte and commits block
+tran.commit(true)?;
+```
+
+### *TAPE* pulses
+
+A *TAPE* signal generated by the Spectrum's SAVE routines can be written as *TAP* chunk data
+with the same instance of [TapChunkWriter].
+
+```no_run
+use zxspecemu::{memory::Memory48k, chip::ula::Ula, audio::MicOut};
+
+let mut ula = Ula::<Memory48k>::default();
+//...
+use std::io::Write;
+use zxspecemu::formats::tap::*;
+
+let mut tapfile = std::fs::File::create("output.tap")?;
+let mut tap_writer = write_tap(tapfile)?;
+
+// get pulses from MIC out data after rendering each frame
+let pulse_iter = ula.mic_out_pulse_iter();
+// write them as *TAP chunks*
+let chunks = tap_writer.write_pulses_as_tap_chunks(pulse_iter)?;
+if chunks != 0 {
+    println!("Saved: {} chunks", chunks);
+}
+# Ok::<(), std::io::Error>(())
+```
 */
 use core::borrow::Borrow;
 use std::borrow::Cow;
 use std::fmt;
 use core::convert::TryFrom;
 use std::io::{ErrorKind, Error, Read, Write, Seek, Result, Cursor};
-use super::ear_mic::EarPulseIter;
 
+use pulse::ReadEncPulseIter;
+
+pub mod pulse;
 mod read;
 mod write;
 pub use read::*;
@@ -48,39 +217,12 @@ pub const HEAD_BLOCK_FLAG: u8 = 0x00;
 pub const DATA_BLOCK_FLAG: u8 = 0xFF;
 pub const HEADER_SIZE: usize = 19;
 
-/*
-let tapfile = File.open()?;
-tapfile.read_to_end(&mut buffer)?;
-for chunk in TapChunkIter::from(&buffer) { TapChunk (deref to slice)
-    print!("{}", chunk?) // chunk?.is_data()
-}
-
-let tapfile = File::open("some.tap")?;
-let tap_reader = read_tap(tapfile);
-let buf = Vec::new();
-while tap_reader.next_chunk()? != 0 {
-    buf.clear();
-    tap_reader.read_to_end(&mut buf)?;
-    let chunk = TapChunk::from(&buf);
-    res.push(format!("{}", chunk));
-}
-for rd in tap::read_chunks(tapfile) {
-    rd.read_to_end(&mut buf)?;
-    let chunk = TapChunk::new_no_checksum(&buf)?
-}
-
-for rd in tap::read_chunks(tapfile) {
-    let chunk_info = TapChunkInfo::new(rd)?
-    print!("{}", chunk)
-}
-*/
-
-/// Calculates bit-xor checksum from the given iterator of `u8`.
+/// Calculates bittoggle checksum from the given iterator of `u8`.
 pub fn checksum<I: IntoIterator<Item=B>, B: Borrow<u8>>(iter: I) -> u8 {
     iter.into_iter().fold(0, |acc, x| acc ^ x.borrow())
 }
 
-/// Calculates bit-xor checksum from the given iterator of result of `u8`.
+/// Calculates bittoggle checksum from the given iterator of result of `u8`.
 /// Usefull with [std::io::Bytes].
 pub fn try_checksum<I: IntoIterator<Item=Result<u8>>>(iter: I) -> Result<u8> {
     iter.into_iter().try_fold(0, |acc, x| {
@@ -91,25 +233,26 @@ pub fn try_checksum<I: IntoIterator<Item=Result<u8>>>(iter: I) -> Result<u8> {
     })
 }
 
-/// Creates [TapChunkReader] from the given reader.
+/// Creates an instance of [TapChunkReader] from the given reader.
 pub fn read_tap<T, R>(rd: T) -> TapChunkReader<R>
     where T: Into<TapChunkReader<R>>
 {
     rd.into()
 }
 
-/// Creates [TapEarPulseIter] from the given reader.
-pub fn read_tap_ear_pulse_iter<T, R>(rd: T) -> TapEarPulseIter<R>
+/// Creates an instance of [TapChunkPulseIter] from the given reader.
+pub fn read_tap_pulse_iter<T, R>(rd: T) -> TapChunkPulseIter<R>
     where R: Read + Seek, T: Into<TapChunkReader<R>>
 {
-    let ep_iter = EarPulseIter::new(rd.into());
-    TapEarPulseIter::from(ep_iter)
+    let ep_iter = ReadEncPulseIter::new(rd.into());
+    TapChunkPulseIter::from(ep_iter)
 }
 
-pub fn write_tap<W>(wr: W) -> TapChunkWriter<W>
+/// Creates an instance of [TapChunkWriter] from the given writer on success.
+pub fn write_tap<W>(wr: W) -> Result<TapChunkWriter<W>>
     where W: Write + Seek
 {
-    wr.into()
+    TapChunkWriter::try_new(wr)
 }
 
 /// The *TAP* block type of the next chunk following a [Header].
@@ -164,6 +307,10 @@ pub enum TapChunkInfo {
 ///
 /// Provides helper methods to interpret the underlying bytes as one of the *TAP* blocks.
 /// This should usually be a [Header] or a data block.
+///
+/// Anything that implements `AsRef<[u8]>` can be used as `T` (e.g. `&[u8]` or `Vec<u8>`).
+///
+/// Instances of [TapChunk] can be created using [From]/[Into] interface or via [TapChunkIter].
 #[derive(Clone, Copy, Debug)]
 pub struct TapChunk<T> {
     data: T
@@ -526,7 +673,7 @@ impl<T> TapChunk<T> {
 }
 
 impl<T> TapChunk<T> where T: AsRef<[u8]> {
-    /// Attempts to create [TapChunkInfo] from underlying data.
+    /// Attempts to create an instance of [TapChunkInfo] from underlying data.
     pub fn info(&self) -> Result<TapChunkInfo> {
         TapChunkInfo::try_from(self.data.as_ref())
     }
@@ -580,7 +727,7 @@ impl<T> TapChunk<T> where T: AsRef<[u8]> {
         Ok(())
     }
 
-    /// Returns a name if the underlying chunk is a [Header]
+    /// Returns a name if the block is a [Header]
     pub fn name(&self) -> Option<Cow<'_,str>> {
         if self.is_head() {
             Some(String::from_utf8_lossy(&self.data.as_ref()[2..12]))
@@ -658,14 +805,14 @@ impl<T> TapChunk<T> where T: AsRef<[u8]> {
         None
     }
 
-    /// Creates a pulse interval iterator from this *TAP* chunk.
-    pub fn ear_pulse_iter(&self) -> EarPulseIter<Cursor<&[u8]>> {
-        EarPulseIter::new(Cursor::new(self.as_ref()))
+    /// Returns a pulse interval iterator referencing this *TAP* chunk.
+    pub fn as_pulse_iter(&self) -> ReadEncPulseIter<Cursor<&[u8]>> {
+        ReadEncPulseIter::new(Cursor::new(self.as_ref()))
     }
 
-    /// Converts this *TAP* chunk into a pulse interval iterator.
-    pub fn into_ear_pulse_iter(self) -> EarPulseIter<Cursor<T>> {
-        EarPulseIter::new(Cursor::new(self.into_inner()))
+    /// Converts this *TAP* chunk into a pulse interval iterator owning this chunk's data.
+    pub fn into_pulse_iter(self) -> ReadEncPulseIter<Cursor<T>> {
+        ReadEncPulseIter::new(Cursor::new(self.into_inner()))
     }
 
     /// Creates a new TapChunk with a specified storage, possibly cloning the data

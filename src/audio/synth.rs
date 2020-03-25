@@ -1,10 +1,8 @@
-//! Band-limited steps with adjustable high-pass and low-pass filtering, for efficient band-limited synthesis.
+//! Hard sync without aliasing.
 //!
-//! For original implementation refer to the web site:
+//! For the original implementation refer to [this web site](http://www.slack.net/~ant/bl-synth).
 //!
-//! http://www.slack.net/~ant/bl-synth
-//!
-//! TODO: re-implement the more efficient integer based blip buffer, this implementation is just enough to get going
+// TODO: re-implement the more efficient integer based blip buffer, this implementation is just enough to get going
 #![allow(unused_imports)]
 use core::marker::PhantomData;
 use core::{iter::{Skip, StepBy}, slice::Iter};
@@ -15,11 +13,12 @@ use core::convert::TryFrom;
 use super::{FTs, SampleDelta, Blep, sample::{IntoSample, FromSample, MulNorm}};
 
 const PI2: f64 = core::f64::consts::PI * 2.0;
-/// number of phase offsets to sample band-limited step at
+/// A number of phase offsets to sample band-limited step at
 const PHASE_COUNT: usize = 32;
-/// number of samples in each final band-limited step
+/// A number of samples in each final band-limited step
 const STEP_WIDTH: usize = 24;
 
+/// A trait to implement high-pass and low-pass frequency filter limits for [BandLimited].
 pub trait BandLimOpt {
     /// lower values filter more high frequency
     const LOW_PASS: f64 = 0.999;
@@ -27,26 +26,35 @@ pub trait BandLimOpt {
     const HIGH_PASS: f32 = 0.999;
 }
 
-pub struct BandLimHiFi;
-impl BandLimOpt for BandLimHiFi {}
+/// A wide pass filter limits for [BandLimited].
+pub struct BandLimWide;
+impl BandLimOpt for BandLimWide {}
 
+/// A low frequency pass filter limits for [BandLimited].
 pub struct BandLimLowTreb;
 impl BandLimOpt for BandLimLowTreb {
     const LOW_PASS: f64 = 0.899;
 }
 
+/// A high frequency pass filter limits for [BandLimited].
 pub struct BandLimLowBass;
 impl BandLimOpt for BandLimLowBass {
     const HIGH_PASS: f32 = 0.899;
 }
 
+/// A narrow pass filter limits for [BandLimited].
 pub struct BandLimNarrow;
 impl BandLimOpt for BandLimNarrow {
     const LOW_PASS: f64 = 0.899;
     const HIGH_PASS: f32 = 0.899;
 }
 
-pub struct BandLimited<T, O=BandLimHiFi> {
+/// Bandwidth-Limited Pulse Buffer implementation with high-pass and low-pass filtering,
+/// for an efficient band-limited synthesis.
+///
+/// `T` specifies pulse step amplitude unit types. Currently implementions are provided for:
+///  `f32`, `i16` and `i32`.
+pub struct BandLimited<T, O=BandLimWide> {
     steps: [[T; STEP_WIDTH]; PHASE_COUNT],
     diffs: Vec<T>,
     channels: NonZeroUsize,
@@ -59,16 +67,23 @@ pub struct BandLimited<T, O=BandLimHiFi> {
 }
 
 impl<T: Copy + Default, O> BandLimited<T, O> {
+    /// Clears buffered data and resets `frame start` to default.
     pub fn reset(&mut self) {
         for d in self.diffs.iter_mut() { *d = T::default(); }
         for s in self.sums.iter_mut() { *s = (T::default(), Cell::default()); }
         self.last_nsamples = None;
         self.start_time = 0.0;
     }
-
-    /// time unit is one sample (1.0 = 1 sample): T-States / CPU_HZ * sample_rate
-    /// `frame_time` should specify how many samples (including a fraction) fit in the average audio frame
-    /// `margin_time` specifies how much (a maximum number of samples) a single audio frame can exceed the average frame size
+    /// Ensures the frame buffer length is large enough to fit data for the specified `frame_time`
+    /// with additional `margin_time`.
+    ///
+    /// Sets the duration of the average frame to `frame_time` which should be specified with as much
+    /// precision as possible.
+    ///
+    /// `margin_time` specifies a frame duration fluctuation margin and should be significanlty smaller
+    /// than `frame_time`.
+    ///
+    /// Both `frame_time` and `margin_time` are specified in the sample time units (1.0 = 1 audio sample).
     pub fn set_frame_time(&mut self, frame_time: f64, margin_time: f64) {
         let max_samples = (frame_time + margin_time).ceil() as usize;
         let required_len = (max_samples + STEP_WIDTH + 1) * self.channels.get();
@@ -79,12 +94,18 @@ impl<T: Copy + Default, O> BandLimited<T, O> {
         }
         self.frame_time = frame_time;
     }
-
+    /// Returns `true` if [BandLimited::end_frame] has been called before the call to [BandLimited::next_frame].
+    ///
+    /// It indicates if audio samples can be digitized from the last frame data.
     pub fn is_frame_ended(&mut self) -> bool {
         self.last_nsamples.is_some()
     }
-
-    // time_end should be > than the max time added via add_step
+    /// Finalizes audio frame.
+    ///
+    /// Returns the number of audio samples, single channel wise, which are ready to be produced from
+    /// the frame.
+    ///
+    /// `time_end` is specified in the sample time units (1.0 = 1 audio sample).
     pub fn end_frame(&mut self, time_end: f64) -> usize {
         if self.last_nsamples.is_none() {
             let samples = (time_end - self.start_time).trunc();
@@ -114,7 +135,15 @@ where T: Copy + Default + AddAssign + MulNorm + FromSample<f32>,
       O: BandLimOpt,
       // f32: FromSample<T>,
 {
-    /// Panics if channels is 0.
+    /// Returns a new instance of `BandLimited` buffer.
+    ///
+    /// `channels` specifies the maximum number of audio channels that the sound can be rendered for.
+    ///
+    /// Before any pulse steps are added to the buffer the method [BandLimited::set_frame_time] or
+    /// [Blep::ensure_frame_time] must be called first.
+    ///
+    /// # Panics
+    /// Panics if channels is `0`.
     pub fn new(channels: usize) -> Self {
         let channels = NonZeroUsize::new(channels).expect("BandLimited: channels should be 1 or more");
         // Generate master band-limited step by adding sine components of a square wave
@@ -178,7 +207,10 @@ where T: Copy + Default + AddAssign + MulNorm + FromSample<f32>,
             _options: PhantomData
         }
     }
-
+    /// Prepares the buffer for the next audio frame.
+    ///
+    /// This method must be called after the call to [BandLimited::end_frame] or to [Blep::end_frame]
+    /// and optionally after audio data has been produced with [BandLimited::sum_iter].
     pub fn next_frame(&mut self) {
         let num_samples = self.last_nsamples.take().expect("BandLimited frame not ended");
         self.start_time += num_samples as f64 - self.frame_time;
@@ -204,8 +236,11 @@ impl<T,O> BandLimited<T,O>
 where T: Copy + MulNorm + FromSample<f32>,
       O: BandLimOpt
 {
-    // pub fn sum_iter<'a>(&'a mut self, channel: usize) -> BandLimitedSumIter<'a, StepBy<Skip<Iter<'a, f32>>>> {
-    // pub fn sum_iter<'a>(&'a mut self, channel: usize) -> BandLimitedSumIter<'a, impl Iterator<Item=&'a f32>> {
+    /// Returns an iterator that produces audio samples in the specified sample format `S`
+    /// from the specified `channel`.
+    ///
+    /// This method must be called after the call to [BandLimited::end_frame] or [Blep::end_frame]
+    /// and before [BandLimited::next_frame].
     pub fn sum_iter<'a, S: 'a>(&'a self, channel: usize) -> impl Iterator<Item=S> + ExactSizeIterator + 'a
     where T: IntoSample<S>
     {
@@ -286,7 +321,7 @@ where T: Copy + Default + SampleDelta + MulNorm
         assert!(time_rate > 0.0);
         let frame_time = time_rate * frame_ts as f64;
         assert!(frame_time > 0.0);
-        let margin_time = time_rate * margin_ts as f64;
+        let margin_time = time_rate * 2.0 * margin_ts as f64;
         assert!(margin_time >= 0.0);
         self.time_rate = time_rate;
         self.set_frame_time(frame_time, margin_time);

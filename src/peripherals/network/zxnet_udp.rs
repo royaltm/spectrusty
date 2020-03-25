@@ -14,8 +14,8 @@ use super::zxnet::{HEAD_SIZE, ZxNetSocket};
 /// a special datagram is being sent back that contains only head part of the ZX-NET packet and
 /// a flag indicating that this is the reply packet.
 ///
-/// Some measures are taken to remove spam duplicates before processing incoming data and packets
-/// that was lately replied to when incoming again are being auto-replied.
+/// Duplicate spam messages are being removed before processing incoming data.
+/// Packets that was recently replied to are being auto-replied when incoming again.
 ///
 /// Requires an UDP socket to be "connected" to the remote party in order to send and receive data.
 ///

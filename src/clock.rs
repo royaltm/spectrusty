@@ -42,7 +42,7 @@ pub trait MemoryContention: Copy + Debug {
     }
 }
 
-/// If a vertival counter value of [VideoTs] exceeds this value, signals the control unit to emulate hanging
+/// If a vertical counter of [VideoTs] exceeds this value, signals the control unit to emulate hanging
 /// CPU indefinitely.
 pub const HALT_VC_THRESHOLD: i16 = i16::max_value() >> 1;
 

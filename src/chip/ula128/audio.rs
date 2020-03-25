@@ -58,7 +58,7 @@ impl<B, X> EarIn for Ula128<B, X> {
         self.ula.set_ear_in(ear_in, delta_fts)
     }
 
-    fn feed_ear_in<I>(&mut self, fts_deltas: &mut I, max_frames_threshold: Option<usize>)
+    fn feed_ear_in<I>(&mut self, fts_deltas: I, max_frames_threshold: Option<usize>)
         where I: Iterator<Item=NonZeroU32>
     {
         self.ula.feed_ear_in(fts_deltas, max_frames_threshold)
@@ -73,8 +73,7 @@ impl<B, X> EarIn for Ula128<B, X> {
 impl<'a, B: 'a, X: 'a> MicOut<'a> for Ula128<B, X> {
     type PulseIter = <InnerUla<B, X> as MicOut<'a>>::PulseIter;
     /// Returns a frame buffered mic output as a pulse iterator.
-    fn mic_out_iter_pulses(&'a self) -> Self::PulseIter {
-        self.ula.mic_out_iter_pulses()
+    fn mic_out_pulse_iter(&'a self) -> Self::PulseIter {
+        self.ula.mic_out_pulse_iter()
     }
 }
-

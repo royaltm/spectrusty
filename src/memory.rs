@@ -102,7 +102,7 @@ pub use extension::*;
 pub use single_page::*;
 pub use multi_page::*;
 
-/// An external ROM is a shared pointer to a slice of bytes.
+/// Represents an external ROM as a shared pointer to a slice of bytes.
 pub type ExRom = Rc<[u8]>;
 
 // bitflags! {
