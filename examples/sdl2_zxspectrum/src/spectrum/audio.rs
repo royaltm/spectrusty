@@ -9,7 +9,7 @@ use log::{error, warn, info, debug, trace};
 use sdl2::{Sdl, audio::{AudioCallback, AudioSpecDesired}};
 pub use sdl2::audio::AudioDevice;
 
-use zxspecemu::audio::carousel::*;
+use spectrusty::audio::carousel::*;
 
 impl AudioCallback for AudioCb<f32> {
     type Channel = f32;

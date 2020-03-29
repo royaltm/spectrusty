@@ -2,16 +2,14 @@ use core::num::NonZeroU16;
 use core::marker::PhantomData;
 use core::num::Wrapping;
 
-use z80emu::{Cpu, Clock, Io, Memory, CpuDebug, CpuDebugFn, BreakCause, opconsts, host::{
+use crate::z80emu::{Cpu, Clock, Io, Memory, CpuDebug, CpuDebugFn, BreakCause, opconsts, host::{
         TsCounter, Result, cycles::M1_CYCLE_TS
     }};
 #[cfg(feature = "snapshot")]
 use serde::{Serialize, Deserialize};
 
 use crate::audio::*;
-use crate::audio::sample::SampleDelta;
-use crate::audio::ay::*;
-use crate::peripherals::ay::{Ay3_8913Io, AyPortDecode};
+use crate::peripherals::ay::{audio::*, Ay3_8913Io, AyPortDecode};
 use crate::clock::{FTs, FTsData2};
 use crate::memory::{ZxMemory, Memory64k};
 use crate::bus::{BusDevice, NullDevice};

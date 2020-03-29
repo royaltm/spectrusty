@@ -10,20 +10,17 @@ use log::{error, warn, info, debug, trace, Level};
 
 use audio_cpal::*;
 
-use z80emu::{Cpu, Z80NMOS};
-// use zxspecemu::cpu_debug::print_debug_memory;
-use zxspecemu::audio::carousel::*;
-use zxspecemu::audio::sample::*;
-use zxspecemu::audio::*;
-use zxspecemu::audio::synth::*;
-use zxspecemu::audio::ay::*;
-use zxspecemu::peripherals::ay::*;
-use zxspecemu::formats::{
+use spectrusty::z80emu::{self, Cpu, Z80NMOS};
+// use spectrusty::cpu_debug::print_debug_memory;
+use spectrusty_audio::{carousel::*, synth::*};
+use spectrusty::audio::*;
+use spectrusty::peripherals::ay::{*, audio::*};
+use spectrusty::formats::{
     ay::*,
     // sna::*
 };
-use zxspecemu::chip::*;
-use zxspecemu::chip::ay_player::*;
+use spectrusty::chip::*;
+use spectrusty::chip::ay_player::*;
 /****************************************************************************/
 /*                                   MAIN                                   */
 /****************************************************************************/

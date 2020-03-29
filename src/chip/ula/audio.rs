@@ -2,14 +2,16 @@ use core::marker::PhantomData;
 use core::convert::TryInto;
 use core::num::NonZeroU32;
 use crate::audio::*;
-use crate::audio::ay::AyAudioFrame;
-use crate::bus::ay::AyAudioVBusDevice;
-use crate::chip::ControlUnit;
-use crate::clock::{Ts, VideoTs, VideoTsData2, VFrameTsCounter};
-use crate::memory::ZxMemory;
-use crate::video::{Video, VideoFrame};
+
+#[cfg(feature = "peripherals")]
+use crate::peripherals::ay::audio::AyAudioFrame;
+#[cfg(feature = "peripherals")]
+use crate::peripherals::bus::ay::AyAudioVBusDevice;
+use crate::clock::{Ts, VideoTs, VideoTsData2};
+use crate::video::VideoFrame;
 use super::{CPU_HZ, Ula};
 
+#[cfg(feature = "peripherals")]
 impl<A, M, D, X, F> AyAudioFrame<A> for Ula<M, D, X, F>
     where A: Blep,
           D: AyAudioVBusDevice,

@@ -1,10 +1,12 @@
-use core::fmt::Write;
+use core::fmt::{self, Write};
 use core::slice;
 use std::io::{self, Read};
 use std::sync::mpsc;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::TryRecvError;
 use std::thread;
+
+use serde::{Serialize, Deserialize, Serializer, de::{self, Deserializer, Visitor}};
 use arrayvec::ArrayString;
 
 use crate::printer::SerialPrinterGfxGrabber;
@@ -14,9 +16,10 @@ pub struct NonBlockingStdinReader {
     rx: Receiver<u8>
 }
 
-#[derive(Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct FilterGfxStdoutWriter {
     pub grabber: SerialPrinterGfxGrabber,
+    #[serde(skip, default = "io::stdout")]
     stdout: io::Stdout,
 }
 
@@ -88,3 +91,31 @@ impl io::Write for FilterGfxStdoutWriter {
         self.stdout.flush()
     }
 }
+
+impl Serialize for NonBlockingStdinReader {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_unit_struct("NonBlockingStdinReader")
+    }
+}
+
+impl<'de> Deserialize<'de> for NonBlockingStdinReader {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where D: Deserializer<'de>
+    {
+        struct NonBlockingStdinReaderVisitor;
+
+        impl<'de> Visitor<'de> for NonBlockingStdinReaderVisitor {
+            type Value = NonBlockingStdinReader;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("unit")
+            }
+
+            fn visit_unit<E: de::Error>(self) -> Result<Self::Value, E> {
+                Ok(NonBlockingStdinReader::default())
+            }
+        }
+        deserializer.deserialize_unit_struct("NonBlockingStdinReader", NonBlockingStdinReaderVisitor)
+    }
+}
+

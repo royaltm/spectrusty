@@ -16,30 +16,32 @@ use log::{error, warn, info, debug, trace};
 use sdl2::{Sdl};
 use rand::prelude::*;
 
-use zxspecemu::audio::sample::AudioSample;
-use zxspecemu::audio::carousel::AudioFrameResult;
-use zxspecemu::audio::synth::*;
-use zxspecemu::bus::ay::*;
-use zxspecemu::bus::joystick::*;
-use zxspecemu::bus::mouse::*;
-use zxspecemu::formats::{
+use spectrusty::audio::AudioSample;
+use spectrusty::audio::carousel::AudioFrameResult;
+use spectrusty::audio::synth::*;
+use spectrusty::bus::ay::*;
+use spectrusty::bus::joystick::*;
+use spectrusty::bus::mouse::*;
+use spectrusty::formats::{
     sna
 };
-use zxspecemu::utils::tap::TapFileCabinet;
-use zxspecemu::video::*;
+use spectrusty::utils::tap::TapFileCabinet;
+use spectrusty::video::*;
 
 use audio::Audio;
 pub use printer::*;
 use peripherals::*;
 
-pub use zxspecemu::peripherals::{KeyboardInterface, serial::SerialKeypad};
-pub use zxspecemu::audio::{*, ay::*};
-pub use zxspecemu::bus::*;
-pub use zxspecemu::chip::{*, ula::*, ula128::*};
-pub use zxspecemu::clock::*;
-pub use zxspecemu::memory::{ZxMemory, Memory48kEx, Memory48k, Memory16k, ZxInterface1MemExt};
-pub use zxspecemu::video::{BorderSize, PixelBufRGB24, Video};
-pub use zxspecemu::z80emu::{Cpu, Z80NMOS};
+pub use spectrusty::peripherals::ay::audio::*;
+pub use spectrusty::peripherals::{KeyboardInterface, serial::SerialKeypad};
+pub use spectrusty::peripherals::memory::ZxInterface1MemExt;
+pub use spectrusty::audio::*;
+pub use spectrusty::bus::*;
+pub use spectrusty::chip::{*, ula::*, ula128::*};
+pub use spectrusty::clock::*;
+pub use spectrusty::memory::{ZxMemory, Memory48kEx, Memory48k, Memory16k};
+pub use spectrusty::video::{BorderSize, PixelBufRGB24, Video};
+pub use spectrusty::z80emu::{Cpu, Z80NMOS};
 
 const IF1_ROM_PATH: &str = "../../resources/if1-2.rom";
 const ROM48: &[u8] = include_bytes!("../../../resources/48.rom");
@@ -74,7 +76,7 @@ pub struct BusDeviceIndexes {
 }
 
 pub struct ZXSpectrum<C, U> {
-    cpu: C,
+    pub cpu: C,
     pub ula: U,
     pub audio: Audio,
     bandlim: ZXBlep,
@@ -210,12 +212,12 @@ impl<C, U> ZXSpectrum<C, U>
             self.trigger_nmi();
         }
         if let Some(ref mut writer) = self.tap_cabinet.mic_out_pulse_writer() {
-            let mut pulses_iter = self.ula.mic_out_iter_pulses();
+            let pulses_iter = self.ula.mic_out_pulse_iter();
             // .map(|pulse| {
             //     println!("{}", pulse.get());
             //     pulse
             // });
-            let chunks = writer.write_pulses_as_tap_chunks(&mut pulses_iter).unwrap();
+            let chunks = writer.write_pulses_as_tap_chunks(pulses_iter).unwrap();
             if chunks != 0 {
                 info!("Saved: {} chunks", chunks);
             }

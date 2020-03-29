@@ -3,23 +3,21 @@ use std::io::Cursor;
 use serde::{Serialize, Deserialize};
 use serde_json::{self, json};
 
-use zxspecemu::z80emu::Z80NMOS;
-use zxspecemu::memory::ZxMemory;
-use zxspecemu::audio::*;
-use zxspecemu::audio::synth::{BandLimited, BandLimOpt};
-use zxspecemu::audio::ay::AyAudioFrame;
-use zxspecemu::peripherals::ay::Ay128kPortDecode;
-use zxspecemu::formats::{
+use spectrusty::z80emu::Z80NMOS;
+use spectrusty::memory::ZxMemory;
+use spectrusty::audio::{*, synth::{BandLimited, BandLimOpt}};
+use spectrusty::peripherals::ay::{Ay128kPortDecode, audio::AyAudioFrame};
+use spectrusty::formats::{
     ay::*,
     sna::*
 };
-use zxspecemu::chip::ControlUnit;
-use zxspecemu::chip::ay_player::AyPlayer;
-pub use zxspecemu::audio::synth::{BandLimHiFi, BandLimLowTreb, BandLimLowBass, BandLimNarrow};
+use spectrusty::chip::{ControlUnit, ay_player::AyPlayer};
+pub use spectrusty::audio::synth::{BandLimWide, BandLimLowTreb, BandLimLowBass, BandLimNarrow};
+pub use spectrusty::audio::AmpLevels;
+pub use spectrusty::peripherals::ay::audio::{AyAmps, AyFuseAmps};
+pub use spectrusty::chip::{HostConfig, HostConfig48k, HostConfig128k};
 
 pub type Ay128kPlayer = AyPlayer<Ay128kPortDecode>;
-pub use zxspecemu::audio::{AmpLevels, ay::{AyAmps, AyFuseAmps}};
-pub use zxspecemu::chip::{HostConfig, HostConfig48k, HostConfig128k};
 
 macro_rules! resource {
     ($file:expr) => {
@@ -86,7 +84,7 @@ impl From<AyChannelsMode> for [usize;3] {
 }
 
 /// A whole "circuit board" bundled together.
-pub struct AyFilePlayer<F=BandLimHiFi> {
+pub struct AyFilePlayer<F=BandLimWide> {
     cpu: Z80NMOS,
     player: Ay128kPlayer,
     bandlim: BlepAmpFilter<BlepStereo<BandLimited<f32, F>>>,

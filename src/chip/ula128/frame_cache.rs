@@ -1,16 +1,14 @@
-use std::vec::Drain;
-use core::fmt;
 use core::mem;
-use core::marker::PhantomData;
-use crate::clock::{Ts, VideoTsData1, VideoTs};
-use crate::memory::{ZxMemory};
-use crate::video::{pixel_line_offset, color_line_offset, VideoFrame,
+use std::vec::Drain;
+use crate::clock::{Ts, VideoTs};
+use crate::video::{
+    VideoFrame,
     frame_cache::{PixelPack8, FrameImageProducer}
 };
-use crate::chip::ula::frame_cache::{UlaFrameCache, UlaFrameLineIter, UlaFrameProducer};
+use crate::chip::ula::frame_cache::{UlaFrameCache, UlaFrameProducer};
 use super::Ula128VidFrame;
 
-const COL_HTS:  &[Ts;32] = &[3, 5, 11, 13, 19, 21, 27, 29, 35, 37, 43, 45, 51, 53, 59, 61, 67, 69, 75, 77, 83, 85, 91, 93, 99, 101, 107, 109, 115, 117, 123, 125];
+const COL_HTS: &[Ts;32] = &[3, 5, 11, 13, 19, 21, 27, 29, 35, 37, 43, 45, 51, 53, 59, 61, 67, 69, 75, 77, 83, 85, 91, 93, 99, 101, 107, 109, 115, 117, 123, 125];
 // ((x >> 1) << 3) + ((x & 1) << 1)
 pub struct Ula128FrameProducer<'a> {
     ula_frame0_prod: UlaFrameProducer<'a, Ula128VidFrame>,

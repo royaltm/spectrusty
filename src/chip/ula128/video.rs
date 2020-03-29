@@ -5,8 +5,8 @@ use core::ops::Range;
 use serde::{Serialize, Deserialize};
 
 use crate::memory::ZxMemory;
-use crate::clock::{VFrameTsCounter, MemoryContention, VideoTs, Ts, VideoTsData3};
-use crate::chip::ula::{Ula, UlaMemoryContention,
+use crate::clock::{MemoryContention, VideoTs, Ts, VideoTsData3};
+use crate::chip::ula::{
     frame_cache::{pixel_address_coords, color_address_coords}
 };
 use crate::video::{Renderer, BorderSize, PixelBuffer, VideoFrame, Video, MAX_BORDER_SIZE};

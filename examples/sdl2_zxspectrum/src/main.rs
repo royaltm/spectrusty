@@ -27,7 +27,7 @@ use sdl2::{Sdl,
 use crate::spectrum::*;
 use crate::peripherals::{DeviceAccess, DynamicDeviceAccess, MicroCartridge};
 use crate::utils::*;
-use zxspecemu::formats::mdr::MicroCartridgeExt;
+use spectrusty::formats::mdr::MicroCartridgeExt;
 
 const REQUESTED_AUDIO_LATENCY: usize = 2;
 
@@ -162,8 +162,9 @@ fn run<C, U, I>(
         files: I
     ) -> Result<(), Box<dyn std::error::Error>>
     where I: IntoIterator<Item=String>,
-          C: Cpu + std::fmt::Debug,
-          U: Default + UlaCommon + UlaAudioFrame<ZXBlep>,
+          C: Cpu + std::fmt::Debug + serde::Serialize,
+          U: Default + UlaCommon + UlaAudioFrame<ZXBlep> + MemoryAccess + serde::Serialize,
+          // U::Memory: serde::Serialize,
           ZXSpectrum<C, U>: DeviceAccess<U::VideoFrame>,
           U::VideoFrame: 'static
 {
@@ -551,6 +552,14 @@ fn run<C, U, I>(
         // eprintln!("{} {}", 1.0 / elapsed, timer_subsystem.performance_frequency());
         // start = now;
     }
+    if let Some(md) = zx.microdrives_mut() {
+        for i in 1..8 {
+            md.take_cartridge(i);
+        }
+    }
+    println!("{}", serde_json::to_string(&zx.cpu)?);
+    println!("{}", serde_yaml::to_string(&zx.cpu)?);
+    println!("{}", serde_yaml::to_string(&zx.ula)?);
 
     Ok(())
 }

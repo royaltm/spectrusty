@@ -1,13 +1,12 @@
 use core::num::NonZeroU16;
-use z80emu::{Io, Memory};
+
+use crate::z80emu::{Io, Memory};
 use crate::bus::BusDevice;
 use crate::clock::VideoTs;
 use crate::peripherals::{KeyboardInterface, ZXKeyboardMap};
 use crate::memory::{ZxMemory, MemoryExtension};
-use crate::video::{VideoFrame, pixel_line_offset, color_line_offset};
-// use crate::io::keyboard::*;
-// use crate::ts::*;
-use super::{Ula, UlaVideoFrame};
+use crate::video::VideoFrame;
+use super::Ula;
 
 impl<M, B, X, V> Io for Ula<M, B, X, V>
     where M: ZxMemory,

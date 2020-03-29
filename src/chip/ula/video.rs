@@ -7,7 +7,7 @@ use serde::{Serialize, Deserialize};
 use crate::memory::ZxMemory;
 use crate::clock::{VFrameTsCounter, MemoryContention, VideoTs, Ts, VideoTsData3};
 use crate::video::{Renderer, BorderSize, PixelBuffer, VideoFrame, Video, MAX_BORDER_SIZE};
-use super::{Ula, frame_cache::{Coords, pixel_address_coords, color_address_coords}};
+use super::{Ula, frame_cache::{pixel_address_coords, color_address_coords}};
 use super::frame_cache::{UlaFrameCache, UlaFrameProducer};
 
 #[derive(Clone, Copy, Default, Debug, PartialEq)]

@@ -1,20 +1,37 @@
 [package]
-name = "zxspecemu"
+name = "spectrusty"
 version = "0.1.0"
 authors = ["Rafal Michalski <royaltm75@gmail.com>"]
 edition = "2018"
+categories = ["emulators"]
+description = "A library for building ZX Spectrum emulators"
+exclude = ["/.travis.yml", "/appveyor.yml", ".gitignore"]
+keywords = ["ZX Spectrum", "retro"]
+# homepage = ""
+# repository = "https://github.com/royaltm/spectrusty"
+# license-file = "LICENSE.md"
+# readme = "README.md"
+
+[package.metadata.docs.rs]
+all-features = true
 
 [features]
-default = ["snapshot"]
-snapshot = ["serde", "arrayvec/serde", "z80emu/serde"]
+default = ["snapshot", "peripherals", "formats"]
+snapshot = ["serde", "arrayvec/serde", "spectrusty_core/snapshot", "spectrusty_peripherals/snapshot"]
+audio = ["spectrusty_audio"]
+formats = ["spectrusty_formats"]
+peripherals = ["spectrusty_peripherals"]
+utils = ["spectrusty_utils"]
 
 [dev-dependencies]
+spectrusty_audio = { path = "spectrusty_audio", version = "0.1" }
 smallvec = "1.1.0"
 cpal = "0.11.0"
 hound = "3.4.0"
 simple_logger = "1.6.0"
 serde_json = "1.0"
 bincode = "1.2"
+rand = {version = "0.7", features = ["small_rng"]}
 
 [dependencies.serde]
 default-features = true
@@ -22,25 +39,45 @@ features = ["derive"]
 optional = true
 version = "1.0"
 
-[dependencies.z80emu]
+[dependencies.spectrusty_core]
 default-features = false
-features = ["std"]
-version = "0.2.0"
-# path = "../z80emu"
+version = "0.1"
+path = "spectrusty_core"
+
+[dependencies.spectrusty_audio]
+optional = true
+version = "0.1"
+path = "spectrusty_audio"
+
+[dependencies.spectrusty_formats]
+optional = true
+version = "0.1"
+path = "spectrusty_formats"
+
+[dependencies.spectrusty_peripherals]
+optional = true
+default-features = false
+version = "0.1"
+path = "spectrusty_peripherals"
+
+[dependencies.spectrusty_utils]
+optional = true
+version = "0.1"
+path = "spectrusty_utils"
 
 [dependencies]
 log = "0.4"
-derive_more = "0.99.2"
 arrayvec = "0.5.1"
 bitflags = "1.2.1"
-nom = "5.1.0"
-memchr = "2.3.0"
-rand = {version = "0.7", features = ["small_rng"]}
-bitvec = "0.17.3"
-base64 = "0.12.0"
+# base64 = "0.12.0"
 
 [workspace]
 members = [
+  "spectrusty_audio",
+  "spectrusty_core",
+  "spectrusty_formats",
+  "spectrusty_peripherals",
+  "spectrusty_utils",
   "examples/web_ay_player",
   "examples/sdl2_zxspectrum"
 ]

@@ -1,0 +1,31 @@
+[package]
+name = "spectrusty_peripherals"
+version = "0.1.0"
+authors = ["Rafal Michalski <royaltm75@gmail.com>"]
+edition = "2018"
+
+[features]
+default = ["snapshot"]
+snapshot = ["serde", "spectrusty_core/snapshot", "base64"]
+
+[dependencies.serde]
+default-features = true
+features = ["derive"]
+optional = true
+version = "1.0"
+
+[dependencies.spectrusty_core]
+default-features = false
+version = "0.1"
+path = "../spectrusty_core"
+
+[dependencies]
+log = "0.4"
+bitflags = "1.2.1"
+rand = {version = "0.7", features = ["small_rng"]}
+bitvec = "0.17.3"
+base64 = { version = "0.12", optional = true }
+
+[dev-dependencies]
+spectrusty = { path = "..", version = "0.1" }
+spectrusty_audio = { path = "../spectrusty_audio", version = "0.1" }

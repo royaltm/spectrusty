@@ -1,16 +1,11 @@
 use core::convert::TryFrom;
 use core::ptr::NonNull;
-use core::fmt;
-use core::marker::PhantomData;
-
 use arrayvec::ArrayVec;
-use base64;
 use serde::{Serialize, Deserialize};
-use serde::ser::{self, Serializer, SerializeSeq, SerializeMap, SerializeStruct};
-use serde::de::{self, Deserializer, Visitor, SeqAccess, MapAccess, value::MapAccessDeserializer};
-
+use serde::ser::{self, Serializer, SerializeStruct};
+use serde::de::{self, Deserializer};
 use super::{MAX_PAGES,
-    ExRom, MemoryBlock, MemoryPages, ExRomAttachment, MemPageableRomRamExRom, MemSerExt, MemDeExt,
+    ExRom, MemoryBlock, MemoryPages, MemPageableRomRamExRom, MemSerExt, MemDeExt,
     ro_flag_mask, serialize_mem, deserialize_mem};
 
 impl<M: MemoryBlock> Serialize for MemPageableRomRamExRom<M>
@@ -110,6 +105,7 @@ impl<'de, M: MemoryBlock> Deserialize<'de> for MemPageableRomRamExRom<M>
 
 #[cfg(test)]
 mod tests {
+    use std::rc::Rc;
     use super::*;
     use crate::memory::multi_page::MEM16K_SIZE;
     use crate::memory::*;

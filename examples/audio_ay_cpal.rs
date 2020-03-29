@@ -4,13 +4,9 @@ mod audio_cpal;
 
 use audio_cpal::*;
 
-use zxspecemu::audio::carousel::*;
-use zxspecemu::audio::sample::*;
-use zxspecemu::audio::*;
-use zxspecemu::audio::ay::*;
-use zxspecemu::audio::music::*;
-use zxspecemu::audio::synth::*;
-use zxspecemu::peripherals::ay::{AyRegister, AyRegChange};
+use spectrusty_audio::{carousel::*, music::*, synth::*};
+use spectrusty::audio::*;
+use spectrusty::peripherals::ay::{audio::*, AyRegister, AyRegChange};
 
 /****************************************************************************/
 /*                                   MAIN                                   */

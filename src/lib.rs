@@ -10,7 +10,7 @@
 ```
 * [UlaCommon][chip::ula::UlaCommon] 
 * [UlaAudioFrame][chip::ula::UlaAudioFrame]
-* [BusDevice][chip::BusDevice]
+* [BusDevice][bus::BusDevice]
 * [Cpu][z80emu::Cpu]
 
 ## Implementations
@@ -20,28 +20,24 @@
 
 ### Generics
 
-* `B`: [BusDevice][chip::BusDevice]
+* `B`: [BusDevice][bus::BusDevice]
 * `X`: [MemoryExtension][memory::MemoryExtension]
 * `M`: [ZxMemory][memory::ZxMemory]
 * `V`: [VideoFrame][video::VideoFrame]
 */
-#![allow(dead_code)]
-#![allow(unused_imports)]
+pub use spectrusty_core::z80emu;
+#[cfg(feature = "peripherals")] pub use spectrusty_peripherals as peripherals;
+#[cfg(feature = "formats")] pub use spectrusty_formats as formats;
+#[cfg(feature = "utils")] pub use spectrusty_utils as utils;
 
-#[macro_use]
-extern crate bitflags;
-
-pub use z80emu;
+#[macro_use] extern crate bitflags;
 
 pub mod audio;
 pub mod bus;
 pub mod chip;
 pub mod clock;
 pub mod memory;
-pub mod formats;
 pub mod video;
-pub mod peripherals;
-pub mod utils;
 
 #[cfg(test)]
 mod tests {

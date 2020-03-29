@@ -3,17 +3,18 @@ pub(crate) mod frame_cache;
 mod io;
 mod video;
 
-use core::ops::{Deref, DerefMut};
 use core::num::Wrapping;
 
 #[allow(unused_imports)]
 use log::{error, warn, info, debug, trace};
 
-use z80emu::{*, host::{Result, cycles::M1_CYCLE_TS}};
+use crate::z80emu::{*, host::{Result, cycles::M1_CYCLE_TS}};
 #[cfg(feature = "snapshot")]
 use serde::{Serialize, Deserialize};
 
-use crate::audio::{AudioFrame, EarIn, MicOut, Blep, EarInAudioFrame, EarMicOutAudioFrame, ay::AyAudioFrame};
+use crate::audio::{AudioFrame, EarIn, MicOut, Blep, EarInAudioFrame, EarMicOutAudioFrame};
+#[cfg(feature = "peripherals")] use crate::peripherals::ay::audio::AyAudioFrame;
+
 use crate::bus::{BusDevice, NullDevice};
 use crate::chip::{ControlUnit, MemoryAccess, nanos_from_frame_tc_cpu_hz};
 use crate::video::{Video, VideoFrame};
@@ -44,14 +45,21 @@ impl<U> UlaCommon for U
 {}
 
 /// A grouping trait of common audio rendering traits for all emulated `Ula` chipsets.
-pub trait UlaAudioFrame<B: Blep>: AudioFrame<B> +
+#[cfg(feature = "peripherals")] pub trait UlaAudioFrame<B: Blep>: AudioFrame<B> +
                                   EarMicOutAudioFrame<B> +
                                   EarInAudioFrame<B> +
                                   AyAudioFrame<B> {}
+#[cfg(not(feature = "peripherals"))] pub trait UlaAudioFrame<B: Blep>: AudioFrame<B> +
+                                  EarMicOutAudioFrame<B> +
+                                  EarInAudioFrame<B> {}
+#[cfg(feature = "peripherals")]
 impl<B: Blep, U> UlaAudioFrame<B> for U
     where U: AudioFrame<B> + EarMicOutAudioFrame<B> + EarInAudioFrame<B> + AyAudioFrame<B>
 {}
-
+#[cfg(not(feature = "peripherals"))]
+impl<B: Blep, U> UlaAudioFrame<B> for U
+    where U: AudioFrame<B> + EarMicOutAudioFrame<B> + EarInAudioFrame<B>
+{}
 
 // #[derive(Clone)]
 // pub struct SnowyUla<M, B> {
@@ -461,8 +469,7 @@ pub fn execute_halted_state_until_eof<V: VideoFrame,
 #[cfg(test)]
 mod tests {
     use core::convert::TryFrom;
-    use z80emu::opconsts::HALT_OPCODE;
-    use crate::bus::NullDevice;
+    use crate::z80emu::opconsts::HALT_OPCODE;
     use crate::memory::Memory64k;
     use super::*;
     type TestUla = Ula::<Memory64k>;

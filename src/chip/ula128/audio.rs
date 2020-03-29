@@ -1,13 +1,10 @@
-use core::marker::PhantomData;
-use core::convert::TryInto;
 use core::num::NonZeroU32;
 use crate::audio::*;
-use crate::audio::ay::AyAudioFrame;
-use crate::bus::ay::AyAudioVBusDevice;
-use crate::chip::ControlUnit;
-use crate::clock::{Ts, VideoTs, VideoTsData2, VFrameTsCounter};
-use crate::memory::ZxMemory;
-use crate::video::{Video, VideoFrame};
+#[cfg(feature = "peripherals")]
+use crate::peripherals::ay::audio::AyAudioFrame;
+#[cfg(feature = "peripherals")]
+use crate::peripherals::bus::ay::AyAudioVBusDevice;
+use crate::video::VideoFrame;
 use super::{CPU_HZ, Ula128, Ula128VidFrame, InnerUla};
 
 impl<A, B, X> AyAudioFrame<A> for Ula128<B, X>

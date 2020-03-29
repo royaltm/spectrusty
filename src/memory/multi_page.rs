@@ -1,6 +1,3 @@
-use core::result;
-use core::ops::{Deref, DerefMut};
-use core::ops::RangeBounds;
 use core::ptr::NonNull;
 use core::slice;
 use std::rc::Rc;
@@ -10,16 +7,14 @@ use std::rc::Rc;
 use ::serde::Serialize;
 #[cfg(feature = "snapshot")]
 use super::serde::{MemSerExt, MemDeExt, serialize_mem, deserialize_mem};
+use super::{MEM16K_SIZE, MEM32K_SIZE, MEM48K_SIZE, MEM64K_SIZE, MEM128K_SIZE};
 
 use super::{
     Result,
     ZxMemory,
     ZxMemoryError,
-    // MemoryFeatures,
     MemoryKind,
-    MemPageOffset,
-    ExRom,
-    normalize_address_range
+    ExRom
 };
 
 /// An EX-ROM attachable memory type with 16kb RAM and 16kb ROM.
@@ -32,11 +27,6 @@ pub type Memory128k = MemPageableRomRamExRom<[u8; MEM32K_SIZE + MEM128K_SIZE]>;
 pub type Memory128kPlus = MemPageableRomRamExRom<[u8; MEM64K_SIZE + MEM128K_SIZE]>;
 
 const MAX_PAGES: usize = 8;
-const MEM16K_SIZE : usize = 0x4000;
-pub(super) const MEM32K_SIZE : usize = 2 * MEM16K_SIZE;
-pub(super) const MEM48K_SIZE : usize = 3 * MEM16K_SIZE;
-pub(super) const MEM64K_SIZE : usize = 4 * MEM16K_SIZE;
-pub(super) const MEM128K_SIZE: usize = 8 * MEM16K_SIZE;
 const BANK16K_MASK: u16 = (MEM16K_SIZE - 1) as u16;
 const NUM_BANK16K_PAGES: usize = 4;
 const SCREEN_SIZE: u16 = 0x1B00;
@@ -526,9 +516,10 @@ impl<M> ZxMemory for MemPageableRomRamExRom<M>
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use rand::{Rng, SeedableRng};
     use rand::rngs::SmallRng;
+    use crate::memory::MemPageOffset;
+    use super::*;
 
     fn page_mem_offset(mem: &Memory128k, page: u8) -> usize {
         let mem_ptr = mem.mem_ref().as_ptr() as usize;

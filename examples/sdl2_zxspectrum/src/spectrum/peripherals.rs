@@ -4,19 +4,23 @@ mod nonblocking;
 use chrono::prelude::*;
 use sdl2::keyboard::{Mod as Modifier, Keycode};
 use sdl2::mouse::MouseButton;
-use zxspecemu::bus::{DynamicBusDevice, OptionalBusDevice, NullDevice,
-                    joystick::{JoystickSelect, MultiJoystickBusDevice},
-                    zxinterface1::*,
-                    zxprinter::*};
-use zxspecemu::clock::VideoTs;
-use zxspecemu::chip::MemoryAccess;
-use zxspecemu::memory::ZxMemory;
-use zxspecemu::peripherals::{KeyboardInterface, ZXKeyboardMap};
-use zxspecemu::peripherals::ay::serial128::Ay3_8912KeypadRs232;
-use zxspecemu::peripherals::joystick::Directions;
-use zxspecemu::peripherals::mouse::{MouseInterface, MouseButtons, kempston::KempstonMouseDevice};
-use zxspecemu::peripherals::serial::{KeypadKeys, SerialKeypad};
-use zxspecemu::video::{Video, BorderSize, VideoFrame};
+use spectrusty::bus::{
+    DynamicBusDevice, OptionalBusDevice, NullDevice,
+    ay::serial128::Ay3_8912KeypadRs232,
+    joystick::{JoystickSelect, MultiJoystickBusDevice},
+    zxinterface1::*,
+    zxprinter::*
+};
+use spectrusty::clock::VideoTs;
+use spectrusty::chip::{MemoryAccess, ula128::Ula128VidFrame};
+use spectrusty::memory::ZxMemory;
+use spectrusty::peripherals::{
+    KeyboardInterface, ZXKeyboardMap,
+    joystick::Directions,
+    mouse::{MouseInterface, MouseButtons, kempston::KempstonMouseDevice},
+    serial::{KeypadKeys, SerialKeypad}
+};
+use spectrusty::video::{Video, BorderSize, VideoFrame};
 
 #[allow(unused_imports)]
 use log::{error, warn, info, debug, trace};
@@ -24,9 +28,8 @@ use log::{error, warn, info, debug, trace};
 use crate::spectrum::ZXSpectrum;
 use super::printer::{ZxGfxPrinter, ImageSpooler};
 
-pub use zxspecemu::bus::zxinterface1::{ZxNetUdpSyncSocket, MicroCartridge, ZXMicrodrives};
+pub use spectrusty::bus::zxinterface1::{ZxNetUdpSyncSocket, MicroCartridge, ZXMicrodrives};
 pub use nonblocking::*;
-
 
 pub type ZxInterface1<V,D=NullDevice<VideoTs>> = ZxInterface1BusDevice<V,
                                         NonBlockingStdinReader,
@@ -35,7 +38,8 @@ pub type ZxInterface1<V,D=NullDevice<VideoTs>> = ZxInterface1BusDevice<V,
                                         D>;
 pub type ZXPrinterToImage<V> = ZxPrinter<V, ImageSpooler>;
 pub type OptJoystickBusDevice<D=NullDevice<VideoTs>> = OptionalBusDevice<MultiJoystickBusDevice, D>;
-pub type Ay3_8912 = Ay3_8912KeypadRs232<OptJoystickBusDevice,
+pub type Ay3_8912 = Ay3_8912KeypadRs232<Ula128VidFrame,
+                                        OptJoystickBusDevice,
                                         NonBlockingStdinReader,
                                         FilterGfxStdoutWriter>;
 pub type Rs232<V> = Rs232Io<V, NonBlockingStdinReader, FilterGfxStdoutWriter>;

@@ -5,11 +5,9 @@ use std::io::{Seek, Read, Cursor};
 
 use audio_cpal::*;
 
-use zxspecemu::audio::carousel::*;
-use zxspecemu::audio::sample::*;
-use zxspecemu::audio::*;
-use zxspecemu::audio::synth::*;
-use zxspecemu::formats::tap::{*, pulse::*};
+use spectrusty_audio::{carousel::*, synth::*};
+use spectrusty::audio::*;
+use spectrusty::formats::tap::{*, pulse::*};
 /****************************************************************************/
 /*                                   MAIN                                   */
 /****************************************************************************/

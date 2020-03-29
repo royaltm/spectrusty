@@ -1,12 +1,10 @@
 use core::num::NonZeroU16;
-use z80emu::{Io, Memory};
+use crate::z80emu::{Io, Memory};
 use crate::bus::{BusDevice, PortAddress};
 use crate::clock::VideoTs;
 use crate::peripherals::{KeyboardInterface, ZXKeyboardMap};
 use crate::memory::{ZxMemory, MemoryExtension};
-use crate::video::{VideoFrame, pixel_line_offset, color_line_offset};
-// use crate::io::keyboard::*;
-// use crate::ts::*;
+use crate::video::VideoFrame;
 use super::{Ula128, Ula128VidFrame};
 
 #[derive(Clone, Copy, Default, Debug)]

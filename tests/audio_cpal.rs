@@ -8,7 +8,7 @@ use log::{error, warn, info, debug, trace};
 use cpal::traits::{DeviceTrait, EventLoopTrait, HostTrait};
 use cpal::{UnknownTypeOutputBuffer, Format, SampleFormat, Sample, SampleRate};
 
-use zxspecemu::audio::carousel::*;
+use spectrusty_audio::carousel::*;
 
 pub enum AudioUnknownDataType {
     I16(Audio<i16>),

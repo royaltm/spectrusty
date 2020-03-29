@@ -41,6 +41,7 @@ features = [
 # version = "^0.7"
 # features = ["wasm-bindgen"]
 
-[dependencies.zxspecemu]
+[dependencies.spectrusty]
 version = "*"
 path = "../.."
+features = ["audio"]

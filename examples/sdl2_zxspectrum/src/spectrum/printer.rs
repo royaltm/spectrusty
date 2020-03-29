@@ -1,8 +1,10 @@
 use std::io::{self, Write};
 
+use serde::{Serialize, Deserialize};
+
 use image::{ImageBuffer, Pixel, Luma};
 
-use zxspecemu::bus::zxprinter::{DOTS_PER_LINE, BYTES_PER_LINE, Spooler};
+use spectrusty::bus::zxprinter::{DOTS_PER_LINE, BYTES_PER_LINE, Spooler};
 
 #[allow(unused_imports)]
 use log::{error, warn, info, debug, trace};
@@ -24,7 +26,7 @@ pub trait ZxGfxPrinter {
 }
 
 /// A simple ZXPrinter spooler that produces PNG or SVG images.
-#[derive(Clone, Default, Debug)]
+#[derive(Serialize, Deserialize, Clone, Default, Debug)]
 pub struct ImageSpooler {
     spooling: bool,
     buf: Vec<u8>
@@ -117,7 +119,8 @@ impl ZxGfxPrinter for ImageSpooler {
 /* ////////////////// SerialPrinterGfxGrabber ////////////////// */
 
 /// A simple serial printer graphics line grabber that produces PNG or SVG images.
-#[derive(Clone, Default, Debug)]
+#[derive(Serialize, Deserialize, Clone, Default, Debug)]
+#[serde(rename_all="camelCase")]
 pub struct SerialPrinterGfxGrabber {
     state: GrabberState,
     eo_line: usize,
@@ -130,7 +133,7 @@ const DATA_LINE_WIDTH: usize = 3*256;
 const GRAPHIC_LINE_START: &[u8;6] = &[ESC_CODE, 0x31, 0x1B, 0x4C, 0x00, 0x03];
 const GRAPHIC_ENDS: &[u8;2] = &[ESC_CODE, 0x32];
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
 enum GrabberState {
     NoMatch,
     LineStart(usize),
