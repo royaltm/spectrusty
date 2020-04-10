@@ -9,7 +9,7 @@ use crate::clock::{MemoryContention, VideoTs, Ts, VideoTsData3};
 use crate::chip::ula::{
     frame_cache::{pixel_address_coords, color_address_coords}
 };
-use crate::video::{Renderer, BorderSize, PixelBuffer, VideoFrame, Video, MAX_BORDER_SIZE};
+use crate::video::{Renderer, BorderSize, PixelBuffer, Palette, VideoFrame, Video, MAX_BORDER_SIZE};
 use super::{Ula128, frame_cache::Ula128FrameProducer};
 
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
@@ -81,7 +81,7 @@ impl VideoFrame for Ula128VidFrame {
     }
 }
 
-impl<B, X> Video for Ula128<B, X> {
+impl<D, X> Video for Ula128<D, X> {
     type VideoFrame = Ula128VidFrame;
 
     #[inline]
@@ -93,14 +93,20 @@ impl<B, X> Video for Ula128<B, X> {
         self.ula.ula_set_border_color(border)
     }
 
-    fn render_video_frame<P: PixelBuffer>(&mut self, buffer: &mut [u8], pitch: usize, border_size: BorderSize) {
-        self.create_renderer(border_size).render_pixels::<P, Self::VideoFrame>(buffer, pitch)
+    fn render_video_frame<'a, B: PixelBuffer<'a>, P: Palette<Pixel=B::Pixel>>(
+            &mut self,
+            buffer: &'a mut [u8],
+            pitch: usize,
+            border_size: BorderSize
+        )
+    {
+        self.create_renderer(border_size).render_pixels::<B, P, Self::VideoFrame>(buffer, pitch)
     }
 }
 
 impl<B, X> Ula128<B, X> {
     #[inline(always)]
-    pub(super) fn update_frame_pixels_and_colors(&mut self, addr: u16, ts: VideoTs) {
+    pub(super) fn update_frame_cache(&mut self, addr: u16, ts: VideoTs) {
         let (frame_cache, match_addr) = match self.page3_screen_bank() {
             Some(0) => (&mut self.ula.frame_cache, addr & !0x8000),  // both page1 and page3 as screen 0
             Some(1) if addr & 0x8000 == 0x8000 => {
@@ -124,7 +130,7 @@ impl<B, X> Ula128<B, X> {
         ) -> Renderer<Ula128FrameProducer<'a>, std::vec::Drain<'a, VideoTsData3>>
     {
         let swap_screens = self.beg_screen_shadow;
-        let border = self.ula.ula_border_color() as usize;
+        let border = self.ula.ula_border_color();
         let invert_flash = self.ula.frames.0 & 16 != 0;
         let (border_changes, memory, frame_cache0) = self.ula.ula_video_render_data_view();
         let frame_cache1 = &self.shadow_frame_cache;

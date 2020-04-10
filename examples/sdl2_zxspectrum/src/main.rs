@@ -202,11 +202,13 @@ fn run<C, U, I>(
 
     let texture_creator = canvas.texture_creator();
     let create_texture = |width, height| {
-        texture_creator.create_texture_streaming(PixelFormatEnum::RGB24, width, height)
+        texture_creator.create_texture_streaming(PixelFormatEnum::RGB888, width, height)
                        .map_err(err_str)
     };
 
     let mut texture = create_texture(screen_width, screen_height)?;
+    println!("canvas: {:?}", canvas.window().window_pixel_format());
+    println!("stream: {:?}", texture.query());
 
     let mut keyboard_visible = false;
     let mut keyboard_canvas = create_image_canvas_window(&video_subsystem, KEYBOARD_IMAGE)?;
@@ -493,7 +495,7 @@ fn run<C, U, I>(
         // render pixels
         texture.with_lock(None, |buffer: &mut [u8], pitch: usize| {
             // measure_performance!("Video frame at: {:.4} Hz frames: {} wall: {} s"; 1.0f64, timer_subsystem, counter_elapsed, counter_iters, counter_sum; {
-                zx.render_pixels::<PixelBufRGB24>(buffer, pitch, border_size);
+                zx.render_pixels::<PixelBufP32, SpectrumPalA8R8G8B8>(buffer, pitch, border_size);
             // 1.0});
         })?;
 

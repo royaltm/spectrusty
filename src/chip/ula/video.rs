@@ -6,7 +6,7 @@ use serde::{Serialize, Deserialize};
 
 use crate::memory::ZxMemory;
 use crate::clock::{VFrameTsCounter, MemoryContention, VideoTs, Ts, VideoTsData3};
-use crate::video::{Renderer, BorderSize, PixelBuffer, VideoFrame, Video, MAX_BORDER_SIZE};
+use crate::video::{Renderer, BorderSize, PixelBuffer, Palette, VideoFrame, Video, MAX_BORDER_SIZE};
 use super::{Ula, frame_cache::{pixel_address_coords, color_address_coords}};
 use super::frame_cache::{UlaFrameCache, UlaFrameProducer};
 
@@ -76,7 +76,7 @@ impl VideoFrame for UlaVideoFrame {
     }
 }
 
-impl<M: ZxMemory, B, X> Video for Ula<M, B, X> {
+impl<M: ZxMemory, D, X> Video for Ula<M, D, X> {
     type VideoFrame = UlaVideoFrame;
 
     #[inline]
@@ -88,14 +88,20 @@ impl<M: ZxMemory, B, X> Video for Ula<M, B, X> {
         self.ula_set_border_color(border)
     }
 
-    fn render_video_frame<P: PixelBuffer>(&mut self, buffer: &mut [u8], pitch: usize, border_size: BorderSize) {
-        self.create_renderer(border_size).render_pixels::<P, Self::VideoFrame>(buffer, pitch)
+    fn render_video_frame<'a, B: PixelBuffer<'a>, P: Palette<Pixel=B::Pixel>>(
+            &mut self,
+            buffer: &'a mut [u8],
+            pitch: usize,
+            border_size: BorderSize
+        )
+    {
+        self.create_renderer(border_size).render_pixels::<B, P, Self::VideoFrame>(buffer, pitch)
     }
 }
 
 impl<M: ZxMemory, B, X> Ula<M, B, X> {
     #[inline(always)]
-    pub(super) fn update_frame_pixels_and_colors(&mut self, addr: u16, ts: VideoTs) {
+    pub(super) fn update_frame_cache(&mut self, addr: u16, ts: VideoTs) {
         if let Some(coords) = pixel_address_coords(addr) {
             self.frame_cache.update_frame_pixels(&self.memory, coords, addr, ts);
         }
@@ -127,7 +133,7 @@ impl<M: ZxMemory, B, X, V> Ula<M, B, X, V> {
             border_size: BorderSize
         ) -> Renderer<UlaFrameProducer<'_, V>, std::vec::Drain<'_, VideoTsData3>>
     {
-        let border = self.border as usize;
+        let border = self.border;
         let screen = &self.memory.screen_ref(0).unwrap();
         // print!("render: {} {:?}", screen_bank, screen.as_ptr());
         Renderer {

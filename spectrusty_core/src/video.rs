@@ -1,14 +1,12 @@
 //! # Video API
-mod color;
-mod pixel_buffer;
+pub mod pixel;
 
 use core::convert::{TryInto, TryFrom};
 use core::fmt::{self, Debug};
 use core::ops::{BitAnd, BitOr, Shl, Shr, Range};
 use crate::clock::{Ts, FTs, VideoTs};
 
-pub use color::{PixelRgb, RgbIter, RgbaIter};
-pub use pixel_buffer::{PixelBufRGB24, PixelBufRGBA8, PixelBuffer};
+pub use pixel::{Palette, PixelBuffer};
 
 /// A halved count of PAL `pixel lines` (low resolution).
 pub const PAL_VC: u32 = 576/2;
@@ -50,8 +48,14 @@ pub trait Video {
     ///
     /// To predetermine the resolution of the rendered buffer area use [VideoFrame::screen_size_pixels].
     ///
-    /// The `PixelBuffer` implementation is used to write pixels into buffer data.
-    fn render_video_frame<B: PixelBuffer>(&mut self, buffer: &mut [u8], pitch: usize, border_size: BorderSize);
+    /// * [PixelBuffer] implementation is used to write pixels into the `buffer`.
+    /// * [Palette] implementation is used to create colors from the Spectrum's color index.
+    fn render_video_frame<'a, B: PixelBuffer<'a>, P: Palette<Pixel=B::Pixel>>(
+        &mut self,
+        buffer: &'a mut [u8],
+        pitch: usize,
+        border_size: BorderSize
+    );
 }
 /// A collection of static methods and constants raleted to video parameters.
 /// ```text

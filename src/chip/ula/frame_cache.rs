@@ -4,7 +4,7 @@ use core::marker::PhantomData;
 use crate::clock::{Ts, VideoTs};
 use crate::memory::{ZxMemory};
 use crate::video::{pixel_line_offset, color_line_offset, VideoFrame,
-    frame_cache::{PixelPack8, FrameImageProducer}
+    frame_cache::VideoFrameDataIterator
 };
 
 const ATTRS_OFFSET: usize = 0x1800;
@@ -115,7 +115,7 @@ impl<'a, V> UlaFrameProducer<'a, V> {
     }
 }
 
-impl<'a, V> FrameImageProducer for UlaFrameProducer<'a, V> {
+impl<'a, V> VideoFrameDataIterator for UlaFrameProducer<'a, V> {
     fn next_line(&mut self) {
         let line = self.line + 1;
         if line < PIXEL_LINES {
@@ -126,10 +126,10 @@ impl<'a, V> FrameImageProducer for UlaFrameProducer<'a, V> {
 }
 
 impl<'a, V> Iterator for UlaFrameProducer<'a, V> {
-    type Item = PixelPack8;
+    type Item = (u8, u8);
 
     #[inline]
-    fn next(&mut self) -> Option<PixelPack8> {
+    fn next(&mut self) -> Option<(u8, u8)> {
         let line_iter = &mut self.line_iter;
         let column = line_iter.column;
         if column >= LINE_SIZE {
@@ -152,7 +152,7 @@ impl<'a, V> Iterator for UlaFrameProducer<'a, V> {
         else {
             line_iter.attr_line[column & (LINE_SIZE - 1)]
         };
-        Some(PixelPack8 { ink, attr })
+        Some((ink, attr))
     }
 }
 

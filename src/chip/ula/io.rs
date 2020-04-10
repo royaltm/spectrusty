@@ -79,7 +79,7 @@ impl<M, B, X> Memory for Ula<M, B, X>
 
     #[inline(always)]
     fn write_mem(&mut self, addr: u16, val: u8, ts: VideoTs) {
-        self.update_frame_pixels_and_colors(addr, ts);
+        self.update_frame_cache(addr, ts);
         self.memory.write(addr, val);
     }
 }

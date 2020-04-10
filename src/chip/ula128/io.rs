@@ -95,7 +95,7 @@ impl<B, X> Memory for Ula128<B, X>
 
     #[inline(always)]
     fn write_mem(&mut self, addr: u16, val: u8, ts: VideoTs) {
-        self.update_frame_pixels_and_colors(addr, ts);
+        self.update_frame_cache(addr, ts);
         self.ula.memory.write(addr, val);
     }
 }

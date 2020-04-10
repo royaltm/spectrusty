@@ -3,7 +3,7 @@ use std::vec::Drain;
 use crate::clock::{Ts, VideoTs};
 use crate::video::{
     VideoFrame,
-    frame_cache::{PixelPack8, FrameImageProducer}
+    frame_cache::VideoFrameDataIterator
 };
 use crate::chip::ula::frame_cache::{UlaFrameCache, UlaFrameProducer};
 use super::Ula128VidFrame;
@@ -17,7 +17,7 @@ pub struct Ula128FrameProducer<'a> {
     swap_at: Option<VideoTs>,
 }
 
-impl<'a> FrameImageProducer for Ula128FrameProducer<'a> {
+impl<'a> VideoFrameDataIterator for Ula128FrameProducer<'a> {
     fn next_line(&mut self) {
         self.ula_frame0_prod.next_line();
         self.ula_frame1_prod.next_line();
@@ -55,9 +55,9 @@ impl<'a> Ula128FrameProducer<'a> {
 }
 
 impl<'a> Iterator for Ula128FrameProducer<'a> {
-    type Item = PixelPack8;
+    type Item = (u8, u8);
 
-    fn next(&mut self) -> Option<PixelPack8> {
+    fn next(&mut self) -> Option<(u8, u8)> {
         while let Some(swap_at) = self.swap_at {
             let vc = Ula128VidFrame::VSL_PIXELS.start + self.ula_frame0_prod.line() as Ts;
             let hc = COL_HTS[self.ula_frame0_prod.column() & 31];

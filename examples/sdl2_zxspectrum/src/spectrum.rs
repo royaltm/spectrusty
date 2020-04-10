@@ -40,7 +40,8 @@ pub use spectrusty::bus::*;
 pub use spectrusty::chip::{*, ula::*, ula128::*};
 pub use spectrusty::clock::*;
 pub use spectrusty::memory::{ZxMemory, Memory48kEx, Memory48k, Memory16k};
-pub use spectrusty::video::{BorderSize, PixelBufRGB24, Video};
+pub use spectrusty::video::{BorderSize, Video};
+pub use spectrusty::video::pixel::*;
 pub use spectrusty::z80emu::{Cpu, Z80NMOS};
 
 const IF1_ROM_PATH: &str = "../../resources/if1-2.rom";
@@ -265,9 +266,9 @@ impl<C, U> ZXSpectrum<C, U>
     }
 
     #[inline(always)]
-    pub fn render_pixels<P: PixelBuffer>(&mut self, buffer: &mut [u8], pitch: usize, border_size: BorderSize) {
+    pub fn render_pixels<'a, B: PixelBuffer<'a>, P: Palette<Pixel=B::Pixel>>(&mut self, buffer: &'a mut [u8], pitch: usize, border_size: BorderSize) {
         // eprintln!("before {:?}", self.ula);
-        self.ula.render_video_frame::<P>(buffer, pitch, border_size);
+        self.ula.render_video_frame::<B, P>(buffer, pitch, border_size);
         // eprintln!("after {:?}", self.ula);
     }
 
