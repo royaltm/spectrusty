@@ -1,9 +1,14 @@
 //! # Video API
 pub mod pixel;
 
+use core::str::FromStr;
 use core::convert::{TryInto, TryFrom};
 use core::fmt::{self, Debug};
 use core::ops::{BitAnd, BitOr, Shl, Shr, Range};
+
+#[cfg(feature = "snapshot")]
+use serde::{Serialize, Deserialize};
+
 use crate::clock::{Ts, FTs, VideoTs};
 
 pub use pixel::{Palette, PixelBuffer};
@@ -16,6 +21,8 @@ pub const PAL_HC: u32 = 704/2;
 pub const MAX_BORDER_SIZE: u32 = 6*8;
 
 /// An enum used to select border size when rendering video frames.
+#[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "snapshot", serde(try_from = "u8", into = "u8"))]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum BorderSize {
@@ -28,8 +35,11 @@ pub enum BorderSize {
     Nil     = 0
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct BorderSizeTryFromError(pub u8);
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TryFromUIntBorderSizeError(pub u8);
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ParseBorderSizeError;
 
 /// An interface for renderering Spectrum's pixel data to frame buffers.
 pub trait Video {
@@ -131,7 +141,7 @@ pub trait VideoFrame: Copy + Debug {
     /// T-state contention while rendering ink+paper lines.
     fn contention(hc: Ts) -> Ts;
     /// Returns an optional floating bus horizontal offset for the given timestamp.
-    fn floating_bus_offset(vts: VideoTs) -> Option<u16>;
+    fn floating_bus_offset(ts: VideoTs) -> Option<u16>;
     /// Returns an optional floating bus screen address (in screen address space) for the given timestamp.
     #[inline]
     fn floating_bus_screen_address(ts: VideoTs) -> Option<u16> {
@@ -159,17 +169,17 @@ pub trait VideoFrame: Copy + Debug {
     fn is_contended_line_no_mreq(vsl: Ts) -> bool {
         vsl >= Self::VSL_PIXELS.start && vsl < Self::VSL_PIXELS.end
     }
-    /// Converts video scan line and horizontal T-state counters to the frame T-state timestamp without wrapping.
+    /// Converts video scan line and horizontal T-state counters to the frame T-state count without any normalization.
     #[inline]
     fn vc_hc_to_tstates(vc: Ts, hc: Ts) -> FTs {
         vc as FTs * Self::HTS_COUNT as FTs + hc as FTs
     }
-    /// Converts a video timestamp to the frame T-state timestamp.
+    /// Converts a video timestamp to the frame T-state count without any normalization.
     #[inline(always)]
     fn vts_to_tstates(VideoTs { vc, hc }: VideoTs) -> FTs {
         Self::vc_hc_to_tstates(vc, hc)
     }
-    /// Converts a frame T-state timestamp to a video timestamp.
+    /// Converts a frame T-state count to a video timestamp.
     #[inline]
     fn tstates_to_vts(ts: FTs) -> VideoTs {
         let hts_count: FTs = Self::HTS_COUNT as FTs;
@@ -177,10 +187,10 @@ pub trait VideoFrame: Copy + Debug {
         let hc = ts % hts_count;
         VideoTs { vc: vc.try_into().unwrap(), hc: hc.try_into().unwrap() }
     }
-    /// Converts a `VideoTs` timestamp and a frame counter to a frame counter and
-    /// a normalized frame timestamp.
+    /// Converts a video timestamp and a frame counter to a frame counter and
+    /// a normalized frame T-state count.
     ///
-    /// The timestamp value returned is between: `[0, [VideoFrame::FRAME_TSTATES_COUNT])`.
+    /// The count value returned will be always between: `[0, [VideoFrame::FRAME_TSTATES_COUNT])`.
     #[inline]
     fn vts_to_norm_tstates(vts: VideoTs, frames: u64) -> (u64, FTs) {
         let ts = Self::vts_to_tstates(vts);
@@ -206,7 +216,8 @@ pub trait VideoFrame: Copy + Debug {
     fn is_vts_eof(VideoTs { vc, .. }: VideoTs) -> bool {
         vc >= Self::VSL_COUNT
     }
-    /// Returns a video timestamp with a horizontal counter within the normal range.
+    /// Returns a video timestamp with a horizontal counter within the allowed range and a scan line
+    /// counter adjusted accordingly.
     #[inline]
     fn normalize_vts(VideoTs { mut vc, mut hc }: VideoTs) -> VideoTs {
         if hc < Self::HTS_RANGE.start || hc >= Self::HTS_RANGE.end {
@@ -221,7 +232,7 @@ pub trait VideoFrame: Copy + Debug {
         }
         VideoTs::new(vc, hc)
     }
-
+    /// Returns a normalized video timestamp after adding a `delta` T-state count.
     #[inline]
     fn vts_add_ts(VideoTs { vc, hc }: VideoTs, delta: u32) -> VideoTs {
         let dvc = (delta / Self::HTS_COUNT as u32).try_into().expect("delta too large");
@@ -229,29 +240,104 @@ pub trait VideoFrame: Copy + Debug {
         let vc = vc.checked_add(dvc).expect("delta too large");
         Self::normalize_vts(VideoTs::new(vc, hc + dhc))
     }
-
+    /// Returns the difference between `vts_to` and `vts_from` video timestamps in T-states.
     #[inline]
     fn vts_diff(vts_from: VideoTs, vts_to: VideoTs) -> FTs {
         (vts_to.vc as FTs - vts_from.vc as FTs) * Self::HTS_COUNT as FTs +
         (vts_to.hc as FTs - vts_from.hc as FTs)
     }
-
+    /// Returns a video timestamp after subtracting the total number of frame video scanlines
+    /// from the scan line counter.
     #[inline]
     fn vts_saturating_sub_frame(VideoTs { vc, hc }: VideoTs) -> VideoTs {
         let vc = vc.saturating_sub(Self::VSL_COUNT);
         VideoTs { vc, hc }
     }
-
+    /// Returns a normalized video timestamp after subtracting an `other_vts` from it.
     fn vts_saturating_sub_vts_normalized(VideoTs { vc, hc }: VideoTs, other_vts: VideoTs) -> VideoTs {
         let vc = vc.saturating_sub(other_vts.vc);
         let hc = hc - other_vts.hc;
         Self::normalize_vts(VideoTs::new(vc, hc))
     }
-
+    /// Returns a normalized video timestamp after adding an `other_vts` to it.
     fn vts_saturating_add_vts_normalized(VideoTs { vc, hc }: VideoTs, other_vts: VideoTs) -> VideoTs {
         let vc = vc.saturating_add(other_vts.vc);
         let hc = hc + other_vts.hc;
         Self::normalize_vts(VideoTs::new(vc, hc))
+    }
+}
+
+impl From<BorderSize> for &'static str {
+    fn from(border: BorderSize) -> &'static str {
+        match border {
+            BorderSize::Full    => "full",
+            BorderSize::Large   => "large",
+            BorderSize::Medium  => "medium",
+            BorderSize::Small   => "small",
+            BorderSize::Tiny    => "tiny",
+            BorderSize::Minimal => "minimal",
+            BorderSize::Nil     => "none",
+        }
+    }
+}
+
+impl fmt::Display for BorderSize {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(<&str>::from(*self))
+    }
+}
+
+impl std::error::Error for ParseBorderSizeError {}
+
+impl fmt::Display for ParseBorderSizeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("unrecognized border size")
+    }
+}
+
+impl FromStr for BorderSize {
+    type Err = ParseBorderSizeError;
+    /// Parses a single word describing border size using case insensitive matching
+    /// or a single digit from 0 to 6.
+    fn from_str(name: &str) -> Result<Self, Self::Err> {
+        if name.eq_ignore_ascii_case("full") ||
+           name.eq_ignore_ascii_case("maxi") ||
+           name.eq_ignore_ascii_case("max") {
+            Ok(BorderSize::Full)
+        }
+        else if name.eq_ignore_ascii_case("large") ||
+                name.eq_ignore_ascii_case("big") {
+            Ok(BorderSize::Large)
+        }
+        else if name.eq_ignore_ascii_case("medium") ||
+                name.eq_ignore_ascii_case("medi")   ||
+                name.eq_ignore_ascii_case("med") {
+            Ok(BorderSize::Medium)
+        }
+        else if name.eq_ignore_ascii_case("small") ||
+                name.eq_ignore_ascii_case("sm") {
+            Ok(BorderSize::Small)
+        }
+        else if name.eq_ignore_ascii_case("tiny") {
+            Ok(BorderSize::Tiny)
+        }
+        else if name.eq_ignore_ascii_case("minimal") ||
+                name.eq_ignore_ascii_case("mini")    ||
+                name.eq_ignore_ascii_case("min") {
+            Ok(BorderSize::Minimal)
+        }
+        else if name.eq_ignore_ascii_case("none") ||
+                name.eq_ignore_ascii_case("nil")  ||
+                name.eq_ignore_ascii_case("null") ||
+                name.eq_ignore_ascii_case("zero") {
+            Ok(BorderSize::Nil)
+        }
+        else {
+            u8::from_str(name).map_err(|_| ParseBorderSizeError)
+            .and_then(|size|
+                BorderSize::try_from(size).map_err(|_| ParseBorderSizeError)
+            )
+        }
     }
 }
 
@@ -261,16 +347,16 @@ impl From<BorderSize> for u8 {
     }
 }
 
-impl fmt::Display for BorderSizeTryFromError {
+impl std::error::Error for TryFromUIntBorderSizeError {}
+
+impl fmt::Display for TryFromUIntBorderSizeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "converted integer ({}) out of range for `BorderSize`", self.0)
     }
 }
 
-impl std::error::Error for BorderSizeTryFromError {}
-
 impl TryFrom<u8> for BorderSize {
-    type Error = BorderSizeTryFromError;
+    type Error = TryFromUIntBorderSizeError;
     fn try_from(border: u8) -> Result<Self, Self::Error> {
         use BorderSize::*;
         Ok(match border {
@@ -281,7 +367,7 @@ impl TryFrom<u8> for BorderSize {
             2 => Tiny,
             1 => Minimal,
             0 => Nil,
-            _ => return Err(BorderSizeTryFromError(border))
+            _ => return Err(TryFromUIntBorderSizeError(border))
         })
     }
 }
