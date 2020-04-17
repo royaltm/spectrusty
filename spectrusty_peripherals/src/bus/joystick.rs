@@ -1,4 +1,5 @@
 //! A bus device for connecting joysticks.
+use core::str::FromStr;
 use core::convert::TryFrom;
 use core::num::NonZeroU16;
 use core::fmt;
@@ -253,23 +254,47 @@ impl From<JoystickSelect> for &str {
     }
 }
 
-/// An error type from [TryFrom] implementation of converting a string to a [JoystickSelect] variant.
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct JoystickSelectError<'a>(pub &'a str);
-impl fmt::Display for JoystickSelectError<'_> {
+/// An error which can be returned when parsing a [JoystickSelect] variant.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParseJoystickSelectError;
+
+impl fmt::Display for ParseJoystickSelectError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Unknown joystick name: {}", self.0)
+        "unrecognized joystick name".fmt(f)
     }
 }
 
-impl std::error::Error for JoystickSelectError<'_> {}
+impl std::error::Error for ParseJoystickSelectError {}
+
+impl FromStr for JoystickSelect {
+    type Err = ParseJoystickSelectError;
+
+    fn from_str(name: &str) -> Result<Self, Self::Err> {
+        match JoystickSelect::new_from_name(name) {
+            Some((joy, _)) => Ok(joy),
+            None => Err(ParseJoystickSelectError)
+        }
+    }
+}
+
+/// The error type returned when a [JoystickSelect] variant conversion failed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TryFromStrJoystickSelectError<'a>(pub &'a str);
+
+impl fmt::Display for TryFromStrJoystickSelectError<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "unrecognized joystick name: {}", self.0)
+    }
+}
+
+impl std::error::Error for TryFromStrJoystickSelectError<'_> {}
 
 impl<'a> TryFrom<&'a str> for JoystickSelect {
-    type Error = JoystickSelectError<'a>;
+    type Error = TryFromStrJoystickSelectError<'a>;
     fn try_from(name: &'a str) -> Result<Self, Self::Error> {
         match JoystickSelect::new_from_name(name) {
             Some((joy, _)) => Ok(joy),
-            None => Err(JoystickSelectError(name))
+            None => Err(TryFromStrJoystickSelectError(name))
         }
     }
 }

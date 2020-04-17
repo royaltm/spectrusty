@@ -4,5 +4,18 @@ version = "0.1.0"
 authors = ["Rafal Michalski <royaltm75@gmail.com>"]
 edition = "2018"
 
+[features]
+default = []
+
 [dependencies]
 spectrusty_formats = { path = "../spectrusty_formats", version = "0.1" }
+spectrusty_peripherals = { path = "../spectrusty_peripherals", version = "0.1" }
+bitflags = "1.2.1"
+
+[dependencies.minifb]
+version = "0.16"
+optional = true
+
+[dependencies.sdl2]
+version = "0.33.0"
+optional = true

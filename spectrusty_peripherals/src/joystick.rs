@@ -38,7 +38,7 @@ pub trait JoystickInterface {
     ///
     /// Currently `btn` is not being used by any of the implemented devices.
     fn fire(&mut self, btn: u8, pressed: bool);
-    /// Returns a status of a `btn` "fire" button.
+    /// Returns `true` if an indicated "fire" button is being pressed, otherwise returns `false`.
     fn get_fire(&self, btn: u8) -> bool;
     /// Changes the stick direction using provided flags.
     fn set_directions(&mut self, dir: Directions);
