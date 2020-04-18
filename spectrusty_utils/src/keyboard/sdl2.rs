@@ -1,17 +1,23 @@
+//! Keyboard related functions to be used with [SDL2](https://crates.io/crates/sdl2).
+//!
+//! Requires "sdl2" feature to be enabled.
 use sdl2::keyboard::{Mod as Modifier, Keycode};
-use spectrusty_peripherals::ZXKeyboardMap;
+use spectrusty_peripherals::{ZXKeyboardMap,
+    joystick::{JoystickInterface, Directions},
+    serial::KeypadKeys
+};
 
 type ZXk = ZXKeyboardMap;
 
-/// Returns a Spectrum key map state with a single bit set corresponding to the provided `key`
-/// if the provided key matches one of the Spectrum's.
+/// Returns a Spectrum key map flags with a single bit set corresponding to the provided `key` code
+/// if the key matches one of the Spectrum's.
 ///
 /// The alphanumeric keys, `ENTER` and `SPACE` are mapped as such.
 /// Left and right `SHIFT` is mapped as [CAPS SHIFT][ZXKeyboardMap::CS] and left and right `CTRL`
 /// is mapped as [SYMBOL SHIFT][ZXKeyboardMap::SS].
 ///
 /// Otherwise returns an empty set.
-pub fn map_direct_keys(key: Keycode) -> ZXKeyboardMap {
+pub fn map_direct_key(key: Keycode) -> ZXKeyboardMap {
     match key {
         Keycode::Num1 => ZXk::N1,
         Keycode::Num2 => ZXk::N2,
@@ -57,16 +63,16 @@ pub fn map_direct_keys(key: Keycode) -> ZXKeyboardMap {
     }
 }
 
-/// Returns a Spectrum key map state with some bits set corresponding to the provided `key`
+/// Returns a Spectrum key map flags with some bits set corresponding to the provided `key` code
 /// if the provided key matches one or more of the Spectrum keys.
 ///
-/// The second returned argument if `true` indicates that the [ZXKeyboardMap::CS] should be removed from
+/// The second argument returned is `true` if the [ZXKeyboardMap::CS] should be removed from
 /// the updated keymap.
 ///
-/// The key combination includes cursor keys and some non alphanumeric keys as shortcuts to corresponding
-/// Spectrum keys reachable via pressing `SYMBOL` or `CAPS` with some other Spectrum key.
+/// The key combination includes cursor keys (←→↑↓) and some non alphanumeric keys as shortcuts to
+/// corresponding Spectrum key combinations reachable via pressing `SYMBOL` or `CAPS` with another Spectrum key.
 ///
-/// * `pressed` should be `true` if the `key` has been pressed down and `false` if it has been released.
+/// * `pressed` should be `true` if the `key` has been pressed down or `false` if it has been released.
 /// * `shift_down` should be `true` if one of the `SHIFT` key modifiers has been held down and `false` otherwise.
 pub fn map_combined_keys(key: Keycode, pressed: bool, shift_down: bool) -> (ZXKeyboardMap, bool) {
     let mut removecs = false;
@@ -148,14 +154,15 @@ pub fn map_combined_keys(key: Keycode, pressed: bool, shift_down: bool) -> (ZXKe
         },
         Keycode::Semicolon => ZXk::SS|ZXk::Z|ZXk::O,
 
-        k => map_direct_keys(k)
+        k => map_direct_key(k)
     };
     (zxk, removecs)
 }
 
-/// Returns an updated Spectrum key map state with some bits set and reset corresponding to the provided `key`.
+/// Returns an updated Spectrum key map state from a `key` down or up event.
 ///
 /// * `cur` is the current key map state.
+/// * `key` is the key code.
 /// * `pressed` should be `true` if the `key` has been pressed down and `false` if it has been released.
 /// * `shift_down` should be `true` if one of the `SHIFT` key modifiers has been held down and `false` otherwise.
 /// * `ctrl_down` should be `true` if one of the `CTRL` key modifiers has been held down and `false` otherwise.
@@ -189,9 +196,10 @@ pub fn update_keymap(
     cur
 }
 
-/// Returns an updated Spectrum key map state with some bits set and reset corresponding to the provided `key`.
+/// Returns an updated Spectrum key map state from a `key` down or up event.
 ///
 /// * `cur` is the current key map state.
+/// * `key` is the key code.
 /// * `pressed` should be `true` if the `key` has been pressed down and `false` if it has been released.
 /// * `modifier` is the `keymod` property from the `KeyDown` or `KeyUp` events.
 pub fn update_keymap_with_modifier(
@@ -204,4 +212,100 @@ pub fn update_keymap_with_modifier(
     let shift_down = modifier.intersects(Modifier::LSHIFTMOD|Modifier::RSHIFTMOD);
     let ctrl_down = modifier.intersects(Modifier::LCTRLMOD|Modifier::RCTRLMOD);
     update_keymap(cur, key, pressed, shift_down, ctrl_down)
+}
+
+/// Returns a keypad's key map flags with a single bit set corresponding to the provided `key` code
+/// if the key matches one of the Spectrum 128k keypad's.
+///
+/// The numeric keypad keys, `ENTER`, `PERIOD`, `+`, `-` are mapped as such.
+/// If `parens` is `true` the `/` key is mapped as [LPAREN] and `*` is mapped as [RPAREN].
+/// If `parens` is `false` keys `/` and `*` are mapped as such.
+///
+/// Otherwise returns an empty set.
+///
+/// [LPAREN]: KeypadKeys::LPAREN
+/// [RPAREN]: KeypadKeys::RPAREN
+pub fn map_keypad_key(key: Keycode, parens: bool) -> KeypadKeys {
+    match key {
+        Keycode::KpDivide if parens => KeypadKeys::LPAREN,
+        Keycode::KpDivide => KeypadKeys::DIVIDE,
+        Keycode::KpMultiply if parens => KeypadKeys::RPAREN,
+        Keycode::KpMultiply => KeypadKeys::MULTIPLY,
+        Keycode::KpMinus => KeypadKeys::MINUS,
+        Keycode::KpPlus => KeypadKeys::PLUS,
+        Keycode::KpEnter => KeypadKeys::ENTER,
+        Keycode::Kp1 => KeypadKeys::N1,
+        Keycode::Kp2 => KeypadKeys::N2,
+        Keycode::Kp3 => KeypadKeys::N3,
+        Keycode::Kp4 => KeypadKeys::N4,
+        Keycode::Kp5 => KeypadKeys::N5,
+        Keycode::Kp6 => KeypadKeys::N6,
+        Keycode::Kp7 => KeypadKeys::N7,
+        Keycode::Kp8 => KeypadKeys::N8,
+        Keycode::Kp9 => KeypadKeys::N9,
+        Keycode::Kp0 => KeypadKeys::N0,
+        Keycode::KpPeriod => KeypadKeys::PERIOD,
+        Keycode::KpComma => KeypadKeys::PERIOD,
+        _ => KeypadKeys::empty()
+    }
+}
+
+/// Returns an updated keypad's key map state from a key down or up event.
+///
+/// * `cur` is the current Spectrum 128k keypad's key map state.
+/// * `key` is the key code.
+/// * `pressed` should be `true` if the `key` has been pressed down or `false` if it has been released.
+/// * `parens` should be `true` if `/` and `*` keys should be mapped as [LPAREN] and [RPAREN], `false` otherwise.
+pub fn update_keypad_keys(mut cur: KeypadKeys, key: Keycode, pressed: bool, parens: bool) -> KeypadKeys {
+    let chg = map_keypad_key(key, parens);
+    if !chg.is_empty() {
+        cur.set(chg, pressed);
+    }
+    cur
+}
+
+/// Returns an updated keypad key map state from a key down or up event.
+///
+/// * `cur` is the current key map state.
+/// * `key` is the key code.
+/// * `pressed` should be `true` if the `key` has been pressed down or `false` if it has been released.
+/// * `modifier` is the `keymod` property from the `KeyDown` or `KeyUp` events.
+#[inline]
+pub fn update_keypad_keys_with_modifier(cur: KeypadKeys, key: Keycode, pressed: bool, modifier: Modifier) -> KeypadKeys {
+    update_keypad_keys(cur, key, pressed, modifier.intersects(Modifier::NUMMOD))
+}
+
+/// Returns joystick direction flags with a single direction bit set if a `key` is one of ← → ↑ ↓ keys.
+pub fn map_key_to_direction(key: Keycode) -> Directions {
+    match key {
+        Keycode::Up    => Directions::UP,
+        Keycode::Right => Directions::RIGHT,
+        Keycode::Down  => Directions::DOWN,
+        Keycode::Left  => Directions::LEFT,
+        _              => Directions::empty()
+    }
+}
+
+/// Updates the state of joystick device via [JoystickInterface] from a key down or up event.
+///
+/// Returns `true` if the state of the joystick device was updated.
+/// Returns `false` if the `key` wasn't any of the ← → ↑ ↓ or `fire_key` keys or if `get_joy`
+/// returns `None`.
+///
+/// * `key` is the key code.
+/// * `pressed` indicates if the `key` was pressed (`true`) or released (`false`).
+/// * `fire_key` is the key code for the `FIRE` button.
+/// * `get_joy` should return a mutable reference to the [JoystickInterface] implementation instance
+///   if such instance is available.
+#[inline]
+pub fn update_joystick_from_key_event<'a, J, F>(
+            key: Keycode,
+            pressed: bool,
+            fire_key: Keycode,
+            get_joy: F
+        ) -> bool
+    where J: 'a + JoystickInterface + ?Sized,
+          F: FnOnce() -> Option<&'a mut J>
+{
+    super::update_joystick_from_key_event(key, pressed, fire_key, map_key_to_direction, get_joy)
 }

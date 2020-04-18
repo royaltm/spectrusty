@@ -10,12 +10,15 @@ default = []
 [dependencies]
 spectrusty_formats = { path = "../spectrusty_formats", version = "0.1" }
 spectrusty_peripherals = { path = "../spectrusty_peripherals", version = "0.1" }
-bitflags = "1.2.1"
 
 [dependencies.minifb]
 version = "0.16"
 optional = true
 
 [dependencies.sdl2]
-version = "0.33.0"
+version = "0.33"
+optional = true
+
+[dependencies.winit]
+version = "0.22"
 optional = true

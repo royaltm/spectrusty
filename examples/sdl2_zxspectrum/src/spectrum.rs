@@ -25,7 +25,7 @@ use spectrusty::bus::mouse::*;
 use spectrusty::formats::{
     sna
 };
-use spectrusty::utils::tap::TapFileCabinet;
+use spectrusty_utils::tap::TapFileCabinet;
 use spectrusty::video::*;
 
 use audio::Audio;

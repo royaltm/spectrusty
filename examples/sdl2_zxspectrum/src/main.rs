@@ -29,7 +29,7 @@ use crate::peripherals::{DeviceAccess, DynamicDeviceAccess, MicroCartridge};
 use crate::utils::*;
 use spectrusty::formats::mdr::MicroCartridgeExt;
 
-const REQUESTED_AUDIO_LATENCY: usize = 2;
+const REQUESTED_AUDIO_LATENCY: usize = 1;
 
 const KEYBOARD_IMAGE: &[u8] = include_bytes!("../../../resources/ZXSpectrumKeys704.jpg");
 
@@ -466,14 +466,10 @@ fn run<C, U, I>(
                     keyboard_visible = !keyboard_visible;
                 }
                 Event::KeyDown{ keycode: Some(keycode), keymod, repeat: false, ..} => {
-                    if !zx.cursor_to_joystick(keycode, true) {
-                        zx.update_keypress(keycode, keymod, true);
-                    }
+                    zx.handle_keypress_event(keycode, keymod, true);
                 }
                 Event::KeyUp{ keycode: Some(keycode), keymod, repeat: false, ..} => {
-                    if !zx.cursor_to_joystick(keycode, false) {
-                        zx.update_keypress(keycode, keymod, false);
-                    }
+                    zx.handle_keypress_event(keycode, keymod, false);
                 }
                 Event::DropFile { filename, .. } => {
                     info!("Dropped file: {} {}", zx.handle_file(&filename)?, filename);

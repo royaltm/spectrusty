@@ -15,12 +15,16 @@ use spectrusty::clock::VideoTs;
 use spectrusty::chip::{MemoryAccess, ula128::Ula128VidFrame};
 use spectrusty::memory::ZxMemory;
 use spectrusty::peripherals::{
-    KeyboardInterface, ZXKeyboardMap,
-    joystick::Directions,
+    KeyboardInterface,
     mouse::{MouseInterface, MouseButtons, kempston::KempstonMouseDevice},
-    serial::{KeypadKeys, SerialKeypad}
+    serial::SerialKeypad
 };
 use spectrusty::video::{Video, BorderSize, VideoFrame};
+use spectrusty_utils::keyboard::sdl2::{
+    update_joystick_from_key_event,
+    update_keymap_with_modifier,
+    update_keypad_keys_with_modifier
+};
 
 #[allow(unused_imports)]
 use log::{error, warn, info, debug, trace};
@@ -210,13 +214,24 @@ impl<C, U> ZXSpectrum<C, U>
     }
 
     #[inline]
-    pub fn update_keypress(&mut self, keycode: Keycode, modifier: Modifier, pressed: bool) {
+    pub fn handle_keypress_event(&mut self, keycode: Keycode, mut modifier: Modifier, pressed: bool) {
+        if self.joystick_ref().is_some() {
+            modifier.remove(Modifier::RCTRLMOD);
+            let joystick_index = self.joystick_index;
+            if update_joystick_from_key_event(keycode, pressed, Keycode::RCtrl,
+                || self.joystick_mut()
+                       .and_then(|joy| joy.joystick_interface(joystick_index))
+            ) {
+                return
+            }
+        }
+
         self.ula.set_key_state(
-            map_keys(self.ula.get_key_state(), keycode, modifier, pressed,
-                     self.joystick_ref().is_none()));
+            update_keymap_with_modifier(self.ula.get_key_state(), keycode, pressed, modifier));
+
         if let Some(keypad) = self.keypad_mut() {
             keypad.set_key_state(
-                keypad_keys(keypad.get_key_state(), keycode, pressed, modifier)
+                update_keypad_keys_with_modifier(keypad.get_key_state(), keycode, pressed, modifier)
             );
         }
     }
@@ -241,204 +256,4 @@ impl<C, U> ZXSpectrum<C, U>
             println!("Cursor keys: keyboard");
         }
     }
-
-    #[inline]
-    pub fn cursor_to_joystick(&mut self, keycode: Keycode, pressed: bool) -> bool {
-        let joystick_index = self.joystick_index;
-        if let Some(joy) = self.joystick_mut() {
-            if let Some(directions) = try_keys_to_directions(keycode) {
-                let joy = joy.joystick_interface(joystick_index).unwrap();
-                joy.set_directions(if pressed {
-                    joy.get_directions()|directions
-                }
-                else {
-                    joy.get_directions()&!directions
-                });
-                return true
-            }
-            else if keycode == Keycode::RCtrl {
-                joy.joystick_interface(joystick_index).unwrap()
-                   .fire(0, pressed);
-                return true
-            }
-        }
-        false
-    }
-}
-
-/// Optionally convert cursor key codes to joystick directions.
-pub fn try_keys_to_directions(keycode: Keycode) -> Option<Directions> {
-    match keycode {
-        Keycode::Right => Some(Directions::RIGHT),
-        Keycode::Left => Some(Directions::LEFT),
-        Keycode::Down => Some(Directions::DOWN),
-        Keycode::Up => Some(Directions::UP),
-        _ => None
-    }
-}
-
-pub fn keypad_keys(mut keys: KeypadKeys, keycode: Keycode, pressed: bool, modifier: Modifier) -> KeypadKeys {
-    let key_chg = match keycode {
-        Keycode::KpDivide if modifier.intersects(Modifier::NUMMOD) => KeypadKeys::LPAREN,
-        Keycode::KpDivide => KeypadKeys::DIVIDE,
-        Keycode::KpMultiply if modifier.intersects(Modifier::NUMMOD) => KeypadKeys::RPAREN,
-        Keycode::KpMultiply => KeypadKeys::MULTIPLY,
-        Keycode::KpMinus => KeypadKeys::MINUS,
-        Keycode::KpPlus => KeypadKeys::PLUS,
-        Keycode::KpEnter => KeypadKeys::ENTER,
-        Keycode::Kp1 => KeypadKeys::N1,
-        Keycode::Kp2 => KeypadKeys::N2,
-        Keycode::Kp3 => KeypadKeys::N3,
-        Keycode::Kp4 => KeypadKeys::N4,
-        Keycode::Kp5 => KeypadKeys::N5,
-        Keycode::Kp6 => KeypadKeys::N6,
-        Keycode::Kp7 => KeypadKeys::N7,
-        Keycode::Kp8 => KeypadKeys::N8,
-        Keycode::Kp9 => KeypadKeys::N9,
-        Keycode::Kp0 => KeypadKeys::N0,
-        Keycode::KpPeriod => KeypadKeys::PERIOD,
-        Keycode::KpComma => KeypadKeys::PERIOD,
-        _ => return keys
-    };
-    // println!("{:?}", keycode);
-    if pressed {
-        keys.insert(key_chg);
-    }
-    else {
-        keys.remove(key_chg);
-    }
-    keys
-}
-/// Updates ZXKeyboardMap from SDL2 key event data
-pub fn map_keys(mut zxk: ZXKeyboardMap, keycode: Keycode, modifier: Modifier, pressed: bool, use_rctrl: bool) -> ZXKeyboardMap {
-    type ZXk = ZXKeyboardMap;
-    let zxk_chg = match keycode {
-        Keycode::Num1 => ZXk::N1,
-        Keycode::Num2 => ZXk::N2,
-        Keycode::Num3 => ZXk::N3,
-        Keycode::Num4 => ZXk::N4,
-        Keycode::Num5 => ZXk::N5,
-        Keycode::Num6 => ZXk::N6,
-        Keycode::Num7 => ZXk::N7,
-        Keycode::Num8 => ZXk::N8,
-        Keycode::Num9 => ZXk::N9,
-        Keycode::Num0 => ZXk::N0,
-        Keycode::A => ZXk::A,
-        Keycode::B => ZXk::B,
-        Keycode::C => ZXk::C,
-        Keycode::D => ZXk::D,
-        Keycode::E => ZXk::E,
-        Keycode::F => ZXk::F,
-        Keycode::G => ZXk::G,
-        Keycode::H => ZXk::H,
-        Keycode::I => ZXk::I,
-        Keycode::J => ZXk::J,
-        Keycode::K => ZXk::K,
-        Keycode::L => ZXk::L,
-        Keycode::M => ZXk::M,
-        Keycode::N => ZXk::N,
-        Keycode::O => ZXk::O,
-        Keycode::P => ZXk::P,
-        Keycode::Q => ZXk::Q,
-        Keycode::R => ZXk::R,
-        Keycode::S => ZXk::S,
-        Keycode::T => ZXk::T,
-        Keycode::U => ZXk::U,
-        Keycode::V => ZXk::V,
-        Keycode::W => ZXk::W,
-        Keycode::X => ZXk::X,
-        Keycode::Y => ZXk::Y,
-        Keycode::Z => ZXk::Z,
-        Keycode::LShift|Keycode::RShift => ZXk::CS,
-        Keycode::LCtrl|Keycode::RCtrl => ZXk::SS,
-        Keycode::Space => ZXk::BR,
-        Keycode::Return => ZXk::EN,
-        // Keycode::Return|Keycode::KpEnter => ZXk::EN,
-        Keycode::CapsLock => ZXk::CS|ZXk::N2,
-        Keycode::Backspace => ZXk::CS|ZXk::N0,
-        Keycode::LAlt|Keycode::RAlt => ZXk::CS|ZXk::SS,
-
-        Keycode::Left => ZXk::CS|ZXk::N5,
-        Keycode::Down => ZXk::CS|ZXk::N6,
-        Keycode::Up => ZXk::CS|ZXk::N7,
-        Keycode::Right => ZXk::CS|ZXk::N8,
-
-        Keycode::Minus => if modifier.intersects(Modifier::LSHIFTMOD|Modifier::RSHIFTMOD) {
-            zxk.remove(ZXk::CS);
-            ZXk::SS|ZXk::N0
-        }
-        else {
-            ZXk::SS|ZXk::J
-        },
-        Keycode::Equals => if modifier.intersects(Modifier::LSHIFTMOD|Modifier::RSHIFTMOD) {
-            zxk.remove(ZXk::CS);
-            ZXk::SS|ZXk::K
-        }
-        else {
-            ZXk::SS|ZXk::L
-        },
-        Keycode::LeftBracket => ZXk::SS|ZXk::N8,
-        Keycode::RightBracket => ZXk::SS|ZXk::N9,
-        Keycode::Comma => if modifier.intersects(Modifier::LSHIFTMOD|Modifier::RSHIFTMOD) {
-            zxk.remove(ZXk::CS);
-            ZXk::SS|ZXk::R
-        }
-        else {
-            ZXk::SS|ZXk::N
-        },
-        Keycode::Period => if modifier.intersects(Modifier::LSHIFTMOD|Modifier::RSHIFTMOD) {
-            zxk.remove(ZXk::CS);
-            ZXk::SS|ZXk::T
-        }
-        else {
-            ZXk::SS|ZXk::M
-        },
-        Keycode::Quote => if modifier.intersects(Modifier::LSHIFTMOD|Modifier::RSHIFTMOD) {
-            zxk.remove(ZXk::CS);
-            ZXk::SS|ZXk::P
-        }
-        else {
-            ZXk::SS|ZXk::N7
-        },
-        Keycode::Slash => if modifier.intersects(Modifier::LSHIFTMOD|Modifier::RSHIFTMOD) {
-            zxk.remove(ZXk::CS);
-            ZXk::SS|ZXk::C
-        }
-        else {
-            ZXk::SS|ZXk::V
-        },
-        Keycode::Semicolon => if modifier.intersects(Modifier::LSHIFTMOD|Modifier::RSHIFTMOD) {
-            zxk.remove(ZXk::CS);
-            ZXk::SS|ZXk::Z
-        }
-        else {
-            ZXk::SS|ZXk::O
-        },
-        Keycode::Backquote => ZXk::SS|ZXk::X,
-        // Keycode::KpDivide => ZXk::SS|ZXk::V,
-        // Keycode::KpMultiply => ZXk::SS|ZXk::B,
-        // Keycode::KpPlus => ZXk::SS|ZXk::K,
-        // Keycode::KpMinus => ZXk::SS|ZXk::J,
-        _ => ZXk::empty()
-    };
-    if pressed {
-        zxk.insert(zxk_chg);
-    }
-    else {
-        zxk.remove(zxk_chg);
-    }
-    if zxk.is_empty() {
-        if modifier.intersects(Modifier::LSHIFTMOD|Modifier::RSHIFTMOD) {
-            zxk.insert(ZXk::CS);
-        }
-        if modifier.intersects(if use_rctrl {
-                Modifier::LCTRLMOD|Modifier::RCTRLMOD
-            }
-            else {
-                Modifier::LCTRLMOD
-            }) {
-            zxk.insert(ZXk::SS);
-        }
-    }
-    zxk
 }
