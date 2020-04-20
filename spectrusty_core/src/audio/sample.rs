@@ -1,7 +1,7 @@
 //! Various traits for types being used as audio samples.
 
 /// Provides various methods to primitive types being used as audio samples.
-pub trait AudioSample: Copy + Default {
+pub trait AudioSample: Copy + Send + Default + 'static {
     /// Creates a silence sample value (with zero amplitude). Usefull for filling buffers.
     #[inline(always)]
     fn silence() -> Self {

@@ -8,7 +8,7 @@ while sound is playing or via callbacks just in time when audio buffer need to b
 When emulating Spectrum computer we have to synchronize frames with video as well as audio
 and having an independent thread for rendering audio frames makes this task somewhat difficult.
 
-To ease this task the "Carousel" was implemented. Basically it consists of an [audio producer] and
+To ease this task here comes the "Carousel". Basically it consists of an [audio producer] and
 an [audio consumer]. The audio producer lives in the same thread where the emulation is run
 and where sound is being produced. The audio consumer is delegated to the audio thread and its
 role is to relay audio samples to the audio framework.
@@ -22,16 +22,19 @@ role is to relay audio samples to the audio framework.
                     \<---- AudioBuffer <---- AudioBuffer -----/
                                  (recycled buffers)
 ```
-The produced [audio buffer]s ready to be played are being sent via [mpsc::channel] from
+The produced [audio buffer]s, ready to be played, are being sent via [mpsc::channel] from
 the [audio producer] to the [audio consumer]. The consumer fills the audio buffers provided by
-the audio framework with samples from the received [audio buffer] frames and sends the used
+the audio framework with samples from the received [audio buffer] frames and sends the used up
 frame buffers back via another channel to the [audio producer] to be filled again with new
-frame data.
+sample data.
 
 Each [audio buffer] size is determined by the emulated frame duration and is independent from
 the audio framework output buffer size.
 
-The number of buffers in circulation determines the audio latency.
+The number of buffers in circulation determines the audio latency. The larger the latency the
+more stable the playback is at the cost of the delay of the sound. Knowing the output buffer
+size the minimum latency should be calculated from the number of samples in the output buffer
+divided by the number of samples in the single audio frame plus one.
 
 [audio producer]: AudioFrameProducer
 [audio consumer]: AudioFrameConsumer

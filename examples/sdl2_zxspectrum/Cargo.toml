@@ -32,13 +32,8 @@ serde_yaml = "0.8"
 
 [dependencies.spectrusty]
 version = "*"
-features = ["audio"]
+features = ["audio", "utils", "sdl2"]
 path = "../.."
-
-[dependencies.spectrusty_utils]
-version = "*"
-features = ["sdl2"]
-path = "../../spectrusty_utils"
 
 [target.'cfg(windows)'.dependencies.winapi]
 version = "0.3"

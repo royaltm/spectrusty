@@ -284,7 +284,7 @@ fn run<C, U, I>(
                     zx.audio.pause();
                     info(format!("{}\nHardware configuration:\nRAM: {}\n{}",
                                     HEAD, zx.device_info(), HELP).into());
-                    zx.audio.resume();
+                    zx.audio.play();
                 }
                 Event::KeyDown{ keycode: Some(Keycode::F11), repeat: false, ..} => {
                     zx.trigger_nmi();
@@ -302,7 +302,7 @@ fn run<C, U, I>(
                             EmulatorStatus::Paused
                         }
                         EmulatorStatus::Paused => {
-                            zx.audio.resume();
+                            zx.audio.play();
                             EmulatorStatus::Normal
                         }
                     }
@@ -315,7 +315,7 @@ fn run<C, U, I>(
                 }
                 Event::KeyUp{ keycode: Some(Keycode::F2), repeat: false, ..} => {
                     if let EmulatorStatus::Turbo = status {
-                        zx.audio.resume();
+                        zx.audio.play();
                         status = EmulatorStatus::Normal;
                     }
                 }

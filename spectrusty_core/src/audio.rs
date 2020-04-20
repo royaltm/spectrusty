@@ -23,7 +23,7 @@ pub use crate::clock::FTs;
 ///
 /// When sampling of square wave is naivly implemented it produces a perceptible, unpleasant aliasing noise.
 ///
-/// Square waves that sounds "clear" should be constructed from a limited number of sinusoidal waves,
+/// Square waves that sound "clear" should be constructed from a limited number of sinusoidal waves,
 /// but the computation of such wave could be costly.
 ///
 /// However thanks to the [Hard Sync] technique it is not necessary. Instead a precomputed pattern is being

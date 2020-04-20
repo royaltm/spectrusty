@@ -6,7 +6,6 @@ use std::path::Path;
 use std::fs;
 use std::ffi::OsStr;
 
-pub mod audio;
 pub mod printer;
 pub mod peripherals;
 
@@ -19,16 +18,16 @@ use rand::prelude::*;
 use spectrusty::audio::AudioSample;
 use spectrusty::audio::carousel::AudioFrameResult;
 use spectrusty::audio::synth::*;
+use spectrusty::audio::host::sdl2::AudioHandle;
 use spectrusty::bus::ay::*;
 use spectrusty::bus::joystick::*;
 use spectrusty::bus::mouse::*;
 use spectrusty::formats::{
     sna
 };
-use spectrusty_utils::tap::TapFileCabinet;
+use spectrusty::utils::tap::TapFileCabinet;
 use spectrusty::video::*;
 
-use audio::Audio;
 pub use printer::*;
 use peripherals::*;
 
@@ -66,7 +65,12 @@ pub type ZXSpectrum48If1DynBus = ZXSpectrum<Z80NMOS,
                                             >>,
                                             ZxInterface1MemExt
                                         >>;
-pub type ZXBlep = BlepAmpFilter<BlepStereo<BandLimited<f32>>>;
+
+type Sample = f32;
+pub type Audio = AudioHandle<Sample>;
+type BlepDelta = f32;
+type BandLim = BandLimited<BlepDelta>;
+pub type ZXBlep = BlepAmpFilter<BlepStereo<BandLim>>;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct BusDeviceIndexes {
@@ -130,8 +134,8 @@ impl<C, U> ZXSpectrum<C, U>
         // let writer = Some(hound::WavWriter::create("spectrum.wav", spec).unwrap());
         let ula = U::default();
         let tap_cabinet = TapFileCabinet::new();
-        let audio = Audio::create(sdl_context, latency, ula.frame_duration_nanos())?;
-        let mut bandlim = BlepAmpFilter::build(0.5)(BlepStereo::build(0.8)(BandLimited::<f32>::new(2)));
+        let audio = Audio::create(sdl_context, ula.frame_duration_nanos(), latency)?;
+        let mut bandlim = BlepAmpFilter::build((0.5).into_sample())(BlepStereo::build((0.8).into_sample())(BandLim::new(2)));
         ula.ensure_audio_frame_time(&mut bandlim, audio.sample_rate);
         let time_sync = ThreadSyncTimer::new(ula.frame_duration_nanos());
         let mut zx = ZXSpectrum {
@@ -157,7 +161,7 @@ impl<C, U> ZXSpectrum<C, U>
         }
         // Produce some noise in memory for nice visuals.
         zx.ula.memory_mut().fill_mem(0x4000.., random).unwrap();
-        zx.audio.resume();
+        zx.audio.play();
         Ok(zx)
     }
 
@@ -171,28 +175,28 @@ impl<C, U> ZXSpectrum<C, U>
 
     pub fn render_audio(&mut self) -> AudioFrameResult<()> {
         let Self { ula, bandlim, audio, .. } = self;
-        ula.render_ay_audio_frame::<AyAmps<f32>>(bandlim, [0, 1, 2]);
-        // ula.render_ay_audio_frame::<AyAmps<f32>>(bandlim, [2, 2, 2]); // mono
+        ula.render_ay_audio_frame::<AyAmps<BlepDelta>>(bandlim, [0, 1, 2]);
+        // ula.render_ay_audio_frame::<AyAmps<BlepDelta>>(bandlim, [2, 2, 2]); // mono
         if self.audible_tap {
-            ula.render_earmic_out_audio_frame::<EarMicAmps4<f32>>(bandlim, 2);
-            ula.render_ear_in_audio_frame::<EarInAmps2<f32>>(bandlim, 2);
+            ula.render_earmic_out_audio_frame::<EarMicAmps4<BlepDelta>>(bandlim, 2);
+            ula.render_ear_in_audio_frame::<EarInAmps2<BlepDelta>>(bandlim, 2);
         }
         else {
-            ula.render_earmic_out_audio_frame::<EarOutAmps4<f32>>(bandlim, 2);
+            ula.render_earmic_out_audio_frame::<EarOutAmps4<BlepDelta>>(bandlim, 2);
         }
         // close current frame
         let frame_sample_count = ula.end_audio_frame(bandlim);
         // render BLEP frame into the sample buffer
         let output_channels = audio.channels.into();
         audio.producer.render_frame(|ref mut vec| {
-            let sample_iter = bandlim.sum_iter::<f32>(0)
-                             .zip(bandlim.sum_iter::<f32>(1))
+            let sample_iter = bandlim.sum_iter::<Sample>(0)
+                             .zip(bandlim.sum_iter::<Sample>(1))
                              .map(|(a,b)| [a,b]);
-            vec.resize(frame_sample_count * output_channels, f32::silence());
+            vec.resize(frame_sample_count * output_channels, Sample::silence());
             // render each sample
             for (chans, samples) in vec.chunks_mut(output_channels).zip(sample_iter) {
                 // write to the wav file
-                // writer.write_sample(f32::from_sample(sample)).unwrap();
+                // writer.write_sample(Sample::from_sample(sample)).unwrap();
                 // convert sample type
                 // let sample = T::from_sample(samples);
                 // write sample to each channel

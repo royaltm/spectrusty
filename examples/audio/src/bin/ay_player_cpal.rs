@@ -1,18 +1,13 @@
-//! ZX Spectrum tape sound PORN!!!!
-#[path = "../tests/audio_cpal.rs"]
-mod audio_cpal;
-
+//! Command line AY Player and WAV generator
 use core::num::NonZeroU32;
 use std::io::Read;
 
 #[allow(unused_imports)]
 use log::{error, warn, info, debug, trace, Level};
 
-use audio_cpal::*;
-
 use spectrusty::z80emu::{self, Cpu, Z80NMOS};
 // use spectrusty::cpu_debug::print_debug_memory;
-use spectrusty_audio::{carousel::*, synth::*};
+use spectrusty::audio::{synth::*, host::cpal::{AudioHandle, AudioHandleAnyFormat}};
 use spectrusty::audio::*;
 use spectrusty::peripherals::ay::{*, audio::*};
 use spectrusty::formats::{
@@ -27,19 +22,25 @@ use spectrusty::chip::ay_player::*;
 type Ay128kPlayer = AyPlayer<Ay128kPortDecode>;
 type WavWriter = hound::WavWriter<std::io::BufWriter<std::fs::File>>;
 
-fn produce<T, R: Read>(mut audio: Audio<T>, rd: R, song_index: u16, mut first_length: Option<NonZeroU32>, _writer: Option<WavWriter>)
-where T: 'static + FromSample<f32> + AudioSample + Send,
-      i16: IntoSample<T>, f32: FromSample<T>,
+fn produce<T, R: Read>(
+        mut audio: AudioHandle<T>,
+        rd: R,
+        song_index: u16,
+        mut first_length: Option<NonZeroU32>,
+        mut writer: Option<WavWriter>
+)
+    where T: 'static + FromSample<f32> + AudioSample + cpal::Sample + Send,
+        i16: IntoSample<T>, f32: FromSample<T>,
 {
     let output_channels = audio.channels as usize;
-    let frame_time = HostConfig128k::frame_time_duration();
+    let frame_duration = HostConfig128k::frame_duration();
     // BandLimHiFi
     // BandLimLowTreb
     // BandLimLowBass
     // BandLimNarrow
     // let mut bandlim = BlepStereo::new(BandLimited::<f32>::new(3), 0.5);
     // let mut bandlim = BlepAmpFilter::new(0.777, BlepStereo::new(0.5,BandLimited::<f32>::new(2)));
-    let mut bandlim = BlepAmpFilter::build(0.777)(BlepStereo::build(0.5)(BandLimited::<f32>::new(2)));
+    let mut bandlim = BlepAmpFilter::build(0.777)(BlepStereo::build(0.8)(BandLimited::<f32>::new(2)));
     // let mut bandlim = BlepAmpFilter::new(BandLimited::<f32>::new(3), 0.777);
     // BandLimited::<f32>::new(3).wrap_with(BlepStereo::build(0.5)).wrap_with(BlepAmpFilter::build(0.777));
     // BlepAmpFilter::build(0.777).wrap(BlepStereo::build(0.5)).wrap(BandLimited::<f32>::new(3));
@@ -64,9 +65,12 @@ where T: 'static + FromSample<f32> + AudioSample + Send,
     println!("File version: {}", ay_file.meta.file_version);
     println!("Player version: {}", ay_file.meta.player_version);
     println!("Songs: {}", ay_file.songs.len());
+
     let mut song_index_iter = (0..ay_file.songs.len()).cycle();
     for _ in 0..song_index { song_index_iter.next(); }
+
     const DEFAULT_SONG_LENGTH: u32 = 5*60*50;
+
     for song_index in song_index_iter {
         let song_length: u32 = match first_length {
             Some(len) => len.get(),
@@ -76,11 +80,13 @@ where T: 'static + FromSample<f32> + AudioSample + Send,
             }
         };
         first_length = None;
+
         println!("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^");
         println!("Song name[{}]: {}", song_index, ay_file.songs[song_index].name);
         println!("Song length: {} frames", ay_file.songs[song_index].song_duration);
         println!("Song fade: {} frames", ay_file.songs[song_index].fade_duration);
-        println!("Playing: {:?}", song_length * frame_time);
+        println!("Playing: {:?}", song_length * frame_duration);
+
         player.reset(&mut cpu, true);
         player.reset_frames();
         ay_file.initialize_player(&mut cpu, &mut player.memory, song_index);
@@ -101,25 +107,26 @@ where T: 'static + FromSample<f32> + AudioSample + Send,
             // render BLEP frame into the sample buffer
             audio.producer.render_frame(|ref mut vec| {
                 let sample_iter = bandlim.sum_iter::<T>(0)
-                                .zip(bandlim.sum_iter::<T>(1)
-                                    // .zip(bandlim.sum_iter::<T>(2))
-                                ).map(|(a,b)| [a,b]);
-                                // .map(|(a,(b,c))| [a,b,c]);
-                // set sample buffer size so to the size of the BLEP frame
+                                         .zip(bandlim.sum_iter::<T>(1))
+                                         .map(|(a,b)| [a,b]);
+                // set sample buffer size to the size of the BLEP frame
                 vec.resize(frame_sample_count * output_channels, T::silence());
                 // render each sample
                 for (chans, samples) in vec.chunks_mut(output_channels).zip(sample_iter) {
-                    // write to the wav file
-                    // writer.write_sample(f32::from_sample(sample)).unwrap();
-                    // convert sample type
-                    // let sample = T::from_sample(samples);
-                    // write sample to each channel
-                    // for p in chans.iter_mut() {
+                    // write sample to first 2 channels
                     for (p, sample) in chans.iter_mut().zip(samples.iter()) {
                         *p = *sample;
                     }
                 }
             });
+            if let Some(ref mut writer) = writer {
+                // write to the wav file
+                for (l, r) in bandlim.sum_iter::<f32>(0)
+                                     .zip(bandlim.sum_iter::<f32>(1)) {
+                    writer.write_sample(l).unwrap();
+                    writer.write_sample(r).unwrap();
+                }
+            }
             // prepare BLEP for the next frame
             bandlim.next_frame();
             // send sample buffer to the consumer
@@ -147,17 +154,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Level::Info
     };
     simple_logger::init_with_level(log_level).map_err(|_| "simple logger initialization failed")?;
-    let adf = AudioDeviceFormat::find_default()?;
-    let _spec = hound::WavSpec {
-        channels: 1,
-        sample_rate: adf.format.sample_rate.0,
+
+    let frame_duration_nanos = HostConfig128k::frame_duration_nanos() as u32;
+    let audio = AudioHandleAnyFormat::create(&cpal::default_host(), frame_duration_nanos, 5)?;
+    let spec = hound::WavSpec {
+        channels: 2,
+        sample_rate: audio.sample_rate(),
         bits_per_sample: 32,
         sample_format: hound::SampleFormat::Float,
     };
 
     // let file_name = std::env::args().nth(1).unwrap_or_else(|| "tests/DeathWish3.sna".into());
     // println!("Loading SNA: {}", file_name);
-    let file_name = std::env::args().nth(1).unwrap_or_else(|| "tests/NodesOfYesod.AY".into());
+    let file_name = std::env::args().nth(1).unwrap_or_else(|| "../../tests/NodesOfYesod.AY".into());
     println!("Loading: {}", file_name);
     let song_index = std::env::args().nth(2).unwrap_or_else(|| "0".into());
     let song_index: u16 = song_index.parse().unwrap();
@@ -166,19 +175,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let first_length = NonZeroU32::new(first_length.parse().unwrap());
 
     let file = std::fs::File::open(&file_name)?;
-    // let wav_name = "tap_output.wav";
-    // println!("Creating WAV: {:?}", wav_name);
-    let writer = None; //WavWriter::create(wav_name, spec)?;
+    let wav_name = "tap_output.wav";
+    println!("Creating WAV: {:?}", wav_name);
+    let writer = Some(WavWriter::create(wav_name, spec)?);
 
-    let frame_duration = HostConfig128k::frame_time_duration();
+    let frame_duration = HostConfig128k::frame_duration();
     debug!("frame duration: {:?} rate: {}", frame_duration, 1.0 / frame_duration.as_secs_f64());
-    let latency = 5;
-    let audio = adf.play(latency, frame_duration.as_secs_f64())?;
+    audio.play()?;
 
     match audio {
-        AudioUnknownDataType::I16(audio) => produce::<i16,_>(audio, file, song_index, first_length, writer),
-        AudioUnknownDataType::U16(audio) => produce::<u16,_>(audio, file, song_index, first_length, writer),
-        AudioUnknownDataType::F32(audio) => produce::<f32,_>(audio, file, song_index, first_length, writer),
+        AudioHandleAnyFormat::I16(audio) => produce::<i16,_>(audio, file, song_index, first_length, writer),
+        AudioHandleAnyFormat::U16(audio) => produce::<u16,_>(audio, file, song_index, first_length, writer),
+        AudioHandleAnyFormat::F32(audio) => produce::<f32,_>(audio, file, song_index, first_length, writer),
     }
 
     Ok(())

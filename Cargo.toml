@@ -17,6 +17,10 @@ all-features = true
 
 [features]
 default = ["snapshot", "peripherals", "formats"]
+sdl2 = ["spectrusty_audio/sdl2", "spectrusty_utils/sdl2"]
+cpal = ["spectrusty_audio/cpal"]
+minifb = ["spectrusty_utils/minifb"]
+winit = ["spectrusty_utils/winit"]
 snapshot = ["serde", "arrayvec/serde", "spectrusty_core/snapshot", "spectrusty_peripherals/snapshot"]
 audio = ["spectrusty_audio"]
 formats = ["spectrusty_formats"]
@@ -24,11 +28,7 @@ peripherals = ["spectrusty_peripherals"]
 utils = ["spectrusty_utils"]
 
 [dev-dependencies]
-spectrusty_audio = { path = "spectrusty_audio", version = "0.1" }
 smallvec = "1.1.0"
-cpal = "0.11.0"
-hound = "3.4.0"
-simple_logger = "1.6.0"
 serde_json = "1.0"
 bincode = "1.2"
 rand = {version = "0.7", features = ["small_rng"]}
@@ -69,7 +69,6 @@ path = "spectrusty_utils"
 log = "0.4"
 arrayvec = "0.5.1"
 bitflags = "1.2.1"
-# base64 = "0.12.0"
 
 [workspace]
 members = [
@@ -78,6 +77,8 @@ members = [
   "spectrusty_formats",
   "spectrusty_peripherals",
   "spectrusty_utils",
+  "examples/audio",
+  "examples/sdl2_zxspectrum",
+  # "examples/tutorial",
   "examples/web_ay_player",
-  "examples/sdl2_zxspectrum"
 ]

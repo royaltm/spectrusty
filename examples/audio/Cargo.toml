@@ -1,0 +1,19 @@
+[package]
+name = "audio"
+version = "0.1.0"
+authors = ["Rafal Michalski <royaltm75@gmail.com>"]
+edition = "2018"
+workspace = "../.."
+publish = false
+
+[dependencies]
+# spectrusty_audio = { path = "spectrusty_audio", version = "0.1" }
+cpal = { git = "https://github.com/RustAudio/cpal.git" }
+hound = "3.4.0"
+log = "0.4"
+simple_logger = "1.6.0"
+
+[dependencies.spectrusty]
+version = "*"
+features = ["audio", "cpal"]
+path = "../.."

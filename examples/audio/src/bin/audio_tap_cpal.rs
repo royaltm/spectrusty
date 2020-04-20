@@ -1,12 +1,11 @@
-//! ZX Spectrum TAPE sound P0RN!
-#[path = "../tests/audio_cpal.rs"]
-mod audio_cpal;
-use std::io::{Seek, Read, Cursor};
-
-use audio_cpal::*;
-
-use spectrusty_audio::{carousel::*, synth::*};
+//! ZX Spectrum tape sound PR0N demo!
+use std::io::{Cursor, Read, Seek};
+use spectrusty::audio::{
+    synth::*,
+    host::cpal::{AudioHandle, AudioHandleAnyFormat}
+};
 use spectrusty::audio::*;
+use spectrusty::chip::nanos_from_frame_tc_cpu_hz;
 use spectrusty::formats::tap::{*, pulse::*};
 /****************************************************************************/
 /*                                   MAIN                                   */
@@ -17,9 +16,12 @@ const FRAME_TSTATES: i32 = 69888;
 const CPU_HZ: u32 = 3_500_000;
 const AMPLITUDE: f32 = 0.1;
 
-fn produce<T: 'static + FromSample<i16> + AudioSample + Send,
-           R: Read + Seek>(mut audio: Audio<T>, read: R, mut writer: WavWriter)
-where i16: IntoSample<T>
+fn produce<T: 'static + FromSample<i16> + AudioSample + cpal::Sample + Send, R: Read + Seek>(
+        mut audio: AudioHandle<T>,
+        read: R,
+        mut writer: WavWriter
+    )
+    where i16: IntoSample<T>
 {
     // create a band-limited pulse buffer with 1 channel
     let mut bandlim: BandLimited<i16> = BandLimited::new(1);
@@ -100,10 +102,10 @@ where i16: IntoSample<T>
                 }
             }
         });
-        // prepare BLEP for the next frame
-        bandlim.next_frame();
         // send sample buffer to the consumer
         audio.producer.send_frame().unwrap();
+        // prepare BLEP for the next frame
+        bandlim.next_frame();
     }
     // render 3 silent buffers before stopping
     for _ in 0..3 {
@@ -115,26 +117,19 @@ where i16: IntoSample<T>
         });
         audio.producer.send_frame().unwrap();
     }
-
-    let Audio { join_handle, producer, ..} = audio;
-    // drop producer so the consumer should quit
-    drop(producer);
-    // drop writer so the file will close
-    drop(writer);
-    // wait for the consumer thread to quit
-    join_handle.join().unwrap();
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let adf = AudioDeviceFormat::find_default()?;
+    let frame_duration_nanos = nanos_from_frame_tc_cpu_hz(FRAME_TSTATES as u32, CPU_HZ) as u32;
+    let audio = AudioHandleAnyFormat::create(&cpal::default_host(), frame_duration_nanos, 0)?;
     let spec = hound::WavSpec {
         channels: 1,
-        sample_rate: adf.format.sample_rate.0,
+        sample_rate: audio.sample_rate(),
         bits_per_sample: 16,
         sample_format: hound::SampleFormat::Int,
     };
 
-    let tap_name = std::env::args().nth(1).unwrap_or_else(|| "tests/read_tap_test.tap".into());
+    let tap_name = std::env::args().nth(1).unwrap_or_else(|| "../../resources/read_tap_test.tap".into());
     println!("Loading TAP: {}", tap_name);
     let file = std::fs::File::open(&tap_name)?;
 
@@ -142,13 +137,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Creating WAV: {:?}", wav_name);
     let writer = WavWriter::create(wav_name, spec)?;
 
-    let frame_duration: f64 = FRAME_TSTATES as f64 / CPU_HZ as f64;
-    let audio = adf.play(1, frame_duration)?;
+    audio.play()?;
 
     match audio {
-        AudioUnknownDataType::I16(audio) => produce::<i16,_>(audio, file, writer),
-        AudioUnknownDataType::U16(audio) => produce::<u16,_>(audio, file, writer),
-        AudioUnknownDataType::F32(audio) => produce::<f32,_>(audio, file, writer),
+        AudioHandleAnyFormat::I16(audio) => produce::<i16,_>(audio, file, writer),
+        AudioHandleAnyFormat::U16(audio) => produce::<u16,_>(audio, file, writer),
+        AudioHandleAnyFormat::F32(audio) => produce::<f32,_>(audio, file, writer),
     }
 
     Ok(())

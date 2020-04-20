@@ -20,7 +20,7 @@ use spectrusty::peripherals::{
     serial::SerialKeypad
 };
 use spectrusty::video::{Video, BorderSize, VideoFrame};
-use spectrusty_utils::keyboard::sdl2::{
+use spectrusty::utils::keyboard::sdl2::{
     update_joystick_from_key_event,
     update_keymap_with_modifier,
     update_keypad_keys_with_modifier

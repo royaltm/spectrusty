@@ -83,12 +83,12 @@ pub trait HostConfig {
     const FRAME_TSTATES: FTs;
 
     #[inline]
-    fn frame_time_nanos() -> u64 {
+    fn frame_duration_nanos() -> u64 {
         nanos_from_frame_tc_cpu_hz(Self::FRAME_TSTATES as u32, Self::CPU_HZ)
     }
 
     #[inline]
-    fn frame_time_duration() -> Duration {
+    fn frame_duration() -> Duration {
         duration_from_frame_tc_cpu_hz(Self::FRAME_TSTATES as u32, Self::CPU_HZ)
     }
 }
