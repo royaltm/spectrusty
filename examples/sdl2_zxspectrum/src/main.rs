@@ -43,7 +43,7 @@ F2: Turbo - runs as fast as possible, while key is being pressed.
 F3: Saves ZX Printer spooled image as a PNG file. [+printer opt. only]
 F4: Changes joystick implementation (cursor keys).
 F5: Plays current TAP file.
-F6: Prints current TAP file info (only if not playing or recording).
+F6: Prints current TAP file info.
 F7: Lists tap file names.
 F8: Starts recording of TAP chunks appending them to the current TAP file.
 F9: Toggles on/off tape audio.
@@ -67,7 +67,7 @@ enum EmulatorStatus {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    simple_logger::init_with_level(log::Level::Info).unwrap();
+    simple_logger::init_with_level(log::Level::Debug).unwrap();
 
     set_dpi_awareness()?;
     let sdl_context = sdl2::init()?;
@@ -406,24 +406,21 @@ fn run<C, U, I>(
                 }
                 Event::KeyDown{ keycode: Some(Keycode::F6), repeat: false, ..} => {
                     zx.print_current_tap();
-                    if let Some(iter) = zx.tap_cabinet.current_tap_info()? {
+                    if let Some(mut iter) = zx.tap_cabinet.current_tap_info()? {
+                        let reader = iter.as_mut();
+                        let current = reader.chunk_no();
+                        reader.rewind();
                         for (info, no) in iter.zip(1..) {
-                            println!("  {}: {}", no, info?);
+                            println!("{} {:2}: {}",
+                                if no == current  { "->" } else { "  " }, no, info?);
                         }
-                        zx.tap_cabinet.rewind_tap()?;
-                    }
-                    else if zx.tap_cabinet.is_playing() {
-                        warn!("Can't show tap information while the tape is playing...");
-                    }
-                    else if zx.tap_cabinet.is_recording() {
-                        warn!("Can't show tap information while the tape is recording...");
                     }
                 }
                 Event::KeyDown{ keycode: Some(Keycode::F7), repeat: false, ..} => {
-                    let index = zx.tap_cabinet.current_tap_index();
+                    let current = zx.tap_cabinet.current_tap_index();
                     for (i, file) in zx.tap_cabinet.iter_meta().enumerate() {
                         println!("TAP {}: {}", 
-                            if index == i { "->" } else { "  " },
+                            if current == i { "->" } else { "  " },
                             file.to_string_lossy());
                     }
                 }

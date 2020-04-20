@@ -31,6 +31,7 @@ use spectrusty::video::*;
 pub use printer::*;
 use peripherals::*;
 
+pub use spectrusty::formats::tap::TapChunkRead;
 pub use spectrusty::peripherals::ay::audio::*;
 pub use spectrusty::peripherals::{KeyboardInterface, serial::SerialKeypad};
 pub use spectrusty::peripherals::memory::ZxInterface1MemExt;

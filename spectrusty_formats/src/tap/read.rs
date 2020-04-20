@@ -1,6 +1,8 @@
+use core::ops::{Deref, DerefMut};
+use core::mem::ManuallyDrop;
 use core::slice;
 use core::num::NonZeroU32;
-use core::convert::TryFrom;
+use core::convert::{TryInto, TryFrom};
 use std::io::{ErrorKind, Error, Read, Seek, SeekFrom, Result, Take};
 use super::pulse::{ReadEncPulseIter, consts::PAUSE_PULSE_LENGTH};
 use super::{Header, TapChunkInfo, HEAD_BLOCK_FLAG, DATA_BLOCK_FLAG, HEADER_SIZE, checksum, try_checksum};
@@ -17,10 +19,20 @@ pub struct TapChunkReader<R> {
     inner: Take<R>,
 }
 
-/// Implements an iterator of [TapChunkInfo] instances from the [TapChunkReader].
+/// A guard returned by [TapChunkReader::try_clone_mut].
+///
+/// This struct dereferences to [TapChunkReader].
 #[derive(Debug)]
-pub struct TapReadInfoIter<'a, R> {
-    inner: &'a mut TapChunkReader<R>,
+pub struct TapChunkReaderMut<'a, R: Seek> {
+    reader: TapChunkReader<&'a mut R>,
+    original_pos: u64
+}
+
+/// Implements an iterator of [TapChunkInfo] instances from any mutable reference to [TapChunkReader]
+/// including anything (like smart pointers) that dereferences to it.
+#[derive(Debug)]
+pub struct TapReadInfoIter<TR> {
+    inner: TR,
 }
 
 /// Implements an iterator of T-state pulse intervals over the [TapChunkReader].
@@ -29,13 +41,74 @@ pub struct TapReadInfoIter<'a, R> {
 pub struct TapChunkPulseIter<R> {
     /// Determines if a next chunk should be processed after the previous one ends.
     ///
-    /// If `false` to start iterating over pulses of the next chunk a [TapChunkPulseIter::next_chunk]
-    /// method should be called first. Until then the [Iterator::next] will return `None`.
-    ///
-    /// If `true` the next chunk will be processed automatically and a single pulse of interval of
-    /// [PAUSE_PULSE_LENGTH] T-states is emitted before lead pulses of the next chunk.
+    /// * `false` to start iterating over pulses of the next chunk a [TapChunkPulseIter::next_chunk]
+    ///   method should be called first. Until then the [Iterator::next] will return `None`.
+    /// * `true` the next chunk will be processed automatically and a single pulse of interval of
+    ///   [PAUSE_PULSE_LENGTH] T-states is emitted before lead pulses of the next chunk.
     pub auto_next: bool,
     ep_iter: ReadEncPulseIter<TapChunkReader<R>>
+}
+
+/// A trait with tools implemented by tap chunk readers.
+pub trait TapChunkRead {
+    /// Returns this chunk's number.
+    ///
+    /// The first chunk's number is 1. If this method returns 0 the cursor is at the beginning of a file,
+    /// before the first chunk.
+    fn chunk_no(&self) -> u32;
+    /// Returns this chunk's remaining bytes to be read.
+    fn chunk_limit(&self) -> u16;
+    /// Repositions the inner reader to the start of a file and sets inner limit to 0.
+    /// To read the first chunk you need to call [TapChunkReader::next_chunk] first.
+    fn rewind(&mut self);
+    /// Forwards the inner reader to the position of the next *TAP* chunk.
+    ///
+    /// Returns `Ok(None)` if end of file has been reached.
+    ///
+    /// On success returns `Ok(size)` in bytes of the next *TAP* chunk
+    /// and limits the inner [Take] reader to that size.
+    ///
+    /// Clears [TapChunkReader::checksum].
+    fn next_chunk(&mut self) -> Result<Option<u16>>;
+    /// Forwards the inner reader to the position of a next `skip` + 1 *TAP* chunks.
+    /// Returns `Ok(None)` if end of file has been reached.
+    /// On success returns `Ok(size)` in bytes of the next *TAP* chunk
+    /// and limits the inner [Take] reader to that size.
+    fn skip_chunks(&mut self, skip: usize) -> Result<Option<u16>> {
+        for _ in 0..skip {
+            if self.next_chunk()?.is_none() {
+                return Ok(None)
+            }
+        }
+        self.next_chunk()
+    }
+    /// Forwards the tape to the next chunk. Returns `Ok(chunk_no)`.
+    fn forward_chunk(&mut self) -> Result<u32> {
+        if self.next_chunk()?.is_some() {
+            Ok(self.chunk_no())
+        }
+        else {
+            Ok(self.chunk_no() + 1)
+        }
+    }
+    /// Rewinds the tape to the beginning of the previous chunk. Returns `Ok(chunk_no)`.
+    fn backward_chunk(&mut self) -> Result<u32> {
+        if let Some(no) = NonZeroU32::new(self.chunk_no()) {
+            self.rewind();
+            if let Some(ntgt) = (no.get() as usize).checked_sub(2) {
+                self.skip_chunks(ntgt)?;
+            }
+        }
+        Ok(self.chunk_no())
+    }
+    /// Rewinds the tape to the beginning of the current chunk. Returns `Ok(chunk_no)`.
+    fn rewind_chunk(&mut self) -> Result<u32> {
+        if let Some(no) = NonZeroU32::new(self.chunk_no()) {
+            self.rewind();
+            self.skip_chunks(no.get() as usize - 1)?;
+        }
+        Ok(self.chunk_no())
+    }
 }
 
 impl<R: Read> TryFrom<&'_ mut Take<R>> for TapChunkInfo {
@@ -100,29 +173,51 @@ impl<R> TapChunkReader<R> {
     }
 }
 
-impl<R: Read> TapChunkReader<R> {
-    /// Returns this chunk's number.
+impl<R: Read + Seek> TapChunkReader<R> {
+    /// Creates a new instance of [TapChunkReader] from the reader with an assumption that the next
+    /// two bytes read from it will form the next chunk header.
     ///
-    /// The first chunk's number is 1. If this method returns 0 the cursor is before the first chunk.
-    pub fn chunk_no(&self) -> u32 {
-        self.chunk_index
+    /// `chunk_no` should be the chunk number of the previous chunk.
+    pub fn try_from_current(mut rd: R, chunk_no: u32) -> Result<Self> {
+        let next_pos = rd.seek(SeekFrom::Current(0))?;
+        let inner = rd.take(0);
+        Ok(TapChunkReader { next_pos, chunk_index: chunk_no, checksum: 0, inner })
     }
-    /// Returns this chunk's remaining bytes to be read.
-    pub fn chunk_limit(&self) -> u16 {
-        self.inner.limit() as u16
+
+    /// Creates a clone of self but with a mutable reference to the underlying reader.
+    ///
+    /// Returns a guard that, when dropped, will try to restore the original position
+    /// of the reader. However to check if it succeeded it's better to use [TapChunkReaderMut::done]
+    /// method directly on the guard which returns a result from the seek operation.
+    pub fn try_clone_mut(&mut self) -> Result<TapChunkReaderMut<'_, R>> {
+        let limit = self.inner.limit();
+        let inner = self.inner.get_mut().take(limit);
+        TapChunkReader {
+            checksum: self.checksum,
+            next_pos: self.next_pos,
+            chunk_index: self.chunk_index,
+            inner
+        }.try_into()
     }
 }
 
-impl<R: Read + Seek> TapChunkReader<R> {
-    /// Forwards the inner reader to the position of the next *TAP* chunk.
-    ///
-    /// Returns `Ok(None)` if end of file has been reached.
-    ///
-    /// On success returns `Ok(size)` in bytes of the next *TAP* chunk
-    /// and limits the inner [Take] reader to that size.
-    ///
-    /// Clears [TapChunkReader::checksum].
-    pub fn next_chunk(&mut self) -> Result<Option<u16>> {
+impl<R: Read + Seek> TapChunkRead for TapChunkReader<R> {
+    fn chunk_no(&self) -> u32 {
+        self.chunk_index
+    }
+
+    fn chunk_limit(&self) -> u16 {
+        self.inner.limit() as u16
+    }
+
+    fn rewind(&mut self) {
+        self.inner.set_limit(0);
+        self.checksum = 0;
+        self.chunk_index = 0;
+        self.next_pos = 0;
+    }
+
+    fn next_chunk(&mut self) -> Result<Option<u16>> {
         let rd = self.inner.get_mut();
         if self.next_pos != rd.seek(SeekFrom::Start(self.next_pos))? {
             return Err(Error::new(ErrorKind::UnexpectedEof, "stream unexpectedly ended"));
@@ -147,28 +242,6 @@ impl<R: Read + Seek> TapChunkReader<R> {
         self.inner.set_limit(size as u64);
         self.next_pos += size as u64 + 2;
         Ok(Some(size))
-    }
-
-    /// Forwards the inner reader to the position of a next `skip` + 1 *TAP* chunks.
-    /// Returns `Ok(None)` if end of file has been reached.
-    /// On success returns `Ok(size)` in bytes of the next *TAP* chunk
-    /// and limits the inner [Take] reader to that size.
-    pub fn skip_chunks(&mut self, skip: usize) -> Result<Option<u16>> {
-        for _ in 0..skip {
-            if self.next_chunk()?.is_none() {
-                return Ok(None)
-            }
-        }
-        self.next_chunk()
-    }
-
-    /// Repositions the inner reader to the start of a file and sets inner limit to 0.
-    /// To read the first chunk you need to call [TapChunkReader::next_chunk] first.
-    pub fn rewind(&mut self) {
-        self.inner.set_limit(0);
-        self.checksum = 0;
-        self.chunk_index = 0;
-        self.next_pos = 0;
     }
 }
 
@@ -197,22 +270,64 @@ impl<R: Read> Read for TapChunkReader<R> {
 }
 
 impl<R: Read + Seek> From<R> for TapChunkReader<R> {
-    fn from(mut rd: R) -> Self {
-        let next_pos = rd.seek(SeekFrom::Current(0)).unwrap();
+    fn from(rd: R) -> Self {
         let inner = rd.take(0);
-        TapChunkReader { next_pos, chunk_index: 0, checksum: 0, inner }
+        TapChunkReader { next_pos: 0, chunk_index: 0, checksum: 0, inner }
     }
 }
 
-impl<'a, R> From<&'a mut TapChunkReader<R>> for TapReadInfoIter<'a, R>
+impl<'a, R: Seek> TapChunkReaderMut<'a, R> {
+    /// Tries to restore the original reader position before dropping self.
+    pub fn done(self) -> Result<u64> {
+        let pos = self.original_pos;
+        let mut nodrop = ManuallyDrop::new(self);
+        nodrop.reader.inner.get_mut().seek(SeekFrom::Start(pos))
+    }
+}
+
+impl<'a, R: Seek> Drop for TapChunkReaderMut<'a, R> {
+    fn drop(&mut self) {
+        let pos = self.original_pos;
+        let _ = self.reader.inner.get_mut().seek(SeekFrom::Start(pos));
+    }
+}
+
+impl<'a, R: Seek> TryFrom<TapChunkReader<&'a mut R>> for TapChunkReaderMut<'a, R> {
+    type Error = Error;
+
+    fn try_from(mut reader: TapChunkReader<&'a mut R>) -> Result<Self> {
+        let original_pos = reader.inner.get_mut().seek(SeekFrom::Current(0))?;
+        Ok(TapChunkReaderMut { reader, original_pos })
+    }
+}
+
+impl<'a, R: Seek> Deref for TapChunkReaderMut<'a, R> {
+    type Target = TapChunkReader<&'a mut R>;
+    fn deref(&self) -> &Self::Target {
+        &self.reader
+    }
+}
+
+impl<'a, R: Seek> DerefMut for TapChunkReaderMut<'a, R> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.reader
+    }
+}
+
+impl<T, R> From<T> for TapReadInfoIter<T>
+    where T: Deref<Target=TapChunkReader<R>> + DerefMut,
+          R: Read + Seek
 {
     #[inline]
-    fn from(inner: &'a mut TapChunkReader<R>) -> Self {
+    fn from(inner: T) -> Self {
         TapReadInfoIter { inner }
     }
 }
 
-impl<'a, R: Read + Seek> Iterator for TapReadInfoIter<'a, R> {
+impl<T, R> Iterator for TapReadInfoIter<T>
+    where T: Deref<Target=TapChunkReader<R>> + DerefMut,
+          R: Read + Seek
+{
     type Item = Result<TapChunkInfo>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -222,6 +337,22 @@ impl<'a, R: Read + Seek> Iterator for TapReadInfoIter<'a, R> {
             Err(e) => return Some(Err(e))
         };
         Some(info)
+    }
+}
+
+impl<T, R> AsRef<TapChunkReader<R>> for TapReadInfoIter<T>
+    where T: Deref<Target=TapChunkReader<R>>
+{
+    fn as_ref(&self) -> &TapChunkReader<R> {
+        &self.inner
+    }
+}
+
+impl<T, R> AsMut<TapChunkReader<R>> for TapReadInfoIter<T>
+    where T: Deref<Target=TapChunkReader<R>> + DerefMut
+{
+    fn as_mut(&mut self) -> &mut TapChunkReader<R> {
+        &mut self.inner
     }
 }
 
@@ -237,38 +368,24 @@ impl<R: Read + Seek> From<ReadEncPulseIter<TapChunkReader<R>>> for TapChunkPulse
     }
 }
 
+impl<R> TapChunkPulseIter<R> {
+    /// Returns the wrapped iterator.
+    pub fn into_inner(self) -> ReadEncPulseIter<TapChunkReader<R>> {
+        self.ep_iter
+    }
+    /// Returns a reference to the inner iterator.
+    pub fn get_ref(&self) -> &ReadEncPulseIter<TapChunkReader<R>> {
+        &self.ep_iter
+    }
+    /// Returns a mutable reference to the inner iterator.
+    pub fn get_mut(&mut self) -> &mut ReadEncPulseIter<TapChunkReader<R>> {
+        &mut self.ep_iter
+    }
+}
+
 impl<R> TapChunkPulseIter<R>
     where R: Read + Seek
 {
-    /// Returns the current chunk's number.
-    ///
-    /// The first chunk's number is 1. If this method returns 0 the cursor is before the first chunk.
-    pub fn chunk_no(&self) -> u32 {
-        self.ep_iter.get_ref().chunk_no()
-    }
-
-    /// Invokes underlying [TapChunkReader::rewind] and [resets][ReadEncPulseIter::reset] the internal
-    /// pulse iterator. Returns the result from [TapChunkReader::rewind].
-    pub fn rewind(&mut self) {
-        self.ep_iter.get_mut().rewind();
-        self.ep_iter.reset();
-    }
-
-    /// Invokes underlying [TapChunkReader::next_chunk] and [resets][ReadEncPulseIter::reset] the internal
-    /// pulse iterator. Returns the result from [TapChunkReader::next_chunk].
-    pub fn next_chunk(&mut self) -> Result<Option<u16>> {
-        let res = self.ep_iter.get_mut().next_chunk()?;
-        self.ep_iter.reset();
-        Ok(res)
-    }
-
-    /// Invokes underlying [TapChunkReader::skip_chunks] and [resets][ReadEncPulseIter::reset] the internal
-    /// pulse iterator. Returns the result from [TapChunkReader::skip_chunks].
-    pub fn skip_chunks(&mut self, skip: usize) -> Result<Option<u16>> {
-        let res = self.ep_iter.get_mut().skip_chunks(skip)?;
-        self.ep_iter.reset();
-        Ok(res)        
-    }
     /// Returns `true` if there are no more pulses to emit or there
     /// was an error while reading bytes.
     ///
@@ -279,18 +396,48 @@ impl<R> TapChunkPulseIter<R>
     }
 }
 
-impl<R> TapChunkPulseIter<R> {
-    /// Returns the wrapped iterator.
-    pub fn into_inner(self) -> ReadEncPulseIter<TapChunkReader<R>> {
-        self.ep_iter
+impl<R: Read + Seek> TapChunkRead for TapChunkPulseIter<R> {
+    fn chunk_no(&self) -> u32 {
+        self.ep_iter.get_ref().chunk_no()
     }
-    /// Returns a reference to the iterator.
-    pub fn get_ref(&self) -> &ReadEncPulseIter<TapChunkReader<R>> {
-        &self.ep_iter
+
+    fn chunk_limit(&self) -> u16 {
+        self.ep_iter.get_ref().chunk_limit()
     }
-    /// Returns a mutable reference to the iterator.
-    pub fn get_mut(&mut self) -> &mut ReadEncPulseIter<TapChunkReader<R>> {
-        &mut self.ep_iter
+
+    /// Invokes underlying [TapChunkReader::rewind] and [resets][ReadEncPulseIter::reset] the internal
+    /// pulse iterator. Returns the result from [TapChunkReader::rewind].
+    fn rewind(&mut self) {
+        self.ep_iter.get_mut().rewind();
+        self.ep_iter.reset();
+    }
+
+    /// Invokes underlying [TapChunkReader::next_chunk] and [resets][ReadEncPulseIter::reset] the internal
+    /// pulse iterator. Returns the result from [TapChunkReader::next_chunk].
+    fn next_chunk(&mut self) -> Result<Option<u16>> {
+        let res = self.ep_iter.get_mut().next_chunk()?;
+        self.ep_iter.reset();
+        Ok(res)
+    }
+
+    /// Invokes underlying [TapChunkReader::skip_chunks] and [resets][ReadEncPulseIter::reset] the internal
+    /// pulse iterator. Returns the result from [TapChunkReader::skip_chunks].
+    fn skip_chunks(&mut self, skip: usize) -> Result<Option<u16>> {
+        let res = self.ep_iter.get_mut().skip_chunks(skip)?;
+        self.ep_iter.reset();
+        Ok(res)        
+    }
+}
+
+impl<R> AsRef<TapChunkReader<R>> for TapChunkPulseIter<R> {
+    fn as_ref(&self) -> &TapChunkReader<R> {
+        self.ep_iter.get_ref()
+    }
+}
+
+impl<R> AsMut<TapChunkReader<R>> for TapChunkPulseIter<R> {
+    fn as_mut(&mut self) -> &mut TapChunkReader<R> {
+        self.ep_iter.get_mut()
     }
 }
 

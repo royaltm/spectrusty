@@ -42,7 +42,10 @@ use std::collections::{HashMap, HashSet};
 use spectrusty_peripherals::storage::microdrives::{
     MAX_USABLE_SECTORS, HEAD_SIZE,
     Sector, MicroCartridge, MicroCartridgeIdSecIter};
-use super::tap::{BlockType, Header, TapChunkWriter, TapChunkReader, TapChunkInfo, DATA_BLOCK_FLAG, array_name};
+use super::tap::{
+    BlockType, Header, TapChunkWriter, TapChunkReader, TapChunkRead, TapChunkInfo,
+    DATA_BLOCK_FLAG, array_name
+};
 
 /// Checksum calculating routine used by Spectrum for Microdrive data.
 pub fn checksum<I: IntoIterator<Item=B>, B: Borrow<u8>>(iter: I) -> u8 {

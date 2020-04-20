@@ -1,4 +1,7 @@
 //! Keyboard related utils.
+//!
+//! To make use of one of the event loop dependend implmentation of the keyboard utilities add one of the
+//! available features to the `[dependencies]` section in the Cargo configuration file.
 use spectrusty_peripherals::{
     joystick::{JoystickInterface, Directions}
 };
