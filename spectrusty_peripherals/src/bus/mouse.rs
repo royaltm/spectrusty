@@ -15,7 +15,8 @@ use spectrusty_core::{
 use super::ay::PassByAyAudioBusDevice;
 
 pub use crate::mouse::{
-    MouseDevice, MouseInterface, kempston::*
+    MouseDevice, MouseInterface, NullMouseDevice,
+    kempston::*
 };
 
 /// A convenient Kempston Mouse [BusDevice] type.
@@ -53,14 +54,14 @@ impl PortAddress for KempstonMousePortAddress {
     const ADDRESS_BITS: u16 = 0b1111_1010_1101_1111;
 }
 
-impl<T, P, M, D> Deref for MouseBusDevice<T, P, M, D> {
+impl<T, P, M: MouseInterface, D> Deref for MouseBusDevice<T, P, M, D> {
     type Target = M;
     fn deref(&self) -> &Self::Target {
         &self.mouse
     }
 }
 
-impl<T, P, M, D> DerefMut for MouseBusDevice<T, P, M, D> {
+impl<T, P, M: MouseInterface, D> DerefMut for MouseBusDevice<T, P, M, D> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.mouse
     }

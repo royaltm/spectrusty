@@ -52,6 +52,10 @@ pub trait MouseDevice: Debug {
     fn port_write(&mut self, _port: u16, _data: u8) -> bool { false }
 }
 
+/// The mouse device that can be used as a placeholder type.
+#[derive(Clone, Copy, Default, Debug)]
+pub struct NullMouseDevice;
+
 impl From<(i16, i16)> for MouseMovement {
     fn from((x, y): (i16, i16)) -> Self {
         MouseMovement {
@@ -65,4 +69,18 @@ impl From<[i16;2]> for MouseMovement {
     fn from([x, y]: [i16;2]) -> Self {
         (x, y).into()
     }
+}
+
+impl MouseInterface for NullMouseDevice {
+    fn set_buttons(&mut self, _buttons: MouseButtons) {}
+    fn get_buttons(&self) -> MouseButtons {
+        MouseButtons::empty()
+    }
+    fn move_mouse<M: Into<MouseMovement>>(&mut self, _mov: M) {}  
+}
+
+impl MouseDevice for NullMouseDevice {
+    fn port_read(&self, _port: u16) -> u8 {
+        u8::max_value()
+    }   
 }

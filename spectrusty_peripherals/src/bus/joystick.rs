@@ -17,7 +17,7 @@ use spectrusty_core::{
 use super::ay::PassByAyAudioBusDevice;
 
 pub use crate::joystick::{
-    JoystickDevice, JoystickInterface,
+    JoystickDevice, JoystickInterface, NullJoystickDevice,
     kempston::*, fuller::*, sinclair::*, cursor::*
 };
 
@@ -124,14 +124,14 @@ impl PortAddress for CursorJoyPortAddress {
     }
 }
 
-impl<T, P, J, D> Deref for JoystickBusDevice<T, P, J, D> {
+impl<T, P, J: JoystickInterface, D> Deref for JoystickBusDevice<T, P, J, D> {
     type Target = J;
     fn deref(&self) -> &Self::Target {
         &self.joystick
     }
 }
 
-impl<T, P, J, D> DerefMut for JoystickBusDevice<T, P, J, D> {
+impl<T, P, J: JoystickInterface, D> DerefMut for JoystickBusDevice<T, P, J, D> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.joystick
     }
