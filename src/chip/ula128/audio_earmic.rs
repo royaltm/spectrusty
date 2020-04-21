@@ -5,6 +5,8 @@ use crate::peripherals::ay::audio::AyAudioFrame;
 #[cfg(feature = "peripherals")]
 use crate::peripherals::bus::ay::AyAudioVBusDevice;
 use crate::video::VideoFrame;
+
+use crate::chip::{EarIn, MicOut};
 use super::{CPU_HZ, Ula128, Ula128VidFrame, InnerUla};
 
 impl<A, B, X> AyAudioFrame<A> for Ula128<B, X>
@@ -66,7 +68,6 @@ impl<B, X> EarIn for Ula128<B, X> {
     }
 }
 
-/// A trait for reading `MIC` output.
 impl<'a, B: 'a, X: 'a> MicOut<'a> for Ula128<B, X> {
     type PulseIter = <InnerUla<B, X> as MicOut<'a>>::PulseIter;
     /// Returns a frame buffered mic output as a pulse iterator.

@@ -1,3 +1,4 @@
+use core::num::NonZeroU32;
 use core::time::Duration;
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
@@ -76,6 +77,35 @@ pub trait ControlUnit {
             cpu: &mut C,
             debug: Option<F>
     ) -> Result<(), ()>;
+}
+
+/// A trait for reading MIC output.
+pub trait MicOut<'a> {
+    type PulseIter: Iterator<Item=NonZeroU32> + 'a;
+    /// Returns a frame buffered MIC output as a pulse iterator.
+    fn mic_out_pulse_iter(&'a self) -> Self::PulseIter;
+}
+
+/// A trait for feeding EAR input.
+pub trait EarIn {
+    /// Sets `EAR in` bit state after the provided interval in ∆ T-States counted from the last recorded change.
+    fn set_ear_in(&mut self, ear_in: bool, delta_fts: u32);
+    /// Feeds the `EAR in` buffer with changes.
+    ///
+    /// The provided iterator should yield time intervals measured in T-state ∆ differences after which the state
+    /// of the `EAR in` bit should be toggled.
+    ///
+    /// `max_frames_threshold` may be optionally provided as a number of frames to limit the buffered changes.
+    /// This is usefull if the given iterator provides data largely exceeding the duration of a single frame.
+    fn feed_ear_in<I: Iterator<Item=NonZeroU32>>(&mut self, fts_deltas: I, max_frames_threshold: Option<usize>);
+    /// Removes all buffered so far `EAR in` changes.
+    ///
+    /// Changes are usually consumed only when a call is made to [crate::chip::ControlUnit::ensure_next_frame].
+    /// Provide the current value of `EAR in` bit as `ear_in`.
+    ///
+    /// This may be usefull when tape data is already buffered but the user decided to stop the tape playback
+    /// immediately.
+    fn purge_ear_in_changes(&mut self, ear_in: bool);
 }
 
 pub trait HostConfig {

@@ -1,4 +1,4 @@
-mod audio;
+mod audio_earmic;
 pub(crate) mod frame_cache;
 mod io;
 mod video;
@@ -236,10 +236,9 @@ impl<B, X> UlaTimestamp for Ula128<B, X>
 #[cfg(test)]
 mod tests {
     use core::convert::TryFrom;
-    use crate::bus::NullDevice;
     use crate::video::Video;
     use super::*;
-    type TestUla128 = Ula128::<NullDevice<VideoTs>>;
+    type TestUla128 = Ula128;
 
     #[test]
     fn test_ula128() {

@@ -1,4 +1,5 @@
 mod audio;
+mod earmic;
 pub(crate) mod frame_cache;
 mod io;
 mod video;
@@ -12,11 +13,11 @@ use crate::z80emu::{*, host::{Result, cycles::M1_CYCLE_TS}};
 #[cfg(feature = "snapshot")]
 use serde::{Serialize, Deserialize};
 
-use crate::audio::{AudioFrame, EarIn, MicOut, Blep, EarInAudioFrame, EarMicOutAudioFrame};
+use crate::audio::{AudioFrame, Blep, EarInAudioFrame, EarMicOutAudioFrame};
 #[cfg(feature = "peripherals")] use crate::peripherals::ay::audio::AyAudioFrame;
 
 use crate::bus::{BusDevice, NullDevice};
-use crate::chip::{ControlUnit, MemoryAccess, nanos_from_frame_tc_cpu_hz};
+use crate::chip::{ControlUnit, MemoryAccess, EarIn, MicOut, nanos_from_frame_tc_cpu_hz};
 use crate::video::{Video, VideoFrame};
 use crate::memory::{ZxMemory, MemoryExtension, NoMemoryExtension};
 use crate::peripherals::{KeyboardInterface, ZXKeyboardMap};
@@ -240,7 +241,7 @@ impl<M, B, X, V> Ula<M, B, X, V>
         self.bus.next_frame(vtsc.as_timestamp());
         self.frames += Wrapping(1);
         self.cleanup_video_frame_data();
-        self.cleanup_audio_frame_data();
+        self.cleanup_earmic_frame_data();
         vtsc.wrap_frame();
         self.tsc = vtsc.into();
         vtsc
