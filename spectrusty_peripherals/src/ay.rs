@@ -166,10 +166,12 @@ pub struct AyIoNullPort<T>(PhantomData<T>);
 /// Allows recording of changes to AY-3-8910 audio registers with timestamps.
 pub trait AyRegRecorder {
     type Timestamp;
-    /// Shoud record a new value of indicated register with the given `timestamp`.
+    /// Should record a new value of indicated register with the given `timestamp`.
     ///
     /// *NOTE*: It is up to the caller to ensure the timestamps are added in an ascending order.
     fn record_ay_reg_change(&mut self, reg: AyRegister, val: u8, timestamp: Self::Timestamp);
+    /// Should remove data from the recorder.
+    fn clear_ay_reg_changes(&mut self);
 }
 
 /// The type of [Ay3_891xIo] with two optional I/O ports (A and B) and [AyRegVecRecorder].
@@ -232,8 +234,10 @@ where A: AyIoPort<Timestamp=T>,
         self.port_a.ay_io_reset(timestamp);
         self.port_b.ay_io_reset(timestamp);
     }
-    /// Forwards the call to I/O port implementations. Can be used to indicate an end-of-frame.
+    /// Clears recorder data and forwards the call to I/O port implementations.
+    /// It can be used to indicate an end-of-frame.
     pub fn next_frame(&mut self, timestamp: T) where T: Copy {
+        self.recorder.clear_ay_reg_changes();
         self.port_a.end_frame(timestamp);
         self.port_b.end_frame(timestamp);
     }
@@ -377,6 +381,8 @@ impl<T> AyRegRecorder for AyRegNullRecorder<T> {
     type Timestamp = T;
     #[inline]
     fn record_ay_reg_change(&mut self, _reg: AyRegister, _val: u8, _timestamp: T) {}
+    #[inline]
+    fn clear_ay_reg_changes(&mut self) {}
 }
 
 impl<T> AyRegRecorder for AyRegVecRecorder<T> {
@@ -384,6 +390,10 @@ impl<T> AyRegRecorder for AyRegVecRecorder<T> {
     #[inline]
     fn record_ay_reg_change(&mut self, reg: AyRegister, val: u8, timestamp: T) {
         self.0.push((timestamp, reg, val));
+    }
+    #[inline]
+    fn clear_ay_reg_changes(&mut self) {
+        self.0.clear()
     }
 }
 
