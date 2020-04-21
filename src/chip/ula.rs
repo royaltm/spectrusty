@@ -162,6 +162,10 @@ impl<M, B, X> ControlUnit for Ula<M, B, X, UlaVideoFrame>
         &self.bus
     }
 
+    fn into_bus_device(self) -> Self::BusDevice {
+        self.bus
+    }
+
     fn current_frame(&self) -> u64 {
         self.frames.0
     }

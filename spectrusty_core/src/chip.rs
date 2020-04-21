@@ -27,8 +27,6 @@ pub trait MemoryAccess {
 pub trait ControlUnit {
     /// A type of the first attached [BusDevice].
     type BusDevice: BusDevice;
-    // /// A memory extension type.
-    // type MemoryExt: MemoryExtension;
     /// A frequency in Hz of the Cpu unit. This is the same as a number of cycles (T states) per second.
     fn cpu_clock_rate(&self) -> u32;
     /// A single frame duration in nanoseconds.
@@ -37,6 +35,8 @@ pub trait ControlUnit {
     fn bus_device_mut(&mut self) -> &mut Self::BusDevice;
     /// Returns a reference to the first bus device.
     fn bus_device_ref(&self) -> &Self::BusDevice;
+    /// Destructs self and returns the bus device.
+    fn into_bus_device(self) -> Self::BusDevice;
     /// Returns a current frame counter value. The [ControlUnit] implementation should count
     /// passing frames infinitely wrapping at 2^64.
     fn current_frame(&self) -> u64;

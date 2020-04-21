@@ -117,6 +117,10 @@ impl<B, X> ControlUnit for Ula128<B, X>
         &self.ula.bus
     }
 
+    fn into_bus_device(self) -> Self::BusDevice {
+        self.ula.bus
+    }
+
     fn current_frame(&self) -> u64 {
         self.ula.frames.0
     }

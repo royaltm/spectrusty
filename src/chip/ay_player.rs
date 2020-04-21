@@ -108,6 +108,10 @@ impl<P: AyPortDecode> ControlUnit for AyPlayer<P> {
         &self.bus
     }
 
+    fn into_bus_device(self) -> Self::BusDevice {
+        self.bus
+    }
+
     fn current_frame(&self) -> u64 {
         self.frames.0
     }
