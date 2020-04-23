@@ -357,7 +357,7 @@ fn run<C, U, I>(
                             zx.print_current_tap();
                         }
                     }
-                    else if let Some(no) = zx.tap_cabinet.skip_tap_chunks(usize::max_value())? {
+                    else if let Some(no) = zx.tap_cabinet.skip_tap_chunks(u32::max_value())? {
                         zx.print_current_tap_chunk(no.get());
                     }
                 }

@@ -185,7 +185,7 @@ impl<F, S> TapCabinet<F, S>
         self.with_tap_reader(|iter| {
             if let Some(no) = NonZeroU32::new(iter.chunk_no()) {
                 iter.rewind();
-                if let Some(ntgt) = (no.get() as usize).checked_sub(2) {
+                if let Some(ntgt) = no.get().checked_sub(2) {
                     iter.skip_chunks(ntgt)?;
                 }
             }
@@ -193,7 +193,7 @@ impl<F, S> TapCabinet<F, S>
         })
     }
 
-    pub fn skip_tap_chunks(&mut self, skip: usize) -> Result<Option<NonZeroU32>> {
+    pub fn skip_tap_chunks(&mut self, skip: u32) -> Result<Option<NonZeroU32>> {
         self.with_tap_reader(|iter| {
             iter.skip_chunks(skip)?;
             return Ok(NonZeroU32::new(iter.chunk_no()))
@@ -491,21 +491,27 @@ impl<F: Write + Read + Seek> Tap<F> {
     }
 
     /// Conditionally forwards a tape to the next chunk if its variant is [Tap::Reader]. In this
-    /// instance returns `Ok(Some(chunk_no))`. Otherwise returns `Ok(None)`.
-    pub fn forward_chunk(&mut self) -> Result<Option<u32>> {
+    /// instance returns `Ok(Some(was_next_chunk))`. Otherwise returns `Ok(None)`.
+    pub fn forward_chunk(&mut self) -> Result<Option<bool>> {
         self.reader_mut().map(|rd| rd.forward_chunk()).transpose()
     }
 
     /// Conditionally rewinds a tape to the previous chunk if its variant is [Tap::Reader]. In this
     /// instance returns `Ok(Some(chunk_no))`. Otherwise returns `Ok(None)`.
-    pub fn backward_chunk(&mut self) -> Result<Option<u32>> {
-        self.reader_mut().map(|rd| rd.backward_chunk()).transpose()
+    pub fn rewind_prev_chunk(&mut self) -> Result<Option<u32>> {
+        self.reader_mut().map(|rd| rd.rewind_prev_chunk()).transpose()
     }
 
     /// Conditionally rewinds a tape to the beginning of the current chunk if its variant is
     /// [Tap::Reader]. In this instance returns `Ok(Some(chunk_no))`. Otherwise returns `Ok(None)`.
     pub fn rewind_chunk(&mut self) -> Result<Option<u32>> {
         self.reader_mut().map(|rd| rd.rewind_chunk()).transpose()
+    }
+
+    /// Conditionally rewinds or forwards a tape to the nth chunk if its variant is [Tap::Reader].
+    /// In this instance returns `Ok(Some(was_a_chunk))`. Otherwise returns `Ok(None)`.
+    pub fn rewind_nth_chunk(&mut self, chunk_no: u32) -> Result<Option<bool>> {
+        self.reader_mut().map(|rd| rd.rewind_nth_chunk(chunk_no)).transpose()
     }
 }
 
@@ -686,15 +692,16 @@ impl<F: Write + Read + Seek> Tape<F> {
     }
 
     /// Conditionally forwards a tape to the next chunk if it's inserted and its variant
-    /// is [Tap::Reader]. In this instance returns `Ok(Some(chunk_no))`. Otherwise returns `Ok(None)`.
-    pub fn forward_chunk(&mut self) -> Result<Option<u32>> {
+    /// is [Tap::Reader]. In this instance returns `Ok(Some(was_next_chunk))`. Otherwise returns
+    /// `Ok(None)`.
+    pub fn forward_chunk(&mut self) -> Result<Option<bool>> {
         self.reader_mut().map(|rd| rd.forward_chunk()).transpose()
     }
 
     /// Conditionally rewinds a tape to the previous chunk if it's inserted and its variant
     /// is [Tap::Reader]. In this instance returns `Ok(Some(chunk_no))`. Otherwise returns `Ok(None)`.
-    pub fn backward_chunk(&mut self) -> Result<Option<u32>> {
-        self.reader_mut().map(|rd| rd.backward_chunk()).transpose()
+    pub fn rewind_prev_chunk(&mut self) -> Result<Option<u32>> {
+        self.reader_mut().map(|rd| rd.rewind_prev_chunk()).transpose()
     }
 
     /// Conditionally rewinds a tape to the beginning of the current chunk if it's inserted and its
@@ -702,5 +709,12 @@ impl<F: Write + Read + Seek> Tape<F> {
     /// `Ok(None)`.
     pub fn rewind_chunk(&mut self) -> Result<Option<u32>> {
         self.reader_mut().map(|rd| rd.rewind_chunk()).transpose()
+    }
+
+    /// Conditionally rewinds or forwards a tape to the nth chunk if it's inserted and its
+    /// variant is [Tap::Reader]. In this instance returns `Ok(Some(was_a_chunk))`. Otherwise
+    /// returns `Ok(None)`.
+    pub fn rewind_nth_chunk(&mut self, chunk_no: u32) -> Result<Option<bool>> {
+        self.reader_mut().map(|rd| rd.rewind_nth_chunk(chunk_no)).transpose()
     }
 }

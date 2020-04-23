@@ -74,7 +74,9 @@ pub trait TapChunkRead {
     /// Returns `Ok(None)` if end of file has been reached.
     /// On success returns `Ok(size)` in bytes of the next *TAP* chunk
     /// and limits the inner [Take] reader to that size.
-    fn skip_chunks(&mut self, skip: usize) -> Result<Option<u16>> {
+    ///
+    /// `skip_chunks(0)` acts the same as [TapChunkRead::next_chunk].
+    fn skip_chunks(&mut self, skip: u32) -> Result<Option<u16>> {
         for _ in 0..skip {
             if self.next_chunk()?.is_none() {
                 return Ok(None)
@@ -82,20 +84,36 @@ pub trait TapChunkRead {
         }
         self.next_chunk()
     }
-    /// Forwards the tape to the next chunk. Returns `Ok(chunk_no)`.
-    fn forward_chunk(&mut self) -> Result<u32> {
-        if self.next_chunk()?.is_some() {
-            Ok(self.chunk_no())
+    /// Rewinds or forwards the tape to the nth chunk. Returns `Ok(true)` if the nth chunk exists.
+    /// Otherwise returns `Ok(false)` and leaves the seek position at the end of the tape.
+    fn rewind_nth_chunk(&mut self, chunk_no: u32) -> Result<bool> {
+        let current_no = self.chunk_no();
+        let res = if chunk_no > current_no {
+            self.skip_chunks(chunk_no - current_no - 1)?.is_some()
         }
         else {
-            Ok(self.chunk_no() + 1)
-        }
+            if current_no != 0 {
+                self.rewind();
+            }
+            if chunk_no != 0 {
+                self.skip_chunks(chunk_no - 1)?.is_some()
+            }
+            else {
+                true
+            }
+        };
+        Ok(res)
+    }
+    /// Forwards the tape to the next chunk. Returns `Ok(true)` if the forwarded to chunk exists.
+    /// Otherwise returns `Ok(false)` and leaves the seek position at the end of the tape.
+    fn forward_chunk(&mut self) -> Result<bool> {
+        Ok(self.next_chunk()?.is_some())
     }
     /// Rewinds the tape to the beginning of the previous chunk. Returns `Ok(chunk_no)`.
-    fn backward_chunk(&mut self) -> Result<u32> {
+    fn rewind_prev_chunk(&mut self) -> Result<u32> {
         if let Some(no) = NonZeroU32::new(self.chunk_no()) {
             self.rewind();
-            if let Some(ntgt) = (no.get() as usize).checked_sub(2) {
+            if let Some(ntgt) = no.get().checked_sub(2) {
                 self.skip_chunks(ntgt)?;
             }
         }
@@ -105,7 +123,7 @@ pub trait TapChunkRead {
     fn rewind_chunk(&mut self) -> Result<u32> {
         if let Some(no) = NonZeroU32::new(self.chunk_no()) {
             self.rewind();
-            self.skip_chunks(no.get() as usize - 1)?;
+            self.skip_chunks(no.get() - 1)?;
         }
         Ok(self.chunk_no())
     }
@@ -422,7 +440,7 @@ impl<R: Read + Seek> TapChunkRead for TapChunkPulseIter<R> {
 
     /// Invokes underlying [TapChunkReader::skip_chunks] and [resets][ReadEncPulseIter::reset] the internal
     /// pulse iterator. Returns the result from [TapChunkReader::skip_chunks].
-    fn skip_chunks(&mut self, skip: usize) -> Result<Option<u16>> {
+    fn skip_chunks(&mut self, skip: u32) -> Result<Option<u16>> {
         let res = self.ep_iter.get_mut().skip_chunks(skip)?;
         self.ep_iter.reset();
         Ok(res)        
