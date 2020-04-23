@@ -160,23 +160,33 @@ pub const fn duration_from_frame_tc_cpu_hz(frame_ts_count: u32, cpu_hz: u32) -> 
 /// A tool for synchronizing emulation with a running thread.
 #[cfg(not(target_arch = "wasm32"))]
 pub struct ThreadSyncTimer {
+    /// The start time of a current synchronization period.
     pub time: Instant,
+    /// The desired duration of a single synchronization period.
     pub frame_duration: Duration,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 // #[allow(clippy::new_without_default)]
 impl ThreadSyncTimer {
-    /// Pass the real time duration of a single time frame (usually a video frame) being emulated.
+    /// Pass the real time duration of a desired synchronization period (usually a duration of a video frame).
     pub fn new(frame_duration_nanos: u32) -> Self {
         let frame_duration = Duration::from_nanos(frame_duration_nanos as u64);
         ThreadSyncTimer { time: Instant::now(), frame_duration }
     }
-    /// Restarts the internal timer, usefull for resuming paused emulation.
+    /// Restarts the synchronization period. Usefull e.g. for resuming paused emulation.
     pub fn restart(&mut self) -> Instant {
         core::mem::replace(&mut self.time, Instant::now())
     }
-
+    /// Returns `Some(excess_duration)` if the time elapsed from the beginning of the current
+    /// period exceeds or is equal to the desired duration of a synchronization period.
+    /// Otherwise returns `None`.
+    ///
+    /// The value returned is the excess time that has elapsed above the desired duration.
+    /// If the time elapsed equals to the `frame_duration` the returned value equals to zero.
+    ///
+    /// In case `Some` variant is returned the value of [ThreadSyncTimer::frame_duration] is
+    /// being added to [ThreadSyncTimer::time] to mark the beginning of a new period.
     pub fn check_frame_elapsed(&mut self) -> Option<Duration> {
         let frame_duration = self.frame_duration;
         let elapsed = self.time.elapsed();
@@ -186,14 +196,23 @@ impl ThreadSyncTimer {
         }
         None
     }
-    /// This should be called at the end of each frame iteration of an emulation loop to synchronize
-    /// thread using [std::thread::sleep].
+    /// Calculates the difference between the desired duration of a synchronization period
+    /// and the real time that has passed from the start of the current period and levels
+    /// the difference by calling [std::thread::sleep].
     ///
-    /// Returns `Ok` if the thread is in sync with the emulation or Err<missed_frames> if emulation
-    /// is lagging behind.
+    /// This method may be called at the end of each iteration of an emulation loop to
+    /// synchronize the running thread with a desired iteration period.
+    ///
+    /// Returns `Ok` if the thread is in sync with the emulation. In this instance the value
+    /// of [ThreadSyncTimer::frame_duration] is being added to [ThreadSyncTimer::time] to mark
+    /// the beginning of a new period.
+    ///
+    /// Returns `Err(missed_periods)` if the elapsed time exceeds the desired period duration.
+    /// In this intance the start of a new period is set to [Instant::now].
     pub fn synchronize_thread_to_frame(&mut self) -> core::result::Result<(), u32> {
         let frame_duration = self.frame_duration;
-        let elapsed = self.time.elapsed();
+        let now = Instant::now();
+        let elapsed = now.duration_since(self.time);
         if let Some(duration) = frame_duration.checked_sub(elapsed) {
             std::thread::sleep(duration);
             self.time += frame_duration;
@@ -201,8 +220,7 @@ impl ThreadSyncTimer {
         }
         else {
             let missed_frames = (elapsed.as_secs_f64() / frame_duration.as_secs_f64()).trunc() as u32;
-            // self.time += frame_duration * missed_frames;
-            self.restart();
+            self.time = now;
             Err(missed_frames)
         }
     }
@@ -217,15 +235,16 @@ pub struct AnimationFrameSyncTimer {
 #[cfg(target_arch = "wasm32")]
 impl AnimationFrameSyncTimer {
     const MAX_FRAME_LAG_THRESHOLD: u32 = 5;
-    /// Pass the value of DOMHighResTimeStamp and the real time duration of a single time frame 
-    /// (usually a video frame) being emulated.
+    /// Pass the `DOMHighResTimeStamp` as a first and the real time duration of a desired synchronization
+    /// period (usually a duration of a video frame) as a second argument.
    pub fn new(time: f64, frame_duration_nanos: u32) -> Self {
         const NANOS_PER_SEC: f64 = 1_000_000_000.0;
         let frame_duration = frame_duration_nanos as f64 / NANOS_PER_SEC;
         AnimationFrameSyncTimer { time, frame_duration }
     }
-    /// Restarts the internal timer, usefull for resuming paused emulation.
-    /// Pass the value of DOMHighResTimeStamp.
+    /// Restarts the synchronizaiton period. Usefull for e.g. resuming paused emulation.
+    ///
+    /// Pass the value of `DOMHighResTimeStamp` as the argument.
     pub fn restart(&mut self, time: f64) -> f64 {
         core::mem::replace(&mut self.time, time)
     }
