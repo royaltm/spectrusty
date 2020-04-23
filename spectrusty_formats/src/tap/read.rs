@@ -149,26 +149,27 @@ impl<R: Read> TryFrom<&'_ mut Take<R>> for TapChunkInfo {
             return Ok(TapChunkInfo::Unknown { size: 1, flag })
         }
         match flag {
-            HEAD_BLOCK_FLAG => {
+            HEAD_BLOCK_FLAG if limit == HEADER_SIZE as u64 => {
                 let mut header: [u8; HEADER_SIZE - 1] = Default::default();
                 rd.read_exact(&mut header)?;
-                if rd.limit() != 0 {
-                    return Err(Error::new(ErrorKind::InvalidData, "Not a proper TAP header: invalid length"));
-                }
                 if checksum(&header) != flag {
-                    return Err(Error::new(ErrorKind::InvalidData, "Not a proper TAP header: invalid checksum"));
+                    Ok(TapChunkInfo::Unknown { size: limit as u16, flag })
                 }
-                Ok(TapChunkInfo::Head(Header::try_from(&header[..HEADER_SIZE - 2])?))
+                else {
+                    Header::try_from(&header[..HEADER_SIZE - 2])
+                    .map(TapChunkInfo::Head)
+                    .or_else(|_| Ok(TapChunkInfo::Unknown { size: limit as u16, flag }))
+                }
             }
             DATA_BLOCK_FLAG => {
                 let checksum = try_checksum(rd.by_ref().bytes())? ^ flag;
                 if rd.limit() != 0 {
-                    return Err(Error::new(ErrorKind::InvalidData, "Not a proper TAP header: invalid length"));
+                    return Err(Error::new(ErrorKind::InvalidData, "Not a proper TAP block: invalid length"));
                 }
                 Ok(TapChunkInfo::Data{ length: limit as u16 - 2, checksum })
             }
             flag => {
-                // TODO: check length and read to eof
+                // TODO: perhaps check length and read to eof
                 Ok(TapChunkInfo::Unknown { size: limit as u16, flag })
             }
         }

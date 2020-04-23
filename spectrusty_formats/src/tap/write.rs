@@ -33,15 +33,15 @@ pub struct TapChunkWriteTran<'a, W: Write + Seek> {
 }
 
 impl<W> TapChunkWriter<W> {
-    /// Returns the underlying writer.
+    /// Returns the underlying pulse decode writer.
     pub fn into_inner(self) -> PulseDecodeWriter<W> {
         self.mpwr
     }
-    /// Returns a mutable reference to the inner writer.
+    /// Returns a mutable reference to the inner pulse decode writer.
     pub fn get_mut(&mut self) -> &mut PulseDecodeWriter<W> {
         &mut self.mpwr
     }
-    /// Returns a shared reference to the inner writer.
+    /// Returns a shared reference to the inner pulse decode writer.
     pub fn get_ref(&self) -> &PulseDecodeWriter<W> {
         &self.mpwr
     }

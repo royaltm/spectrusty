@@ -624,21 +624,17 @@ impl TryFrom<&'_[u8]> for TapChunkInfo {
             }
             size => size
         };
-        match bytes.get(0..2) {
-            Some(&[HEAD_BLOCK_FLAG, t]) if t & 3 == t => {
-                if size != HEADER_SIZE {
-                    return Err(Error::new(ErrorKind::InvalidData, "Not a proper TAP header: invalid length"));
-                }
-                if checksum(bytes) != 0 {
-                    return Err(Error::new(ErrorKind::InvalidData, "Not a proper TAP header: invalid checksum"));
-                }
-                Ok(TapChunkInfo::Head(Header::try_from(&bytes[1..HEADER_SIZE-1])?))
+        match bytes.get(0) {
+            Some(&HEAD_BLOCK_FLAG) if size == HEADER_SIZE && checksum(bytes) == 0 => {
+                Header::try_from(&bytes[1..HEADER_SIZE-1])
+                .map(TapChunkInfo::Head)
+                .or_else(|_| Ok(TapChunkInfo::Unknown { size: size as u16, flag: HEAD_BLOCK_FLAG }))
             }
-            Some(&[DATA_BLOCK_FLAG, _]) => {
+            Some(&DATA_BLOCK_FLAG) => {
                 let checksum = checksum(bytes);
                 Ok(TapChunkInfo::Data{ length: size as u16 - 2, checksum })
             }
-            Some(&[flag, _]) => {
+            Some(&flag) => {
                 Ok(TapChunkInfo::Unknown { size: size as u16, flag })
             }
             _ => unreachable!()
