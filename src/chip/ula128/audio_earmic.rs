@@ -66,6 +66,10 @@ impl<B, X> EarIn for Ula128<B, X> {
     fn purge_ear_in_changes(&mut self, ear_in: bool) {
         self.ula.purge_ear_in_changes(ear_in)
     }
+
+    fn read_ear_in_count(&self) -> u32 {
+        self.ula.read_ear_in_count()
+    }
 }
 
 impl<'a, B: 'a, X: 'a> MicOut<'a> for Ula128<B, X> {

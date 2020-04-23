@@ -95,6 +95,7 @@ pub struct Ula<M, B=NullDevice<VideoTs>, X=NoMemoryExtension, V=UlaVideoFrame> {
     sample_rate: u32,
     prev_ear_in: u8,
     ear_in_last_index: usize,
+    read_ear_in_count: Wrapping<u32>,
     prev_earmic_ts: FTs, // prev recorded change timestamp
     prev_earmic_data: u8, // prev recorded change data
     last_earmic_data: u8, // last recorded change data
@@ -124,6 +125,7 @@ where M: Default,
             sample_rate: 0,
             prev_ear_in: 0,
             ear_in_last_index: 0,
+            read_ear_in_count: Wrapping(0),
             prev_earmic_ts: FTs::min_value(),
             prev_earmic_data: 0,
             last_earmic_data: 0,

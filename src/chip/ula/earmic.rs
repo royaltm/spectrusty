@@ -1,3 +1,5 @@
+use core::num::Wrapping;
+
 use crate::chip::{EarIn, MicOut};
 use crate::clock::FTs;
 use crate::video::VideoFrame;
@@ -58,6 +60,10 @@ impl<M, B, X, F> EarIn for Ula<M, B, X, F>
     fn purge_ear_in_changes(&mut self, ear_in: bool) {
         self.ear_in_changes.clear();
         self.prev_ear_in = ear_in.into();
+    }
+
+    fn read_ear_in_count(&self) -> u32 {
+        self.read_ear_in_count.0
     }
 }
 
@@ -158,9 +164,11 @@ impl<M, B, X, F> Ula<M, B, X, F>
             self.ear_in_changes.truncate(num_elems);
         }
         self.ear_in_last_index = 0;
+        self.read_ear_in_count = Wrapping(0);
     }
 
     pub (super) fn read_ear_in(&mut self, ts: VideoTs) -> u8 {
+        self.read_ear_in_count += Wrapping(1);
         match self.ear_in_changes.get(self.ear_in_last_index..) {
             Some(changes) if !changes.is_empty() => {
                 let maybe_index = match changes.binary_search(&(ts, 1).into()) {

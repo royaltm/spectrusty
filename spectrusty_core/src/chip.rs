@@ -106,6 +106,10 @@ pub trait EarIn {
     /// This may be usefull when tape data is already buffered but the user decided to stop the tape playback
     /// immediately.
     fn purge_ear_in_changes(&mut self, ear_in: bool);
+    /// Returns how many times the EAR IN line was read since the beginning of the current frame.
+    ///
+    /// This can be used to help implementing the auto loading of tape data.
+    fn read_ear_in_count(&self) -> u32;
 }
 
 pub trait HostConfig {
