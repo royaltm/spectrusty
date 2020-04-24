@@ -238,9 +238,15 @@ impl Default for JoystickSelect {
 
 impl fmt::Display for JoystickSelect {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", <&str>::from(*self))
+        <&str>::from(self).fmt(f)
     }
 }
+
+impl From<&JoystickSelect> for &str {
+   fn from(joy: &JoystickSelect) -> Self {
+        <&str>::from(*joy)
+   }
+ }
 
 impl From<JoystickSelect> for &str {
     fn from(joy: JoystickSelect) -> Self {
@@ -363,7 +369,7 @@ impl JoystickSelect {
     /// select one of them.
     ///
     /// Returns `None` if a joystick with the given index doesn't exist.
-    pub fn joystick_interface(&mut self, index: usize) -> Option<&mut dyn JoystickInterface>
+    pub fn joystick_interface(&mut self, index: usize) -> Option<&mut (dyn JoystickInterface + 'static)>
     {
         match self {
             JoystickSelect::Kempston(ref mut joy) if index == 0 => Some(joy),
