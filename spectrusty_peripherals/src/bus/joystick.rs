@@ -159,6 +159,11 @@ impl<T, P, J, D> BusDevice for JoystickBusDevice<T, P, J, D>
     }
 
     #[inline]
+    fn into_next_device(self) -> Self::NextDevice {
+        self.bus
+    }
+
+    #[inline]
     fn read_io(&mut self, port: u16, timestamp: Self::Timestamp) -> Option<(u8, Option<NonZeroU16>)> {
         let bus_data = self.bus.read_io(port, timestamp);
         if P::match_port(port) {
@@ -447,6 +452,11 @@ impl<T: fmt::Debug, D> BusDevice for MultiJoystickBusDevice<T, D>
     #[inline(always)]
     fn next_device_ref(&self) -> &Self::NextDevice {
         &self.bus
+    }
+
+    #[inline]
+    fn into_next_device(self) -> Self::NextDevice {
+        self.bus
     }
 
     #[inline(always)]

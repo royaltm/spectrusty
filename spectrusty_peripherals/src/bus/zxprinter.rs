@@ -106,6 +106,11 @@ impl<P, V, S, D> BusDevice for ZxPrinterBusDevice<P, V, S, D>
     }
 
     #[inline]
+    fn into_next_device(self) -> Self::NextDevice {
+        self.bus
+    }
+
+    #[inline]
     fn reset(&mut self, timestamp: Self::Timestamp) {
         self.printer.reset();
         self.bus.reset(timestamp);

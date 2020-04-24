@@ -244,6 +244,11 @@ impl<V, R, W, N, D> BusDevice for ZxInterface1BusDevice<V, R, W, N, D>
     }
 
     #[inline]
+    fn into_next_device(self) -> Self::NextDevice {
+        self.bus
+    }
+
+    #[inline]
     fn reset(&mut self, timestamp: Self::Timestamp) {
         self.microdrives.reset(timestamp);
         self.bus.reset(timestamp);

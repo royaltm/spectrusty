@@ -201,6 +201,11 @@ impl<T, P, A, B, D> BusDevice for Ay3_891xBusDevice<T, P, A, B, D>
     }
 
     #[inline]
+    fn into_next_device(self) -> Self::NextDevice {
+        self.bus
+    }
+
+    #[inline]
     fn reset(&mut self, timestamp: Self::Timestamp) {
         self.ay_sound.reset();
         self.ay_io.reset(timestamp);

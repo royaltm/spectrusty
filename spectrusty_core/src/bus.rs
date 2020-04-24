@@ -88,6 +88,8 @@ pub trait BusDevice: Debug {
     fn next_device_mut(&mut self) -> &mut Self::NextDevice;
     /// Returns a reference to the next device.
     fn next_device_ref(&self) -> &Self::NextDevice;
+    /// Destructs self and returns the instance of the next bus device.
+    fn into_next_device(self) -> Self::NextDevice;
     /// Resets the device and all devices in this chain. Used by [ControlUnit::reset][crate::chip::ControlUnit::reset].
     ///
     /// Default implementation forwards this call to the next device.
@@ -187,6 +189,10 @@ impl<T: Debug> BusDevice for NullDevice<T> {
         self
     }
     #[inline(always)]
+    fn into_next_device(self) -> Self::NextDevice {
+        self
+    }
+    #[inline(always)]
     fn reset(&mut self, _timestamp: Self::Timestamp) {}
 
     #[inline(always)]
@@ -261,6 +267,10 @@ impl<D, N> BusDevice for OptionalBusDevice<D, N>
     #[inline]
     fn next_device_ref(&self) -> &Self::NextDevice {
         &self.next_device
+    }
+    #[inline]
+    fn into_next_device(self) -> Self::NextDevice {
+        self.next_device
     }
     #[inline]
     fn reset(&mut self, timestamp: Self::Timestamp) {

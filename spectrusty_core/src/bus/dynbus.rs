@@ -214,12 +214,14 @@ impl<D> BusDevice for DynamicBusDevice<D>
     fn next_device_mut(&mut self) -> &mut Self::NextDevice {
         &mut self.bus
     }
-
     #[inline]
     fn next_device_ref(&self) -> &Self::NextDevice {
         &self.bus
     }
-
+    #[inline]
+    fn into_next_device(self) -> Self::NextDevice {
+        self.bus
+    }
     #[inline]
     fn reset(&mut self, timestamp: Self::Timestamp) {
         for dev in self.devices.iter_mut() {
@@ -300,6 +302,9 @@ mod tests {
         }
         fn next_device_ref(&self) -> &Self::NextDevice {
             &self.bus
+        }
+        fn into_next_device(self) -> Self::NextDevice {
+            self.bus
         }
         fn reset(&mut self, timestamp: Self::Timestamp) {
             self.foo = i32::min_value() + timestamp;
