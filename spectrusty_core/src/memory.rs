@@ -92,6 +92,42 @@ pub enum PageMutSlice<'a> {
     Ram(&'a mut [u8])
 }
 
+impl<'a> PageMutSlice<'a> {
+    pub fn as_mut_slice<'b: 'a>(&'b mut self) -> &'a mut [u8] {
+        match self {
+            PageMutSlice::Rom(slice)|PageMutSlice::Ram(slice) => slice
+        }
+    }
+
+    pub fn is_rom(&self) -> bool {
+        match self {
+            PageMutSlice::Rom(..) => true,
+            _ => false
+        }
+    }
+
+    pub fn as_mut_rom<'b: 'a>(&'b mut self) -> Option<&'a mut [u8]> {
+        match self {
+            PageMutSlice::Rom(slice) => Some(slice),
+            _ => None
+        }
+    }
+
+    pub fn is_ram(&self) -> bool {
+        match self {
+            PageMutSlice::Ram(..) => true,
+            _ => false
+        }
+    }
+
+    pub fn as_mut_ram<'b: 'a>(&'b mut self) -> Option<&'a mut [u8]> {
+        match self {
+            PageMutSlice::Ram(slice) => Some(slice),
+            _ => None
+        }
+    }
+}
+
 /// A type returned by some of [ZxMemory] methods.
 pub type Result<T> = core::result::Result<T, ZxMemoryError>;
 
@@ -231,13 +267,9 @@ pub trait ZxMemory: Sized {
     fn fill_mem<R, F>(&mut self, address_range: R, mut f: F) -> Result<()>
     where R: RangeBounds<u16>, F: FnMut() -> u8
     {
-        for page in self.page_slice_iter_mut(address_range)? {
-            match page {
-                PageMutSlice::Rom(slice)|PageMutSlice::Ram(slice) => {
-                    for p in slice.iter_mut() {
-                        *p = f()
-                    }
-                }
+        for mut page in self.page_slice_iter_mut(address_range)? {
+            for p in page.as_mut_slice().iter_mut() {
+                *p = f()
             }
         }
         Ok(())
