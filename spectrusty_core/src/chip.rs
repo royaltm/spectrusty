@@ -23,54 +23,69 @@ pub trait MemoryAccess {
     fn memory_mut(&mut self) -> &mut Self::Memory;
 }
 
-/// A trait for controling an emulated chipset implementation.
+/// A trait for controling an emulated chipset.
 pub trait ControlUnit {
-    /// A type of the first attached [BusDevice].
+    /// The type of the first attached [BusDevice].
     type BusDevice: BusDevice;
-    /// A frequency in Hz of the Cpu unit. This is the same as a number of cycles (T states) per second.
+    /// Returns the [Cpu] frequency in Hz - a number of cycles (T-states) per second.
     fn cpu_clock_rate(&self) -> u32;
-    /// A single frame duration in nanoseconds.
+    /// Returns the duration of a single execution frame in nanoseconds.
     fn frame_duration_nanos(&self) -> u32;
     /// Returns a mutable reference to the first bus device.
     fn bus_device_mut(&mut self) -> &mut Self::BusDevice;
     /// Returns a reference to the first bus device.
     fn bus_device_ref(&self) -> &Self::BusDevice;
-    /// Destructs self and returns the bus device.
+    /// Destructs self and returns the instance of the bus device.
     fn into_bus_device(self) -> Self::BusDevice;
-    /// Returns a current frame counter value. The [ControlUnit] implementation should count
-    /// passing frames infinitely wrapping at 2^64.
+    /// Returns the value of the current execution frame counter. The [ControlUnit] implementation should
+    /// count passing frames infinitely wrapping at 2^64.
     fn current_frame(&self) -> u64;
-    /// Returns a normalized frame counter and a T state value.
+    /// Returns a normalized frame counter and a T-state counter values.
     ///
-    /// T states are counted from 0 at the start of each frame.
+    /// T-states are counted from 0 at the start of each frame.
+    /// This method never returns the T-state counter value below 0 or past the frame counter limit.
     fn frame_tstate(&self) -> (u64, FTs);
-    /// Returns a current frame's T state.
+    /// Returns the value of the current T-state counter.
     /// 
-    /// Unlike [ControlUnit::frame_tstate] these values can sometimes be negative as well as exceeding
-    /// the maximum nuber of T states per frame. See [ControlUnit::execute_next_frame] to know why.
+    /// Unlike [ControlUnit::frame_tstate] values return by this method can sometimes be negative as well as
+    /// exceeding the maximum nuber of T-states per frame. See [ControlUnit::execute_next_frame] to learn why.
     fn current_tstate(&self) -> FTs;
-    /// Returns `true` if the current frame is over.
+    /// Returns `true` if the value of the current T-state counter has reached a certain arbitrary limit which
+    /// is very close to the maximum number of T-states per frame.
     fn is_frame_over(&self) -> bool;
-    /// Perform a system reset. If `hard` is true emulates a RESET signal being active for `cpu` and all `bus` devices.
+    /// Performs a system reset.
+    ///
+    /// When `hard` is:
+    /// * `true` emulates a **RESET** signal being active for the `cpu` and all bus devices.
+    /// * `false` executes a `RST 0` instruction on the `cpu` but without forwarding the clock counter.
+    ///
+    /// In any case this operation is always instant.
     fn reset<C: Cpu>(&mut self, cpu: &mut C, hard: bool);
-    /// Triggers a non-maskable interrupt. `Returns` true if the nmi was successfully executed.
-    /// May return `false` when Cpu has just executed EI instruction or a 0xDD 0xFD prefix.
-    /// In this instance, execute a step or more and then try again.
+    /// Triggers a non-maskable interrupt. Returns `true` if the **NMI** was successfully executed.
+    ///
+    /// Returns `false` when the `cpu` has just executed an `EI` instruction or one of `0xDD`, `0xFD` prefixes.
+    /// In this instance this is a no-op.
+    ///
+    /// For more details see [z80emu::Cpu::nmi].
     fn nmi<C: Cpu>(&mut self, cpu: &mut C) -> bool;
-    /// Advances the internal state for the next frame and 
-    /// executes `cpu` instructions as fast as possible untill the end of the frame.
+    /// Conditionally prepares the internal state for the next frame and executes instructions on the `cpu` as fast
+    /// as possible untill the near end of that frame.
     fn execute_next_frame<C: Cpu>(&mut self, cpu: &mut C);
-    /// Prepares the internal state for the next frame, advances the frame counter and wraps the T state counter.
+    /// Conditionally prepares the internal state for the next frame, advances the frame counter and wraps the T-state
+    /// counter if it is near the end of a frame.
     ///
     /// This method should be called after all side effects (e.g. video and audio rendering) has been performed.
-    /// Implementations would usually clear some internal audio and video data from a previous frame.
+    /// Implementations would usually clear some internal data from a previous frame.
     ///
     /// Both [ControlUnit::execute_next_frame] and [ControlUnit::execute_single_step] invoke this method internally,
     /// so the only reason to call this method from the emulator program would be to make sure internal buffers are
-    /// clear before feeding the implementation with external data to be consumed by devices during the next frame
+    /// empty before feeding the implementation with external data to be consumed by devices during the next frame
     /// or to serialize the structure.
     fn ensure_next_frame(&mut self);
-    /// Executes a single cpu instruction with the option to pass a debugging function.
+    /// Executes a single instruction on the `cpu` with the option to pass a debugging function.
+    ///
+    /// If the T-state counter nears the end of a frame prepares the internal state for the next frame before
+    /// executing the next instruction.
     fn execute_single_step<C: Cpu,
                            F: FnOnce(CpuDebug)>(
             &mut self,
@@ -79,14 +94,14 @@ pub trait ControlUnit {
     ) -> Result<(), ()>;
 }
 
-/// A trait for reading MIC output.
+/// A trait for reading the MIC line output.
 pub trait MicOut<'a> {
     type PulseIter: Iterator<Item=NonZeroU32> + 'a;
     /// Returns a frame buffered MIC output as a pulse iterator.
     fn mic_out_pulse_iter(&'a self) -> Self::PulseIter;
 }
 
-/// A trait for feeding EAR input.
+/// A trait for feeding the EAR line input.
 pub trait EarIn {
     /// Sets `EAR in` bit state after the provided interval in ∆ T-States counted from the last recorded change.
     fn set_ear_in(&mut self, ear_in: bool, delta_fts: u32);

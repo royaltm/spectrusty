@@ -335,7 +335,9 @@ impl<U, B, X> UlaCpuExt for U
             self.memory_mut().reset();
         }
         else {
-            self.ula_execute_instruction::<T,_>(cpu, opconsts::RST_00H_OPCODE).unwrap();
+            const DEBUG: Option<CpuDebugFn> = None;
+            let mut vtsc: VFrameTsCounter<<U as UlaTimestamp>::VideoFrame, T> = VideoTs::default().into();
+            let _ = cpu.execute_instruction(self, &mut vtsc, DEBUG, opconsts::RST_00H_OPCODE);
         }
     }
 
