@@ -437,7 +437,7 @@ impl Ay3_891xAudio {
     ///
     /// The internal state is being altered every [INTERNAL_CLOCK_DIVISOR] * [HOST_CLOCK_RATIO] Cpu
     /// clock cycles until `end_ts` is reached. The internal cycle counter is then decremented by the
-    /// value of `end_ts` before returning from this method.
+    /// value of `frame_tstates` before returning from this method.
     ///
     /// Provide [AmpLevels] that can handle `level` values from 0 to 15 (4-bits).
     ///
@@ -515,9 +515,13 @@ impl Ay3_891xAudio {
         self.current_ts = ticker.current - frame_tstates;
         self.last_levels = tone_levels;
     }
-
+    /// Updates the value of one of the sound generator registers for the indicated `reg` register,
+    /// with the value given in `val`.
+    ///
+    /// This method can be used to instantly set the state of the sound generator without the need
+    /// to generate audio pulses.
     #[inline]
-    fn update_register(&mut self, reg: AyRegister, val: u8) {
+    pub fn update_register(&mut self, reg: AyRegister, val: u8) {
         use AyRegister::*;
         match reg {
             ToneFineA|ToneFineB|ToneFineC => {

@@ -230,6 +230,16 @@ impl<T, P, A, B, D> BusDevice for Ay3_891xBusDevice<T, P, A, B, D>
 
     #[inline]
     fn next_frame(&mut self, timestamp: Self::Timestamp) {
+        // ensure sound register state is equal to the i/o state only if there are some unused register changes
+        // in the recorder, meaning the audio wasn't rendered for the past frame;
+        // this is not ideal, because when changes are applied in time they may affect the state of the sound
+        // generator in a slightly different way in comparison to just setting their value to the current state;
+        // it is better still than to just leave them completely unsynchronized
+        if !self.ay_io.recorder.is_empty() {
+            for (reg, val) in self.ay_io.iter_sound_gen_regs() {
+                self.ay_sound.update_register(reg, val);
+            }
+        }
         self.ay_io.next_frame(timestamp);
         self.bus.next_frame(timestamp)
     }

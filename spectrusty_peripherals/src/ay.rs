@@ -38,6 +38,8 @@ pub enum AyRegister {
       IoB            = 15,
 }
 
+pub const NUM_SOUND_GEN_REGISTERS: usize = 14;
+
 const REG_MASKS: [u8;16] = [
     0xff, 0x0f, 0xff, 0x0f, 0xff, 0x0f, 0x1f, 0xff,
     0x1f, 0x1f, 0x1f, 0xff, 0xff, 0x0f, 0xff, 0xff
@@ -247,10 +249,20 @@ where A: AyIoPort<Timestamp=T>,
         let index = usize::from(reg);
         self.regs[index]
     }
-    /// Retrieves a current value of all the registers.
+    /// Returns a reference to all registers as an array of their current values.
     #[inline]
     pub fn registers(&self) -> &[u8;16] {
         &self.regs
+    }
+    /// Returns an iterator of `(register, value)` pairs over all current registers.
+    #[inline]
+    pub fn iter_regs<'a>(&'a self) -> impl Iterator<Item=(AyRegister, u8)> + 'a {
+        self.regs.iter().enumerate().map(|(n, val)| ((n as u8).into(), *val))
+    }
+    /// Returns an iterator of `(register, value)` pairs over current registers used by sound generator.
+    #[inline]
+    pub fn iter_sound_gen_regs<'a>(&'a self) -> impl Iterator<Item=(AyRegister, u8)> + 'a {
+        self.iter_regs().take(NUM_SOUND_GEN_REGISTERS)
     }
     /// Sets a current value of the indicated register.
     #[inline]
