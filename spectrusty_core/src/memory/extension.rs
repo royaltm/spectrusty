@@ -6,7 +6,7 @@ use serde::{Serialize, Deserialize};
 /// An interface for memory paging extensions of [ZxMemory].
 ///
 /// Provide an implementation as the associated type [crate::chip::MemoryAccess::MemoryExt].
-pub trait MemoryExtension {
+pub trait MemoryExtension: core::fmt::Debug {
     /// Read op-code from the given `memory` at the given `pc` address, optionally altering provided memory.
     #[inline]
     fn opcode_read<M: ZxMemory>(&mut self, pc: u16, memory: &mut M) -> u8 {

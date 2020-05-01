@@ -85,20 +85,19 @@ pub struct Ula<M, B=NullDevice<VideoTs>, X=NoMemoryExtension, V=UlaVideoFrame> {
     pub(super) frame_cache: UlaFrameCache<V>,
     #[cfg_attr(feature = "snapshot", serde(skip))]
     border_out_changes: Vec<VideoTsData3>, // frame timestamp with packed border on 3 bits
-    #[cfg_attr(feature = "snapshot", serde(skip))]
-    earmic_out_changes: Vec<VideoTsData2>, // frame timestamp with packed earmic on 2 bits
-    #[cfg_attr(feature = "snapshot", serde(skip))]
-    ear_in_changes: Vec<VideoTsData1>,  // frame timestamp with packed earin on 1 bit
     border: u8, // video frame start border color
     last_border: u8, // last recorded change
-    // audio related
-    sample_rate: u32,
-    prev_ear_in: u8,
-    ear_in_last_index: usize,
-    read_ear_in_count: Wrapping<u32>,
-    prev_earmic_ts: FTs, // prev recorded change timestamp
-    prev_earmic_data: u8, // prev recorded change data
-    last_earmic_data: u8, // last recorded change data
+    // EAR, MIC
+    #[cfg_attr(feature = "snapshot", serde(skip))]
+    ear_in_changes: Vec<VideoTsData1>,  // frame timestamp with packed earin on 1 bit
+    prev_ear_in: u8, // EAR IN state before first change in ear_in_changes
+    ear_in_last_index: usize, // index into ear_in_changes of the last probed EAR IN
+    read_ear_in_count: Wrapping<u32>, // the number of EAR IN probes during the last frame
+    #[cfg_attr(feature = "snapshot", serde(skip))]
+    earmic_out_changes: Vec<VideoTsData2>, // frame timestamp with packed earmic on 2 bits
+    prev_earmic_ts: FTs, // previously recorded change timestamp
+    prev_earmic_data: u8, // previously recorded change data
+    last_earmic_data: u8, // last recorded data
 }
 
 impl<M, B, X, V> Default for Ula<M, B, X, V>
@@ -113,33 +112,47 @@ where M: Default,
             memory: M::default(),
             bus: B::default(),
             memext: X::default(),
+            // keyboard
+            keyboard: ZXKeyboardMap::empty(),
             // video related
             frame_cache: Default::default(),
             border_out_changes: Vec::new(),
-            earmic_out_changes: Vec::new(),
-            ear_in_changes:  Vec::new(),
-            // read_ear: MaybeReadEar(None),
             border: 7, // video frame start border color
             last_border: 7, // last changed border color
-            // audio related
-            sample_rate: 0,
+            // EAR, MIC
+            ear_in_changes:  Vec::new(),
             prev_ear_in: 0,
             ear_in_last_index: 0,
             read_ear_in_count: Wrapping(0),
+            earmic_out_changes: Vec::new(),
             prev_earmic_ts: FTs::min_value(),
             prev_earmic_data: 0,
             last_earmic_data: 0,
-            // keyboard
-            keyboard: ZXKeyboardMap::empty(),
         }
     }
 }
 
-impl<M, B, X, V> core::fmt::Debug for Ula<M, B, X, V> where M: ZxMemory
+impl<M, B, X, V> core::fmt::Debug for Ula<M, B, X, V>
+    where M: ZxMemory, B: BusDevice, X: MemoryExtension
 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "Ula {{ frames: {:?}, tsc: {:?}, border: {} border_changes: {} earmic_changes: {} }}",
-            self.frames, self.tsc, self.last_border, self.border_out_changes.len(), self.earmic_out_changes.len())
+        f.debug_struct("Ula")
+            .field("frames", &self.frames.0)
+            .field("tsc", &self.tsc)
+            .field("memory", &self.memory.mem_ref().len())
+            .field("bus", &self.bus)
+            .field("memext", &self.memext)
+            .field("keyboard", &self.keyboard)
+            .field("border", &self.border)
+            .field("last_border", &self.last_border)
+            .field("border_out_changes", &self.border_out_changes.len())
+            .field("prev_ear_in", &self.prev_ear_in)
+            .field("ear_in_changes", &self.ear_in_changes.len())
+            .field("read_ear_in_count", &self.read_ear_in_count.0)
+            .field("earmic_out_changes", &self.earmic_out_changes.len())
+            .field("prev_earmic_data", &self.prev_earmic_data)
+            .field("last_earmic_data", &self.last_earmic_data)
+            .finish()
     }
 }
 

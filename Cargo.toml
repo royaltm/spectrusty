@@ -79,6 +79,5 @@ members = [
   "spectrusty_utils",
   "examples/audio",
   "examples/sdl2_zxspectrum",
-  # "examples/tutorial",
   "examples/web_ay_player",
 ]

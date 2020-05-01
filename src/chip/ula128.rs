@@ -27,7 +27,7 @@ pub const CPU_HZ: u32 = 3_546_900;
 pub(self) type InnerUla<B, X> = Ula<Memory128k, B, X, Ula128VidFrame>;
 
 /// ZX Spectrum 128k ULA.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]
 pub struct Ula128<B=NullDevice<VideoTs>, X=NoMemoryExtension> {
@@ -53,6 +53,21 @@ impl<B: Default, X: Default> Default for Ula128<B, X> {
             shadow_frame_cache: Default::default(),
             screen_changes: Vec::new()
         }
+    }
+}
+
+impl<B, X> core::fmt::Debug for Ula128<B, X>
+    where B: BusDevice, X: MemoryExtension
+{
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Ula128")
+            .field("ula", &self.ula)
+            .field("mem_page3_bank", &self.mem_page3_bank)
+            .field("cur_screen_shadow", &self.cur_screen_shadow)
+            .field("beg_screen_shadow", &self.beg_screen_shadow)
+            .field("mem_locked", &self.mem_locked)
+            .field("screen_changes", &self.screen_changes.len())
+            .finish()
     }
 }
 
