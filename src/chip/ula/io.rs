@@ -2,11 +2,11 @@ use core::num::NonZeroU16;
 
 use crate::z80emu::{Io, Memory};
 use crate::bus::BusDevice;
-use crate::clock::VideoTs;
+use crate::clock::{MemoryContention, VideoTs};
 use crate::peripherals::{KeyboardInterface, ZXKeyboardMap};
 use crate::memory::{ZxMemory, MemoryExtension};
 use crate::video::VideoFrame;
-use super::Ula;
+use super::{Ula, UlaMemoryContention};
 
 impl<M, B, X, V> Io for Ula<M, B, X, V>
     where M: ZxMemory,
@@ -73,7 +73,8 @@ impl<M, B, X> Memory for Ula<M, B, X>
     }
 
     #[inline(always)]
-    fn read_opcode(&mut self, pc: u16, _ir: u16, _ts: VideoTs) -> u8 {
+    fn read_opcode(&mut self, pc: u16, ir: u16, ts: VideoTs) -> u8 {
+        self.check_update_snow_interference(ts, ir);
         self.memext.opcode_read(pc, &mut self.memory)
     }
 
@@ -120,6 +121,16 @@ impl<M, B, X, V> Ula<M, B, X, V>
         }
         else {
             u8::max_value()
+        }
+    }
+
+    #[inline(always)]
+    fn check_update_snow_interference(&mut self, ts: VideoTs, ir: u16) {
+        if UlaMemoryContention::is_contended_address(ir) {
+            if let Some(coords) = V::snow_interference_coords(ts) {
+                let screen = self.memory.screen_ref(0).unwrap();
+                self.frame_cache.apply_snow_interference(screen, coords, ir as u8)
+            }
         }
     }
 }

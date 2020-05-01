@@ -62,11 +62,6 @@ impl<B: Blep, U> UlaAudioFrame<B> for U
     where U: AudioFrame<B> + EarMicOutAudioFrame<B> + EarInAudioFrame<B>
 {}
 
-// #[derive(Clone)]
-// pub struct SnowyUla<M, B> {
-//     pub ula: Ula<M, B>
-// }
-
 /// ZX Spectrum 16k/48k ULA.
 #[derive(Clone)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]

@@ -3,7 +3,7 @@ use core::fmt;
 use core::marker::PhantomData;
 use crate::clock::{Ts, VideoTs};
 use crate::memory::{ZxMemory};
-use crate::video::{pixel_line_offset, color_line_offset, VideoFrame,
+use crate::video::{pixel_line_offset, color_line_offset, VideoFrame, CellCoords,
     frame_cache::VideoFrameDataIterator
 };
 
@@ -15,33 +15,27 @@ const PIXEL_LINES: usize = 192;
 const COL_INK_HTS:  &[Ts;32] = &[1, 3,  9, 11, 17, 19, 25, 27, 33, 35, 41, 43, 49, 51, 57, 59, 65, 67, 73, 75, 81, 83, 89, 91, 97,  99, 105, 107, 113, 115, 121, 123];
 const COL_ATTR_HTS: &[Ts;32] = &[2, 4, 10, 12, 18, 20, 26, 28, 34, 36, 42, 44, 50, 52, 58, 60, 66, 68, 74, 76, 82, 84, 90, 92, 98, 100, 106, 108, 114, 116, 122, 124];
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Coords {
-    pub column: u16,
-    pub line: i16
-}
-
 #[inline(always)]
-pub fn pixel_address_coords(addr: u16) -> Option<Coords> {
+pub fn pixel_address_coords(addr: u16) -> Option<CellCoords> {
     match addr {
         0x4000..=0x57FF => {
             let column = addr & 0b11111;
             let line = (addr >> 5 & 0b1100_0000 |
                         addr >> 2 & 0b0011_1000 |
                         addr >> 8 & 0b0000_0111) as i16;
-            Some(Coords { column, line })
+            Some(CellCoords { column, line })
         }
         _ => None
     }
 }
 
 #[inline(always)]
-pub fn color_address_coords(addr: u16) -> Option<Coords> {
+pub fn color_address_coords(addr: u16) -> Option<CellCoords> {
     match addr {
         0x5800..=0x5AFF => {
             let column = addr & 0b11111;
             let line = (addr >> 5 & 0b0001_1111) as i16;
-            Some(Coords { column, line })
+            Some(CellCoords { column, line })
         }
         _ => None
     }
@@ -169,7 +163,7 @@ impl<V> Default for UlaFrameCache<V> {
 
 impl<V> fmt::Debug for UlaFrameCache<V> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "UlaFrameCache {{ }}")
+        f.write_str("UlaFrameCache {{ }}")
     }
 }
 
@@ -192,17 +186,18 @@ impl<V: VideoFrame> UlaFrameCache<V> {
     pub fn update_frame_pixels<M: ZxMemory>(
             &mut self,
             memory: &M,
-            Coords { column, line }: Coords,
+            CellCoords { column, line }: CellCoords,
             addr: u16,
             ts: VideoTs
         )
     {
+        let column = column as usize & 31;
         let cur_line_index = ts.vc - V::VSL_PIXELS.start;
-        if line < cur_line_index || line == cur_line_index && ts.hc > COL_INK_HTS[column as usize] {
+        if line < cur_line_index || line == cur_line_index && ts.hc > COL_INK_HTS[column] {
             let (mask, pixels) = &mut self.frame_pixels[line as usize];
             let mbit = 1 << column;
             if *mask & mbit == 0 {
-                pixels[column as usize] = memory.read(addr);
+                pixels[column] = memory.read(addr);
                 *mask |= mbit;
             }
         }
@@ -212,40 +207,61 @@ impl<V: VideoFrame> UlaFrameCache<V> {
     pub fn update_frame_colors<M: ZxMemory>(
             &mut self,
             memory: &M,
-            Coords { column, line }: Coords,
+            CellCoords { column, line }: CellCoords,
             addr: u16,
             ts: VideoTs
         )
     {
+        let column = column as usize & 31;
         let cur_line_index = ts.vc - V::VSL_PIXELS.start;
         let coarse_cur_line_index = cur_line_index >> 3;
         if line < coarse_cur_line_index ||
                 line == coarse_cur_line_index &&
                 cur_line_index & 0b111 == 0b111 &&
-                ts.hc > COL_ATTR_HTS[column as usize] {
+                ts.hc > COL_ATTR_HTS[column] {
             let (mask, colors) = &mut self.frame_colors_coarse[line as usize];
             let mbit = 1 << column;
             if *mask & mbit == 0 {
                 *mask |= mbit;
-                colors[column as usize] = memory.read(addr);
+                colors[column] = memory.read(addr);
             }
         }
         else if line == coarse_cur_line_index {
             let line_top = coarse_cur_line_index << 3;
-            let line_bot = if ts.hc > COL_ATTR_HTS[column as usize] { cur_line_index } else { cur_line_index - 1 };
+            let line_bot = if ts.hc > COL_ATTR_HTS[column] {
+                cur_line_index
+            } else {
+                cur_line_index - 1
+            };
             if line_top <= line_bot {
                 let memval = memory.read(addr);
-                for cur_line_index in (line_top..=line_bot).rev() {
-                    let (mask, colors) = &mut self.frame_colors[cur_line_index as usize];
-                    let mbit = 1 << column;
-                    if *mask & mbit != 0 {
-                        break;
+                let mbit = 1 << column;
+                for (mask, colors) in self.frame_colors[line_top as usize..=line_bot as usize].iter_mut().rev() {
+                // for cur_line_index in (line_top..=line_bot).rev() {
+                    // let (mask, colors) = &mut self.frame_colors[cur_line_index as usize];
+                    // if *mask & mbit != 0 {
+                    //     break;
+                    // }
+                    if *mask & mbit == 0 {
+                        *mask |= mbit;
+                        colors[column] = memval;
                     }
-                    *mask |= mbit;
-                    colors[column as usize] = memval;
                 }
             }
         }
+    }
+
+    pub fn apply_snow_interference(&mut self, screen: &[u8], CellCoords { column, line }: CellCoords, r: u8) {
+        let (line, column) = (line as usize, column as usize);
+        let mbit = 1 << column;
+        let (mask, pixels) = &mut self.frame_pixels[line];
+        let offset = (pixel_line_offset(line) & 0xFF00) | r as usize;
+        pixels[column] = screen[offset];
+        *mask |= mbit;
+        let (mask, colors) = &mut self.frame_colors[line];
+        let offset = (color_line_offset(line) & 0xFF00) | r as usize;
+        colors[column] = screen[ATTRS_OFFSET + offset];
+        *mask |= mbit;
     }
 }
 

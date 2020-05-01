@@ -6,7 +6,7 @@ use serde::{Serialize, Deserialize};
 
 use crate::memory::ZxMemory;
 use crate::clock::{VFrameTsCounter, MemoryContention, VideoTs, Ts, VideoTsData3};
-use crate::video::{Renderer, BorderSize, PixelBuffer, Palette, VideoFrame, Video, MAX_BORDER_SIZE};
+use crate::video::{Renderer, BorderSize, PixelBuffer, Palette, VideoFrame, Video, CellCoords, MAX_BORDER_SIZE};
 use super::{Ula, frame_cache::{pixel_address_coords, color_address_coords}};
 use super::frame_cache::{UlaFrameCache, UlaFrameProducer};
 
@@ -62,17 +62,31 @@ impl VideoFrame for UlaVideoFrame {
     }
 
     #[inline(always)]
-    fn floating_bus_offset(VideoTs{vc, hc}: VideoTs) -> Option<u16> {
-        if Self::is_contended_line_mreq(vc) {
-            // println!("floating_bus_offset: {},{} {}", vc, hc, crate::clock::VFrameTsCounter::<Self>::vc_hc_to_tstates(vc, hc));
-            match hc {
-                c @ 0..=123 if c & 4 == 0 => Some(c as u16),
-                _ => None
+    fn floating_bus_offset(hc: Ts) -> Option<u16> {
+        // println!("floating_bus_offset: {},{} {}", vc, hc, crate::clock::VFrameTsCounter::<Self>::vc_hc_to_tstates(vc, hc));
+        match hc {
+            c @ 0..=123 if c & 4 == 0 => Some(c as u16),
+            _ => None
+        }
+    }
+
+    #[inline(always)]
+    fn snow_interference_coords(VideoTs { vc, hc }: VideoTs) -> Option<CellCoords> {
+        let line = vc - Self::VSL_PIXELS.start;
+        if line >= 0 && vc < Self::VSL_PIXELS.end {
+            let hc = hc - 2;
+            if hc >= 0 && hc <= 122 {
+                return match hc & 7 {
+                    0 => Some(0),
+                    2 => Some(1),
+                    _ => None
+                }.map(|offs| {
+                    let column = (((hc >> 2) & !1) | offs) as u16;
+                    CellCoords { column, line }
+                })
             }
         }
-        else {
-            None
-        }
+        None
     }
 }
 

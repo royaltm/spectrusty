@@ -1,11 +1,12 @@
 use core::num::NonZeroU16;
+
 use crate::z80emu::{Io, Memory};
 use crate::bus::{BusDevice, PortAddress};
-use crate::clock::VideoTs;
+use crate::clock::{MemoryContention, VideoTs};
 use crate::peripherals::{KeyboardInterface, ZXKeyboardMap};
 use crate::memory::{ZxMemory, MemoryExtension};
 use crate::video::VideoFrame;
-use super::{Ula128, Ula128VidFrame};
+use super::{Ula128, Ula128VidFrame, UlaMemoryContention, Ula128MemContention};
 
 #[derive(Clone, Copy, Default, Debug)]
 struct Ula128MemPortAddress;
@@ -89,7 +90,8 @@ impl<B, X> Memory for Ula128<B, X>
     }
 
     #[inline(always)]
-    fn read_opcode(&mut self, pc: u16, _ir: u16, _ts: VideoTs) -> u8 {
+    fn read_opcode(&mut self, pc: u16, ir: u16, ts: VideoTs) -> u8 {
+        self.check_update_snow_interference(ts, ir);
         self.ula.memext.opcode_read(pc, &mut self.ula.memory)
     }
 
@@ -150,6 +152,23 @@ impl<B, X> Ula128<B, X> {
         }
         else {
             u8::max_value()
+        }
+    }
+
+    #[inline(always)]
+    fn check_update_snow_interference(&mut self, ts: VideoTs, ir: u16) {
+        let is_contended = if self.is_page3_contended() {
+            Ula128MemContention::is_contended_address(ir)
+        } else {
+            UlaMemoryContention::is_contended_address(ir)
+        };
+        if is_contended {
+            if let Some(coords) = Ula128VidFrame::snow_interference_coords(ts) {
+                let screen0 = self.ula.memory.screen_ref(0).unwrap();
+                self.ula.frame_cache.apply_snow_interference(screen0, coords, ir as u8);
+                let screen1 = self.ula.memory.screen_ref(1).unwrap();
+                self.shadow_frame_cache.apply_snow_interference(screen1, coords, ir as u8);
+            }
         }
     }
 }

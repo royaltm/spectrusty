@@ -41,6 +41,15 @@ pub struct TryFromUIntBorderSizeError(pub u8);
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ParseBorderSizeError;
 
+/// Used by various video related methods as a return or an argument type.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CellCoords {
+    /// 5 lowest bits: 0 - 31 indicates cell column
+    pub column: u16,
+    /// 0 - 191 is where the pixels are at
+    pub line: i16
+}
+
 /// An interface for renderering Spectrum's pixel data to frame buffers.
 pub trait Video {
     /// The [VideoFrame] implementation used by the chipset emulator.
@@ -140,24 +149,33 @@ pub trait VideoFrame: Copy + Debug {
 
     /// T-state contention while rendering ink+paper lines.
     fn contention(hc: Ts) -> Ts;
-    /// Returns an optional floating bus horizontal offset for the given timestamp.
-    fn floating_bus_offset(ts: VideoTs) -> Option<u16>;
+    /// Returns an optional floating bus horizontal offset for the given horizontal timestamp.
+    fn floating_bus_offset(hc: Ts) -> Option<u16>;
     /// Returns an optional floating bus screen address (in screen address space) for the given timestamp.
     #[inline]
-    fn floating_bus_screen_address(ts: VideoTs) -> Option<u16> {
-        Self::floating_bus_offset(ts).map(|offs| {
-            let y = (ts.vc - Self::VSL_PIXELS.start) as u16;
-            let col = (offs >> 3) << 1;
-            // if cur_screen_shadow
-            // println!("got offs: {} col:{} y:{}", offs, col, y);
-            match offs & 3 {
-                0 =>          pixel_line_offset(y) + col,
-                1 => 0x1800 + color_line_offset(y) + col,
-                2 => 0x0001 + pixel_line_offset(y) + col,
-                3 => 0x1801 + color_line_offset(y) + col,
-                _ => unsafe { core::hint::unreachable_unchecked() }
-            }
-        })
+    fn floating_bus_screen_address(VideoTs { vc, hc }: VideoTs) -> Option<u16> {
+        if vc < Self::VSL_PIXELS.end {
+            u16::try_from(vc - Self::VSL_PIXELS.start).ok().and_then(|y| {
+                Self::floating_bus_offset(hc).map(|offs| {
+                    let col = (offs >> 3) << 1;
+                    // println!("got offs: {} col:{} y:{}", offs, col, y);
+                    match offs & 3 {
+                        0 =>          pixel_line_offset(y) + col,
+                        1 => 0x1800 + color_line_offset(y) + col,
+                        2 => 0x0001 + pixel_line_offset(y) + col,
+                        3 => 0x1801 + color_line_offset(y) + col,
+                        _ => unsafe { core::hint::unreachable_unchecked() }
+                    }
+                })
+            })
+        }
+        else {
+            None
+        }
+    }
+    /// Returns an optional cell coordinates of a so called "snow effect" interference.
+    fn snow_interference_coords(_ts: VideoTs) -> Option<CellCoords> {
+        None
     }
     /// Returns `true` if the given scan-line index is contended for MREQ access.
     #[inline]
