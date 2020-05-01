@@ -199,7 +199,7 @@ impl<T: cpal::Sample + AudioSample> AudioHandle<T> {
         debug!("audio frame samples: {} latency: {}", audio_frame_samples, latency);
         let (producer, mut consumer) = create_carousel::<T>(latency, audio_frame_samples, channels);
 
-        let data_fn = move |out: &mut [T]| match consumer.fill_buffer(out, false) {
+        let data_fn = move |out: &mut [T], _: &_| match consumer.fill_buffer(out, false) {
             Ok(unfilled) => {
                 if unfilled.len() != 0 {
                     for t in unfilled {
