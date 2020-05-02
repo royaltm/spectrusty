@@ -1,3 +1,4 @@
+use core::convert::TryFrom;
 use core::num::NonZeroU16;
 
 use crate::z80emu::{Io, Memory};
@@ -6,7 +7,7 @@ use crate::clock::VideoTs;
 use crate::peripherals::{KeyboardInterface, ZXKeyboardMap};
 use crate::memory::{ZxMemory, MemoryExtension};
 use crate::video::VideoFrame;
-use super::{Ula128, Ula128VidFrame};
+use super::{Ula128, Ula128VidFrame, RamPage8};
 
 #[derive(Clone, Copy, Default, Debug)]
 struct Ula128MemPortAddress;
@@ -24,9 +25,6 @@ bitflags! {
         const LOCK_MMU      = 0b0010_0000;
     }
 }
-
-const ROM_SWAP_PAGE: u8 = 0;
-const RAM_SWAP_PAGE: u8 = 3;
 
 impl<B, X> Io for Ula128<B, X>
     where B: BusDevice<Timestamp=VideoTs>
@@ -128,18 +126,10 @@ impl<B, X> Ula128<B, X> {
                 self.screen_changes.push(ts);
             }
             let rom_bank = if flags.intersects(Ula128MemFlags::ROM_BANK) { 1 } else { 0 };
-            self.ula.memory.map_rom_bank(rom_bank, ROM_SWAP_PAGE).unwrap();
-
-            let mem_page3_bank = (flags & Ula128MemFlags::RAM_BANK_MASK).bits();
+            self.ula.memory.map_rom_bank(rom_bank, 0).unwrap();
+            let page3_bank = RamPage8::try_from((flags & Ula128MemFlags::RAM_BANK_MASK).bits()).unwrap();
             // println!("\nscr: {} pg3: {} ts: {}x{}", self.cur_screen_shadow, mem_page3_bank, ts.vc, ts.hc);
-            if mem_page3_bank != self.mem_page3_bank {
-                let contention_before = self.is_page3_contended();
-                self.ula.memory.map_ram_bank(mem_page3_bank.into(), RAM_SWAP_PAGE).unwrap();
-                self.mem_page3_bank = mem_page3_bank;
-                if contention_before != self.is_page3_contended() {
-                    return true
-                }
-            }
+            return self.set_mem_page3_bank(page3_bank)
         }
         false
     }

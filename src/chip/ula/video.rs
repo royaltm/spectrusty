@@ -6,7 +6,10 @@ use serde::{Serialize, Deserialize};
 
 use crate::memory::ZxMemory;
 use crate::clock::{VFrameTsCounter, MemoryContention, VideoTs, Ts, VideoTsData3};
-use crate::video::{Renderer, BorderSize, PixelBuffer, Palette, VideoFrame, Video, CellCoords, MAX_BORDER_SIZE};
+use crate::video::{
+    Renderer, BorderSize, BorderColor, PixelBuffer, Palette,
+    VideoFrame, Video, CellCoords, MAX_BORDER_SIZE
+};
 use super::{Ula, UlaMemoryContention, frame_cache::{pixel_address_coords, color_address_coords}};
 use super::frame_cache::{UlaFrameCache, UlaFrameProducer};
 
@@ -89,11 +92,11 @@ impl<M: ZxMemory, D, X> Video for Ula<M, D, X> {
     type VideoFrame = UlaVideoFrame;
 
     #[inline]
-    fn border_color(&self) -> u8 {
+    fn border_color(&self) -> BorderColor {
         self.ula_border_color()
     }
 
-    fn set_border_color(&mut self, border: u8) {
+    fn set_border_color(&mut self, border: BorderColor) {
         self.ula_set_border_color(border)
     }
 
@@ -138,12 +141,11 @@ impl<M: ZxMemory, B, X, V> Ula<M, B, X, V> {
         self.frame_cache.clear();
     }
     #[inline]
-    pub(crate) fn ula_border_color(&self) -> u8 {
+    pub(crate) fn ula_border_color(&self) -> BorderColor {
         self.last_border
     }
     #[inline]
-    pub(crate) fn ula_set_border_color(&mut self, border: u8) {
-        let border = border & 7;
+    pub(crate) fn ula_set_border_color(&mut self, border: BorderColor) {
         self.last_border = border;
         self.border = border;
         self.border_out_changes.clear();
@@ -158,7 +160,7 @@ impl<M: ZxMemory, B, X, V> Ula<M, B, X, V> {
             border_size: BorderSize
         ) -> Renderer<UlaFrameProducer<'_, V>, std::vec::Drain<'_, VideoTsData3>>
     {
-        let border = self.border;
+        let border = self.border.into();
         let screen = &self.memory.screen_ref(0).unwrap();
         // print!("render: {} {:?}", screen_bank, screen.as_ptr());
         Renderer {

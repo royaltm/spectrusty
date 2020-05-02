@@ -17,8 +17,11 @@ use crate::audio::{AudioFrame, Blep, EarInAudioFrame, EarMicOutAudioFrame};
 #[cfg(feature = "peripherals")] use crate::peripherals::ay::audio::AyAudioFrame;
 
 use crate::bus::{BusDevice, NullDevice};
-use crate::chip::{ControlUnit, MemoryAccess, EarIn, MicOut, ReadEarMode, nanos_from_frame_tc_cpu_hz};
-use crate::video::{Video, VideoFrame};
+use crate::chip::{
+    ControlUnit, MemoryAccess, EarIn, MicOut, EarMic, ReadEarMode,
+    nanos_from_frame_tc_cpu_hz
+};
+use crate::video::{BorderColor, Video, VideoFrame};
 use crate::memory::{ZxMemory, MemoryExtension, NoMemoryExtension};
 use crate::peripherals::{KeyboardInterface, ZXKeyboardMap};
 use crate::clock::{
@@ -93,19 +96,19 @@ pub struct Ula<M, B=NullDevice<VideoTs>, X=NoMemoryExtension, V=UlaVideoFrame> {
     pub(super) frame_cache: UlaFrameCache<V>,
     #[cfg_attr(feature = "snapshot", serde(skip))]
     border_out_changes: Vec<VideoTsData3>, // frame timestamp with packed border on 3 bits
-    border: u8, // video frame start border color
-    last_border: u8, // last recorded change
+    border: BorderColor, // video frame start border color
+    last_border: BorderColor, // last recorded change
     // EAR, MIC
     #[cfg_attr(feature = "snapshot", serde(skip))]
     ear_in_changes: Vec<VideoTsData1>,  // frame timestamp with packed earin on 1 bit
-    prev_ear_in: u8, // EAR IN state before first change in ear_in_changes
+    prev_ear_in: bool, // EAR IN state before first change in ear_in_changes
     ear_in_last_index: usize, // index into ear_in_changes of the last probed EAR IN
     read_ear_in_count: Wrapping<u32>, // the number of EAR IN probes during the last frame
     #[cfg_attr(feature = "snapshot", serde(skip))]
     earmic_out_changes: Vec<VideoTsData2>, // frame timestamp with packed earmic on 2 bits
     prev_earmic_ts: FTs, // previously recorded change timestamp
-    prev_earmic_data: u8, // previously recorded change data
-    last_earmic_data: u8, // last recorded data
+    prev_earmic_data: EarMic, // previous frame last recorded data
+    last_earmic_data: EarMic, // last recorded data
 }
 
 impl<M, B, X, V> Default for Ula<M, B, X, V>
@@ -126,17 +129,17 @@ where M: Default,
             // video related
             frame_cache: Default::default(),
             border_out_changes: Vec::new(),
-            border: 7, // video frame start border color
-            last_border: 7, // last changed border color
+            border: BorderColor::WHITE, // video frame start border color
+            last_border: BorderColor::WHITE, // last changed border color
             // EAR, MIC
             ear_in_changes:  Vec::new(),
-            prev_ear_in: 0,
+            prev_ear_in: false,
             ear_in_last_index: 0,
             read_ear_in_count: Wrapping(0),
             earmic_out_changes: Vec::new(),
             prev_earmic_ts: FTs::min_value(),
-            prev_earmic_data: 0,
-            last_earmic_data: 0,
+            prev_earmic_data: EarMic::empty(),
+            last_earmic_data: EarMic::empty(),
         }
     }
 }

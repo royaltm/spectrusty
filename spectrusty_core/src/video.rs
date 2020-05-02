@@ -1,6 +1,8 @@
 //! # Video API
 pub mod pixel;
 
+use bitflags::bitflags;
+
 use core::str::FromStr;
 use core::convert::{TryInto, TryFrom};
 use core::fmt::{self, Debug};
@@ -41,7 +43,7 @@ pub struct TryFromUIntBorderSizeError(pub u8);
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ParseBorderSizeError;
 
-/// Used by various video related methods as a return or an argument type.
+/// General purpose coordinates, used by various video related methods as a return or an argument type.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CellCoords {
     /// 5 lowest bits: 0 - 31 indicates cell column
@@ -50,14 +52,34 @@ pub struct CellCoords {
     pub row: u8
 }
 
+bitflags! {
+    /// This type represents ZX Spectrum's border color.
+    #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
+    #[cfg_attr(feature = "snapshot", serde(try_from = "u8", into = "u8"))]
+    #[derive(Default)]
+    pub struct BorderColor: u8 {
+        const BLACK   = 0b000;
+        const BLUE    = 0b001;
+        const RED     = 0b010;
+        const MAGENTA = 0b011;
+        const GREEN   = 0b100;
+        const CYAN    = 0b101;
+        const YELLOW  = 0b110;
+        const WHITE   = 0b111;
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TryFromU8BorderColorError(pub u8);
+
 /// An interface for renderering Spectrum's pixel data to frame buffers.
 pub trait Video {
     /// The [VideoFrame] implementation used by the chipset emulator.
     type VideoFrame: VideoFrame;
     /// Returns the current border color number [0, 7].
-    fn border_color(&self) -> u8;
+    fn border_color(&self) -> BorderColor;
     /// Force sets the border area to the given color number [0, 7].
-    fn set_border_color(&mut self, border: u8);
+    fn set_border_color(&mut self, border: BorderColor);
     /// Renders last emulated frame's video data into the provided frame `buffer`.
     ///
     /// * `pitch` is the number of bytes in a single row of pixel data, including padding between lines.
@@ -391,6 +413,27 @@ impl TryFrom<u8> for BorderSize {
             0 => Nil,
             _ => return Err(TryFromUIntBorderSizeError(border))
         })
+    }
+}
+
+impl std::error::Error for TryFromU8BorderColorError {}
+
+impl fmt::Display for TryFromU8BorderColorError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "converted integer ({}) out of range for `BorderColor`", self.0)
+    }
+}
+
+impl TryFrom<u8> for BorderColor {
+    type Error = TryFromU8BorderColorError;
+    fn try_from(color: u8) -> core::result::Result<Self, Self::Error> {
+        BorderColor::from_bits(color).ok_or_else(|| TryFromU8BorderColorError(color))
+    }
+}
+
+impl From<BorderColor> for u8 {
+    fn from(color: BorderColor) -> u8 {
+        color.bits()
     }
 }
 

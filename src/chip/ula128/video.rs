@@ -9,7 +9,10 @@ use crate::clock::{VideoTs, Ts, MemoryContention, VideoTsData3};
 use crate::chip::ula::{
     frame_cache::{pixel_address_coords, color_address_coords}
 };
-use crate::video::{Renderer, BorderSize, PixelBuffer, Palette, VideoFrame, Video, CellCoords, MAX_BORDER_SIZE};
+use crate::video::{
+    Renderer, BorderSize, BorderColor, PixelBuffer, Palette,
+    VideoFrame, Video, CellCoords, MAX_BORDER_SIZE
+};
 use super::{
     Ula128, Ula128MemContention, UlaMemoryContention,
     frame_cache::Ula128FrameProducer
@@ -91,11 +94,11 @@ impl<D, X> Video for Ula128<D, X> {
     type VideoFrame = Ula128VidFrame;
 
     #[inline]
-    fn border_color(&self) -> u8 {
+    fn border_color(&self) -> BorderColor {
         self.ula.ula_border_color()
     }
 
-    fn set_border_color(&mut self, border: u8) {
+    fn set_border_color(&mut self, border: BorderColor) {
         self.ula.ula_set_border_color(border)
     }
 
@@ -154,7 +157,7 @@ impl<B, X> Ula128<B, X> {
         ) -> Renderer<Ula128FrameProducer<'a>, std::vec::Drain<'a, VideoTsData3>>
     {
         let swap_screens = self.beg_screen_shadow;
-        let border = self.ula.ula_border_color();
+        let border = self.ula.ula_border_color().into();
         let invert_flash = self.ula.frames.0 & 16 != 0;
         let (border_changes, memory, frame_cache0) = self.ula.ula_video_render_data_view();
         let frame_cache1 = &self.shadow_frame_cache;

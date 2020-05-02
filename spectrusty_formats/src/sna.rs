@@ -1,11 +1,13 @@
 //! **SNA** file format utilities.
-use std::convert::{TryInto};
+use std::convert::TryInto;
 use std::io::{ErrorKind, Error, Read, Result};
 
 use spectrusty_core::{
    memory::ZxMemory,
+   video::BorderColor,
    z80emu::{Cpu, Prefix, StkReg16, CpuFlags}
 };
+
 /*
 Offset   Size   Description
    ------------------------------------------------------------------------
@@ -52,7 +54,7 @@ union SnaHeaderUnion {
 pub const SNA_LENGTH: usize = 49179;
 /// Reads a *SNA* file and inserts its content into provided memory and configures the `Cpu`.
 /// Returns border color on success.
-pub fn read_sna<R: Read, M: ZxMemory, C: Cpu>(mut rd: R, cpu: &mut C, mem: &mut M) -> Result<u8> {
+pub fn read_sna<R: Read, M: ZxMemory, C: Cpu>(mut rd: R, cpu: &mut C, mem: &mut M) -> Result<BorderColor> {
    let mut sna = SnaHeaderUnion { bytes: Default::default() };
    rd.read_exact(unsafe { &mut sna.bytes })?;
    let sna: SnaHeader = unsafe { sna.header };
@@ -86,5 +88,5 @@ pub fn read_sna<R: Read, M: ZxMemory, C: Cpu>(mut rd: R, cpu: &mut C, mem: &mut 
       Error::new(ErrorKind::InvalidData, "SNA: Need at least 48k RAM memory")
    })?;
    cpu.set_pc(mem.read16(sp));
-   Ok(sna.border & 7)
+   sna.border.try_into().map_err(|e| Error::new(ErrorKind::InvalidData, e))
 }

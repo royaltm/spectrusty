@@ -1,7 +1,11 @@
+use core::fmt;
+use core::convert::TryFrom;
 use core::num::NonZeroU32;
 use core::time::Duration;
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
+
+use bitflags::bitflags;
 
 #[cfg(feature = "snapshot")]
 use serde::{Serialize, Deserialize};
@@ -148,6 +152,21 @@ pub enum ReadEarMode {
     Clear
 }
 
+bitflags! {
+    /// This type represents packed EAR and MIC output data.
+    #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
+    #[cfg_attr(feature = "snapshot", serde(try_from = "u8", into = "u8"))]
+    #[derive(Default)]
+    pub struct EarMic: u8 {
+        const MIC    = 0b01;
+        const EAR    = 0b10;
+        const EARMIC = 0b11;
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TryFromU8EarMicError(pub u8);
+
 pub trait HostConfig {
     const CPU_HZ: u32;
     const FRAME_TSTATES: FTs;
@@ -191,6 +210,27 @@ pub const fn nanos_from_frame_tc_cpu_hz(frame_ts_count: u32, cpu_hz: u32) -> u64
 pub const fn duration_from_frame_tc_cpu_hz(frame_ts_count: u32, cpu_hz: u32) -> Duration {
     let nanos = nanos_from_frame_tc_cpu_hz(frame_ts_count, cpu_hz);
     Duration::from_nanos(nanos)
+}
+
+impl std::error::Error for TryFromU8EarMicError {}
+
+impl fmt::Display for TryFromU8EarMicError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "converted integer ({}) out of range for `EarMic`", self.0)
+    }
+}
+
+impl TryFrom<u8> for EarMic {
+    type Error = TryFromU8EarMicError;
+    fn try_from(earmic: u8) -> core::result::Result<Self, Self::Error> {
+        EarMic::from_bits(earmic).ok_or_else(|| TryFromU8EarMicError(earmic))
+    }
+}
+
+impl From<EarMic> for u8 {
+    fn from(earmic: EarMic) -> u8 {
+        earmic.bits()
+    }
 }
 
 /// A tool for synchronizing emulation with a running thread.

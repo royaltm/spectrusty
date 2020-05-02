@@ -43,10 +43,11 @@ impl<A, M, B, X, F> EarMicOutAudioFrame<A> for Ula<M, B, X, F>
 {
     #[inline(always)]
     fn render_earmic_out_audio_frame<V: AmpLevels<A::SampleDelta>>(&self, blep: &mut A, channel: usize) {
-        render_audio_frame_vts::<F,V,A::SampleDelta,A,_>(self.prev_earmic_data,
-                                         None,
-                                         &self.earmic_out_changes,
-                                         blep, channel)
+        render_audio_frame_vts::<F,V,A::SampleDelta,A,_>(
+                                        self.prev_earmic_data.into(),
+                                        None,
+                                        &self.earmic_out_changes,
+                                        blep, channel)
     }
 }
 
@@ -56,9 +57,10 @@ impl<A, M, B, X, F> EarInAudioFrame<A> for Ula<M, B, X, F>
 {
     #[inline(always)]
     fn render_ear_in_audio_frame<V: AmpLevels<A::SampleDelta>>(&self, blep: &mut A, channel: usize) {
-        render_audio_frame_vts::<F,V,A::SampleDelta,A,_>(self.prev_ear_in,
-                                         Some(self.tsc),
-                                         &self.ear_in_changes,
-                                         blep, channel)
+        render_audio_frame_vts::<F,V,A::SampleDelta,A,_>(
+                                        self.prev_ear_in.into(),
+                                        Some(self.tsc),
+                                        &self.ear_in_changes,
+                                        blep, channel)
     }
 }

@@ -1,6 +1,6 @@
 use core::num::Wrapping;
 
-use crate::chip::{EarIn, MicOut, ReadEarMode};
+use crate::chip::{EarIn, MicOut, EarMic, ReadEarMode};
 use crate::clock::FTs;
 use crate::video::VideoFrame;
 use super::Ula;
@@ -18,7 +18,7 @@ impl<M, B, X, F> EarIn for Ula<M, B, X, F>
         if delta_fts == 0 {
             match self.ear_in_changes.last_mut() {
                 Some(tscd) => tscd.set_data(ear_in.into()),
-                None => { self.prev_earmic_data = ear_in.into() }
+                None => { self.prev_ear_in = ear_in }
             }
         }
         else {
@@ -40,7 +40,7 @@ impl<M, B, X, F> EarIn for Ula<M, B, X, F>
         let (mut vts, mut ear_in) = self.ear_in_changes.last()
                                        .map(|&ts| ts.into())
                                        .unwrap_or_else(||
-                                            (self.tsc, self.prev_ear_in)
+                                            (self.tsc, self.prev_ear_in.into())
                                        );
         let max_vc = max_frames_threshold
                        .and_then(|mf| mf.checked_mul(F::VSL_COUNT as usize))
@@ -101,7 +101,8 @@ impl<'a, I, V> MicPulseIter<I, V>
     where I: Iterator<Item=&'a VideoTsData2>,
           V: VideoFrame
 {
-    fn new(last_pulse_ts: FTs, last_data: u8, iter: I) -> Self {
+    fn new(last_pulse_ts: FTs, last_data: EarMic, iter: I) -> Self {
+        let last_data = last_data.bits();
         MicPulseIter { last_pulse_ts, last_data, iter, _video: PhantomData }
     }
 }
@@ -115,7 +116,7 @@ impl<'a, I, V> Iterator for MicPulseIter<I, V>
         loop {
             if let Some(&vtsd) = self.iter.next() {
                 let (vts, data):(VideoTs, u8) = vtsd.into();
-                if (self.last_data ^ data) & 1 == 1 {
+                if !(EarMic::from_bits_truncate(self.last_data ^ data) & EarMic::MIC).is_empty() {
                     let ts = V::vts_to_tstates(vts);
                     let maybe_delta = ts.checked_sub(self.last_pulse_ts);
 
@@ -175,14 +176,14 @@ impl<M, B, X, F> Ula<M, B, X, F>
         self.read_ear_in_count = Wrapping(0);
     }
 
-    pub (super) fn read_ear_in(&mut self, ts: VideoTs) -> u8 {
+    pub (super) fn read_ear_in(&mut self, ts: VideoTs) -> bool {
         self.read_ear_in_count += Wrapping(1);
         match self.ear_in_changes.get(self.ear_in_last_index..) {
             Some(changes) if !changes.is_empty() => {
                 match ear_in_search_non_empty(changes, (ts, 1).into()) {
                     Some(index) => {
                         self.ear_in_last_index += index;
-                        unsafe { changes.as_ptr().add(index).read().into_data() }
+                        unsafe { changes.as_ptr().add(index).read().into_data() != 0 }
                     }
                     None => {
                         self.prev_ear_in
@@ -190,9 +191,9 @@ impl<M, B, X, F> Ula<M, B, X, F>
                 }
             }
             _ => match self.read_ear_mode {
-                ReadEarMode::Issue3 => if self.last_earmic_data & 2 == 0 { 0 } else { 1 }
-                ReadEarMode::Issue2 => if self.last_earmic_data & 3 == 0 { 0 } else { 1 }
-                ReadEarMode::Clear => 0
+                ReadEarMode::Issue3 => !(self.last_earmic_data & EarMic::EAR).is_empty(),
+                ReadEarMode::Issue2 => !(self.last_earmic_data & EarMic::EARMIC).is_empty(),
+                ReadEarMode::Clear => false
             }
         }
     }

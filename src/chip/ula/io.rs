@@ -3,9 +3,10 @@ use core::num::NonZeroU16;
 use crate::z80emu::{Io, Memory};
 use crate::bus::BusDevice;
 use crate::clock::VideoTs;
+use crate::chip::EarMic;
 use crate::peripherals::{KeyboardInterface, ZXKeyboardMap};
 use crate::memory::{ZxMemory, MemoryExtension};
-use crate::video::VideoFrame;
+use crate::video::{BorderColor, VideoFrame};
 use super::Ula;
 
 impl<M, B, X, V> Io for Ula<M, B, X, V>
@@ -29,16 +30,16 @@ impl<M, B, X, V> Io for Ula<M, B, X, V>
 
     fn write_io(&mut self, port: u16, data: u8, ts: VideoTs) -> (Option<()>, Option<NonZeroU16>) {
         if port & 1 == 0 {
-            let border = data & 7;
+            let border = BorderColor::from_bits_truncate(data);
             if self.last_border != border {
                 // println!("border: {} {:?}", border, ts);
                 self.last_border = border;
-                self.border_out_changes.push((ts, border).into());
+                self.border_out_changes.push((ts, border.bits()).into());
             }
-            let earmic = data >> 3 & 3;
+            let earmic = EarMic::from_bits_truncate(data >> 3);
             if self.last_earmic_data != earmic {
                 self.last_earmic_data = earmic;
-                self.earmic_out_changes.push((ts, earmic).into());
+                self.earmic_out_changes.push((ts, earmic.bits()).into());
             }
         }
         else {
@@ -104,7 +105,7 @@ impl<M, B, X, V> Ula<M, B, X, V>
         let bus_data = self.bus.read_io(port, ts);
         if port & 1 == 0 {
             let ula_data = self.keyboard.read_keyboard((port >> 8) as u8) &
-                      ((self.read_ear_in(ts) << 6) | 0b1011_1111);
+                      ((u8::from(self.read_ear_in(ts)) << 6) | 0b1011_1111);
             if let Some((data, ws)) = bus_data {
                 return Some((ula_data & data, ws));
             }
