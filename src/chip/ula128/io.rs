@@ -2,11 +2,11 @@ use core::num::NonZeroU16;
 
 use crate::z80emu::{Io, Memory};
 use crate::bus::{BusDevice, PortAddress};
-use crate::clock::{MemoryContention, VideoTs};
+use crate::clock::VideoTs;
 use crate::peripherals::{KeyboardInterface, ZXKeyboardMap};
 use crate::memory::{ZxMemory, MemoryExtension};
 use crate::video::VideoFrame;
-use super::{Ula128, Ula128VidFrame, UlaMemoryContention, Ula128MemContention};
+use super::{Ula128, Ula128VidFrame};
 
 #[derive(Clone, Copy, Default, Debug)]
 struct Ula128MemPortAddress;
@@ -17,7 +17,7 @@ impl PortAddress for Ula128MemPortAddress {
 
 bitflags! {
     #[derive(Default)]
-    struct Ula128Mem: u8 {
+    struct Ula128MemFlags: u8 {
         const RAM_BANK_MASK = 0b0000_0111;
         const SCREEN_BANK   = 0b0000_1000;
         const ROM_BANK      = 0b0001_0000;
@@ -89,21 +89,20 @@ impl<B, X> Memory for Ula128<B, X>
         self.ula.memory.read16(addr)
     }
 
-    #[inline(always)]
+    #[inline]
     fn read_opcode(&mut self, pc: u16, ir: u16, ts: VideoTs) -> u8 {
-        self.check_update_snow_interference(ts, ir);
+        self.update_snow_interference(ts, ir);
         self.ula.memext.opcode_read(pc, &mut self.ula.memory)
     }
 
-    #[inline(always)]
+    #[inline]
     fn write_mem(&mut self, addr: u16, val: u8, ts: VideoTs) {
         self.update_frame_cache(addr, ts);
         self.ula.memory.write(addr, val);
     }
 }
 
-impl<B, X> KeyboardInterface for Ula128<B, X>
-{
+impl<B, X> KeyboardInterface for Ula128<B, X> {
     #[inline(always)]
     fn get_key_state(&self) -> ZXKeyboardMap {
         self.ula.get_key_state()
@@ -118,20 +117,20 @@ impl<B, X> Ula128<B, X> {
     #[inline]
     fn write_mem_port(&mut self, data: u8, ts: VideoTs) -> bool {
         if !self.mem_locked {
-            let flags = Ula128Mem::from_bits_truncate(data);
-            if flags.intersects(Ula128Mem::LOCK_MMU) {
+            let flags = Ula128MemFlags::from_bits_truncate(data);
+            if flags.intersects(Ula128MemFlags::LOCK_MMU) {
                 self.mem_locked = true;
             }
 
-            let cur_screen_shadow = flags.intersects(Ula128Mem::SCREEN_BANK);
+            let cur_screen_shadow = flags.intersects(Ula128MemFlags::SCREEN_BANK);
             if self.cur_screen_shadow != cur_screen_shadow {
                 self.cur_screen_shadow = cur_screen_shadow;
                 self.screen_changes.push(ts);
             }
-            let rom_bank = if flags.intersects(Ula128Mem::ROM_BANK) { 1 } else { 0 };
+            let rom_bank = if flags.intersects(Ula128MemFlags::ROM_BANK) { 1 } else { 0 };
             self.ula.memory.map_rom_bank(rom_bank, ROM_SWAP_PAGE).unwrap();
 
-            let mem_page3_bank = (flags & Ula128Mem::RAM_BANK_MASK).bits();
+            let mem_page3_bank = (flags & Ula128MemFlags::RAM_BANK_MASK).bits();
             // println!("\nscr: {} pg3: {} ts: {}x{}", self.cur_screen_shadow, mem_page3_bank, ts.vc, ts.hc);
             if mem_page3_bank != self.mem_page3_bank {
                 let contention_before = self.is_page3_contended();
@@ -152,23 +151,6 @@ impl<B, X> Ula128<B, X> {
         }
         else {
             u8::max_value()
-        }
-    }
-
-    #[inline(always)]
-    fn check_update_snow_interference(&mut self, ts: VideoTs, ir: u16) {
-        let is_contended = if self.is_page3_contended() {
-            Ula128MemContention::is_contended_address(ir)
-        } else {
-            UlaMemoryContention::is_contended_address(ir)
-        };
-        if is_contended {
-            if let Some(coords) = Ula128VidFrame::snow_interference_coords(ts) {
-                let screen0 = self.ula.memory.screen_ref(0).unwrap();
-                self.ula.frame_cache.apply_snow_interference(screen0, coords, ir as u8);
-                let screen1 = self.ula.memory.screen_ref(1).unwrap();
-                self.shadow_frame_cache.apply_snow_interference(screen1, coords, ir as u8);
-            }
         }
     }
 }

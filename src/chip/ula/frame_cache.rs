@@ -19,11 +19,11 @@ const COL_ATTR_HTS: &[Ts;32] = &[2, 4, 10, 12, 18, 20, 26, 28, 34, 36, 42, 44, 5
 pub fn pixel_address_coords(addr: u16) -> Option<CellCoords> {
     match addr {
         0x4000..=0x57FF => {
-            let column = addr & 0b11111;
-            let line = (addr >> 5 & 0b1100_0000 |
+            let column = (addr & 0b11111) as u8;
+            let row = (addr >> 5 & 0b1100_0000 |
                         addr >> 2 & 0b0011_1000 |
-                        addr >> 8 & 0b0000_0111) as i16;
-            Some(CellCoords { column, line })
+                        addr >> 8 & 0b0000_0111) as u8;
+            Some(CellCoords { column, row })
         }
         _ => None
     }
@@ -33,9 +33,9 @@ pub fn pixel_address_coords(addr: u16) -> Option<CellCoords> {
 pub fn color_address_coords(addr: u16) -> Option<CellCoords> {
     match addr {
         0x5800..=0x5AFF => {
-            let column = addr & 0b11111;
-            let line = (addr >> 5 & 0b0001_1111) as i16;
-            Some(CellCoords { column, line })
+            let column = (addr & 0b11111) as u8;
+            let row = (addr >> 5 & 0b0001_1111) as u8;
+            Some(CellCoords { column, row })
         }
         _ => None
     }
@@ -182,19 +182,23 @@ impl<V> UlaFrameCache<V> {
 }
 
 impl<V: VideoFrame> UlaFrameCache<V> {
+    /// Compares the given bitmap cell coordinates with the video timestamp and depending
+    /// on the result of that comparison caches (or not) the bitmap cell with the value
+    /// from the memory at the given address.
     #[inline(always)]
     pub fn update_frame_pixels<M: ZxMemory>(
             &mut self,
             memory: &M,
-            CellCoords { column, line }: CellCoords,
+            CellCoords { column, row }: CellCoords,
             addr: u16,
             ts: VideoTs
         )
     {
         let column = column as usize & 31;
-        let cur_line_index = ts.vc - V::VSL_PIXELS.start;
-        if line < cur_line_index || line == cur_line_index && ts.hc > COL_INK_HTS[column] {
-            let (mask, pixels) = &mut self.frame_pixels[line as usize];
+        let vy = ts.vc - V::VSL_PIXELS.start;
+        let y = Ts::from(row);
+        if y < vy || y == vy && ts.hc > COL_INK_HTS[column] {
+            let (mask, pixels) = &mut self.frame_pixels[row as usize];
             let mbit = 1 << column;
             if *mask & mbit == 0 {
                 pixels[column] = memory.read(addr);
@@ -202,66 +206,85 @@ impl<V: VideoFrame> UlaFrameCache<V> {
             }
         }
     }
-
+    /// Compares the given attribute cell coordinates with the video timestamp and depending
+    /// on the result of that comparison caches (or not) the attribute cell or cells with
+    /// the value from the memory at the given address.
     #[inline(always)]
     pub fn update_frame_colors<M: ZxMemory>(
             &mut self,
             memory: &M,
-            CellCoords { column, line }: CellCoords,
+            CellCoords { column, row }: CellCoords,
             addr: u16,
             ts: VideoTs
         )
     {
         let column = column as usize & 31;
-        let cur_line_index = ts.vc - V::VSL_PIXELS.start;
-        let coarse_cur_line_index = cur_line_index >> 3;
-        if line < coarse_cur_line_index ||
-                line == coarse_cur_line_index &&
-                cur_line_index & 0b111 == 0b111 &&
+        let vy = ts.vc - V::VSL_PIXELS.start;
+        let coarse_vy = vy >> 3;
+        let coarse_y = Ts::from(row);
+        if coarse_y < coarse_vy ||
+                coarse_y == coarse_vy &&
+                vy & 0b111 == 0b111 &&
                 ts.hc > COL_ATTR_HTS[column] {
-            let (mask, colors) = &mut self.frame_colors_coarse[line as usize];
+            let (mask, colors) = &mut self.frame_colors_coarse[row as usize];
             let mbit = 1 << column;
             if *mask & mbit == 0 {
                 *mask |= mbit;
                 colors[column] = memory.read(addr);
             }
         }
-        else if line == coarse_cur_line_index {
-            let line_top = coarse_cur_line_index << 3;
+        else if coarse_y == coarse_vy {
+            let line_top = (coarse_vy << 3) as usize;
             let line_bot = if ts.hc > COL_ATTR_HTS[column] {
-                cur_line_index
+                vy + 1
             } else {
-                cur_line_index - 1
-            };
-            if line_top <= line_bot {
+                vy
+            } as usize;
+            if line_top < line_bot {
                 let memval = memory.read(addr);
                 let mbit = 1 << column;
-                for (mask, colors) in self.frame_colors[line_top as usize..=line_bot as usize].iter_mut().rev() {
-                // for cur_line_index in (line_top..=line_bot).rev() {
-                    // let (mask, colors) = &mut self.frame_colors[cur_line_index as usize];
-                    // if *mask & mbit != 0 {
-                    //     break;
-                    // }
-                    if *mask & mbit == 0 {
-                        *mask |= mbit;
-                        colors[column] = memval;
+                for (mask, colors) in self.frame_colors[line_top..line_bot].iter_mut().rev() {
+                    if *mask & mbit != 0 {
+                        break;
                     }
+                    *mask |= mbit;
+                    colors[column] = memval;
                 }
             }
         }
     }
-
-    pub fn apply_snow_interference(&mut self, screen: &[u8], CellCoords { column, line }: CellCoords, r: u8) {
-        let (line, column) = (line as usize, column as usize);
+    /// Caches the bitmap and attribute cell at the given coordinates with the `snow` distortion applied.
+    pub fn apply_snow_interference(
+            &mut self,
+            screen: &[u8],
+            CellCoords { column, row }: CellCoords,
+            snow: u8
+        )
+    {
+        let (row, column) = (row as usize, column as usize & 31);
         let mbit = 1 << column;
-        let (mask, pixels) = &mut self.frame_pixels[line];
-        let offset = (pixel_line_offset(line) & 0xFF00) | r as usize;
-        pixels[column] = screen[offset];
+        let (mask, pixels) = &mut self.frame_pixels[row];
+        let offset_snow = (pixel_line_offset(row) & 0xFF00) | snow as usize;
+        pixels[column] = screen[offset_snow];
         *mask |= mbit;
-        let (mask, colors) = &mut self.frame_colors[line];
-        let offset = (color_line_offset(line) & 0xFF00) | r as usize;
-        colors[column] = screen[ATTRS_OFFSET + offset];
+
+        let offset = ATTRS_OFFSET + color_line_offset(row);
+        let offset_snow = (offset & 0xFF00) | snow as usize;
+        let (mask, colors) = &mut self.frame_colors[row];
+        colors[column] = screen[offset_snow];
         *mask |= mbit;
+        // cache the remaining attribute sub-cell lines preceding the distorted cell
+        let row_top = row & !7;
+        if row_top < row {
+            let memval = screen[offset];
+            for (mask, colors) in self.frame_colors[row_top..row].iter_mut().rev() {
+                if *mask & mbit != 0 {
+                    break;
+                }
+                *mask |= mbit;
+                colors[column] = memval;
+            }
+        }
     }
 }
 

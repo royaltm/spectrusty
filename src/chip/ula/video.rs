@@ -7,19 +7,14 @@ use serde::{Serialize, Deserialize};
 use crate::memory::ZxMemory;
 use crate::clock::{VFrameTsCounter, MemoryContention, VideoTs, Ts, VideoTsData3};
 use crate::video::{Renderer, BorderSize, PixelBuffer, Palette, VideoFrame, Video, CellCoords, MAX_BORDER_SIZE};
-use super::{Ula, frame_cache::{pixel_address_coords, color_address_coords}};
+use super::{Ula, UlaMemoryContention, frame_cache::{pixel_address_coords, color_address_coords}};
 use super::frame_cache::{UlaFrameCache, UlaFrameProducer};
 
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 pub struct UlaVideoFrame;
 
-#[derive(Clone, Copy, Default, Debug, PartialEq)]
-pub struct UlaMemoryContention;
-
 pub type UlaTsCounter = VFrameTsCounter<UlaVideoFrame, UlaMemoryContention>;
-
-impl MemoryContention for UlaMemoryContention {}
 
 impl VideoFrame for UlaVideoFrame {
     /// A range of horizontal T-states, 0 should be when the frame starts.
@@ -72,8 +67,8 @@ impl VideoFrame for UlaVideoFrame {
 
     #[inline(always)]
     fn snow_interference_coords(VideoTs { vc, hc }: VideoTs) -> Option<CellCoords> {
-        let line = vc - Self::VSL_PIXELS.start;
-        if line >= 0 && vc < Self::VSL_PIXELS.end {
+        let row = vc - Self::VSL_PIXELS.start;
+        if row >= 0 && vc < Self::VSL_PIXELS.end {
             let hc = hc - 2;
             if hc >= 0 && hc <= 122 {
                 return match hc & 7 {
@@ -81,8 +76,8 @@ impl VideoFrame for UlaVideoFrame {
                     2 => Some(1),
                     _ => None
                 }.map(|offs| {
-                    let column = (((hc >> 2) & !1) | offs) as u16;
-                    CellCoords { column, line }
+                    let column = (((hc >> 2) & !1) | offs) as u8;
+                    CellCoords { column, row: row as u8 }
                 })
             }
         }
@@ -123,9 +118,25 @@ impl<M: ZxMemory, B, X> Ula<M, B, X> {
             self.frame_cache.update_frame_colors(&self.memory, coords, addr, ts);
         }
     }
+
+    #[inline(always)]
+    pub(super) fn update_snow_interference(&mut self, ts: VideoTs, ir: u16) {
+        if UlaMemoryContention::is_contended_address(ir) {
+            if let Some(coords) = UlaVideoFrame::snow_interference_coords(ts) {
+                let screen = self.memory.screen_ref(0).unwrap();
+                self.frame_cache.apply_snow_interference(screen, coords, ir as u8)
+            }
+        }
+    }
 }
 
 impl<M: ZxMemory, B, X, V> Ula<M, B, X, V> {
+    #[inline]
+    pub(crate) fn cleanup_video_frame_data(&mut self) {
+        self.border = self.last_border;
+        self.border_out_changes.clear();
+        self.frame_cache.clear();
+    }
     #[inline]
     pub(crate) fn ula_border_color(&self) -> u8 {
         self.last_border
@@ -157,12 +168,5 @@ impl<M: ZxMemory, B, X, V> Ula<M, B, X, V> {
             border_changes: self.border_out_changes.drain(..),
             invert_flash: self.frames.0 & 16 != 0
         }
-    }
-
-    #[inline]
-    pub(crate) fn cleanup_video_frame_data(&mut self) {
-        self.border = self.last_border;
-        self.border_out_changes.clear();
-        self.frame_cache.clear();
     }
 }

@@ -45,9 +45,9 @@ pub struct ParseBorderSizeError;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CellCoords {
     /// 5 lowest bits: 0 - 31 indicates cell column
-    pub column: u16,
-    /// 0 - 191 is where the pixels are at
-    pub line: i16
+    pub column: u8,
+    /// INK/PAPER row range is: [0, 192), screen attributes row range is: [0, 24).
+    pub row: u8
 }
 
 /// An interface for renderering Spectrum's pixel data to frame buffers.
@@ -99,11 +99,11 @@ pub trait VideoFrame: Copy + Debug {
     const HTS_RANGE: Range<Ts>;
     /// The number of horizontal T-states.
     const HTS_COUNT: Ts = Self::HTS_RANGE.end - Self::HTS_RANGE.start;
-    /// The first video scan line index of the top border.
+    /// The first visible video scan line index of the top border.
     const VSL_BORDER_TOP: Ts;
-    /// A range of video scan line indexes for the INK and PAPER area.
+    /// A range of video scan line indexes where pixel data is being drawn.
     const VSL_PIXELS: Range<Ts>;
-    /// The last video scan line index of the bottom border.
+    /// The last visible video scan line index of the bottom border.
     const VSL_BORDER_BOT: Ts;
     /// The total number of video scan lines including the beam retrace.
     const VSL_COUNT: Ts;
@@ -150,23 +150,27 @@ pub trait VideoFrame: Copy + Debug {
     /// T-state contention while rendering ink+paper lines.
     fn contention(hc: Ts) -> Ts;
     /// Returns an optional floating bus horizontal offset for the given horizontal timestamp.
-    fn floating_bus_offset(hc: Ts) -> Option<u16>;
-    /// Returns an optional floating bus screen address (in screen address space) for the given timestamp.
+    fn floating_bus_offset(_hc: Ts) -> Option<u16> {
+        None
+    }
+    /// Returns an optional floating bus screen address (in the screen address space) for the given timestamp.
+    ///
+    /// The returned screen address range is: [0x0000, 0x1B00).
     #[inline]
     fn floating_bus_screen_address(VideoTs { vc, hc }: VideoTs) -> Option<u16> {
-        if vc < Self::VSL_PIXELS.end {
-            u16::try_from(vc - Self::VSL_PIXELS.start).ok().and_then(|y| {
-                Self::floating_bus_offset(hc).map(|offs| {
-                    let col = (offs >> 3) << 1;
-                    // println!("got offs: {} col:{} y:{}", offs, col, y);
-                    match offs & 3 {
-                        0 =>          pixel_line_offset(y) + col,
-                        1 => 0x1800 + color_line_offset(y) + col,
-                        2 => 0x0001 + pixel_line_offset(y) + col,
-                        3 => 0x1801 + color_line_offset(y) + col,
-                        _ => unsafe { core::hint::unreachable_unchecked() }
-                    }
-                })
+        let line = vc - Self::VSL_PIXELS.start;
+        if line >= 0 && vc < Self::VSL_PIXELS.end {
+            Self::floating_bus_offset(hc).map(|offs| {
+                let y = line as u16;
+                let col = (offs >> 3) << 1;
+                // println!("got offs: {} col:{} y:{}", offs, col, y);
+                match offs & 3 {
+                    0 =>          pixel_line_offset(y) + col,
+                    1 => 0x1800 + color_line_offset(y) + col,
+                    2 => 0x0001 + pixel_line_offset(y) + col,
+                    3 => 0x1801 + color_line_offset(y) + col,
+                    _ => unsafe { core::hint::unreachable_unchecked() }
+                }
             })
         }
         else {
@@ -390,20 +394,20 @@ impl TryFrom<u8> for BorderSize {
     }
 }
 
-/// An offset into INK/PAPER bitmap memory of the given vertical coordinate y in 0..192 (0 on top).
+/// An offset into INK/PAPER bitmap memory of the given vertical coordinate `y` [0, 192) (0 on top).
 #[inline(always)]
 pub fn pixel_line_offset<T>(y: T) -> T
-where T: Copy + From<u16> + BitAnd<Output=T> + Shl<u16, Output=T> + BitOr<Output=T>
+    where T: Copy + From<u16> + BitAnd<Output=T> + Shl<u16, Output=T> + BitOr<Output=T>
 {
     (y & T::from(0b0000_0111) ) << 8 |
     (y & T::from(0b0011_1000) ) << 2 |
     (y & T::from(0b1100_0000) ) << 5
 }
 
-/// An offset into attributes memory of the given vertical coordinate y in 0..192 (0 on top).
+/// An offset into attributes memory of the given vertical coordinate `y` [0, 192) (0 on top).
 #[inline(always)]
 pub fn color_line_offset<T>(y: T) -> T
-where T: Copy + From<u16> + Shr<u16, Output=T> + Shl<u16, Output=T>
+    where T: Copy + From<u16> + Shr<u16, Output=T> + Shl<u16, Output=T>
 {
     (y >> 3) << 5
 }

@@ -23,10 +23,11 @@ use crate::memory::{ZxMemory, MemoryExtension, NoMemoryExtension};
 use crate::peripherals::{KeyboardInterface, ZXKeyboardMap};
 use crate::clock::{
     HALT_VC_THRESHOLD, VideoTs, FTs, Ts, VFrameTsCounter,
-    MemoryContention, VideoTsData1, VideoTsData2, VideoTsData3};
+    MemoryContention, NoMemoryContention,
+    VideoTsData1, VideoTsData2, VideoTsData3};
 use frame_cache::UlaFrameCache;
 
-pub use video::{UlaVideoFrame, UlaMemoryContention, UlaTsCounter};
+pub use video::{UlaVideoFrame, UlaTsCounter};
 
 /// The ZX Spectrum's CPU clock in cycles per second.
 pub const CPU_HZ: u32 = 3_500_000;
@@ -61,6 +62,17 @@ impl<B: Blep, U> UlaAudioFrame<B> for U
 impl<B: Blep, U> UlaAudioFrame<B> for U
     where U: AudioFrame<B> + EarMicOutAudioFrame<B> + EarInAudioFrame<B>
 {}
+
+/// Implements [MemoryContention] in a way that addresses in the range: [0x4000, 0x7FFF] are being contended.
+#[derive(Clone, Copy, Default, Debug, PartialEq)]
+pub struct UlaMemoryContention;
+
+impl MemoryContention for UlaMemoryContention {
+    #[inline]
+    fn is_contended_address(addr: u16) -> bool {
+        addr & 0xC000 == 0x4000
+    }
+}
 
 /// ZX Spectrum 16k/48k ULA.
 #[derive(Clone)]
@@ -195,7 +207,7 @@ impl<M, B, X> ControlUnit for Ula<M, B, X, UlaVideoFrame>
     }
 
     fn reset<C: Cpu>(&mut self, cpu: &mut C, hard: bool) {
-        self.ula_reset::<UlaMemoryContention, _>(cpu, hard)
+        self.ula_reset(cpu, hard)
     }
 
     fn nmi<C: Cpu>(&mut self, cpu: &mut C) -> bool {
@@ -298,7 +310,7 @@ impl<M, B, X, V> UlaTimestamp for Ula<M, B, X, V>
 }
 
 pub(super) trait UlaCpuExt: UlaTimestamp {
-    fn ula_reset<T: MemoryContention, C: Cpu>(&mut self, cpu: &mut C, hard: bool);
+    fn ula_reset<C: Cpu>(&mut self, cpu: &mut C, hard: bool);
     fn ula_nmi<T: MemoryContention, C: Cpu>(&mut self, cpu: &mut C) -> bool;
     fn ula_execute_next_frame_with_breaks<T: MemoryContention, C: Cpu>(
             &mut self,
@@ -336,7 +348,7 @@ impl<U, B, X> UlaCpuExt for U
           B: BusDevice<Timestamp=VideoTs>,
           X: MemoryExtension
 {
-    fn ula_reset<T: MemoryContention, C: Cpu>(&mut self, cpu: &mut C, hard: bool)
+    fn ula_reset<C: Cpu>(&mut self, cpu: &mut C, hard: bool)
     {
         if hard {
             cpu.reset();
@@ -346,7 +358,7 @@ impl<U, B, X> UlaCpuExt for U
         }
         else {
             const DEBUG: Option<CpuDebugFn> = None;
-            let mut vtsc: VFrameTsCounter<<U as UlaTimestamp>::VideoFrame, T> = VideoTs::default().into();
+            let mut vtsc: VFrameTsCounter<<U as UlaTimestamp>::VideoFrame, NoMemoryContention> = VideoTs::default().into();
             let _ = cpu.execute_instruction(self, &mut vtsc, DEBUG, opconsts::RST_00H_OPCODE);
         }
     }

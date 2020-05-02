@@ -19,10 +19,22 @@ use crate::video::VideoFrame;
 use crate::memory::{Memory128k, MemoryExtension, NoMemoryExtension};
 use crate::clock::{VideoTs, FTs, VFrameTsCounter, MemoryContention};
 
-pub use video::{Ula128VidFrame, Ula128MemContention};
+pub use video::Ula128VidFrame;
 
 /// The ZX Spectrum 128k CPU clock in cycles per second.
 pub const CPU_HZ: u32 = 3_546_900;
+
+/// Implements [MemoryContention] in a way that addresses in the range: [0x4000, 0x7FFF] and [0xC000, 0xFFFF]
+/// are being contended.
+#[derive(Clone, Copy, Default, Debug, PartialEq)]
+pub struct Ula128MemContention;
+
+impl MemoryContention for Ula128MemContention {
+    #[inline]
+    fn is_contended_address(addr: u16) -> bool {
+        addr & 0x4000 == 0x4000
+    }
+}
 
 pub(self) type InnerUla<B, X> = Ula<Memory128k, B, X, Ula128VidFrame>;
 
@@ -74,7 +86,7 @@ impl<B, X> core::fmt::Debug for Ula128<B, X>
 impl<B, X> Ula128<B, X> {
     #[inline(always)]
     fn is_page3_contended(&self) -> bool {
-        self.mem_page3_bank & 1 == 1
+        self.mem_page3_bank & 1 == 1 // banks: 1, 3, 5 and 7 are contended
     }
 
     #[inline(always)]
@@ -153,12 +165,7 @@ impl<B, X> ControlUnit for Ula128<B, X>
     }
 
     fn reset<C: Cpu>(&mut self, cpu: &mut C, hard: bool) {
-        if self.is_page3_contended() {
-            self.ula_reset::<Ula128MemContention, _>(cpu, hard)
-        }
-        else {
-            self.ula_reset::<UlaMemoryContention, _>(cpu, hard)
-        }
+        self.ula_reset(cpu, hard);
         self.mem_page3_bank = 0;
         self.cur_screen_shadow = false;
         self.beg_screen_shadow = false;

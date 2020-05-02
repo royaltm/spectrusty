@@ -34,10 +34,19 @@ pub struct VFrameTsCounter<V, C>  {
     _contention: PhantomData<C>
 }
 
+/// A trait used by [VFrameTsCounter] for checking if an address is a contended one.
 pub trait MemoryContention: Copy + Debug {
+    fn is_contended_address(addr: u16) -> bool;
+}
+
+/// Implements [MemoryContention] in a way that no address is being contended.
+#[derive(Clone, Copy, Default, Debug, PartialEq)]
+pub struct NoMemoryContention;
+
+impl MemoryContention for NoMemoryContention {
     #[inline]
-    fn is_contended_address(addr: u16) -> bool {
-        addr & 0xC000 == 0x4000
+    fn is_contended_address(_addr: u16) -> bool {
+        false
     }
 }
 

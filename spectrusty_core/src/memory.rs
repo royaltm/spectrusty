@@ -200,7 +200,7 @@ pub trait ZxMemory: Sized {
     /// Unmaps an external ROM if the currently mapped EX-ROM is the same as in the argument.
     /// Otherwise does nothing.
     fn unmap_exrom(&mut self, _exrom_bank: &ExRom) { }
-    /// `ram_bank` should be less or equal to `RAM_BANKS_MAX` and `page` should be less or euqal to PAGES_MAX.
+    /// `ram_bank` should be less or equal to `RAM_BANKS_MAX` and `page` should be less or equal to PAGES_MAX.
     fn map_ram_bank(&mut self, ram_bank: usize, page: u8) -> Result<()>;
     /// Returns `Ok(MemPageOffset)` if address is equal to or less than [ZxMemory::RAMTOP].
     fn page_index_at(&self, address: u16) -> Result<MemPageOffset> {
