@@ -6,7 +6,7 @@ use crate::peripherals::ay::audio::AyAudioFrame;
 use crate::peripherals::bus::ay::AyAudioVBusDevice;
 use crate::video::VideoFrame;
 
-use crate::chip::{EarIn, MicOut};
+use crate::chip::{EarIn, MicOut, ReadEarMode};
 use super::{CPU_HZ, Ula128, Ula128VidFrame, InnerUla};
 
 impl<A, B, X> AyAudioFrame<A> for Ula128<B, X>
@@ -69,6 +69,14 @@ impl<B, X> EarIn for Ula128<B, X> {
 
     fn read_ear_in_count(&self) -> u32 {
         self.ula.read_ear_in_count()
+    }
+
+    fn get_read_ear_mode(&self) -> ReadEarMode {
+        self.ula.get_read_ear_mode()
+    }
+
+    fn set_read_ear_mode(&mut self, mode: ReadEarMode) {
+        self.ula.set_read_ear_mode(mode)
     }
 }
 

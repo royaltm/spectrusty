@@ -3,6 +3,9 @@ use core::time::Duration;
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
 
+#[cfg(feature = "snapshot")]
+use serde::{Serialize, Deserialize};
+
 use z80emu::{CpuDebug, Cpu, host::Result};
 
 use crate::bus::BusDevice;
@@ -121,10 +124,28 @@ pub trait EarIn {
     /// This may be usefull when tape data is already buffered but the user decided to stop the tape playback
     /// immediately.
     fn purge_ear_in_changes(&mut self, ear_in: bool);
-    /// Returns how many times the EAR IN line was read since the beginning of the current frame.
+    /// Returns the counter of how many times the EAR input line was read since the beginning of the current frame.
     ///
     /// This can be used to help implementing the auto loading of tape data.
     fn read_ear_in_count(&self) -> u32;
+    /// Returns the current mode.
+    fn get_read_ear_mode(&self) -> ReadEarMode {
+        ReadEarMode::Clear
+    }
+    /// Changes the current mode.
+    fn set_read_ear_mode(&mut self, _mode: ReadEarMode) {}
+}
+
+/// This enum determines the EAR input (bit 6) read from the 0xFE port when there is no EAR input feed.
+#[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReadEarMode {
+    /// Issue 3 keyboard behaviour - EAR input is 1 when EAR output is 1
+    Issue3,
+    /// Issue 2 keyboard behaviour - EAR input is 1 when either EAR or MIC output is 1
+    Issue2,
+    /// Always clear - EAR input is always 0
+    Clear
 }
 
 pub trait HostConfig {

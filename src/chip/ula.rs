@@ -17,7 +17,7 @@ use crate::audio::{AudioFrame, Blep, EarInAudioFrame, EarMicOutAudioFrame};
 #[cfg(feature = "peripherals")] use crate::peripherals::ay::audio::AyAudioFrame;
 
 use crate::bus::{BusDevice, NullDevice};
-use crate::chip::{ControlUnit, MemoryAccess, EarIn, MicOut, nanos_from_frame_tc_cpu_hz};
+use crate::chip::{ControlUnit, MemoryAccess, EarIn, MicOut, ReadEarMode, nanos_from_frame_tc_cpu_hz};
 use crate::video::{Video, VideoFrame};
 use crate::memory::{ZxMemory, MemoryExtension, NoMemoryExtension};
 use crate::peripherals::{KeyboardInterface, ZXKeyboardMap};
@@ -75,6 +75,7 @@ pub struct Ula<M, B=NullDevice<VideoTs>, X=NoMemoryExtension, V=UlaVideoFrame> {
     // keyboard
     #[cfg_attr(feature = "snapshot", serde(skip))]
     keyboard: ZXKeyboardMap,
+    read_ear_mode: ReadEarMode,
     // video related
     #[cfg_attr(feature = "snapshot", serde(skip))]
     pub(super) frame_cache: UlaFrameCache<V>,
@@ -109,6 +110,7 @@ where M: Default,
             memext: X::default(),
             // keyboard
             keyboard: ZXKeyboardMap::empty(),
+            read_ear_mode: ReadEarMode::Issue3,
             // video related
             frame_cache: Default::default(),
             border_out_changes: Vec::new(),

@@ -1,6 +1,6 @@
 use core::num::Wrapping;
 
-use crate::chip::{EarIn, MicOut};
+use crate::chip::{EarIn, MicOut, ReadEarMode};
 use crate::clock::FTs;
 use crate::video::VideoFrame;
 use super::Ula;
@@ -9,7 +9,7 @@ use core::marker::PhantomData;
 use core::convert::TryInto;
 use core::num::NonZeroU32;
 
-use crate::clock::{Ts, VideoTs, VideoTsData2};
+use crate::clock::{Ts, VideoTs, VideoTsData1, VideoTsData2};
 
 impl<M, B, X, F> EarIn for Ula<M, B, X, F>
     where F: VideoFrame
@@ -64,6 +64,14 @@ impl<M, B, X, F> EarIn for Ula<M, B, X, F>
 
     fn read_ear_in_count(&self) -> u32 {
         self.read_ear_in_count.0
+    }
+
+    fn get_read_ear_mode(&self) -> ReadEarMode {
+        self.read_ear_mode
+    }
+
+    fn set_read_ear_mode(&mut self, mode: ReadEarMode) {
+        self.read_ear_mode = mode;
     }
 }
 
@@ -171,23 +179,38 @@ impl<M, B, X, F> Ula<M, B, X, F>
         self.read_ear_in_count += Wrapping(1);
         match self.ear_in_changes.get(self.ear_in_last_index..) {
             Some(changes) if !changes.is_empty() => {
-                let maybe_index = match changes.binary_search(&(ts, 1).into()) {
-                    Err(0) => None,
-                    Ok(index) => Some(index),
-                    Err(index) => Some(index - 1)
-                };
-                match maybe_index {
+                match ear_in_search_non_empty(changes, (ts, 1).into()) {
                     Some(index) => {
                         self.ear_in_last_index += index;
                         unsafe { changes.as_ptr().add(index).read().into_data() }
                     }
-                    None => self.prev_ear_in
+                    None => {
+                        self.prev_ear_in
+                    }
                 }
             }
-            _ => {
-                if self.last_earmic_data & 2 == 0 { 0 } else { 1 } // issue 3
-                // if self.last_earmic_data == 0 { 0 } else { 1 } // issue 2
+            _ => match self.read_ear_mode {
+                ReadEarMode::Issue3 => if self.last_earmic_data & 2 == 0 { 0 } else { 1 }
+                ReadEarMode::Issue2 => if self.last_earmic_data & 3 == 0 { 0 } else { 1 }
+                ReadEarMode::Clear => 0
             }
         }
+    }
+}
+
+#[inline]
+fn ear_in_search_non_empty(changes: &[VideoTsData1], item: VideoTsData1) -> Option<usize> {
+    if changes.len() > 2 {
+        if item < changes[0] {
+            return None
+        }
+        else if item < changes[1] {
+            return Some(0)
+        }
+    }
+    match changes.binary_search(&item) {
+        Err(0) => None,
+        Ok(index) => Some(index),
+        Err(index) => Some(index - 1)
     }
 }
