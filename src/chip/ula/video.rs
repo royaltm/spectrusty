@@ -50,7 +50,7 @@ impl VideoFrame for UlaVideoFrame {
 
     #[inline]
     fn contention(hc: Ts) -> Ts {
-        if hc >= -1 && hc < 124 {
+        if hc >= -1 && hc < 125 {
             let ct = (hc + 1) & 7;
             if ct < 6 {
                 return hc + 6 - ct;
@@ -169,6 +169,38 @@ impl<M: ZxMemory, B, X, V> Ula<M, B, X, V> {
             border_size,
             border_changes: self.border_out_changes.drain(..),
             invert_flash: self.frames.0 & 16 != 0
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_contention() {
+        let vts0 = VideoTs::new(0, 0);
+        let tstates = [(14335, 14341),
+                       (14336, 14341),
+                       (14337, 14341),
+                       (14338, 14341),
+                       (14339, 14341),
+                       (14340, 14341),
+                       (14341, 14341),
+                       (14342, 14342)];
+        for offset in (0..16).map(|x| x * 8i32) {
+            for (testing, target) in tstates.iter().copied() {
+                let mut vts = UlaVideoFrame::vts_add_ts(vts0, testing + offset as u32);
+                vts.hc = UlaVideoFrame::contention(vts.hc);
+                assert_eq!(UlaVideoFrame::normalize_vts(vts),
+                           UlaVideoFrame::tstates_to_vts(target + offset));
+            }
+        }
+        let refts = tstates[0].0 as i32;
+        for ts in (refts - 96..refts)
+            .chain(refts + 128..refts+UlaVideoFrame::HTS_COUNT as i32) {
+            let vts = UlaVideoFrame::tstates_to_vts(ts);
+            assert_eq!(UlaVideoFrame::contention(vts.hc), vts.hc);
         }
     }
 }

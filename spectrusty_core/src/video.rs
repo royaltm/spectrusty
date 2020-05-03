@@ -227,9 +227,17 @@ pub trait VideoFrame: Copy + Debug {
     #[inline]
     fn tstates_to_vts(ts: FTs) -> VideoTs {
         let hts_count: FTs = Self::HTS_COUNT as FTs;
-        let vc = ts / hts_count;
-        let hc = ts % hts_count;
-        VideoTs { vc: vc.try_into().unwrap(), hc: hc.try_into().unwrap() }
+        let mut vc = (ts / hts_count).try_into().expect("video ts overflow");
+        let mut hc = (ts % hts_count).try_into().unwrap();
+        if hc >= Self::HTS_RANGE.end {
+            hc -= Self::HTS_COUNT;
+            vc += 1;
+        }
+        else if hc < Self::HTS_RANGE.start {
+            hc += Self::HTS_COUNT;
+            vc -= 1;
+        }
+        VideoTs { vc, hc }
     }
     /// Converts a video timestamp and a frame counter to a frame counter and
     /// a normalized frame T-state count.
@@ -274,7 +282,7 @@ pub trait VideoFrame: Copy + Debug {
             vc = vc.checked_add((fhc / Self::HTS_COUNT as FTs) as Ts).expect("video ts overflow");
             hc = fhc.rem_euclid(Self::HTS_COUNT as FTs) as Ts + Self::HTS_RANGE.start;
         }
-        VideoTs::new(vc, hc)
+        VideoTs { vc, hc }
     }
     /// Returns a normalized video timestamp after adding a `delta` T-state count.
     #[inline]
@@ -301,13 +309,13 @@ pub trait VideoFrame: Copy + Debug {
     fn vts_saturating_sub_vts_normalized(VideoTs { vc, hc }: VideoTs, other_vts: VideoTs) -> VideoTs {
         let vc = vc.saturating_sub(other_vts.vc);
         let hc = hc - other_vts.hc;
-        Self::normalize_vts(VideoTs::new(vc, hc))
+        Self::normalize_vts(VideoTs { vc, hc })
     }
     /// Returns a normalized video timestamp after adding an `other_vts` to it.
     fn vts_saturating_add_vts_normalized(VideoTs { vc, hc }: VideoTs, other_vts: VideoTs) -> VideoTs {
         let vc = vc.saturating_add(other_vts.vc);
         let hc = hc + other_vts.hc;
-        Self::normalize_vts(VideoTs::new(vc, hc))
+        Self::normalize_vts(VideoTs { vc, hc })
     }
 }
 
