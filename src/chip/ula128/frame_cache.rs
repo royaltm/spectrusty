@@ -6,31 +6,30 @@ use crate::video::{
     frame_cache::VideoFrameDataIterator
 };
 use crate::chip::ula::frame_cache::{UlaFrameCache, UlaFrameProducer};
-use super::Ula128VidFrame;
 
 const COL_HTS: &[Ts;32] = &[3, 5, 11, 13, 19, 21, 27, 29, 35, 37, 43, 45, 51, 53, 59, 61, 67, 69, 75, 77, 83, 85, 91, 93, 99, 101, 107, 109, 115, 117, 123, 125];
 // ((x >> 1) << 3) + ((x & 1) << 1)
-pub struct Ula128FrameProducer<'a> {
-    ula_frame0_prod: UlaFrameProducer<'a, Ula128VidFrame>,
-    ula_frame1_prod: UlaFrameProducer<'a, Ula128VidFrame>,
+pub struct Ula128FrameProducer<'a, V> {
+    ula_frame0_prod: UlaFrameProducer<'a, V>,
+    ula_frame1_prod: UlaFrameProducer<'a, V>,
     screen_changes: Drain<'a, VideoTs>,
     swap_at: Option<VideoTs>,
 }
 
-impl<'a> VideoFrameDataIterator for Ula128FrameProducer<'a> {
+impl<'a, V: VideoFrame> VideoFrameDataIterator for Ula128FrameProducer<'a, V> {
     fn next_line(&mut self) {
         self.ula_frame0_prod.next_line();
         self.ula_frame1_prod.next_line();
     }
 }
 
-impl<'a> Ula128FrameProducer<'a> {
+impl<'a, V> Ula128FrameProducer<'a, V> {
     pub fn new(
             swap_screens: bool,
             screen0: &'a[u8],
             screen1: &'a[u8],
-            frame_cache0: &'a UlaFrameCache<Ula128VidFrame>,
-            frame_cache1: &'a UlaFrameCache<Ula128VidFrame>,
+            frame_cache0: &'a UlaFrameCache<V>,
+            frame_cache1: &'a UlaFrameCache<V>,
             mut screen_changes: Drain<'a, VideoTs>
         ) -> Self
     {
@@ -54,12 +53,12 @@ impl<'a> Ula128FrameProducer<'a> {
     }
 }
 
-impl<'a> Iterator for Ula128FrameProducer<'a> {
+impl<'a, V: VideoFrame> Iterator for Ula128FrameProducer<'a, V> {
     type Item = (u8, u8);
 
     fn next(&mut self) -> Option<(u8, u8)> {
         while let Some(swap_at) = self.swap_at {
-            let vc = Ula128VidFrame::VSL_PIXELS.start + self.ula_frame0_prod.line() as Ts;
+            let vc = V::VSL_PIXELS.start + self.ula_frame0_prod.line() as Ts;
             let hc = COL_HTS[self.ula_frame0_prod.column() & 31];
             let ts = VideoTs::new(vc, hc);
             if ts < swap_at {

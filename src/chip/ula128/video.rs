@@ -114,19 +114,23 @@ impl<D, X> Video for Ula128<D, X> {
 }
 
 impl<B, X> Ula128<B, X> {
-    #[inline(always)]
+    #[inline]
     pub(super) fn update_frame_cache(&mut self, addr: u16, ts: VideoTs) {
-        let (frame_cache, match_addr) = match self.page3_screen_bank() {
-            Some(0) => (&mut self.ula.frame_cache, addr & !0x8000),  // both page1 and page3 as screen 0
-            Some(1) if addr & 0x8000 == 0x8000 => {
-                       (&mut self.shadow_frame_cache, addr ^ 0x8000) // page3 as screen 1
+        let frame_cache = match addr {
+            0x4000..=0x5AFF => &mut self.ula.frame_cache,
+            0xC000..=0xDAFF => match self.page3_screen_shadow_bank() {
+                Some(false) => &mut self.ula.frame_cache,
+                Some(true)  => &mut self.shadow_frame_cache,
+                None => return
             }
-            _       => (&mut self.ula.frame_cache, addr),            // only page1 as screen 0
+            _ => return
         };
-        if let Some(coords) = pixel_address_coords(match_addr) {
+        if addr & 0x1800 != 0x1800 {
+            let coords = pixel_address_coords(addr);
             frame_cache.update_frame_pixels(&self.ula.memory, coords, addr, ts);
         }
-        else if let Some(coords) = color_address_coords(match_addr) {
+        else {
+            let coords = color_address_coords(addr);
             frame_cache.update_frame_colors(&self.ula.memory, coords, addr, ts);
         }
     }
@@ -154,7 +158,7 @@ impl<B, X> Ula128<B, X> {
     fn create_renderer<'a>(
             &'a mut self,
             border_size: BorderSize
-        ) -> Renderer<Ula128FrameProducer<'a>, std::vec::Drain<'a, VideoTsData3>>
+        ) -> Renderer<Ula128FrameProducer<'a, Ula128VidFrame>, std::vec::Drain<'a, VideoTsData3>>
     {
         let swap_screens = self.beg_screen_shadow;
         let border = self.ula.ula_border_color().into();

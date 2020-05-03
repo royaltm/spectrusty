@@ -112,13 +112,18 @@ impl<M: ZxMemory, D, X> Video for Ula<M, D, X> {
 }
 
 impl<M: ZxMemory, B, X> Ula<M, B, X> {
-    #[inline(always)]
+    #[inline]
     pub(super) fn update_frame_cache(&mut self, addr: u16, ts: VideoTs) {
-        if let Some(coords) = pixel_address_coords(addr) {
-            self.frame_cache.update_frame_pixels(&self.memory, coords, addr, ts);
-        }
-        else if let Some(coords) = color_address_coords(addr) {
-            self.frame_cache.update_frame_colors(&self.memory, coords, addr, ts);
+        match addr {
+            0x4000..=0x57FF => {
+                let coords = pixel_address_coords(addr);
+                self.frame_cache.update_frame_pixels(&self.memory, coords, addr, ts);
+            }
+            0x5800..=0x5AFF => {
+                let coords = color_address_coords(addr);
+                self.frame_cache.update_frame_colors(&self.memory, coords, addr, ts);
+            }
+            _ => {}
         }
     }
 

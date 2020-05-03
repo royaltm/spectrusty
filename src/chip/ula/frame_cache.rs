@@ -15,30 +15,21 @@ const PIXEL_LINES: usize = 192;
 const COL_INK_HTS:  &[Ts;32] = &[1, 3,  9, 11, 17, 19, 25, 27, 33, 35, 41, 43, 49, 51, 57, 59, 65, 67, 73, 75, 81, 83, 89, 91, 97,  99, 105, 107, 113, 115, 121, 123];
 const COL_ATTR_HTS: &[Ts;32] = &[2, 4, 10, 12, 18, 20, 26, 28, 34, 36, 42, 44, 50, 52, 58, 60, 66, 68, 74, 76, 82, 84, 90, 92, 98, 100, 106, 108, 114, 116, 122, 124];
 
+/// Returns cell coordinates of a INK/PAPER bitmap cell.
 #[inline(always)]
-pub fn pixel_address_coords(addr: u16) -> Option<CellCoords> {
-    match addr {
-        0x4000..=0x57FF => {
-            let column = (addr & 0b11111) as u8;
-            let row = (addr >> 5 & 0b1100_0000 |
-                        addr >> 2 & 0b0011_1000 |
-                        addr >> 8 & 0b0000_0111) as u8;
-            Some(CellCoords { column, row })
-        }
-        _ => None
-    }
+pub fn pixel_address_coords(addr: u16) -> CellCoords {
+    let column = (addr & 0b11111) as u8;
+    let row = (addr >> 5 & 0b1100_0000 |
+               addr >> 2 & 0b0011_1000 |
+               addr >> 8 & 0b0000_0111) as u8;
+    CellCoords { column, row }
 }
-
+/// Returns cell coordinates of a screen attribute cell.
 #[inline(always)]
-pub fn color_address_coords(addr: u16) -> Option<CellCoords> {
-    match addr {
-        0x5800..=0x5AFF => {
-            let column = (addr & 0b11111) as u8;
-            let row = (addr >> 5 & 0b0001_1111) as u8;
-            Some(CellCoords { column, row })
-        }
-        _ => None
-    }
+pub fn color_address_coords(addr: u16) -> CellCoords {
+    let column = (addr & 0b0001_1111) as u8;
+    let row = (addr >> 5 & 0b0001_1111) as u8;
+    CellCoords { column, row }
 }
 
 #[derive(Clone)]
