@@ -224,7 +224,7 @@ impl<V: VideoFrame, C> VFrameTsCounter<V, C> {
     /// The value returned is 0 <= T-states < FRAME_TSTATES_COUNT.
     #[inline(always)]
     pub fn as_frame_tstates(&self, frames: u64) -> (u64, FTs) {
-        V::vts_to_norm_tstates(self.tsc, frames)
+        V::vts_to_norm_tstates(frames, self.tsc)
     }
 
     #[inline(always)]

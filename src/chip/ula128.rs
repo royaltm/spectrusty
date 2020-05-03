@@ -223,7 +223,7 @@ impl<B, X> ControlUnit for Ula128<B, X>
     }
 
     fn frame_tstate(&self) -> (u64, FTs) {
-        Ula128VidFrame::vts_to_norm_tstates(self.ula.tsc, self.current_frame())
+        Ula128VidFrame::vts_to_norm_tstates(self.current_frame(), self.ula.tsc)
     }
 
     fn current_tstate(&self) -> FTs {

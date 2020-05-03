@@ -169,7 +169,9 @@ impl<M, B, X, V> core::fmt::Debug for Ula<M, B, X, V>
 }
 
 impl<M, B, X> ControlUnit for Ula<M, B, X, UlaVideoFrame>
-    where M: ZxMemory, B: BusDevice<Timestamp=VideoTs>, X: MemoryExtension
+    where M: ZxMemory,
+          B: BusDevice<Timestamp=VideoTs>,
+          X: MemoryExtension
 {
     type BusDevice = B;
 
@@ -198,7 +200,7 @@ impl<M, B, X> ControlUnit for Ula<M, B, X, UlaVideoFrame>
     }
 
     fn frame_tstate(&self) -> (u64, FTs) {
-        UlaVideoFrame::vts_to_norm_tstates(self.tsc, self.frames.0)
+        UlaVideoFrame::vts_to_norm_tstates(self.frames.0, self.tsc)
     }
 
     fn current_tstate(&self) -> FTs {
@@ -287,9 +289,12 @@ pub(super) trait UlaTimestamp {
 }
 
 impl<M, B, X, V> UlaTimestamp for Ula<M, B, X, V>
-    where M: ZxMemory, B: BusDevice<Timestamp=VideoTs>, V: VideoFrame
+    where M: ZxMemory,
+          B: BusDevice<Timestamp=VideoTs>,
+          V: VideoFrame
 {
     type VideoFrame = V;
+
     #[inline]
     fn video_ts(&self) -> VideoTs {
         self.tsc
@@ -440,8 +445,20 @@ impl<U, B, X> UlaCpuExt for U
     }
 }
 
-/// Returns with a VideoTs at the frame interrupt and with cpu refresh register set accordingly.
-/// The VideoTs passed here must be normalized.
+/// Emulates the CPU's halted state at the given video timestamp.
+///
+/// Returns a video timestamp just before the end of frame and with the `cpu` memory refresh register
+/// increased accordingly, applying any needed memory contention if the `PC` register addresses a contended
+/// memory.
+///
+/// This method should be called after the `cpu` executed the `HALT` instruction for the optimal emulator
+/// performance.
+///
+/// # Panics
+///
+/// The timestamp - `tsc` passed here must be normalized and its vertical component must be positive and
+/// its composite value must be less than [<V as VideoFrame>::FRAME_TSTATES_COUNT][VideoFrame::FRAME_TSTATES_COUNT].
+/// Otherwise this method panics.
 pub fn execute_halted_state_until_eof<V: VideoFrame,
                                       M: MemoryContention,
                                       C: Cpu>(
@@ -450,6 +467,9 @@ pub fn execute_halted_state_until_eof<V: VideoFrame,
         ) -> VideoTs
 {
     debug_assert_eq!(0, V::HTS_COUNT % M1_CYCLE_TS as Ts);
+    if tsc.vc < 0 || tsc.vc > V::VSL_COUNT || !V::is_normalized_vts(tsc) {
+        panic!("halt: a timestamp must be within the video frame range and normalized");
+    }
     let mut r_incr: i32 = 0;
     if M::is_contended_address(cpu.get_pc()) && tsc.vc < V::VSL_PIXELS.end {
         let VideoTs { mut vc, mut hc } = tsc; // assume tsc is normalized
@@ -485,16 +505,18 @@ pub fn execute_halted_state_until_eof<V: VideoFrame,
         tsc.hc = hc;
     }
     let vc = V::VSL_COUNT;
-    let hc = tsc.hc.rem_euclid(M1_CYCLE_TS as Ts);
-    r_incr += (i32::from(vc - tsc.vc) * V::HTS_COUNT as i32 +
-               i32::from(hc - tsc.hc)) / M1_CYCLE_TS as i32;
+    let hc = tsc.hc.rem_euclid(M1_CYCLE_TS as Ts) - M1_CYCLE_TS as Ts;
+    r_incr += (
+                (i32::from(vc) - i32::from(tsc.vc)) * V::HTS_COUNT as i32 +
+                (i32::from(hc) - i32::from(tsc.hc))
+              ) / M1_CYCLE_TS as i32;
     tsc.hc = hc;
     tsc.vc = vc;
     if r_incr >= 0 {
         cpu.add_r(r_incr);
     }
     else {
-        unreachable!();
+        panic!("halt: a video timestamp exceeds the end of frame boundary");
     }
     tsc
 }
@@ -527,6 +549,7 @@ mod tests {
         cpu.set_pc(addr);
         let mut cpu1 = cpu.clone();
         let mut ula1 = ula.clone();
+        // execute_halted_state_until_eof::<UlaVideoFrame,UlaMemoryContention,_>(ula.tsc, &mut cpu);
         assert_eq!(cpu.is_halt(), false);
         ula.execute_next_frame(&mut cpu);
         assert_eq!(cpu.is_halt(), true);
@@ -549,22 +572,21 @@ mod tests {
         }
         assert_eq!(cpu1.is_halt(), true);
         assert_eq!(was_halt, true);
-        while tsc1.tsc.hc < 0 {
+        while tsc1.tsc.hc < -(M1_CYCLE_TS as Ts) {
             match cpu1.execute_next::<_,_,CpuDebugFn>(&mut ula1, &mut tsc1, None) {
                 Ok(()) => (),
                 Err(_) => unreachable!()
             }
         }
+        // println!("{:?} {:?} fr: {:?}", tsc1.tsc, ula.tsc, ula.frame_tstate());
         assert_eq!(tsc1.tsc, ula.tsc);
-        // println!("{:?}", tsc1.tsc);
         assert_eq!(cpu1, cpu);
-        // println!("{:?}", cpu1);
         // println!("=================================");
     }
 
     #[test]
     fn ula_works() {
-        for vc in 0..UlaVideoFrame::VSL_COUNT {
+        for vc in 0..=UlaVideoFrame::VSL_COUNT {
             // println!("vc: {:?}", vc);
             for hc in UlaVideoFrame::HTS_RANGE {
                 test_ula_contended_halt(0, vc, hc);
