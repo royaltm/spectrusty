@@ -23,6 +23,7 @@ use crate::memory::{Memory128k, ZxMemory, MemoryExtension, NoMemoryExtension};
 use crate::clock::{VideoTs, FTs, VFrameTsCounter, MemoryContention};
 
 pub use video::Ula128VidFrame;
+pub(crate) use io::Ula128MemFlags;
 
 /// The ZX Spectrum 128k CPU clock in cycles per second.
 pub const CPU_HZ: u32 = 3_546_900;
@@ -45,7 +46,7 @@ pub(self) type InnerUla<B, X> = Ula<Memory128k, B, X, Ula128VidFrame>;
 #[cfg_attr(feature = "snapshot", serde(try_from = "u8", into = "u8"))]
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RamPage8 {
+pub enum MemPage8 {
     Bank0 = 0,
     Bank1 = 1,
     Bank2 = 2,
@@ -57,7 +58,7 @@ pub enum RamPage8 {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct TryFromU8RamPage8Error(pub u8);
+pub struct TryFromU8MemPage8Error(pub u8);
 
 /// ZX Spectrum 128k ULA.
 #[derive(Clone)]
@@ -65,7 +66,7 @@ pub struct TryFromU8RamPage8Error(pub u8);
 #[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]
 pub struct Ula128<B=NullDevice<VideoTs>, X=NoMemoryExtension> {
     ula: InnerUla<B, X>,
-    mem_page3_bank: RamPage8,
+    mem_page3_bank: MemPage8,
     cur_screen_shadow: bool, // current shadow screen
     beg_screen_shadow: bool, // shadow screen when a frame began
     mem_locked: bool,
@@ -79,7 +80,7 @@ impl<B: Default, X: Default> Default for Ula128<B, X> {
     fn default() -> Self {
         Ula128 {
             ula: Default::default(),
-            mem_page3_bank: RamPage8::Bank0,
+            mem_page3_bank: MemPage8::Bank0,
             cur_screen_shadow: false,
             beg_screen_shadow: false,
             mem_locked: false,
@@ -104,35 +105,35 @@ impl<B, X> core::fmt::Debug for Ula128<B, X>
     }
 }
 
-impl std::error::Error for TryFromU8RamPage8Error {}
+impl std::error::Error for TryFromU8MemPage8Error {}
 
-impl fmt::Display for TryFromU8RamPage8Error {
+impl fmt::Display for TryFromU8MemPage8Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "converted integer ({}) out of range for `RamPage8`", self.0)
+        write!(f, "converted integer ({}) out of range for `MemPage8`", self.0)
     }
 }
 
-impl TryFrom<u8> for RamPage8 {
-    type Error = TryFromU8RamPage8Error;
+impl TryFrom<u8> for MemPage8 {
+    type Error = TryFromU8MemPage8Error;
     fn try_from(bank: u8) -> core::result::Result<Self, Self::Error> {
         Ok(match bank {
-            0 => RamPage8::Bank0,
-            1 => RamPage8::Bank1,
-            2 => RamPage8::Bank2,
-            3 => RamPage8::Bank3,
-            4 => RamPage8::Bank4,
-            5 => RamPage8::Bank5,
-            6 => RamPage8::Bank6,
-            7 => RamPage8::Bank7,
-            _ => return Err(TryFromU8RamPage8Error(bank))
+            0 => MemPage8::Bank0,
+            1 => MemPage8::Bank1,
+            2 => MemPage8::Bank2,
+            3 => MemPage8::Bank3,
+            4 => MemPage8::Bank4,
+            5 => MemPage8::Bank5,
+            6 => MemPage8::Bank6,
+            7 => MemPage8::Bank7,
+            _ => return Err(TryFromU8MemPage8Error(bank))
         })
     }
 }
 
 macro_rules! impl_ram_page_from {
     ($($ty:ty),*) => {$(
-        impl From<RamPage8> for $ty {
-            fn from(bank: RamPage8) -> $ty {
+        impl From<MemPage8> for $ty {
+            fn from(bank: MemPage8) -> $ty {
                 bank as $ty
             }
         }
@@ -148,16 +149,16 @@ impl<B, X> Ula128<B, X> {
     }
 
     #[inline(always)]
-    fn page3_screen_bank(&self) -> Option<u8> {
+    fn page3_screen_shadow_bank(&self) -> Option<bool> {
         match self.mem_page3_bank {
-            RamPage8::Bank5 => Some(0),
-            RamPage8::Bank7 => Some(1),
+            MemPage8::Bank5 => Some(false),
+            MemPage8::Bank7 => Some(true),
             _ => None
         }
     }
 
     #[inline]
-    fn set_mem_page3_bank(&mut self, bank: RamPage8) -> bool {
+    fn set_mem_page3_bank(&mut self, bank: MemPage8) -> bool {
         let bank_diff = self.mem_page3_bank as u8 ^ bank as u8;
         if bank_diff != 0 {
             self.mem_page3_bank = bank;
@@ -235,7 +236,7 @@ impl<B, X> ControlUnit for Ula128<B, X>
 
     fn reset<C: Cpu>(&mut self, cpu: &mut C, hard: bool) {
         self.ula_reset(cpu, hard);
-        self.mem_page3_bank = RamPage8::Bank0;
+        self.mem_page3_bank = MemPage8::Bank0;
         self.cur_screen_shadow = false;
         self.beg_screen_shadow = false;
         self.mem_locked = false;

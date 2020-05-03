@@ -6,27 +6,45 @@ use crate::bus::{BusDevice, PortAddress};
 use crate::clock::VideoTs;
 use crate::peripherals::{KeyboardInterface, ZXKeyboardMap};
 use crate::memory::{ZxMemory, MemoryExtension};
-use crate::video::VideoFrame;
-use super::{Ula128, Ula128VidFrame, MemPage8};
+use super::{Ula3, SpecialPaging};
+use crate::chip::ula128::{MemPage8, Ula128MemFlags};
 
 #[derive(Clone, Copy, Default, Debug)]
-struct Ula128MemPortAddress;
-impl PortAddress for Ula128MemPortAddress {
-    const ADDRESS_MASK: u16 = 0b1000_0000_0000_0010;
+struct Ula3Mem1PortAddress;
+impl PortAddress for Ula3Mem1PortAddress {
+    const ADDRESS_MASK: u16 = 0b1100_0000_0000_0010;
     const ADDRESS_BITS: u16 = 0b0111_1111_1111_1101;
+}
+
+#[derive(Clone, Copy, Default, Debug)]
+struct Ula3Mem2PortAddress;
+impl PortAddress for Ula3Mem2PortAddress {
+    const ADDRESS_MASK: u16 = 0b1111_0000_0000_0010;
+    const ADDRESS_BITS: u16 = 0b0001_1111_1111_1101;
 }
 
 bitflags! {
     #[derive(Default)]
-    pub(crate) struct Ula128MemFlags: u8 {
-        const RAM_BANK_MASK = 0b00_0111;
-        const SCREEN_BANK   = 0b00_1000;
-        const ROM_BANK      = 0b01_0000;
-        const LOCK_MMU      = 0b10_0000;
+    pub(crate) struct Ula3MemFlags: u8 {
+        const EXT_PAGING  = 0b001;
+        const PAGE_LAYOUT = 0b110;
+        const ROM_BANK_HI = 0b100;
     }
 }
 
-impl<B, X> Io for Ula128<B, X>
+impl From<Ula3MemFlags> for SpecialPaging {
+    fn from(flags: Ula3MemFlags) -> SpecialPaging {
+        match (flags & Ula3MemFlags::PAGE_LAYOUT).bits() >> 1 {
+            0 => SpecialPaging::Banks0123,
+            1 => SpecialPaging::Banks4567,
+            2 => SpecialPaging::Banks4563,
+            3 => SpecialPaging::Banks4763,
+            _ => unreachable!()
+        }
+    }
+}
+
+impl<B, X> Io for Ula3<B, X>
     where B: BusDevice<Timestamp=VideoTs>
 {
     type Timestamp = VideoTs;
@@ -39,35 +57,31 @@ impl<B, X> Io for Ula128<B, X>
     }
 
     fn read_io(&mut self, port: u16, ts: VideoTs) -> (u8, Option<NonZeroU16>) {
-        if Ula128MemPortAddress::match_port(port) {
-            // Reads from port 0x7ffd cause a crash, as the 128's HAL10H8 chip does not distinguish
-            // between reads and writes to this port, resulting in a floating data bus being used to
-            // set the paging registers.
-            let data = self.floating_bus(ts);
-            self.write_mem_port(data, ts); // FIXIT: read_io should allow breaks too
-            (data, None)
-        }
-        else {
-            self.ula.ula_read_io(port, ts)
-                    .unwrap_or_else(|| (self.floating_bus(ts), None))
-        }
+        self.ula.ula_read_io(port, ts)
+                .unwrap_or_else(|| (u8::max_value(), None))
     }
 
     fn write_io(&mut self, port: u16, data: u8, ts: VideoTs) -> (Option<()>, Option<NonZeroU16>) {
-        if Ula128MemPortAddress::match_port(port) {
+        if Ula3Mem1PortAddress::match_port(port) {
             // (self.write_mem_port(data, ts).then_some(()), None) // after stabilizing # 64260
-            if self.write_mem_port(data, ts) {
+            if self.write_mem1_port(data, ts) {
                 return (Some(()), None)
             }
             (None, None)
         }
         else {
-            self.ula.write_io(port, data, ts)
+            let (mut res, ws) = self.ula.write_io(port, data, ts);
+            if Ula3Mem2PortAddress::match_port(port) {
+                if self.write_mem2_port(data) {
+                    res = Some(());
+                }
+            }
+            (res, ws)
         }
     }
 }
 
-impl<B, X> Memory for Ula128<B, X>
+impl<B, X> Memory for Ula3<B, X>
     where B: BusDevice<Timestamp=VideoTs>, X: MemoryExtension
 {
     type Timestamp = VideoTs;
@@ -87,9 +101,8 @@ impl<B, X> Memory for Ula128<B, X>
         self.ula.memory.read16(addr)
     }
 
-    #[inline]
-    fn read_opcode(&mut self, pc: u16, ir: u16, ts: VideoTs) -> u8 {
-        self.update_snow_interference(ts, ir);
+    #[inline(always)]
+    fn read_opcode(&mut self, pc: u16, _ir: u16, _ts: VideoTs) -> u8 {
         self.ula.memext.opcode_read(pc, &mut self.ula.memory)
     }
 
@@ -100,7 +113,7 @@ impl<B, X> Memory for Ula128<B, X>
     }
 }
 
-impl<B, X> KeyboardInterface for Ula128<B, X> {
+impl<B, X> KeyboardInterface for Ula3<B, X> {
     #[inline(always)]
     fn get_key_state(&self) -> ZXKeyboardMap {
         self.ula.get_key_state()
@@ -111,9 +124,9 @@ impl<B, X> KeyboardInterface for Ula128<B, X> {
     }
 }
 
-impl<B, X> Ula128<B, X> {
+impl<B, X> Ula3<B, X> {
     #[inline]
-    fn write_mem_port(&mut self, data: u8, ts: VideoTs) -> bool {
+    fn write_mem1_port(&mut self, data: u8, ts: VideoTs) -> bool {
         if !self.mem_locked {
             let flags = Ula128MemFlags::from_bits_truncate(data);
             if flags.intersects(Ula128MemFlags::LOCK_MMU) {
@@ -125,22 +138,26 @@ impl<B, X> Ula128<B, X> {
                 self.cur_screen_shadow = cur_screen_shadow;
                 self.screen_changes.push(ts);
             }
-            let rom_bank = if flags.intersects(Ula128MemFlags::ROM_BANK) { 1 } else { 0 };
-            self.ula.memory.map_rom_bank(rom_bank, 0).unwrap();
+            let rom_lo = flags.intersects(Ula128MemFlags::ROM_BANK);
             let page3_bank = MemPage8::try_from((flags & Ula128MemFlags::RAM_BANK_MASK).bits()).unwrap();
             // println!("\nscr: {} pg3: {} ts: {}x{}", self.cur_screen_shadow, mem_page3_bank, ts.vc, ts.hc);
-            return self.set_mem_page3_bank(page3_bank)
+            return self.set_mem_page3_bank_and_rom_lo(page3_bank, rom_lo)
         }
         false
     }
 
     #[inline]
-    fn floating_bus(&self, ts: VideoTs) -> u8 {
-        if let Some(addr) = Ula128VidFrame::floating_bus_screen_address(ts) {
-            self.ula.memory.read_screen(self.cur_screen_shadow.into(), addr)
+    fn write_mem2_port(&mut self, data: u8) -> bool {
+        if !self.mem_locked {
+            let flags = Ula3MemFlags::from_bits_truncate(data);
+            return if flags.intersects(Ula3MemFlags::EXT_PAGING) {
+                self.set_mem_special_paging(SpecialPaging::from(flags))
+            }
+            else {
+                let rom_hi = flags.intersects(Ula3MemFlags::ROM_BANK_HI);
+                self.set_rom_hi_no_special_paging(rom_hi)
+            }
         }
-        else {
-            u8::max_value()
-        }
+        false
     }
 }

@@ -79,7 +79,6 @@ impl<'a, M: 'a, B: 'a, X: 'a, F: 'a> MicOut<'a> for Ula<M, B, X, F>
     where F: VideoFrame
 {
     type PulseIter = MicPulseIter<core::slice::Iter<'a, VideoTsData2>, F>;
-    /// Returns a frame buffered mic output as a pulse iterator.
     fn mic_out_pulse_iter(&'a self) -> Self::PulseIter {
         MicPulseIter::new(
                 self.prev_earmic_ts,
