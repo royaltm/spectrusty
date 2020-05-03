@@ -4,15 +4,14 @@ use core::ops::Range;
 #[cfg(feature = "snapshot")]
 use serde::{Serialize, Deserialize};
 
-use crate::memory::ZxMemory;
-use crate::clock::{VideoTs, Ts, VideoTsData3};
+use crate::clock::{VideoTs, Ts};
 use crate::chip::{
     ula::frame_cache::{pixel_address_coords, color_address_coords},
-    ula128::frame_cache::Ula128FrameProducer
+    ula128::{Ula128VidFrame, video::create_ula128_renderer}
 };
 use crate::video::{
-    Renderer, BorderSize, BorderColor, PixelBuffer, Palette,
-    VideoFrame, Video, MAX_BORDER_SIZE
+    BorderSize, BorderColor, PixelBuffer, Palette,
+    VideoFrame, Video
 };
 use super::Ula3;
 
@@ -22,31 +21,29 @@ pub struct Ula3VidFrame;
 
 impl VideoFrame for Ula3VidFrame {
     /// A range of horizontal T-states, 0 should be where the frame starts.
-    const HTS_RANGE: Range<Ts> = -73..155;
+    const HTS_RANGE: Range<Ts> = Ula128VidFrame::HTS_RANGE;
     /// The first video scan line index of the top border.
-    const VSL_BORDER_TOP: Ts = 15;
+    const VSL_BORDER_TOP: Ts = Ula128VidFrame::VSL_BORDER_TOP;
     /// A range of video scan line indexes for the pixel area.
-    const VSL_PIXELS: Range<Ts> = 63..255;
+    const VSL_PIXELS: Range<Ts> = Ula128VidFrame::VSL_PIXELS;
     /// The last video scan line index of the bottom border.
-    const VSL_BORDER_BOT: Ts = 303;
+    const VSL_BORDER_BOT: Ts = Ula128VidFrame::VSL_BORDER_BOT;
     /// A total number of video scan lines.
-    const VSL_COUNT: Ts = 311;
+    const VSL_COUNT: Ts = Ula128VidFrame::VSL_COUNT;
 
     type HtsIter = StepBy<Range<Ts>>;
 
+    #[inline(always)]
     fn border_whole_line_hts_iter(border_size: BorderSize) -> Self::HtsIter {
-        let invborder = ((MAX_BORDER_SIZE - Self::border_size_pixels(border_size))/2) as Ts;
-        (-22+invborder..154-invborder).step_by(4)
+        Ula128VidFrame::border_whole_line_hts_iter(border_size)
     }
-
+    #[inline(always)]
     fn border_left_hts_iter(border_size: BorderSize) -> Self::HtsIter {
-        let invborder = ((MAX_BORDER_SIZE - Self::border_size_pixels(border_size))/2) as Ts;
-        (-22+invborder..2).step_by(4)
+        Ula128VidFrame::border_left_hts_iter(border_size)
     }
-
+    #[inline(always)]
     fn border_right_hts_iter(border_size: BorderSize) -> Self::HtsIter {
-        let invborder = ((MAX_BORDER_SIZE - Self::border_size_pixels(border_size))/2) as Ts;
-        (130..154-invborder).step_by(4)
+        Ula128VidFrame::border_right_hts_iter(border_size)
     }
 
     #[inline]
@@ -85,7 +82,12 @@ impl<D, X> Video for Ula3<D, X> {
             border_size: BorderSize
         )
     {
-        self.create_renderer(border_size).render_pixels::<B, P, Self::VideoFrame>(buffer, pitch)
+        create_ula128_renderer(border_size,
+                               &mut self.ula,
+                               self.beg_screen_shadow,
+                               &self.shadow_frame_cache,
+                               &mut self.screen_changes)
+        .render_pixels::<B, P, Self::VideoFrame>(buffer, pitch)
     }
 }
 
@@ -109,36 +111,6 @@ impl<B, X> Ula3<B, X> {
         else {
             let coords = color_address_coords(addr);
             frame_cache.update_frame_colors(&self.ula.memory, coords, addr, ts);
-        }
-    }
-
-    fn create_renderer<'a>(
-            &'a mut self,
-            border_size: BorderSize
-        ) -> Renderer<Ula128FrameProducer<'a, Ula3VidFrame>, std::vec::Drain<'a, VideoTsData3>>
-    {
-        let swap_screens = self.beg_screen_shadow;
-        let border = self.ula.border_color().into();
-        let invert_flash = self.ula.frames.0 & 16 != 0;
-        let (border_changes, memory, frame_cache0) = self.ula.video_render_data_view();
-        let frame_cache1 = &self.shadow_frame_cache;
-        let screen0 = &memory.screen_ref(0).unwrap();
-        let screen1 = &memory.screen_ref(1).unwrap();
-        let frame_image_producer = Ula128FrameProducer::new(
-            swap_screens,
-            screen0,
-            screen1,
-            frame_cache0,
-            frame_cache1,
-            self.screen_changes.drain(..)
-        );
-        // print!("render: {} {:?}", screen_bank, screen.as_ptr());
-        Renderer {
-            frame_image_producer,
-            border,
-            border_size,
-            border_changes: border_changes.drain(..),
-            invert_flash
         }
     }
 }

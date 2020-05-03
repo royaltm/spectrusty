@@ -1,7 +1,7 @@
 mod audio_earmic;
 pub(crate) mod frame_cache;
 mod io;
-mod video;
+pub(crate) mod video;
 
 use core::fmt;
 use core::convert::TryFrom;

@@ -7,7 +7,8 @@ use serde::{Serialize, Deserialize};
 use crate::memory::ZxMemory;
 use crate::clock::{VideoTs, Ts, MemoryContention, VideoTsData3};
 use crate::chip::ula::{
-    frame_cache::{pixel_address_coords, color_address_coords}
+    Ula,
+    frame_cache::{UlaFrameCache, pixel_address_coords, color_address_coords}
 };
 use crate::video::{
     Renderer, BorderSize, BorderColor, PixelBuffer, Palette,
@@ -109,7 +110,12 @@ impl<D, X> Video for Ula128<D, X> {
             border_size: BorderSize
         )
     {
-        self.create_renderer(border_size).render_pixels::<B, P, Self::VideoFrame>(buffer, pitch)
+        create_ula128_renderer(border_size,
+                               &mut self.ula,
+                               self.beg_screen_shadow,
+                               &self.shadow_frame_cache,
+                               &mut self.screen_changes)
+        .render_pixels::<B, P, Self::VideoFrame>(buffer, pitch)
     }
 }
 
@@ -154,35 +160,41 @@ impl<B, X> Ula128<B, X> {
             }
         }
     }
+}
 
-    fn create_renderer<'a>(
-            &'a mut self,
-            border_size: BorderSize
-        ) -> Renderer<Ula128FrameProducer<'a, Ula128VidFrame>, std::vec::Drain<'a, VideoTsData3>>
-    {
-        let swap_screens = self.beg_screen_shadow;
-        let border = self.ula.border_color().into();
-        let invert_flash = self.ula.frames.0 & 16 != 0;
-        let (border_changes, memory, frame_cache0) = self.ula.video_render_data_view();
-        let frame_cache1 = &self.shadow_frame_cache;
-        let screen0 = &memory.screen_ref(0).unwrap();
-        let screen1 = &memory.screen_ref(1).unwrap();
-        let frame_image_producer = Ula128FrameProducer::new(
-            swap_screens,
-            screen0,
-            screen1,
-            frame_cache0,
-            frame_cache1,
-            self.screen_changes.drain(..)
-        );
-        // print!("render: {} {:?}", screen_bank, screen.as_ptr());
-        Renderer {
-            frame_image_producer,
-            border,
-            border_size,
-            border_changes: border_changes.drain(..),
-            invert_flash
-        }
+pub(crate) fn create_ula128_renderer<'a, V, M, B, X>(
+            border_size: BorderSize,
+            ula: &'a mut Ula<M, B, X, V>,
+            beg_screen_shadow: bool,
+            shadow_frame_cache: &'a UlaFrameCache<V>,
+            screen_changes:&'a mut Vec<VideoTs>
+        ) -> Renderer<Ula128FrameProducer<'a, V>, std::vec::Drain<'a, VideoTsData3>>
+    where V: VideoFrame,
+          M: ZxMemory,
+          Ula<M, B, X, V>: Video
+{
+    let swap_screens = beg_screen_shadow;
+    let border = ula.border_color().into();
+    let invert_flash = ula.frames.0 & 16 != 0;
+    let (border_changes, memory, frame_cache0) = ula.video_render_data_view();
+    let frame_cache1 = shadow_frame_cache;
+    let screen0 = &memory.screen_ref(0).unwrap();
+    let screen1 = &memory.screen_ref(1).unwrap();
+    let frame_image_producer = Ula128FrameProducer::new(
+        swap_screens,
+        screen0,
+        screen1,
+        frame_cache0,
+        frame_cache1,
+        screen_changes.drain(..)
+    );
+    // print!("render: {} {:?}", screen_bank, screen.as_ptr());
+    Renderer {
+        frame_image_producer,
+        border,
+        border_size,
+        border_changes: border_changes.drain(..),
+        invert_flash
     }
 }
 

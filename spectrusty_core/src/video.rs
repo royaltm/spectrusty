@@ -80,17 +80,21 @@ pub trait Video {
     fn border_color(&self) -> BorderColor;
     /// Force sets the border area to the given color number [0, 7].
     fn set_border_color(&mut self, border: BorderColor);
-    /// Renders last emulated frame's video data into the provided frame `buffer`.
+    /// Renders last emulated frame's video data into the provided pixel data `buffer`.
     ///
     /// * `pitch` is the number of bytes in a single row of pixel data, including padding between lines.
     /// * `border_size` determines the size of border rendered around the INK and PAPER area.
     ///
-    /// Note that different [BorderSize]s will result in a different size of the rendered buffer area.
+    /// Note that different [BorderSize]s will result in a different size of the rendered `buffer` area.
     ///
-    /// To predetermine the resolution of the rendered buffer area use [VideoFrame::screen_size_pixels].
+    /// To predetermine the size of the rendered buffer area use [VideoFrame::screen_size_pixels].
     ///
     /// * [PixelBuffer] implementation is used to write pixels into the `buffer`.
-    /// * [Palette] implementation is used to create colors from the Spectrum's color index.
+    /// * [Palette] implementation is used to create colors from the Spectrum colors.
+    ///
+    /// **NOTE**: Currently this is a one-time action (per frame), as internal data will be drained
+    /// during the rendering. Calling it twice will succeed but the image rendered the second time
+    /// will be most probably incorrect due to the missing data.
     fn render_video_frame<'a, B: PixelBuffer<'a>, P: Palette<Pixel=B::Pixel>>(
         &mut self,
         buffer: &'a mut [u8],
