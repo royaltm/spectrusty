@@ -79,7 +79,7 @@ pub enum MemPage4 {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TryFromU8MemPage4Error(pub u8);
 
-/// ZX Spectrum +2A/+3 ULA.
+/// ZX Spectrum +2A/+3 ULA. (Amstrad gate array).
 #[derive(Clone)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]

@@ -95,11 +95,11 @@ impl<D, X> Video for Ula128<D, X> {
 
     #[inline]
     fn border_color(&self) -> BorderColor {
-        self.ula.ula_border_color()
+        self.ula.border_color()
     }
 
     fn set_border_color(&mut self, border: BorderColor) {
-        self.ula.ula_set_border_color(border)
+        self.ula.set_border_color(border)
     }
 
     fn render_video_frame<'a, B: PixelBuffer<'a>, P: Palette<Pixel=B::Pixel>>(
@@ -161,9 +161,9 @@ impl<B, X> Ula128<B, X> {
         ) -> Renderer<Ula128FrameProducer<'a, Ula128VidFrame>, std::vec::Drain<'a, VideoTsData3>>
     {
         let swap_screens = self.beg_screen_shadow;
-        let border = self.ula.ula_border_color().into();
+        let border = self.ula.border_color().into();
         let invert_flash = self.ula.frames.0 & 16 != 0;
-        let (border_changes, memory, frame_cache0) = self.ula.ula_video_render_data_view();
+        let (border_changes, memory, frame_cache0) = self.ula.video_render_data_view();
         let frame_cache1 = &self.shadow_frame_cache;
         let screen0 = &memory.screen_ref(0).unwrap();
         let screen1 = &memory.screen_ref(1).unwrap();

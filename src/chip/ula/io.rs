@@ -51,10 +51,11 @@ impl<M, B, X, V> Io for Ula<M, B, X, V>
     }
 }
 
-impl<M, B, X> Memory for Ula<M, B, X>
+impl<M, B, X, V> Memory for Ula<M, B, X, V>
     where M: ZxMemory,
           B: BusDevice<Timestamp=VideoTs>,
-          X: MemoryExtension
+          X: MemoryExtension,
+          V: VideoFrame
 {
     type Timestamp = VideoTs;
 

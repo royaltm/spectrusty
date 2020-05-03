@@ -88,16 +88,18 @@ impl VideoFrame for UlaVideoFrame {
     }
 }
 
-impl<M: ZxMemory, D, X> Video for Ula<M, D, X> {
-    type VideoFrame = UlaVideoFrame;
+impl<M: ZxMemory, D, X, V: VideoFrame> Video for Ula<M, D, X, V> {
+    type VideoFrame = V;
 
     #[inline]
     fn border_color(&self) -> BorderColor {
-        self.ula_border_color()
+        self.last_border
     }
 
     fn set_border_color(&mut self, border: BorderColor) {
-        self.ula_set_border_color(border)
+        self.last_border = border;
+        self.border = border;
+        self.border_out_changes.clear();
     }
 
     fn render_video_frame<'a, B: PixelBuffer<'a>, P: Palette<Pixel=B::Pixel>>(
@@ -107,11 +109,11 @@ impl<M: ZxMemory, D, X> Video for Ula<M, D, X> {
             border_size: BorderSize
         )
     {
-        self.create_renderer(border_size).render_pixels::<B, P, Self::VideoFrame>(buffer, pitch)
+        self.create_renderer(border_size).render_pixels::<B, P, V>(buffer, pitch)
     }
 }
 
-impl<M: ZxMemory, B, X> Ula<M, B, X> {
+impl<M: ZxMemory, B, X, V: VideoFrame> Ula<M, B, X, V> {
     #[inline]
     pub(super) fn update_frame_cache(&mut self, addr: u16, ts: VideoTs) {
         match addr {
@@ -130,7 +132,7 @@ impl<M: ZxMemory, B, X> Ula<M, B, X> {
     #[inline(always)]
     pub(super) fn update_snow_interference(&mut self, ts: VideoTs, ir: u16) {
         if UlaMemoryContention::is_contended_address(ir) {
-            if let Some(coords) = UlaVideoFrame::snow_interference_coords(ts) {
+            if let Some(coords) = V::snow_interference_coords(ts) {
                 let screen = self.memory.screen_ref(0).unwrap();
                 self.frame_cache.apply_snow_interference(screen, coords, ir as u8)
             }
@@ -145,18 +147,9 @@ impl<M: ZxMemory, B, X, V> Ula<M, B, X, V> {
         self.border_out_changes.clear();
         self.frame_cache.clear();
     }
+
     #[inline]
-    pub(crate) fn ula_border_color(&self) -> BorderColor {
-        self.last_border
-    }
-    #[inline]
-    pub(crate) fn ula_set_border_color(&mut self, border: BorderColor) {
-        self.last_border = border;
-        self.border = border;
-        self.border_out_changes.clear();
-    }
-    #[inline]
-    pub(crate) fn ula_video_render_data_view(&mut self) -> (&mut Vec<VideoTsData3>, &M, &UlaFrameCache<V>) {
+    pub(crate) fn video_render_data_view(&mut self) -> (&mut Vec<VideoTsData3>, &M, &UlaFrameCache<V>) {
         (&mut self.border_out_changes, &self.memory, &self.frame_cache)
     }
 
