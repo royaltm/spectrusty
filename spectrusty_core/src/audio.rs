@@ -134,8 +134,11 @@ pub trait AmpLevels<T: Copy> {
 /// 
 /// This trait defines common methods to interface [Blep] implementations.
 pub trait AudioFrame<B: Blep> {
-    /// Sets up [Blep] time rate and ensures enough space for the audio frame is reserved.
-    fn ensure_audio_frame_time(&self, blep: &mut B, sample_rate: u32);
+    /// Sets up the [Blep] time rate and ensures there is enough room for the single frame's audio data.
+    ///
+    /// * `sample_rate` is the number of samples per second of the rendered audio,
+    /// * `cpu_hz` is the number of the emulated CPU cycles (T-states) per second.
+    fn ensure_audio_frame_time(&self, blep: &mut B, sample_rate: u32, cpu_hz: u32);
     /// Returns a timestamp to be passed to [Blep] to end the frame.
     ///
     /// #Panics

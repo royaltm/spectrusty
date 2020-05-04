@@ -163,7 +163,7 @@ fn run<C, U, I>(
     ) -> Result<(), Box<dyn std::error::Error>>
     where I: IntoIterator<Item=String>,
           C: Cpu + std::fmt::Debug + serde::Serialize,
-          U: Default + UlaCommon + UlaAudioFrame<ZXBlep> + MemoryAccess + serde::Serialize,
+          U: Default + UlaCommon + UlaAudioFrame<ZXBlep> + HostConfig + serde::Serialize,
           // U::Memory: serde::Serialize,
           ZXSpectrum<C, U>: DeviceAccess<U::VideoFrame>,
           U::VideoFrame: 'static

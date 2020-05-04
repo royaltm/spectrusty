@@ -6,7 +6,7 @@ use crate::peripherals::ay::audio::AyAudioFrame;
 use crate::peripherals::bus::ay::AyAudioVBusDevice;
 
 use crate::video::VideoFrame;
-use super::{CPU_HZ, Ula};
+use super::Ula;
 
 #[cfg(feature = "peripherals")]
 impl<A, M, D, X, F> AyAudioFrame<A> for Ula<M, D, X, F>
@@ -25,8 +25,8 @@ impl<A, M, B, X, F> AudioFrame<A> for Ula<M, B, X, F>
           F: VideoFrame
 {
     #[inline]
-    fn ensure_audio_frame_time(&self, blep: &mut A, sample_rate: u32) {
-        blep.ensure_frame_time(sample_rate, CPU_HZ, F::FRAME_TSTATES_COUNT, MARGIN_TSTATES)
+    fn ensure_audio_frame_time(&self, blep: &mut A, sample_rate: u32, cpu_hz: u32) {
+        blep.ensure_frame_time(sample_rate, cpu_hz, F::FRAME_TSTATES_COUNT, MARGIN_TSTATES)
     }
 
     #[inline]

@@ -819,8 +819,10 @@ impl<V: VideoFrame> ZXMicrodrives<V> {
 
 #[cfg(test)]
 mod tests {
+    use spectrusty::clock::VFrameTsCounter;
+    use spectrusty::chip::ula::{UlaVideoFrame, UlaMemoryContention};
     use super::*;
-    use spectrusty::chip::ula::{UlaTsCounter, UlaVideoFrame};
+    type UlaTsCounter = VFrameTsCounter<UlaVideoFrame, UlaMemoryContention>;
 
     #[test]
     fn microdrives_works() {

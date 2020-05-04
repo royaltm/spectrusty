@@ -5,7 +5,7 @@ use core::ops::Range;
 use serde::{Serialize, Deserialize};
 
 use crate::memory::ZxMemory;
-use crate::clock::{VFrameTsCounter, MemoryContention, VideoTs, Ts, VideoTsData3};
+use crate::clock::{MemoryContention, VideoTs, Ts, VideoTsData3};
 use crate::video::{
     Renderer, BorderSize, BorderColor, PixelBuffer, Palette,
     VideoFrame, Video, CellCoords, MAX_BORDER_SIZE
@@ -16,8 +16,6 @@ use super::frame_cache::{UlaFrameCache, UlaFrameProducer};
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 pub struct UlaVideoFrame;
-
-pub type UlaTsCounter = VFrameTsCounter<UlaVideoFrame, UlaMemoryContention>;
 
 impl VideoFrame for UlaVideoFrame {
     /// A range of horizontal T-states, 0 should be when the frame starts.

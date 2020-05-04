@@ -2,9 +2,11 @@ use core::num::NonZeroU16;
 use core::marker::PhantomData;
 use core::num::Wrapping;
 
-use crate::z80emu::{Cpu, Clock, Io, Memory, CpuDebug, CpuDebugFn, BreakCause, opconsts, host::{
-        TsCounter, Result, cycles::M1_CYCLE_TS
-    }};
+use crate::z80emu::{
+    Cpu, Clock, Io, Memory, CpuDebug, CpuDebugFn, BreakCause,
+    opconsts,
+    host::{TsCounter, Result, cycles::M1_CYCLE_TS}
+};
 #[cfg(feature = "snapshot")]
 use serde::{Serialize, Deserialize};
 
@@ -13,7 +15,10 @@ use crate::peripherals::ay::{audio::*, Ay3_8913Io, AyPortDecode};
 use crate::clock::{FTs, FTsData2};
 use crate::memory::{ZxMemory, Memory64k};
 use crate::bus::{BusDevice, NullDevice};
-use crate::chip::{ControlUnit, nanos_from_frame_tc_cpu_hz, HostConfig128k, HostConfig};
+use crate::chip::{
+    ControlUnit, ZxSpectrum128Config, HostConfig,
+    nanos_from_frame_tc_cpu_hz
+};
 
 #[derive(Clone)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
@@ -46,8 +51,8 @@ impl<P> Default for AyPlayer<P> {
             earmic_changes: Vec::new(),
             last_earmic: 3,
             prev_earmic: 3,
-            cpu_rate: HostConfig128k::CPU_HZ,
-            frame_tstates: HostConfig128k::FRAME_TSTATES,
+            cpu_rate: ZxSpectrum128Config::CPU_HZ,
+            frame_tstates: ZxSpectrum128Config::FRAME_TSTATES,
             bus: NullDevice::default(),
             _port_decode: PhantomData
         }
@@ -56,8 +61,8 @@ impl<P> Default for AyPlayer<P> {
 
 impl<P, A: Blep> AudioFrame<A> for AyPlayer<P>
 {
-    fn ensure_audio_frame_time(&self, blep: &mut A, sample_rate: u32) {
-        blep.ensure_frame_time(sample_rate, self.cpu_rate, self.frame_tstates, MARGIN_TSTATES)
+    fn ensure_audio_frame_time(&self, blep: &mut A, sample_rate: u32, cpu_hz: u32) {
+        blep.ensure_frame_time(sample_rate, cpu_hz, self.frame_tstates, MARGIN_TSTATES)
     }
 
     fn get_audio_frame_end_time(&self) -> FTs {
@@ -92,13 +97,6 @@ impl<P, A, L> EarMicOutAudioFrame<A> for AyPlayer<P>
 
 impl<P: AyPortDecode> ControlUnit for AyPlayer<P> {
     type BusDevice = NullDevice<FTs>;
-    fn cpu_clock_rate(&self) -> u32 {
-        self.cpu_rate
-    }
-
-    fn frame_duration_nanos(&self) -> u32 {
-        nanos_from_frame_tc_cpu_hz(self.frame_tstates as u32, self.cpu_rate) as u32
-    }
 
     fn bus_device_mut(&mut self) -> &mut Self::BusDevice {
         &mut self.bus
@@ -199,6 +197,18 @@ impl<P: AyPortDecode> ControlUnit for AyPlayer<P> {
 
 impl<P: AyPortDecode> AyPlayer<P>
 {
+    pub fn cpu_clock_rate(&self) -> u32 {
+        self.cpu_rate
+    }
+
+    pub fn frame_duration_nanos(&self) -> u32 {
+        nanos_from_frame_tc_cpu_hz(self.frame_tstates as u32, self.cpu_rate) as u32
+    }
+
+    pub fn ensure_audio_frame_time<B: Blep>(&self, blep: &mut B, sample_rate: u32) {
+        <Self as AudioFrame<B>>::ensure_audio_frame_time(self, blep, sample_rate, self.cpu_rate)
+    }
+
     fn ensure_next_frame_tsc(&mut self) -> TsCounter<FTs> {
         let ts = self.tsc.as_timestamp();
         if ts >= self.frame_tstates {

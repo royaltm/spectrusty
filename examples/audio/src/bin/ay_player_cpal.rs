@@ -33,7 +33,7 @@ fn produce<T, R: Read>(
         i16: IntoSample<T>, f32: FromSample<T>,
 {
     let output_channels = audio.channels as usize;
-    let frame_duration = HostConfig128k::frame_duration();
+    let frame_duration = ZxSpectrum128Config::frame_duration();
     // BandLimHiFi
     // BandLimLowTreb
     // BandLimLowBass
@@ -155,7 +155,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     simple_logger::init_with_level(log_level).map_err(|_| "simple logger initialization failed")?;
 
-    let frame_duration_nanos = HostConfig128k::frame_duration_nanos() as u32;
+    let frame_duration_nanos = ZxSpectrum128Config::frame_duration_nanos() as u32;
     let audio = AudioHandleAnyFormat::create(&cpal::default_host(), frame_duration_nanos, 5)?;
     let spec = hound::WavSpec {
         channels: 2,
@@ -179,7 +179,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Creating WAV: {:?}", wav_name);
     let writer = Some(WavWriter::create(wav_name, spec)?);
 
-    let frame_duration = HostConfig128k::frame_duration();
+    let frame_duration = ZxSpectrum128Config::frame_duration();
     debug!("frame duration: {:?} rate: {}", frame_duration, 1.0 / frame_duration.as_secs_f64());
     audio.play()?;
 

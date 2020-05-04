@@ -123,7 +123,7 @@ impl fmt::Display for FileType {
 // }
 impl<C, U> ZXSpectrum<C, U>
     where C: Cpu + std::fmt::Debug,
-          U: Default + UlaCommon + UlaAudioFrame<ZXBlep>
+          U: Default + UlaCommon + UlaAudioFrame<ZXBlep> + HostConfig
 {
     pub fn create(sdl_context: &Sdl, latency: usize) -> Result<Self, Box<dyn std::error::Error>> {
         // let spec = hound::WavSpec {
@@ -135,10 +135,10 @@ impl<C, U> ZXSpectrum<C, U>
         // let writer = Some(hound::WavWriter::create("spectrum.wav", spec).unwrap());
         let ula = U::default();
         let tap_cabinet = TapFileCabinet::new();
-        let audio = Audio::create(sdl_context, ula.frame_duration_nanos(), latency)?;
+        let audio = Audio::create(sdl_context, U::frame_duration_nanos(), latency)?;
         let mut bandlim = BlepAmpFilter::build((0.5).into_sample())(BlepStereo::build((0.8).into_sample())(BandLim::new(2)));
-        ula.ensure_audio_frame_time(&mut bandlim, audio.sample_rate);
-        let time_sync = ThreadSyncTimer::new(ula.frame_duration_nanos());
+        ula.ensure_audio_frame_time(&mut bandlim, audio.sample_rate, U::CPU_HZ);
+        let time_sync = ThreadSyncTimer::new(U::frame_duration_nanos());
         let mut zx = ZXSpectrum {
             cpu: C::default(),
             ula,

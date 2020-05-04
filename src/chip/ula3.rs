@@ -11,7 +11,7 @@ use serde::{Serialize, Deserialize};
 use crate::z80emu::{*, host::Result};
 use crate::bus::{BusDevice, NullDevice};
 use crate::chip::{
-    ControlUnit, MemoryAccess, nanos_from_frame_tc_cpu_hz,
+    EarIn, ReadEarMode, ControlUnit, MemoryAccess,
     ula::{
         frame_cache::UlaFrameCache,
         Ula, UlaTimestamp, UlaCpuExt, UlaMemoryContention
@@ -20,14 +20,10 @@ use crate::chip::{
         MemPage8, Ula128MemContention
     }
 };
-use crate::video::VideoFrame;
 use crate::memory::{ZxMemory, Memory128kPlus, MemoryExtension, NoMemoryExtension};
 use crate::clock::{VideoTs, FTs, VFrameTsCounter, MemoryContention, NoMemoryContention};
 
 pub use video::Ula3VidFrame;
-
-/// The ZX Spectrum +2A/+3 CPU clock in cycles per second.
-pub const CPU_HZ: u32 = 3_546_900;
 
 /// Implements [MemoryContention] in a way that all addresses are being contended.
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
@@ -108,8 +104,10 @@ pub(self) enum ContentionKind {
 
 impl<B: Default, X: Default> Default for Ula3<B, X> {
     fn default() -> Self {
+        let mut ula = Ula::default();
+        ula.set_read_ear_mode(ReadEarMode::Clear);
         Ula3 {
-            ula: Default::default(),
+            ula,
             mem_special_paging: None,
             mem_page3_bank: MemPage8::Bank0,
             rom_bank: MemPage4::Bank0,
@@ -322,48 +320,42 @@ impl<B, X> MemoryAccess for Ula3<B, X>
 }
 
 impl<B, X> ControlUnit for Ula3<B, X>
-    where B: BusDevice<Timestamp=VideoTs>, X: MemoryExtension
+    where B: BusDevice<Timestamp=VideoTs>,
+          X: MemoryExtension
 {
     type BusDevice = B;
 
-    fn cpu_clock_rate(&self) -> u32 {
-        CPU_HZ
-    }
-
-    fn frame_duration_nanos(&self) -> u32 {
-        nanos_from_frame_tc_cpu_hz(Ula3VidFrame::FRAME_TSTATES_COUNT as u32, CPU_HZ) as u32
-    }
-
+    #[inline]
     fn bus_device_mut(&mut self) -> &mut Self::BusDevice {
-        &mut self.ula.bus
+        self.ula.bus_device_mut()
     }
-
+    #[inline]
     fn bus_device_ref(&self) -> &Self::BusDevice {
-        &self.ula.bus
+        self.ula.bus_device_ref()
     }
-
+    #[inline]
     fn into_bus_device(self) -> Self::BusDevice {
-        self.ula.bus
+        self.ula.into_bus_device()
     }
 
     fn current_frame(&self) -> u64 {
-        self.ula.frames.0
+        self.ula.current_frame()
     }
 
     fn frame_tstate(&self) -> (u64, FTs) {
-        Ula3VidFrame::vts_to_norm_tstates(self.current_frame(), self.ula.tsc)
+        self.ula.frame_tstate()
     }
 
     fn current_tstate(&self) -> FTs {
-        Ula3VidFrame::vts_to_tstates(self.ula.tsc)
+        self.ula.current_tstate()
     }
 
     fn is_frame_over(&self) -> bool {
-        Ula3VidFrame::is_vts_eof(self.ula.tsc)
+        self.ula.is_frame_over()
     }
 
     fn reset<C: Cpu>(&mut self, cpu: &mut C, hard: bool) {
-        self.ula_reset(cpu, hard);
+        self.ula.reset(cpu, hard);
         self.mem_special_paging = None;
         self.mem_page3_bank = MemPage8::Bank0;
         self.rom_bank = MemPage4::Bank0;
@@ -458,5 +450,16 @@ impl<B, X> UlaTimestamp for Ula3<B, X>
         }
         vtsc
 
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::video::{Video, VideoFrame};
+    use super::*;
+
+    #[test]
+    fn test_ula3() {
+        assert_eq!(<Ula3 as Video>::VideoFrame::FRAME_TSTATES_COUNT, 70908);
     }
 }

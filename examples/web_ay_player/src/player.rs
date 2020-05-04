@@ -15,7 +15,7 @@ use spectrusty::chip::{ControlUnit, ay_player::AyPlayer};
 pub use spectrusty::audio::synth::{BandLimWide, BandLimLowTreb, BandLimLowBass, BandLimNarrow};
 pub use spectrusty::audio::AmpLevels;
 pub use spectrusty::peripherals::ay::audio::{AyAmps, AyFuseAmps};
-pub use spectrusty::chip::{HostConfig, HostConfig48k, HostConfig128k};
+pub use spectrusty::chip::{HostConfig, ZxSpectrumPALConfig, ZxSpectrum128Config};
 
 pub type Ay128kPlayer = AyPlayer<Ay128kPortDecode>;
 
@@ -116,8 +116,8 @@ impl<F: BandLimOpt> AyFilePlayer<F> {
     // sets cpu clocking
     pub fn set_clocking(&mut self, clocking: Clocking) {
         match clocking {
-            Clocking::ZXSpectrum48k => self.player.set_host_config::<HostConfig48k>(),
-            Clocking::ZXSpectrum128k => self.player.set_host_config::<HostConfig128k>(),
+            Clocking::ZXSpectrum48k => self.player.set_host_config::<ZxSpectrumPALConfig>(),
+            Clocking::ZXSpectrum128k => self.player.set_host_config::<ZxSpectrum128Config>(),
         }
         self.player.ensure_audio_frame_time(&mut self.bandlim, self.sample_rate);
     }

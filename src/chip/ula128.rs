@@ -12,21 +12,17 @@ use serde::{Serialize, Deserialize};
 
 use crate::bus::{BusDevice, NullDevice};
 use crate::chip::{
-    ControlUnit, MemoryAccess, nanos_from_frame_tc_cpu_hz,
+    ControlUnit, MemoryAccess,
     ula::{
         frame_cache::UlaFrameCache,
         Ula, UlaTimestamp, UlaCpuExt, UlaMemoryContention
     }
 };
-use crate::video::VideoFrame;
 use crate::memory::{Memory128k, ZxMemory, MemoryExtension, NoMemoryExtension};
 use crate::clock::{VideoTs, FTs, VFrameTsCounter, MemoryContention};
 
 pub use video::Ula128VidFrame;
 pub(crate) use io::Ula128MemFlags;
-
-/// The ZX Spectrum 128k CPU clock in cycles per second.
-pub const CPU_HZ: u32 = 3_546_900;
 
 /// Implements [MemoryContention] in a way that addresses in the range: [0x4000, 0x7FFF] and [0xC000, 0xFFFF]
 /// are being contended.
@@ -194,48 +190,42 @@ impl<B, X> MemoryAccess for Ula128<B, X>
 }
 
 impl<B, X> ControlUnit for Ula128<B, X>
-    where B: BusDevice<Timestamp=VideoTs>, X: MemoryExtension
+    where B: BusDevice<Timestamp=VideoTs>,
+          X: MemoryExtension
 {
     type BusDevice = B;
 
-    fn cpu_clock_rate(&self) -> u32 {
-        CPU_HZ
-    }
-
-    fn frame_duration_nanos(&self) -> u32 {
-        nanos_from_frame_tc_cpu_hz(Ula128VidFrame::FRAME_TSTATES_COUNT as u32, CPU_HZ) as u32
-    }
-
+    #[inline]
     fn bus_device_mut(&mut self) -> &mut Self::BusDevice {
-        &mut self.ula.bus
+        self.ula.bus_device_mut()
     }
-
+    #[inline]
     fn bus_device_ref(&self) -> &Self::BusDevice {
-        &self.ula.bus
+        self.ula.bus_device_ref()
     }
-
+    #[inline]
     fn into_bus_device(self) -> Self::BusDevice {
-        self.ula.bus
+        self.ula.into_bus_device()
     }
 
     fn current_frame(&self) -> u64 {
-        self.ula.frames.0
+        self.ula.current_frame()
     }
 
     fn frame_tstate(&self) -> (u64, FTs) {
-        Ula128VidFrame::vts_to_norm_tstates(self.current_frame(), self.ula.tsc)
+        self.ula.frame_tstate()
     }
 
     fn current_tstate(&self) -> FTs {
-        Ula128VidFrame::vts_to_tstates(self.ula.tsc)
+        self.ula.current_tstate()
     }
 
     fn is_frame_over(&self) -> bool {
-        Ula128VidFrame::is_vts_eof(self.ula.tsc)
+        self.ula.is_frame_over()
     }
 
     fn reset<C: Cpu>(&mut self, cpu: &mut C, hard: bool) {
-        self.ula_reset(cpu, hard);
+        self.ula.reset(cpu, hard);
         self.mem_page3_bank = MemPage8::Bank0;
         self.cur_screen_shadow = false;
         self.beg_screen_shadow = false;
@@ -331,17 +321,11 @@ impl<B, X> UlaTimestamp for Ula128<B, X>
 
 #[cfg(test)]
 mod tests {
-    use core::convert::TryFrom;
-    use crate::video::Video;
+    use crate::video::{Video, VideoFrame};
     use super::*;
-    type TestUla128 = Ula128;
 
     #[test]
     fn test_ula128() {
-        let ula128 = TestUla128::default();
-        assert_eq!(<TestUla128 as Video>::VideoFrame::FRAME_TSTATES_COUNT, 70908);
-        assert_eq!(ula128.cpu_clock_rate(), CPU_HZ);
-        assert_eq!(ula128.cpu_clock_rate(), 3_546_900);
-        assert_eq!(ula128.frame_duration_nanos(), u32::try_from(70908u64 * 1_000_000_000 / 3_546_900).unwrap());
+        assert_eq!(<Ula128 as Video>::VideoFrame::FRAME_TSTATES_COUNT, 70908);
     }
 }

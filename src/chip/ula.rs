@@ -3,6 +3,7 @@ mod earmic;
 pub(crate) mod frame_cache;
 mod io;
 mod video;
+mod video_ntsc;
 
 use core::num::Wrapping;
 
@@ -18,8 +19,7 @@ use crate::audio::{AudioFrame, Blep, EarInAudioFrame, EarMicOutAudioFrame};
 
 use crate::bus::{BusDevice, NullDevice};
 use crate::chip::{
-    ControlUnit, MemoryAccess, EarIn, MicOut, EarMic, ReadEarMode,
-    nanos_from_frame_tc_cpu_hz
+    ControlUnit, MemoryAccess, EarIn, MicOut, EarMic, ReadEarMode
 };
 use crate::video::{BorderColor, Video, VideoFrame};
 use crate::memory::{ZxMemory, MemoryExtension, NoMemoryExtension};
@@ -30,10 +30,8 @@ use crate::clock::{
     VideoTsData1, VideoTsData2, VideoTsData3};
 use frame_cache::UlaFrameCache;
 
-pub use video::{UlaVideoFrame, UlaTsCounter};
-
-/// The ZX Spectrum's CPU clock in cycles per second.
-pub const CPU_HZ: u32 = 3_500_000;
+pub use video::UlaVideoFrame;
+pub use video_ntsc::UlaNTSCVidFrame;
 
 /// A grouping trait of all common control traits for all emulated `Ula` chipsets except audio rendering.
 ///
@@ -65,6 +63,9 @@ impl<B: Blep, U> UlaAudioFrame<B> for U
 impl<B: Blep, U> UlaAudioFrame<B> for U
     where U: AudioFrame<B> + EarMicOutAudioFrame<B> + EarInAudioFrame<B>
 {}
+
+/// ZX Spectrum NTSC 16k/48k ULA.
+pub type UlaNTSC<M, B=NullDevice<VideoTs>, X=NoMemoryExtension> = Ula<M, B, X, UlaNTSCVidFrame>;
 
 /// Implements [MemoryContention] in a way that addresses in the range: [0x4000, 0x7FFF] are being contended.
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
@@ -168,20 +169,13 @@ impl<M, B, X, V> core::fmt::Debug for Ula<M, B, X, V>
     }
 }
 
-impl<M, B, X> ControlUnit for Ula<M, B, X, UlaVideoFrame>
+impl<M, B, X, V> ControlUnit for Ula<M, B, X, V>
     where M: ZxMemory,
           B: BusDevice<Timestamp=VideoTs>,
-          X: MemoryExtension
+          X: MemoryExtension,
+          V: VideoFrame
 {
     type BusDevice = B;
-
-    fn cpu_clock_rate(&self) -> u32 {
-        CPU_HZ
-    }
-
-    fn frame_duration_nanos(&self) -> u32 {
-        nanos_from_frame_tc_cpu_hz(UlaVideoFrame::FRAME_TSTATES_COUNT as u32, CPU_HZ) as u32
-    }
 
     fn bus_device_mut(&mut self) -> &mut Self::BusDevice {
         &mut self.bus
@@ -200,19 +194,28 @@ impl<M, B, X> ControlUnit for Ula<M, B, X, UlaVideoFrame>
     }
 
     fn frame_tstate(&self) -> (u64, FTs) {
-        UlaVideoFrame::vts_to_norm_tstates(self.frames.0, self.tsc)
+        V::vts_to_norm_tstates(self.frames.0, self.tsc)
     }
 
     fn current_tstate(&self) -> FTs {
-        UlaVideoFrame::vts_to_tstates(self.tsc)
+        V::vts_to_tstates(self.tsc)
     }
 
     fn is_frame_over(&self) -> bool {
-        UlaVideoFrame::is_vts_eof(self.tsc)
+        V::is_vts_eof(self.tsc)
     }
 
     fn reset<C: Cpu>(&mut self, cpu: &mut C, hard: bool) {
-        self.ula_reset(cpu, hard)
+        if hard {
+            cpu.reset();
+            self.bus.reset(self.tsc);
+            self.memory.reset();
+        }
+        else {
+            const DEBUG: Option<CpuDebugFn> = None;
+            let mut vtsc: VFrameTsCounter<V, NoMemoryContention> = VideoTs::default().into();
+            let _ = cpu.execute_instruction(self, &mut vtsc, DEBUG, opconsts::RST_00H_OPCODE);
+        }
     }
 
     fn nmi<C: Cpu>(&mut self, cpu: &mut C) -> bool {
@@ -318,7 +321,6 @@ impl<M, B, X, V> UlaTimestamp for Ula<M, B, X, V>
 }
 
 pub(super) trait UlaCpuExt: UlaTimestamp {
-    fn ula_reset<C: Cpu>(&mut self, cpu: &mut C, hard: bool);
     fn ula_nmi<T: MemoryContention, C: Cpu>(&mut self, cpu: &mut C) -> bool;
     fn ula_execute_next_frame_with_breaks<T: MemoryContention, C: Cpu>(
             &mut self,
@@ -356,21 +358,6 @@ impl<U, B, X> UlaCpuExt for U
           B: BusDevice<Timestamp=VideoTs>,
           X: MemoryExtension
 {
-    fn ula_reset<C: Cpu>(&mut self, cpu: &mut C, hard: bool)
-    {
-        if hard {
-            cpu.reset();
-            let vts = self.video_ts();
-            self.bus_device_mut().reset(vts);
-            self.memory_mut().reset();
-        }
-        else {
-            const DEBUG: Option<CpuDebugFn> = None;
-            let mut vtsc: VFrameTsCounter<<U as UlaTimestamp>::VideoFrame, NoMemoryContention> = VideoTs::default().into();
-            let _ = cpu.execute_instruction(self, &mut vtsc, DEBUG, opconsts::RST_00H_OPCODE);
-        }
-    }
-
     fn ula_nmi<T: MemoryContention, C: Cpu>(&mut self, cpu: &mut C) -> bool
     {
         let mut vtsc = self.ensure_next_frame_vtsc::<T>();
@@ -386,24 +373,30 @@ impl<U, B, X> UlaCpuExt for U
         where Self: Memory<Timestamp=VideoTs> + Io<Timestamp=VideoTs>
     {
         let mut vtsc = self.ensure_next_frame_vtsc::<T>();
-        loop {
-            match cpu.execute_with_limit(self, &mut vtsc, Self::VideoFrame::VSL_COUNT) {
-                Ok(()) => {
-                    *vtsc = Self::ula_check_halt(vtsc.into(), cpu);
-                    break
-                },
-                Err(BreakCause::Halt) => {
-                    *vtsc = execute_halted_state_until_eof::<Self::VideoFrame,T,_>(vtsc.into(), cpu);
-                    break
-                }
-                Err(_) => {
-                    *vtsc = Self::ula_check_halt(vtsc.into(), cpu);
-                    if vtsc.is_eof() {
+        if cpu.is_halt() && !cpu.get_iffs().0 {
+            // HALT forever (INT disabled)
+            *vtsc = execute_halted_state_until_eof::<Self::VideoFrame,T,_>(vtsc.into(), cpu);
+        }
+        else {
+            loop {
+                match cpu.execute_with_limit(self, &mut vtsc, Self::VideoFrame::VSL_COUNT) {
+                    Ok(()) => {
+                        *vtsc = Self::ula_check_halt(vtsc.into(), cpu);
+                        break
+                    },
+                    Err(BreakCause::Halt) => {
+                        *vtsc = execute_halted_state_until_eof::<Self::VideoFrame,T,_>(vtsc.into(), cpu);
                         break
                     }
-                    else {
-                        self.set_video_ts(vtsc.into());
-                        return false
+                    Err(_) => {
+                        *vtsc = Self::ula_check_halt(vtsc.into(), cpu);
+                        if vtsc.is_eof() {
+                            break
+                        }
+                        else {
+                            self.set_video_ts(vtsc.into());
+                            return false
+                        }
                     }
                 }
             }
@@ -524,7 +517,6 @@ pub fn execute_halted_state_until_eof<V: VideoFrame,
 
 #[cfg(test)]
 mod tests {
-    use core::convert::TryFrom;
     use crate::z80emu::opconsts::HALT_OPCODE;
     use crate::memory::Memory64k;
     use super::*;
@@ -532,11 +524,7 @@ mod tests {
 
     #[test]
     fn test_ula() {
-        let ula = TestUla::default();
         assert_eq!(<TestUla as Video>::VideoFrame::FRAME_TSTATES_COUNT, 69888);
-        assert_eq!(ula.cpu_clock_rate(), CPU_HZ);
-        assert_eq!(ula.cpu_clock_rate(), 3_500_000);
-        assert_eq!(ula.frame_duration_nanos(), u32::try_from(69888u64 * 1_000_000_000 / 3_500_000).unwrap());
     }
 
     fn test_ula_contended_halt(addr: u16, vc: Ts, hc: Ts) {

@@ -136,6 +136,9 @@ pub trait VideoFrame: Copy + Debug {
     /// The total number of T-states per frame.
     const FRAME_TSTATES_COUNT: FTs = Self::HTS_COUNT as FTs * Self::VSL_COUNT as FTs;
     /// A rendered screen border size in pixels depending on the border size selection.
+    ///
+    /// **NOTE**: The upper and lower border size may be lower than the value returned here
+    ///  e.g. in the NTSC video frame.
     fn border_size_pixels(border_size: BorderSize) -> u32 {
         match border_size {
             BorderSize::Full    => MAX_BORDER_SIZE,
@@ -151,17 +154,22 @@ pub trait VideoFrame: Copy + Debug {
     /// depending on the border size selection.
     fn screen_size_pixels(border_size: BorderSize) -> (u32, u32) {
         let border = 2 * Self::border_size_pixels(border_size);
-        (PAL_HC - 2*MAX_BORDER_SIZE + border, PAL_VC - 2*MAX_BORDER_SIZE + border)
+        let w = PAL_HC - 2*MAX_BORDER_SIZE + border;
+        let h = (PAL_VC - 2*MAX_BORDER_SIZE + border)
+                .min((Self::VSL_BORDER_BOT + 1 - Self::VSL_BORDER_TOP) as u32);
+        (w, h)
     }
     /// An iterator of the top border low resolution scan line indexes.
     fn border_top_vsl_iter(border_size: BorderSize) -> Range<Ts> {
         let border = Self::border_size_pixels(border_size) as Ts;
-        (Self::VSL_PIXELS.start - border)..Self::VSL_PIXELS.start
+        let top = (Self::VSL_PIXELS.start - border).max(Self::VSL_BORDER_TOP);
+        top..Self::VSL_PIXELS.start
     }
     /// An iterator of the bottom border low resolution scan line indexes.
     fn border_bot_vsl_iter(border_size: BorderSize) -> Range<Ts> {
         let border = Self::border_size_pixels(border_size) as Ts;
-        Self::VSL_PIXELS.end..(Self::VSL_PIXELS.end + border)
+        let bot = (Self::VSL_PIXELS.end + border).min(Self::VSL_BORDER_BOT);
+        Self::VSL_PIXELS.end..bot
     }
 
     /// Used for rendering border.

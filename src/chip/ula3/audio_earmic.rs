@@ -7,7 +7,7 @@ use crate::peripherals::bus::ay::AyAudioVBusDevice;
 use crate::video::VideoFrame;
 
 use crate::chip::{EarIn, MicOut, ReadEarMode};
-use super::{CPU_HZ, Ula3, Ula3VidFrame, InnerUla};
+use super::{Ula3, Ula3VidFrame, InnerUla};
 
 impl<A, B, X> AyAudioFrame<A> for Ula3<B, X>
     where A: Blep,
@@ -24,8 +24,8 @@ impl<A, B, X> AudioFrame<A> for Ula3<B, X>
           InnerUla<B, X>: AudioFrame<A>
 {
     #[inline]
-    fn ensure_audio_frame_time(&self, blep: &mut A, sample_rate: u32) {
-        blep.ensure_frame_time(sample_rate, CPU_HZ, Ula3VidFrame::FRAME_TSTATES_COUNT, MARGIN_TSTATES)
+    fn ensure_audio_frame_time(&self, blep: &mut A, sample_rate: u32, cpu_hz: u32) {
+        blep.ensure_frame_time(sample_rate, cpu_hz, Ula3VidFrame::FRAME_TSTATES_COUNT, MARGIN_TSTATES)
     }
 
     #[inline]

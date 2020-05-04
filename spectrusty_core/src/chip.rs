@@ -34,10 +34,6 @@ pub trait MemoryAccess {
 pub trait ControlUnit {
     /// The type of the first attached [BusDevice].
     type BusDevice: BusDevice;
-    /// Returns the [Cpu] frequency in Hz - a number of cycles (T-states) per second.
-    fn cpu_clock_rate(&self) -> u32;
-    /// Returns the duration of a single execution frame in nanoseconds.
-    fn frame_duration_nanos(&self) -> u32;
     /// Returns a mutable reference to the first bus device.
     fn bus_device_mut(&mut self) -> &mut Self::BusDevice;
     /// Returns a reference to the first bus device.
@@ -167,31 +163,22 @@ bitflags! {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TryFromU8EarMicError(pub u8);
 
+/// A helper trait for accessing parameters of the well known host configurations.
 pub trait HostConfig {
+    /// The number of CPU cycles (T-states) per second.
     const CPU_HZ: u32;
+    /// The number of CPU cycles (T-states) in a single execution frame.
     const FRAME_TSTATES: FTs;
-
+    /// Returns the duration of a single execution frame in nanoseconds.
     #[inline]
-    fn frame_duration_nanos() -> u64 {
-        nanos_from_frame_tc_cpu_hz(Self::FRAME_TSTATES as u32, Self::CPU_HZ)
+    fn frame_duration_nanos() -> u32 {
+        nanos_from_frame_tc_cpu_hz(Self::FRAME_TSTATES as u32, Self::CPU_HZ) as u32
     }
-
+    /// Returns the duration of a single execution frame.
     #[inline]
     fn frame_duration() -> Duration {
         duration_from_frame_tc_cpu_hz(Self::FRAME_TSTATES as u32, Self::CPU_HZ)
     }
-}
-
-pub struct HostConfig48k;
-impl HostConfig for HostConfig48k {
-    const CPU_HZ: u32 = 3_500_000;
-    const FRAME_TSTATES: FTs = 69888;
-}
-
-pub struct HostConfig128k;
-impl HostConfig for HostConfig128k {
-    const CPU_HZ: u32 = 3_546_900;
-    const FRAME_TSTATES: FTs = 70908;
 }
 
 // pub const fn duration_from_frame_time(frame_time: f64) -> std::time::Duration {
