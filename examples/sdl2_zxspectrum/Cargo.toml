@@ -13,8 +13,8 @@ static-link = ["sdl2/static-link"]
 
 [dependencies]
 rand = "0.7"
-sdl2 = "0.33.0"
-sdl2-sys = "0.33.0"
+sdl2 = "0.34.0"
+sdl2-sys = "0.34.0"
 log = "0.4.8"
 image = "0.23.0"
 chrono = "0.4"

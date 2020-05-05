@@ -12,7 +12,7 @@ spectrusty_core = { path = "../spectrusty_core", version = "0.1" }
 log = "0.4"
 
 [dependencies.sdl2]
-version = "0.33"
+version = "0.34"
 optional = true
 
 [dependencies.cpal]
