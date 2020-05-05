@@ -76,10 +76,10 @@ impl VideoFrame for Ula128VidFrame {
     fn snow_interference_coords(VideoTs { vc, hc }: VideoTs) -> Option<CellCoords> {
         let row = vc - Self::VSL_PIXELS.start;
         if row >= 0 && vc < Self::VSL_PIXELS.end {
-            if hc >= 0 && hc <= 122 {
+            if hc >= 0 && hc <= 123 {
                 return match hc & 7 {
-                    0 => Some(0),
-                    2 => Some(1),
+                    0|1 => Some(0),
+                    2|3 => Some(1),
                     _ => None
                 }.map(|offs| {
                     let column = (((hc >> 2) & !1) | offs) as u8;
