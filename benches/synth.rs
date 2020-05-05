@@ -1,13 +1,12 @@
-// cargo +nightly bench --bench synth -- --nocapture
+// cargo +nightly bench --bench synth --features=audio -- --nocapture
 #![feature(test)]
 extern crate test;
 use core::ops::AddAssign;
 use test::{black_box, Bencher, stats::Summary};
 
-use zxspecemu::clock::*;
-use zxspecemu::audio::sample::*;
-use zxspecemu::audio::*;
-use zxspecemu::audio::synth::*;
+use spectrusty::clock::*;
+use spectrusty::audio::*;
+use spectrusty::audio::synth::*;
 
 pub const SAMPLE_RATE: u32 = 48000;
 pub const FRAME_TSTATES: FTs = 70908;
@@ -48,9 +47,7 @@ where T: Copy + Default + AddAssign + MulNorm + FromSample<f32> + SampleDelta + 
       S: FromSample<T> + AudioSample
 {
     let mut blep = BandLimited::<T>::new(1);
-    let time_rate = f64::time_rate(SAMPLE_RATE, CPU_HZ);
-    let frame_time = time_rate.at_timestamp(FRAME_TSTATES);
-    blep.ensure_frame_time(frame_time, time_rate.at_timestamp(1));
+    blep.ensure_frame_time(SAMPLE_RATE, CPU_HZ, FRAME_TSTATES, 0);
     let Summary { median, .. } = ben.bench(|ben| {
         let mut time = 0;
         let mut sample_buf: Vec<S> = Vec::new();
@@ -59,12 +56,12 @@ where T: Copy + Default + AddAssign + MulNorm + FromSample<f32> + SampleDelta + 
             for _ in 0..50 {
                 while time < FRAME_TSTATES {
                     delta = -delta;
-                    blep.add_step(0, time_rate.at_timestamp(time), delta);
+                    blep.add_step(0, time, delta);
                     time += 32;
                 }
                 time -= FRAME_TSTATES;
-                let nsamples = blep.end_frame(time_rate.at_timestamp(FRAME_TSTATES));
-                sample_buf.resize(nsamples, S::center());
+                let nsamples = Blep::end_frame(&mut blep, FRAME_TSTATES);
+                sample_buf.resize(nsamples, S::silence());
                 for (sample, pb) in blep.sum_iter(0).zip(sample_buf.iter_mut()) {
                     *pb = sample;
                 }
