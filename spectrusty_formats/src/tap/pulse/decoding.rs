@@ -33,7 +33,7 @@ pub enum PulseDecodeState {
     Sync2,
     /// Receiving data pulses.
     Data{
-        /// A currently received data byte.
+        /// A data byte being received currently.
         current: u8,
         /// A pulse counter for the current byte.
         pulse: u8,
@@ -44,7 +44,7 @@ pub enum PulseDecodeState {
 
 /// Provides a decoder of *TAPE* T-state pulse intervals.
 ///
-/// The timing of the pulses should match those produced by ZX Spactrum's ROM loading routines.
+/// The timing of the pulses should match those produced by ZX Spectrum's ROM loading routines.
 ///
 /// After invoking [PulseDecodeWriter::end] or [PulseDecodeWriter::new] [PulseDecodeWriter] expects
 /// a data transfer which consists of:

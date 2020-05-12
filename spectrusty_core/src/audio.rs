@@ -21,21 +21,21 @@ pub use crate::clock::FTs;
 /// that the frequency of those waves tends to infinity. The digitalization of sound is limited by the
 /// finite sample frequency and the maximum frequency that can be sampled is called the [Nyquist frequency].
 ///
-/// When sampling of square wave is naivly implemented it produces a perceptible, unpleasant aliasing noise.
+/// When sampling of a square wave is naively implemented it produces a perceptible, unpleasant aliasing noise.
 ///
-/// Square waves that sound "clear" should be constructed from a limited number of sinusoidal waves,
-/// but the computation of such wave could be costly.
+/// Square waves that sound "clear" should be constructed from a limited number of sinusoidal waves, but the
+/// computation of such a wave could be costly.
 ///
-/// However thanks to the [Hard Sync] technique it is not necessary. Instead a precomputed pattern is being
+/// However thanks to the [Hard Sync] technique it is not necessary. Instead, a precomputed pattern is being
 /// applied to each "pulse step". The implementation of this is called the Bandwidth-Limited Pulse Buffer
 /// in short `Blimp` or `Blep`.
 ///
-/// The audio stream is being produced in frames by the `Blep` implementation. First the pulse steps are
-/// being added, then the frame is being finalized and after that the audio samples can be generated from
+/// The audio stream is being produced in frames by the `Blep` implementation. First, the pulse steps are
+/// being added, then the frame is being finalized and after that, the audio samples can be generated from
 /// the collected pulses.
 ///
-/// The way audio samples are being generated is left to the `Blep` implementation. This trait
-/// only defines an interface for adding pulse steps and finilizing frames.
+/// The way audio samples are being generated is outside of the scope of the `Blep` implementation. This trait
+/// only defines an interface for adding pulse steps and finalizing frames.
 ///
 /// [Nyquist frequency]: https://en.wikipedia.org/wiki/Nyquist_frequency
 /// [Hard Sync]: https://www.cs.cmu.edu/~eli/papers/icmc01-hardsync.pdf
@@ -45,7 +45,7 @@ pub trait Blep {
     /// This method allows the `Blep` implementation to reserve enough memory for the audio 
     /// frame with an additional margin and to set up a sample time rate and other internals.
     ///
-    /// This method shloud not be called again unless any of the provided parameters changes.
+    /// This method should not be called again unless any of the provided parameters changes.
     ///
     /// * `sample_rate` is a number of output audio samples per second.
     /// * `ts_rate` is a number of time units per second which are being used as input time stamps.
@@ -141,7 +141,7 @@ pub trait AudioFrame<B: Blep> {
     fn ensure_audio_frame_time(&self, blep: &mut B, sample_rate: u32, cpu_hz: u32);
     /// Returns a timestamp to be passed to [Blep] to end the frame.
     ///
-    /// #Panics
+    /// # Panics
     /// Panics if the current frame execution didn't get to the near of end-of-frame.
     /// To check if you can actually call this method, invoke [ControlUnit::is_frame_over][crate::chip::ControlUnit::is_frame_over].
     fn get_audio_frame_end_time(&self) -> FTs;
@@ -149,7 +149,7 @@ pub trait AudioFrame<B: Blep> {
     ///
     /// Returns a number of samples ready to be rendered in a single channel.
     ///
-    /// #Panics
+    /// # Panics
     /// Panics if the current frame execution didn't get to the near of end-of-frame.
     /// To check if you can actually call this method, invoke [ControlUnit::is_frame_over][crate::chip::ControlUnit::is_frame_over].
     #[inline]

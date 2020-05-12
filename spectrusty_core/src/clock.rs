@@ -1,3 +1,4 @@
+//! T-state timestamp types and counters.
 use core::fmt::Debug;
 use core::marker::PhantomData;
 use core::num::{NonZeroU8, NonZeroU16};
@@ -9,34 +10,40 @@ use serde::{Serialize, Deserialize};
 
 use crate::video::VideoFrame;
 
-// Frame timestamp measured in T-states.
+/// A simple timestamp type - measured in T-states.
 pub type FTs = i32;
-// T-state/Video scanline counter types.
+/// A horizontal T-state or a video scanline index type for [VideoTs].
 pub type Ts = i16;
 
-/// A video timestamp that consist of two counters: vertical and horizontal.
+/// A timestamp type that consists of two video counters: vertical and horizontal.
+///
+/// `VideoTs { vc: 0, hc: 0 }` marks the start of the video frame.
 #[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Debug)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 pub struct VideoTs {
-    // A vertical position and a video scan-line index.
+    /// A vertical counter - a video scan-line index.
     pub vc: Ts,
-    // A horizontal position measured in T states.
+    /// A horizontal counter - measured in T-states.
     pub hc: Ts,
 }
 
-/// A video T states counter clock for the specific [VideoFrame] and [MemoryContention].
+/// A generic [VideoTs] based T-states counter.
 ///
-/// Used as a [Clock] by `Ula` to execute [z80emu::Cpu] code.
+/// Implements [Clock] for counting T-states when code is being executed by [z80emu::Cpu].
+///
+/// Counts additional T-states according to contention specified by generic parameters:
+/// `V:` [VideoFrame] and `C:` [MemoryContention].
 #[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct VFrameTsCounter<V, C>  {
+    /// The current timestamp value of this counter.
     pub tsc: VideoTs,
     _video: PhantomData<V>,
     _contention: PhantomData<C>
 }
 
-/// A trait used by [VFrameTsCounter] for checking if an address is a contended one.
+/// A trait used by [VFrameTsCounter] for checking if an `address` is a contended one.
 pub trait MemoryContention: Copy + Debug {
-    fn is_contended_address(addr: u16) -> bool;
+    fn is_contended_address(address: u16) -> bool;
 }
 
 /// Implements [MemoryContention] in a way that no address is being contended.
@@ -45,7 +52,7 @@ pub struct NoMemoryContention;
 
 impl MemoryContention for NoMemoryContention {
     #[inline]
-    fn is_contended_address(_addr: u16) -> bool {
+    fn is_contended_address(_address: u16) -> bool {
         false
     }
 }
@@ -189,55 +196,60 @@ impl VideoTs {
 }
 
 impl<V: VideoFrame, C> VFrameTsCounter<V, C> {
+    /// Constructs a new and normalized `VFrameTsCounter` from the given vertical and horizontal counter values.
+    ///
+    /// # Panics
+    /// Panics when values given lead to an overflow of the capacity of [VideoTs].
     #[inline]
-    pub fn new(mut vc: Ts, mut hc: Ts) -> Self {
-        while hc >= V::HTS_RANGE.end {
-            vc += 1;
-            hc -= V::HTS_COUNT as Ts;
-        }
-        while hc < V::HTS_RANGE.start {
-            vc -= 1;
-            hc += V::HTS_COUNT as Ts;
-        }
-        VFrameTsCounter::from(VideoTs::new(vc, hc))
+    pub fn new(vc: Ts, hc: Ts) -> Self {
+        VFrameTsCounter::from(V::normalize_vts(VideoTs::new(vc, hc)))
     }
-    /// Build VFrameTsCounter from the given number of frame tstates.
+    /// Builds a [VFrameTsCounter] from the given count of T-states.
     ///
     /// # Panics
     ///
-    /// When given ts is too large.
+    /// Panics when the given `ts` overflows the capacity of [VideoTs].
     #[inline]
     pub fn from_tstates(ts: FTs) -> Self {
         VFrameTsCounter::from(V::tstates_to_vts(ts))
     }
-    /// Returns the number of T-states from the start of the frame.
-    /// The frame starts when the horizontal and vertical counter are both 0.
-    /// The returned value can be negative as well as exceeding the FRAME_TSTATES_COUNT.
-    /// This function should be used to ensure that a single frame events timestamped with T-states
+    /// Returns the number of T-states measured from the start of the frame.
+    ///
+    /// A frame starts when the horizontal and vertical counter are both 0.
+    ///
+    /// The returned value can be negative as well as exceeding the [VideoFrame::FRAME_TSTATES_COUNT].
+    ///
+    /// This function should be used to ensure that a single frame events, timestamped with T-states,
     /// will be always in the ascending order.
     #[inline(always)]
     pub fn as_tstates(&self) -> FTs {
         V::vts_to_tstates(self.tsc)
     }
-    /// Returns a normalized number of T-states in a single frame window with a frame counter difference.
-    /// The frame starts when the horizontal and vertical counter are both 0.
-    /// The value returned is 0 <= T-states < FRAME_TSTATES_COUNT.
+    /// Returns a tuple with an adjusted frame counter and with the frame-normalized timestamp as
+    /// a number of T-states measured from the start of the frame.
+    ///
+    /// A frame starts when the horizontal and vertical counter are both 0.
+    ///
+    /// The returned timestamp value is in the range [0, [VideoFrame::FRAME_TSTATES_COUNT]).
     #[inline(always)]
     pub fn as_frame_tstates(&self, frames: u64) -> (u64, FTs) {
         V::vts_to_norm_tstates(frames, self.tsc)
     }
-
+    /// Ensures the verical counter is in the range: `(-VSL_COUNT, V::VSL_COUNT)` by calculating
+    /// a remainder of the division of the vertical counter by [VideoFrame::VSL_COUNT].
     #[inline(always)]
     pub fn wrap_frame(&mut self) {
         self.tsc.vc %= V::VSL_COUNT
     }
-
-    /// Is counter past or near the end of frame
+    /// Returns `true` if the counter value is past or near the end of a frame. Otherwise returns `false`.
+    ///
+    /// Specifically the condition is met if the vertical counter is equal or greater than [VideoFrame::VSL_COUNT].
     #[inline]
     pub fn is_eof(&self) -> bool {
         V::is_vts_eof(self.tsc)
     }
-
+    /// Returns the largest timestamp value that can be represented by a normalized [VFrameTsCounter]
+    /// as a number of T-states.
     pub fn max_tstates() -> FTs {
         V::vts_to_tstates(V::vts_max())
     }

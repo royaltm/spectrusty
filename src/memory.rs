@@ -1,4 +1,4 @@
-/*! Emulator's memory api.
+/*! Memory API.
 # Memory banks and pages.
 
 * [ZxMemory] ROM and RAM is a continuous slice of memory divided into logical banks.

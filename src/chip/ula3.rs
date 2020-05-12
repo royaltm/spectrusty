@@ -1,3 +1,4 @@
+//! An emulator of Amstrad Gate Array chip for ZX Spectrum +2A/+3.
 mod audio_earmic;
 mod io;
 mod video;
@@ -51,7 +52,7 @@ pub(self) type InnerUla<B, X> = Ula<Memory128kPlus, B, X, Ula3VidFrame>;
 #[cfg_attr(feature = "snapshot", serde(try_from = "u8", into = "u8"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
-pub(self) enum SpecialPaging {
+pub enum SpecialPaging {
     Banks0123 = 0,
     Banks4567 = 1,
     Banks4563 = 2,

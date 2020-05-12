@@ -1,3 +1,4 @@
+//! An emulator of Sinclair Uncommitted Logic Array chip for ZX Spectrum 128k/+2.
 mod audio_earmic;
 pub(crate) mod frame_cache;
 mod io;

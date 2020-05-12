@@ -30,7 +30,7 @@ pub enum PulseIterState {
 
 /// Encodes data read from an underlying reader as *TAPE* T-state pulse intervals via an [Iterator] interface.
 ///
-/// The timing of the pulses matches those expected by ZX Spactrum's ROM loading routines.
+/// The timing of the pulses matches those expected by ZX Spectrum's ROM loading routines.
 ///
 /// After invoking [ReadEncPulseIter::reset] or [ReadEncPulseIter::new] the first byte is read and checked
 /// to determine the duration of the *LEAD PULSE* signal. If it's less than 128 the number of 

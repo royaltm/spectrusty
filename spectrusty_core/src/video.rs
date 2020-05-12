@@ -241,6 +241,9 @@ pub trait VideoFrame: Copy + Debug {
         Self::vc_hc_to_tstates(vc, hc)
     }
     /// Converts a frame T-state count to a video timestamp.
+    ///
+    /// # Panics
+    /// Panics when the given `ts` overflows the capacity of [VideoTs].
     #[inline]
     fn tstates_to_vts(ts: FTs) -> VideoTs {
         let hts_count: FTs = Self::HTS_COUNT as FTs;
@@ -293,6 +296,9 @@ pub trait VideoFrame: Copy + Debug {
     }
     /// Returns a video timestamp with a horizontal counter within the allowed range and a scan line
     /// counter adjusted accordingly.
+    ///
+    /// # Panics
+    /// Panics when normalizing leads to an overflow of the capacity of [VideoTs].
     #[inline]
     fn normalize_vts(VideoTs { mut vc, mut hc }: VideoTs) -> VideoTs {
         if hc < Self::HTS_RANGE.start || hc >= Self::HTS_RANGE.end {

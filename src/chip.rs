@@ -1,3 +1,4 @@
+//! Chipset emulation building blocks and implementations.
 pub mod ula;
 pub mod ula128;
 pub mod ula3;

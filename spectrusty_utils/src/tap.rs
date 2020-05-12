@@ -30,7 +30,7 @@ pub struct Tape<F> {
     /// `true` if the tape is playing, depending on the [Tap] variant it may indicate tape playback or recording.
     /// `false` then the tape has stopped.
     pub running: bool,
-    /// `Some(tap)` indicates the tape casette is inserted, `None` it is ejected.
+    /// `Some(tap)` indicates the tape casette is inserted, `None` - there is no tape.
     pub tap: Option<Tap<F>>
 }
 

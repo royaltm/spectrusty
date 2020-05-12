@@ -1,3 +1,4 @@
+//! Chipset emulation building blocks.
 use core::fmt;
 use core::convert::TryFrom;
 use core::num::NonZeroU32;
@@ -163,7 +164,7 @@ bitflags! {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TryFromU8EarMicError(pub u8);
 
-/// A helper trait for accessing parameters of the well known host configurations.
+/// A helper trait for accessing parameters of well known host configurations.
 pub trait HostConfig {
     /// The number of CPU cycles (T-states) per second.
     const CPU_HZ: u32;
