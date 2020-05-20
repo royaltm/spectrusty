@@ -9,7 +9,7 @@ use std::io::{Read, Write, Result, Seek, SeekFrom};
 use spectrusty_formats::tap::*;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-enum TapState {
+pub enum TapState {
     Idle,
     Playing,
     Recording
@@ -93,7 +93,7 @@ impl<F, S> TapCabinet<F, S>
         ));
     }
 
-    pub fn remove_current_tap(&mut self) -> Option<(F, S)> {
+    pub fn remove_current(&mut self) -> Option<(F, S)> {
         if self.is_idle() && !self.taps.is_empty() {
             let res = match self.taps.remove(self.current) {
                 (Tap::Reader(iter), meta) => {
@@ -595,6 +595,23 @@ impl<F: Write + Read + Seek> Tape<F> {
         self.running && self.tap.is_some()
     }
 
+    /// Returns `true` if no [Tap] is inserted or [Tape::running] is `false`, otherwise returns `true`.
+    pub fn is_idle(&self) -> bool {
+        !self.is_running()
+    }
+
+    /// Returns the current status of the inserted tape as an enum.
+    pub fn tap_state(&self) -> TapState {
+        if self.running {
+            return match self.tap.as_ref() {
+                Some(Tap::Reader(..)) => TapState::Playing,
+                Some(Tap::Writer(..)) => TapState::Recording,
+                _ => TapState::Idle
+            }
+        }
+        TapState::Idle
+    }
+
     /// Returns `true` if there is a [Tap::Reader] variant inserted and [Tape::running] is `true`,
     /// otherwise returns `false`.
     pub fn is_playing(&self) -> bool {
@@ -639,7 +656,7 @@ impl<F: Write + Read + Seek> Tape<F> {
 
     /// Returns a mutable reference to the pulse iterator if there is a [Tap::Reader] variant inserted
     /// and [Tape::running] is `true`, otherwise returns `None`.
-    pub fn playing_tap(&mut self) -> Option<&mut TapChunkPulseIter<F>> {
+    pub fn playing_reader_mut(&mut self) -> Option<&mut TapChunkPulseIter<F>> {
         if self.running {
             return self.tap.as_mut().and_then(|tap| tap.reader_mut())
         }
@@ -648,7 +665,7 @@ impl<F: Write + Read + Seek> Tape<F> {
 
     /// Returns a mutable reference to the tap chunk writer if there is a [Tap::Writer] variant inserted
     /// and [Tape::running] is `true`, otherwise returns `None`.
-    pub fn recording_tap(&mut self) -> Option<&mut TapChunkWriter<F>> {
+    pub fn recording_writer_mut(&mut self) -> Option<&mut TapChunkWriter<F>> {
         if self.running {
             return self.tap.as_mut().and_then(|tap| tap.writer_mut())
         }
