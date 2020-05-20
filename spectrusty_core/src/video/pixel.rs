@@ -24,6 +24,11 @@ pub trait PixelBuffer<'a> {
             self.put_pixel(pixel);
         }
     }
+    /// Returns the size of a single pixel in bytes.
+    #[inline]
+    fn pixel_stride() -> usize {
+        core::mem::size_of::<Self::Pixel>()
+    }
 }
 
 /// A trait used for obtaining pixel colors.
@@ -98,25 +103,25 @@ pub struct PixelBufP8<'a> {
     iter: IterMut<'a, u8>
 }
 
-/// A pleasant ZX Spectrum [Palette] implementation to be used with [PixelBufA24].
+/// A color ZX Spectrum [Palette] implementation to be used with [PixelBufA24].
 pub struct SpectrumPalRGB24;
 
-/// A pleasant ZX Spectrum [Palette] implementation to be used with [PixelBufA32].
+/// A color ZX Spectrum [Palette] implementation to be used with [PixelBufA32].
 pub struct SpectrumPalRGBA32;
 
-/// A pleasant ZX Spectrum [Palette] implementation to be used with [PixelBufA32].
+/// A color ZX Spectrum [Palette] implementation to be used with [PixelBufA32].
 pub struct SpectrumPalARGB32;
 
-/// A pleasant ZX Spectrum [Palette] implementation to be used with [PixelBufP32].
+/// A color ZX Spectrum [Palette] implementation to be used with [PixelBufP32].
 pub struct SpectrumPalA8R8G8B8;
 
-/// A pleasant ZX Spectrum [Palette] implementation to be used with [PixelBufP32].
+/// A color ZX Spectrum [Palette] implementation to be used with [PixelBufP32].
 pub struct SpectrumPalR8G8B8A8;
 
-/// A pleasant ZX Spectrum [Palette] implementation to be used with [PixelBufP16].
+/// A color ZX Spectrum [Palette] implementation to be used with [PixelBufP16].
 pub struct SpectrumPalR5G6B5;
 
-/// A pleasant ZX Spectrum [Palette] implementation to be used with [PixelBufP8].
+/// A color ZX Spectrum [Palette] implementation to be used with [PixelBufP8].
 pub struct SpectrumPalR3G3B2;
 
 /// A grayscale ZX Spectrum [Palette] implementation to be used with [PixelBufA24].
