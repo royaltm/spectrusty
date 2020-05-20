@@ -170,6 +170,25 @@ pub trait HostConfig {
     const CPU_HZ: u32;
     /// The number of CPU cycles (T-states) in a single execution frame.
     const FRAME_TSTATES: FTs;
+    /// Returns the CPU rate (T-states / second) after multiplying it by the `multiplier`.
+    #[inline]
+    fn effective_cpu_rate(multiplier: f64) -> f64 {
+        Self::CPU_HZ as f64 * multiplier
+    }
+    /// Returns the duration of a single execution frame in nanoseconds after multiplying
+    /// the CPU rate by the `multiplier`.
+    #[inline]
+    fn effective_frame_duration_nanos(multiplier: f64) -> u32 {
+        let cpu_rate = Self::effective_cpu_rate(multiplier).round() as u32;
+        nanos_from_frame_tc_cpu_hz(Self::FRAME_TSTATES as u32, cpu_rate) as u32
+    }
+    /// Returns the duration of a single execution frame after multiplying the CPU rate by
+    /// the `multiplier`.
+    #[inline]
+    fn effective_frame_duration(multiplier: f64) -> Duration {
+        let cpu_rate = Self::effective_cpu_rate(multiplier).round() as u32;
+        duration_from_frame_tc_cpu_hz(Self::FRAME_TSTATES as u32, cpu_rate)
+    }
     /// Returns the duration of a single execution frame in nanoseconds.
     #[inline]
     fn frame_duration_nanos() -> u32 {
