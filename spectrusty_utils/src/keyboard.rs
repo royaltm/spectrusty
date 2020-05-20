@@ -15,6 +15,9 @@ pub mod sdl2;
 #[cfg(feature = "winit")]
 pub mod winit;
 
+#[cfg(feature = "web-sys")]
+pub mod web_sys;
+
 /// Updates the state of joystick device via [JoystickInterface] from a key down or up event.
 ///
 /// Returns `true` if the state of the joystick device was updated.
