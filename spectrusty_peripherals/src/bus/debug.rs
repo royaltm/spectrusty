@@ -1,7 +1,6 @@
 //! A passthrough debugging device.
 use core::num::NonZeroU16;
 use core::fmt::Debug;
-use core::marker::PhantomData;
 
 #[cfg(feature = "snapshot")]
 use serde::{Serialize, Deserialize};
@@ -15,15 +14,15 @@ use super::ay::PassByAyAudioBusDevice;
 /// A passthrough [BusDevice] that outputs I/O data read and written by CPU using [log] `debug`.
 #[derive(Clone, Default, Debug)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
-pub struct DebugBusDevice<T, D> {
+pub struct DebugBusDevice<D> {
     #[cfg_attr(feature = "snapshot", serde(default))]
     bus: D,
-    #[cfg_attr(feature = "snapshot", serde(skip))]
-    _ts: PhantomData<T>
 }
 
-impl<T: Debug, D: BusDevice<Timestamp=T>> BusDevice for DebugBusDevice<T, D> {
-    type Timestamp = T;
+impl<D: BusDevice> BusDevice for DebugBusDevice<D>
+    where D::Timestamp: Debug
+{
+    type Timestamp = D::Timestamp;
     type NextDevice = D;
 
     fn next_device_mut(&mut self) -> &mut Self::NextDevice {
@@ -46,4 +45,4 @@ impl<T: Debug, D: BusDevice<Timestamp=T>> BusDevice for DebugBusDevice<T, D> {
     }
 }
 
-impl<T, D> PassByAyAudioBusDevice for DebugBusDevice<T, D> {}
+impl<D> PassByAyAudioBusDevice for DebugBusDevice<D> {}

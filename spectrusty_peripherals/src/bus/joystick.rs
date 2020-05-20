@@ -22,29 +22,29 @@ pub use crate::joystick::{
 };
 
 /// A convenient Kempston Joystick [BusDevice] type.
-pub type KempstonJoystick<D=NullDevice<VideoTs>> = JoystickBusDevice<VideoTs,
+pub type KempstonJoystick<D=NullDevice<VideoTs>> = JoystickBusDevice<
                                                             KempstonJoyPortAddress,
                                                             KempstonJoystickDevice,
                                                             D>;
 /// A convenient Fuller Joystick [BusDevice] type.
-pub type FullerJoystick<D=NullDevice<VideoTs>> = JoystickBusDevice<VideoTs,
+pub type FullerJoystick<D=NullDevice<VideoTs>> = JoystickBusDevice<
                                                             FullerJoyPortAddress,
                                                             FullerJoystickDevice,
                                                             D>;
 /// A convenient pair of Left and Right Joystick [BusDevice] type.
 pub type SinclairJoystick<D=NullDevice<VideoTs>> = SinclairLeftJoystick<SinclairRightJoystick<D>>;
 /// A convenient Left Sinclair Joystick [BusDevice] type.
-pub type SinclairLeftJoystick<D=NullDevice<VideoTs>> = JoystickBusDevice<VideoTs,
+pub type SinclairLeftJoystick<D=NullDevice<VideoTs>> = JoystickBusDevice<
                                                             SinclairLeftJoyPortAddress,
                                                             SinclairJoystickDevice<SinclairJoyLeftMap>,
                                                             D>;
 /// A convenient Right Sinclair Joystick [BusDevice] type.
-pub type SinclairRightJoystick<D=NullDevice<VideoTs>> = JoystickBusDevice<VideoTs,
+pub type SinclairRightJoystick<D=NullDevice<VideoTs>> = JoystickBusDevice<
                                                             SinclairRightJoyPortAddress,
                                                             SinclairJoystickDevice<SinclairJoyRightMap>,
                                                             D>;
 /// A convenient Cursor Joystick [BusDevice] type.
-pub type CursorJoystick<D=NullDevice<VideoTs>> = JoystickBusDevice<VideoTs,
+pub type CursorJoystick<D=NullDevice<VideoTs>> = JoystickBusDevice<
                                                             CursorJoyPortAddress,
                                                             CursorJoystickDevice,
                                                             D>;
@@ -69,7 +69,7 @@ joystick_names! {
 /// A joystick controller, providing a [BusDevice] implementation that can be used with [joystick devices][JoystickDevice].
 #[derive(Clone, Default, Debug)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
-pub struct JoystickBusDevice<T, P, J, D=NullDevice<T>>
+pub struct JoystickBusDevice<P, J, D=NullDevice<VideoTs>>
 {
     /// A [JoystickDevice] implementation, which may also implement [JoystickInterface] trait
     /// for providing user input.
@@ -79,8 +79,6 @@ pub struct JoystickBusDevice<T, P, J, D=NullDevice<T>>
     bus: D,
     #[cfg_attr(feature = "snapshot", serde(skip))]
     _port_decode: PhantomData<P>,
-    #[cfg_attr(feature = "snapshot", serde(skip))]
-    _ts: PhantomData<T>
 }
 
 /// Kempston Joystick [PortAddress].
@@ -124,28 +122,27 @@ impl PortAddress for CursorJoyPortAddress {
     }
 }
 
-impl<T, P, J: JoystickInterface, D> Deref for JoystickBusDevice<T, P, J, D> {
+impl<P, J: JoystickInterface, D> Deref for JoystickBusDevice<P, J, D> {
     type Target = J;
     fn deref(&self) -> &Self::Target {
         &self.joystick
     }
 }
 
-impl<T, P, J: JoystickInterface, D> DerefMut for JoystickBusDevice<T, P, J, D> {
+impl<P, J: JoystickInterface, D> DerefMut for JoystickBusDevice<P, J, D> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.joystick
     }
 }
 
-impl<T, P, J, D> PassByAyAudioBusDevice for JoystickBusDevice<T, P, J, D> {}
+impl<P, J, D> PassByAyAudioBusDevice for JoystickBusDevice<P, J, D> {}
 
-impl<T, P, J, D> BusDevice for JoystickBusDevice<T, P, J, D>
-    where T: fmt::Debug,
-          P: PortAddress,
-          D: BusDevice<Timestamp=VideoTs>,
+impl<P, J, D> BusDevice for JoystickBusDevice<P, J, D>
+    where P: PortAddress,
+          D: BusDevice,
           J: JoystickDevice
 {
-    type Timestamp = VideoTs;
+    type Timestamp = D::Timestamp;
     type NextDevice = D;
 
     #[inline]
@@ -192,31 +189,29 @@ impl<T, P, J, D> BusDevice for JoystickBusDevice<T, P, J, D>
 /// This controller allows changing the implementation of joystick device at run time.
 #[derive(Clone, Copy, Default, Debug)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
-pub struct MultiJoystickBusDevice<T=VideoTs, D=NullDevice<T>> {
+pub struct MultiJoystickBusDevice<D=NullDevice<VideoTs>> {
     #[cfg_attr(feature = "snapshot", serde(default))]
     pub joystick: JoystickSelect,
     #[cfg_attr(feature = "snapshot", serde(default))]
-    bus: D,
-    #[cfg_attr(feature = "snapshot", serde(skip))]
-    _ts: PhantomData<T>
+    bus: D
 }
 
-impl<T, D: Default> MultiJoystickBusDevice<T, D> {
+impl<D: Default> MultiJoystickBusDevice<D> {
     pub fn new_with(joystick: JoystickSelect) -> Self {
         MultiJoystickBusDevice {
-            joystick, bus: Default::default(), _ts: PhantomData
+            joystick, bus: Default::default()
         }
     }
 }
 
-impl<T, D> Deref for MultiJoystickBusDevice<T, D> {
+impl<D> Deref for MultiJoystickBusDevice<D> {
     type Target = JoystickSelect;
     fn deref(&self) -> &Self::Target {
         &self.joystick
     }
 }
 
-impl<T, D> DerefMut for MultiJoystickBusDevice<T, D> {
+impl<D> DerefMut for MultiJoystickBusDevice<D> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.joystick
     }
@@ -436,12 +431,12 @@ impl JoystickSelect {
     }
 }
 
-impl<T, D> PassByAyAudioBusDevice for MultiJoystickBusDevice<T, D> {}
+impl<D> PassByAyAudioBusDevice for MultiJoystickBusDevice<D> {}
 
-impl<T: fmt::Debug, D> BusDevice for MultiJoystickBusDevice<T, D>
-    where D: BusDevice<Timestamp=T>
+impl<D> BusDevice for MultiJoystickBusDevice<D>
+    where D: BusDevice
 {
-    type Timestamp = T;
+    type Timestamp = D::Timestamp;
     type NextDevice = D;
 
     #[inline(always)]

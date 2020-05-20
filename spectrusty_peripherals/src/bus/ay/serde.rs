@@ -1,14 +1,15 @@
 use core::marker::PhantomData;
 use core::fmt;
 use serde::{Deserialize, de::{self, Deserializer, Visitor, SeqAccess, MapAccess}};
+use spectrusty_core::bus::BusDevice;
 
 use super::Ay3_891xBusDevice;
 
-impl<'de, T, P, A, B, D> Deserialize<'de> for Ay3_891xBusDevice<T, P, A, B, D>
-    where T: Default,
-          A: Deserialize<'de> + Default,
+impl<'de, P, A, B, D> Deserialize<'de> for Ay3_891xBusDevice<P, A, B, D>
+    where A: Deserialize<'de> + Default,
           B: Deserialize<'de> + Default,
-          D: Deserialize<'de> + Default,
+          D: Deserialize<'de> + Default + BusDevice,
+          D::Timestamp: Default
 {
     fn deserialize<DE>(deserializer: DE) -> Result<Self, DE::Error>
         where DE: Deserializer<'de>,
@@ -18,21 +19,20 @@ impl<'de, T, P, A, B, D> Deserialize<'de> for Ay3_891xBusDevice<T, P, A, B, D>
         #[serde(field_identifier, rename_all = "camelCase")]
         enum Field { AySound, AyIo, Bus }
 
-        struct Ay3_891xBusDeviceVisitor<T, P, A, B, D>(
-            PhantomData<T>,
+        struct Ay3_891xBusDeviceVisitor<P, A, B, D>(
             PhantomData<P>,
             PhantomData<A>,
             PhantomData<B>,
             PhantomData<D>
         );
 
-        impl<'de, T, P, A, B, D> Visitor<'de> for Ay3_891xBusDeviceVisitor<T, P, A, B, D>
-            where T: Default,
-                  A: Deserialize<'de> + Default,
+        impl<'de, P, A, B, D> Visitor<'de> for Ay3_891xBusDeviceVisitor<P, A, B, D>
+            where A: Deserialize<'de> + Default,
                   B: Deserialize<'de> + Default,
-                  D: Deserialize<'de> + Default,
+                  D: Deserialize<'de> + Default + BusDevice,
+                  D::Timestamp: Default
         {
-            type Value = Ay3_891xBusDevice<T, P, A, B, D>;
+            type Value = Ay3_891xBusDevice<P, A, B, D>;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
                 formatter.write_str("struct Ay3_891xBusDevice")
@@ -84,6 +84,6 @@ impl<'de, T, P, A, B, D> Deserialize<'de> for Ay3_891xBusDevice<T, P, A, B, D>
 
         const FIELDS: &'static [&'static str] = &["aySound", "ayIo", "bus"];
         deserializer.deserialize_struct("Ay3_891xBusDevice", FIELDS,
-            Ay3_891xBusDeviceVisitor(PhantomData, PhantomData, PhantomData, PhantomData, PhantomData))
+            Ay3_891xBusDeviceVisitor(PhantomData, PhantomData, PhantomData, PhantomData))
     }
 }

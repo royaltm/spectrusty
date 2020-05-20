@@ -20,7 +20,7 @@ pub use crate::mouse::{
 };
 
 /// A convenient Kempston Mouse [BusDevice] type.
-pub type KempstonMouse<D=NullDevice<VideoTs>> = MouseBusDevice<VideoTs,
+pub type KempstonMouse<D=NullDevice<VideoTs>> = MouseBusDevice<
                                                             KempstonMousePortAddress,
                                                             KempstonMouseDevice,
                                                             D>;
@@ -33,7 +33,7 @@ impl<D> fmt::Display for KempstonMouse<D> {
 /// A mouse controller, providing a [BusDevice] implementation that can be used with [mouse devices][MouseDevice].
 #[derive(Clone, Default, Debug)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
-pub struct MouseBusDevice<T, P, M, D=NullDevice<T>> {
+pub struct MouseBusDevice<P, M, D=NullDevice<VideoTs>> {
     /// A [MouseDevice] implementation, which may also implement [MouseInterface] trait
     /// for providing user input.
     #[cfg_attr(feature = "snapshot", serde(default))]
@@ -42,8 +42,6 @@ pub struct MouseBusDevice<T, P, M, D=NullDevice<T>> {
     bus: D,
     #[cfg_attr(feature = "snapshot", serde(skip))]
     _port_decode: PhantomData<P>,
-    #[cfg_attr(feature = "snapshot", serde(skip))]
-    _ts: PhantomData<T>
 }
 
 /// Kempston Mouse [PortAddress].
@@ -54,27 +52,27 @@ impl PortAddress for KempstonMousePortAddress {
     const ADDRESS_BITS: u16 = 0b1111_1010_1101_1111;
 }
 
-impl<T, P, M: MouseInterface, D> Deref for MouseBusDevice<T, P, M, D> {
+impl<P, M: MouseInterface, D> Deref for MouseBusDevice<P, M, D> {
     type Target = M;
     fn deref(&self) -> &Self::Target {
         &self.mouse
     }
 }
 
-impl<T, P, M: MouseInterface, D> DerefMut for MouseBusDevice<T, P, M, D> {
+impl<P, M: MouseInterface, D> DerefMut for MouseBusDevice<P, M, D> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.mouse
     }
 }
 
-impl<T, P, M, D> PassByAyAudioBusDevice for MouseBusDevice<T, P, M, D> {}
+impl<P, M, D> PassByAyAudioBusDevice for MouseBusDevice<P, M, D> {}
 
-impl<T: Debug, P, M, D> BusDevice for MouseBusDevice<T, P, M, D>
+impl<P, M, D> BusDevice for MouseBusDevice<P, M, D>
     where P: PortAddress,
-          D: BusDevice<Timestamp=VideoTs>,
+          D: BusDevice,
           M: MouseDevice
 {
-    type Timestamp = VideoTs;
+    type Timestamp = D::Timestamp;
     type NextDevice = D;
 
     #[inline]
