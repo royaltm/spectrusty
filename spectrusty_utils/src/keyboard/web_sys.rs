@@ -1,6 +1,6 @@
-//! Keyboard related functions to be used with [web_sys](https://crates.io/crates/web_sys).
+//! Keyboard related functions to be used with [web-sys](https://crates.io/crates/web-sys).
 //!
-//! Requires "web_sys" feature to be enabled.
+//! Requires "web-sys" feature to be enabled.
 use web_sys::KeyboardEvent;
 use spectrusty_peripherals::{ZXKeyboardMap,
     joystick::{JoystickInterface, Directions},
