@@ -53,7 +53,7 @@ pub struct CellCoords {
 }
 
 bitflags! {
-    /// This type represents ZX Spectrum's border color.
+    /// Bitflags defining ZX Spectrum's border colors.
     #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
     #[cfg_attr(feature = "snapshot", serde(try_from = "u8", into = "u8"))]
     #[derive(Default)]
@@ -181,7 +181,8 @@ pub trait VideoFrame: Copy + Debug {
     /// An iterator of right border latch horizontal T-states.
     fn border_right_hts_iter(border_size: BorderSize) -> Self::HtsIter;
 
-    /// T-state contention while rendering ink+paper lines.
+    /// Returns a horizontal T-state counter after adding an additional T-states required for emulating 
+    /// a memory contention, while rendering lines that require reading video memory.
     fn contention(hc: Ts) -> Ts;
     /// Returns an optional floating bus horizontal offset for the given horizontal timestamp.
     fn floating_bus_offset(_hc: Ts) -> Option<u16> {
@@ -336,6 +337,9 @@ pub trait VideoFrame: Copy + Debug {
         VideoTs { vc, hc }
     }
     /// Returns a normalized video timestamp after adding a `delta` T-state count.
+    ///
+    /// # Panics
+    /// Panics when normalized timestamp after addition leads to an overflow of the capacity of [VideoTs].
     #[inline]
     fn vts_add_ts(VideoTs { vc, hc }: VideoTs, delta: u32) -> VideoTs {
         let dvc = (delta / Self::HTS_COUNT as u32).try_into().expect("delta too large");
