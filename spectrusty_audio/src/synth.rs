@@ -320,8 +320,8 @@ where T: Copy + Default + SampleDelta + MulNorm
     type SampleDelta = T;
 
     #[inline]
-    fn ensure_frame_time(&mut self, sample_rate: u32, ts_rate: u32, frame_ts: FTs, margin_ts: FTs) {
-        let time_rate = sample_rate as f64 / ts_rate as f64;
+    fn ensure_frame_time(&mut self, sample_rate: u32, ts_rate: f64, frame_ts: FTs, margin_ts: FTs) {
+        let time_rate = sample_rate as f64 / ts_rate;
         assert!(time_rate > 0.0);
         let frame_time = time_rate * frame_ts as f64;
         assert!(frame_time > 0.0);

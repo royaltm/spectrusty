@@ -64,7 +64,7 @@ pub trait Blep {
     /// time stamp. It starts at 0 after calling this method and is modified by the `timestamp` value passed
     /// to the last [Blep::end_frame] to `timestamp` - `frame_ts`. In other words, the next frame starts
     /// when the previous ends minus frame duration.
-    fn ensure_frame_time(&mut self, sample_rate: u32, ts_rate: u32, frame_ts: FTs, margin_ts: FTs);
+    fn ensure_frame_time(&mut self, sample_rate: u32, ts_rate: f64, frame_ts: FTs, margin_ts: FTs);
     /// This method is being used to add square-wave pulse steps within a boundary of a single frame.
     ///
     //  * `channel` specifies an output audio channel.
@@ -138,7 +138,7 @@ pub trait AudioFrame<B: Blep> {
     ///
     /// * `sample_rate` is the number of samples per second of the rendered audio,
     /// * `cpu_hz` is the number of the emulated CPU cycles (T-states) per second.
-    fn ensure_audio_frame_time(&self, blep: &mut B, sample_rate: u32, cpu_hz: u32);
+    fn ensure_audio_frame_time(&self, blep: &mut B, sample_rate: u32, cpu_hz: f64);
     /// Returns a timestamp to be passed to [Blep] to end the frame.
     ///
     /// # Panics
@@ -290,7 +290,7 @@ impl<B> Blep for BlepAmpFilter<B>
     type SampleDelta = B::SampleDelta;
 
     #[inline]
-    fn ensure_frame_time(&mut self, sample_rate: u32, ts_rate: u32, frame_ts: FTs, margin_ts: FTs) {
+    fn ensure_frame_time(&mut self, sample_rate: u32, ts_rate: f64, frame_ts: FTs, margin_ts: FTs) {
         self.blep.ensure_frame_time(sample_rate, ts_rate, frame_ts, margin_ts)
     }
     #[inline]
@@ -309,7 +309,7 @@ impl<B> Blep for BlepStereo<B>
     type SampleDelta = B::SampleDelta;
     #[inline]
 
-    fn ensure_frame_time(&mut self, sample_rate: u32, ts_rate: u32, frame_ts: FTs, margin_ts: FTs) {
+    fn ensure_frame_time(&mut self, sample_rate: u32, ts_rate: f64, frame_ts: FTs, margin_ts: FTs) {
         self.blep.ensure_frame_time(sample_rate, ts_rate, frame_ts, margin_ts)
     }
     #[inline]

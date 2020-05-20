@@ -61,7 +61,7 @@ impl<P> Default for AyPlayer<P> {
 
 impl<P, A: Blep> AudioFrame<A> for AyPlayer<P>
 {
-    fn ensure_audio_frame_time(&self, blep: &mut A, sample_rate: u32, cpu_hz: u32) {
+    fn ensure_audio_frame_time(&self, blep: &mut A, sample_rate: u32, cpu_hz: f64) {
         blep.ensure_frame_time(sample_rate, cpu_hz, self.frame_tstates, MARGIN_TSTATES)
     }
 
@@ -206,7 +206,7 @@ impl<P: AyPortDecode> AyPlayer<P>
     }
 
     pub fn ensure_audio_frame_time<B: Blep>(&self, blep: &mut B, sample_rate: u32) {
-        <Self as AudioFrame<B>>::ensure_audio_frame_time(self, blep, sample_rate, self.cpu_rate)
+        <Self as AudioFrame<B>>::ensure_audio_frame_time(self, blep, sample_rate, self.cpu_rate as f64)
     }
 
     fn ensure_next_frame_tsc(&mut self) -> TsCounter<FTs> {

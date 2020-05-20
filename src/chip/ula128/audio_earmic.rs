@@ -24,7 +24,7 @@ impl<A, B, X> AudioFrame<A> for Ula128<B, X>
           InnerUla<B, X>: AudioFrame<A>
 {
     #[inline]
-    fn ensure_audio_frame_time(&self, blep: &mut A, sample_rate: u32, cpu_hz: u32) {
+    fn ensure_audio_frame_time(&self, blep: &mut A, sample_rate: u32, cpu_hz: f64) {
         blep.ensure_frame_time(sample_rate, cpu_hz, Ula128VidFrame::FRAME_TSTATES_COUNT, MARGIN_TSTATES)
     }
 

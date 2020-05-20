@@ -25,7 +25,7 @@ impl<A, M, B, X, F> AudioFrame<A> for Ula<M, B, X, F>
           F: VideoFrame
 {
     #[inline]
-    fn ensure_audio_frame_time(&self, blep: &mut A, sample_rate: u32, cpu_hz: u32) {
+    fn ensure_audio_frame_time(&self, blep: &mut A, sample_rate: u32, cpu_hz: f64) {
         blep.ensure_frame_time(sample_rate, cpu_hz, F::FRAME_TSTATES_COUNT, MARGIN_TSTATES)
     }
 
