@@ -1,3 +1,4 @@
+use core::mem;
 use core::num::NonZeroU16;
 use core::fmt::{Display, Debug};
 use core::iter::IntoIterator;
@@ -17,12 +18,12 @@ pub trait NamedBusDevice<T: Debug>: Display + BusDevice<Timestamp=T, NextDevice=
 
 impl<T: Debug, D> NamedBusDevice<T> for D where D: Display + BusDevice<Timestamp=T, NextDevice=NullDevice<T>>{}
 
-/// A type of a dynamic [NamedBusDevice] with a constraint on a timestamp type.
-pub type LinkedDynDevice<D> = dyn NamedBusDevice<<D as BusDevice>::Timestamp>;
+/// A type of a dynamic [NamedBusDevice].
+pub type NamedDynDevice<T> = dyn NamedBusDevice<T>;
 /// This is a type of items stored by [DynamicBusDevice].
 ///
-/// A type of a boxed dynamic [NamedBusDevice] with a constraint on a timestamp type.
-pub type BoxLinkedDynDevice<D> = Box<dyn NamedBusDevice<<D as BusDevice>::Timestamp>>;
+/// A type of a boxed dynamic [NamedBusDevice].
+pub type BoxNamedDynDevice<T> = Box<dyn NamedBusDevice<T>>;
 
 /// A bus device that allows for adding and removing devices of different types at run time.
 ///
@@ -39,7 +40,7 @@ pub type BoxLinkedDynDevice<D> = Box<dyn NamedBusDevice<<D as BusDevice>::Timest
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 pub struct DynamicBusDevice<D: BusDevice=NullDevice<VideoTs>> {
     #[cfg_attr(feature = "snapshot", serde(skip))]
-    devices: Vec<BoxLinkedDynDevice<D>>,
+    devices: Vec<BoxNamedDynDevice<D::Timestamp>>,
     #[cfg_attr(feature = "snapshot", serde(default))]
     bus: D
 }
@@ -53,7 +54,7 @@ impl<'a, T: Debug, D: 'a> From<D> for Box<dyn NamedBusDevice<T> + 'a>
 }
 
 impl<D: BusDevice> Deref for DynamicBusDevice<D> {
-    type Target = [BoxLinkedDynDevice<D>];
+    type Target = [BoxNamedDynDevice<D::Timestamp>];
     fn deref(&self) -> &Self::Target {
         &self.devices.as_slice()
     }
@@ -72,17 +73,39 @@ impl<D> DynamicBusDevice<D>
     pub fn len(&self) -> usize {
         self.devices.len()
     }
+    /// Returns a `true` if there are no devices in the dynamic chain. Otherwise returns `false`.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
     /// Appends a device at the end of the daisy-chain. Returns an index to a dynamic device.
     pub fn append_device<B>(&mut self, device: B) -> usize
-        where B: Into<BoxLinkedDynDevice<D>>
+        where B: Into<BoxNamedDynDevice<D::Timestamp>>
     {
         self.devices.push(device.into());
         self.devices.len() - 1
     }
     /// Removes the last device from the dynamic daisy-chain and returns an instance of the boxed
     /// dynamic object.
-    pub fn remove_device(&mut self) -> Option<BoxLinkedDynDevice<D>> {
+    pub fn remove_device(&mut self) -> Option<BoxNamedDynDevice<D::Timestamp>> {
         self.devices.pop()
+    }
+    /// Replaces a device at the given `index` and returns it.
+    /// 
+    /// The removed device is replaced by the last device of the chain.
+    ///
+    /// # Panics
+    /// Panics if a device doesn't exist at `index`.
+    pub fn swap_remove_device(&mut self, index: usize) -> BoxNamedDynDevice<D::Timestamp> {
+        self.devices.swap_remove(index)
+    }
+    /// Replaces a device at the given `index`. Returns the previous device occupying the replaced spot.
+    ///
+    /// # Panics
+    /// Panics if a device doesn't exist at `index`.
+    pub fn replace_device<B>(&mut self, index: usize, device: B) -> BoxNamedDynDevice<D::Timestamp>
+        where B: Into<BoxNamedDynDevice<D::Timestamp>>
+    {
+        mem::replace(&mut self.devices[index], device.into())
     }
     /// Removes all dynamic devices from the dynamic daisy-chain.
     pub fn clear(&mut self) {
@@ -90,13 +113,13 @@ impl<D> DynamicBusDevice<D>
     }
     /// Returns a reference to a dynamic device at `index` in the dynamic daisy-chain.
     #[inline]
-    pub fn get_device_ref(&self, index: usize) -> Option<&LinkedDynDevice<D>> {
+    pub fn get_device_ref(&self, index: usize) -> Option<&NamedDynDevice<D::Timestamp>> {
         // self.devices[index].as_ref()
         self.devices.get(index).map(|d| d.as_ref())
     }
     /// Returns a mutable reference to a dynamic device at `index` in the dynamic daisy-chain.
     #[inline]
-    pub fn get_device_mut(&mut self, index: usize) -> Option<&mut LinkedDynDevice<D>> {
+    pub fn get_device_mut(&mut self, index: usize) -> Option<&mut NamedDynDevice<D::Timestamp>> {
         self.devices.get_mut(index).map(|d| d.as_mut())
     }
 }
@@ -105,6 +128,7 @@ impl<D> DynamicBusDevice<D>
     where D: BusDevice, D::Timestamp: Debug + 'static
 {
     /// Removes the last device from the dynamic daisy-chain.
+    ///
     /// # Panics
     /// Panics if a device is not of a type given as parameter `B`.
     pub fn remove_as_device<B>(&mut self) -> Option<Box<B>>
@@ -114,7 +138,19 @@ impl<D> DynamicBusDevice<D>
             boxdev.downcast::<B>().expect("wrong dynamic device type removed")
         )
     }
+    /// Replaces a device at the given `index` and returns it.
+    /// 
+    /// The removed device is replaced by the last device of the chain.
+    ///
+    /// # Panics
+    /// Panics if a device doesn't exist at `index` or if a device is not of a type given as parameter `B`.
+    pub fn swap_remove_as_device<B>(&mut self, index: usize) -> Box<B>
+        where B: NamedBusDevice<D::Timestamp> + 'static
+    {
+        self.swap_remove_device(index).downcast::<B>().expect("wrong dynamic device type removed")
+    }
     /// Returns a reference to a device of a type `B` at `index` in the dynamic daisy-chain.
+    ///
     /// # Panics
     /// Panics if a device doesn't exist at `index` or if a device is not of a type given as parameter `B`.
     #[inline]
@@ -124,6 +160,7 @@ impl<D> DynamicBusDevice<D>
         self.devices[index].downcast_ref::<B>().expect("wrong dynamic device type")
     }
     /// Returns a mutable reference to a device of a type `B` at `index` in the dynamic daisy-chain.
+    ///
     /// # Panics
     /// Panics if a device doesn't exist at `index` or if a device is not of a type given as parameter `B`.
     #[inline]
@@ -163,7 +200,7 @@ impl<D> DynamicBusDevice<D>
 }
 
 impl<D: BusDevice> Index<usize> for DynamicBusDevice<D> {
-    type Output = LinkedDynDevice<D>;
+    type Output = NamedDynDevice<D::Timestamp>;
     #[inline]
     fn index(&self, index: usize) -> &Self::Output {
         self.devices[index].as_ref()
@@ -178,8 +215,8 @@ impl<D: BusDevice> IndexMut<usize> for DynamicBusDevice<D> {
 }
 
 impl<'a, D: BusDevice> IntoIterator for &'a DynamicBusDevice<D> {
-    type Item = &'a BoxLinkedDynDevice<D>;
-    type IntoIter = core::slice::Iter<'a, BoxLinkedDynDevice<D>>;
+    type Item = &'a BoxNamedDynDevice<D::Timestamp>;
+    type IntoIter = core::slice::Iter<'a, BoxNamedDynDevice<D::Timestamp>>;
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
         self.devices.iter()
@@ -187,8 +224,8 @@ impl<'a, D: BusDevice> IntoIterator for &'a DynamicBusDevice<D> {
 }
 
 impl<'a, D: BusDevice> IntoIterator for &'a mut DynamicBusDevice<D> {
-    type Item = &'a mut BoxLinkedDynDevice<D>;
-    type IntoIter = core::slice::IterMut<'a, BoxLinkedDynDevice<D>>;
+    type Item = &'a mut BoxNamedDynDevice<D::Timestamp>;
+    type IntoIter = core::slice::IterMut<'a, BoxNamedDynDevice<D::Timestamp>>;
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
         self.devices.iter_mut()
@@ -196,8 +233,8 @@ impl<'a, D: BusDevice> IntoIterator for &'a mut DynamicBusDevice<D> {
 }
 
 impl<D: BusDevice> IntoIterator for DynamicBusDevice<D> {
-    type Item = BoxLinkedDynDevice<D>;
-    type IntoIter = std::vec::IntoIter<BoxLinkedDynDevice<D>>;
+    type Item = BoxNamedDynDevice<D::Timestamp>;
+    type IntoIter = std::vec::IntoIter<BoxNamedDynDevice<D::Timestamp>>;
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
         self.devices.into_iter()
