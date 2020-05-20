@@ -14,13 +14,6 @@ use crate::clock::VideoTs;
 
 pub use dynbus::*;
 
-// A required part of `dyn BusDevice`.
-// Shamelessly ripped from std::error. Somewhat tedious, but apparently this is the way.
-mod private {
-    #[derive(Debug)]
-    pub struct Internal;
-}
-
 impl<T: Debug + 'static> dyn NamedBusDevice<T> {
     /// Attempts to downcast the box to a concrete type.
     #[inline]
@@ -42,7 +35,7 @@ impl<T: Debug + 'static> dyn NamedBusDevice<T> + 'static {
     /// Returns `true` if the boxed type is the same as `D`
     #[inline]
     pub fn is<D: NamedBusDevice<T> + 'static>(&self) -> bool {
-        TypeId::of::<D>() == self.type_id(private::Internal)
+        TypeId::of::<D>() == self.type_id()
     }
     /// Returns some reference to the boxed value if it is of type `D`, or
     /// `None` if it isn't.
@@ -152,8 +145,7 @@ pub trait BusDevice: Debug {
     /// Gets the `TypeId` of `self`.
     ///
     /// A required part for `dyn BusDevice`.
-    #[doc(hidden)]
-    fn type_id(&self, _: private::Internal) -> TypeId where Self: 'static {
+    fn type_id(&self) -> TypeId where Self: 'static {
         TypeId::of::<Self>()
     }
 }
