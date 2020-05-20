@@ -123,7 +123,7 @@ macro_rules! impl_memory_block {
 impl_memory_block!(MEM48K_SIZE, 2, 1, [ROM 0, RAM 0, ROM 1, ROM 1], [0]);
 impl_memory_block!(MEM64K_SIZE, 1, 3, [ROM 0, RAM 0, RAM 1, RAM 2], [0]);
 impl_memory_block!(MEM32K_SIZE + MEM128K_SIZE, 2, 8, [ROM 0, RAM 5, RAM 2, RAM 0], [5, 7]);
-impl_memory_block!(MEM64K_SIZE + MEM128K_SIZE, 4, 6, [ROM 0, RAM 5, RAM 2, RAM 0], [5, 7]);
+impl_memory_block!(MEM64K_SIZE + MEM128K_SIZE, 4, 8, [ROM 0, RAM 5, RAM 2, RAM 0], [5, 7]);
 
 #[cfg_attr(feature = "snapshot", derive(Serialize))]
 struct ExRomAttachment<P> {
