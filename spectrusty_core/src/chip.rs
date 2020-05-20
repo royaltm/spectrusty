@@ -257,27 +257,13 @@ impl ThreadSyncTimer {
         let frame_duration = Duration::from_nanos(frame_duration_nanos as u64);
         ThreadSyncTimer { time: Instant::now(), frame_duration }
     }
+    /// Sets [ThreadSyncTimer::frame_duration] from the provided `frame_duration_nanos`.
+    pub fn set_frame_duration(&mut self, frame_duration_nanos: u32) {
+        self.frame_duration = Duration::from_nanos(frame_duration_nanos as u64);
+    }
     /// Restarts the synchronization period. Usefull e.g. for resuming paused emulation.
     pub fn restart(&mut self) -> Instant {
         core::mem::replace(&mut self.time, Instant::now())
-    }
-    /// Returns `Some(excess_duration)` if the time elapsed from the beginning of the current
-    /// period exceeds or is equal to the desired duration of a synchronization period.
-    /// Otherwise returns `None`.
-    ///
-    /// The value returned is the excess time that has elapsed above the desired duration.
-    /// If the time elapsed equals to the `frame_duration` the returned value equals to zero.
-    ///
-    /// In case `Some` variant is returned the value of [ThreadSyncTimer::frame_duration] is
-    /// being added to [ThreadSyncTimer::time] to mark the beginning of a new period.
-    pub fn check_frame_elapsed(&mut self) -> Option<Duration> {
-        let frame_duration = self.frame_duration;
-        let elapsed = self.time.elapsed();
-        if let Some(duration) = elapsed.checked_sub(frame_duration) {
-            self.time += frame_duration;
-            return Some(duration)
-        }
-        None
     }
     /// Calculates the difference between the desired duration of a synchronization period
     /// and the real time that has passed from the start of the current period and levels
@@ -307,25 +293,49 @@ impl ThreadSyncTimer {
             Err(missed_frames)
         }
     }
+    /// Returns `Some(excess_duration)` if the time elapsed from the beginning of the current
+    /// period exceeds or is equal to the desired duration of a synchronization period.
+    /// Otherwise returns `None`.
+    ///
+    /// The value returned is the excess time that has elapsed above the desired duration.
+    /// If the time elapsed equals to the `frame_duration` the returned value equals to zero.
+    ///
+    /// In case `Some` variant is returned the value of [ThreadSyncTimer::frame_duration] is
+    /// being added to [ThreadSyncTimer::time] to mark the beginning of a new period.
+    pub fn check_frame_elapsed(&mut self) -> Option<Duration> {
+        let frame_duration = self.frame_duration;
+        let elapsed = self.time.elapsed();
+        if let Some(duration) = elapsed.checked_sub(frame_duration) {
+            self.time += frame_duration;
+            return Some(duration)
+        }
+        None
+    }
 }
 
 #[cfg(target_arch = "wasm32")]
 pub struct AnimationFrameSyncTimer {
     pub time: f64,
-    pub frame_duration: f64,
+    pub frame_duration_millis: f64,
 }
 
 #[cfg(target_arch = "wasm32")]
+const NANOS_PER_MILLISEC: f64 = 1_000_000.0;
+
+#[cfg(target_arch = "wasm32")]
 impl AnimationFrameSyncTimer {
-    const MAX_FRAME_LAG_THRESHOLD: u32 = 5;
+    const MAX_FRAME_LAG_THRESHOLD: u32 = 10;
     /// Pass the `DOMHighResTimeStamp` as a first and the real time duration of a desired synchronization
     /// period (usually a duration of a video frame) as a second argument.
-   pub fn new(time: f64, frame_duration_nanos: u32) -> Self {
-        const NANOS_PER_SEC: f64 = 1_000_000_000.0;
-        let frame_duration = frame_duration_nanos as f64 / NANOS_PER_SEC;
-        AnimationFrameSyncTimer { time, frame_duration }
+    pub fn new(time: f64, frame_duration_nanos: u32) -> Self {
+        let frame_duration_millis = frame_duration_nanos as f64 / NANOS_PER_MILLISEC;
+        AnimationFrameSyncTimer { time, frame_duration_millis }
     }
-    /// Restarts the synchronizaiton period. Usefull for e.g. resuming paused emulation.
+     /// Sets [AnimationFrameSyncTimer::frame_duration_millis] from the provided `frame_duration_nanos`.
+    pub fn set_frame_duration(&mut self, frame_duration_nanos: u32) {
+        self.frame_duration_millis = frame_duration_nanos as f64 / NANOS_PER_MILLISEC;
+    }
+   /// Restarts the synchronizaiton period. Usefull for e.g. resuming paused emulation.
     ///
     /// Pass the value of `DOMHighResTimeStamp` as the argument.
     pub fn restart(&mut self, time: f64) -> f64 {
@@ -339,12 +349,12 @@ impl AnimationFrameSyncTimer {
     /// than the duration of number of frames specified by [MAX_FRAME_LAG_THRESHOLD]. In this instance the
     /// previous value of `time` is returned.
     pub fn num_frames_to_synchronize(&mut self, time: f64) -> core::result::Result<u32, f64> {
-        let frame_duration = self.frame_duration;
+        let frame_duration_millis = self.frame_duration_millis;
         let time_elapsed = time - self.time;
-        if time_elapsed > frame_duration {
-            let nframes = (time_elapsed / frame_duration).trunc() as u32;
+        if time_elapsed > frame_duration_millis {
+            let nframes = (time_elapsed / frame_duration_millis).trunc() as u32;
             if nframes <= Self::MAX_FRAME_LAG_THRESHOLD {
-                self.time = frame_duration.mul_add(nframes as f64, self.time);
+                self.time = frame_duration_millis.mul_add(nframes as f64, self.time);
                 Ok(nframes)
             }
             else {
@@ -355,5 +365,24 @@ impl AnimationFrameSyncTimer {
             Ok(0)
         }
             
+    }
+    /// Returns `Some(excess_duration_millis)` if the `time` elapsed from the beginning of the current
+    /// period exceeds or is equal to the desired duration of a synchronization period.
+    /// Otherwise returns `None`.
+    ///
+    /// The value returned is the excess time that has elapsed above the desired duration.
+    /// If the time elapsed equals to the `frame_duration` the returned value equals to zero.
+    ///
+    /// In case `Some` variant is returned the value of [AnimationFrameSyncTimer::frame_duration] is
+    /// being added to [AnimationFrameSyncTimer::time] to mark the beginning of a new period.
+   pub fn check_frame_elapsed(&mut self, time: f64) -> Option<f64> {
+        let frame_duration_millis = self.frame_duration_millis;
+        let elapsed = time - self.time;
+        let excess_duration_millis = elapsed - frame_duration_millis;
+        if excess_duration_millis >= 0.0 {
+            self.time += frame_duration_millis;
+            return Some(excess_duration_millis)
+        }
+        None
     }
 }
