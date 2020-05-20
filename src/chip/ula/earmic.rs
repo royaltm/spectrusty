@@ -66,7 +66,7 @@ impl<M, B, X, F> EarIn for Ula<M, B, X, F>
         self.read_ear_in_count.0
     }
 
-    fn get_read_ear_mode(&self) -> ReadEarMode {
+    fn read_ear_mode(&self) -> ReadEarMode {
         self.read_ear_mode
     }
 

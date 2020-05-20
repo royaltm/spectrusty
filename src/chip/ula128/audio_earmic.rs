@@ -71,8 +71,8 @@ impl<B, X> EarIn for Ula128<B, X> {
         self.ula.read_ear_in_count()
     }
 
-    fn get_read_ear_mode(&self) -> ReadEarMode {
-        self.ula.get_read_ear_mode()
+    fn read_ear_mode(&self) -> ReadEarMode {
+        self.ula.read_ear_mode()
     }
 
     fn set_read_ear_mode(&mut self, mode: ReadEarMode) {

@@ -2,6 +2,7 @@
 use core::fmt;
 use core::convert::TryFrom;
 use core::num::NonZeroU32;
+use core::str::FromStr;
 use core::time::Duration;
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
@@ -130,7 +131,7 @@ pub trait EarIn {
     /// This can be used to help implementing the auto loading of tape data.
     fn read_ear_in_count(&self) -> u32;
     /// Returns the current mode.
-    fn get_read_ear_mode(&self) -> ReadEarMode {
+    fn read_ear_mode(&self) -> ReadEarMode {
         ReadEarMode::Clear
     }
     /// Changes the current mode.
@@ -148,6 +149,9 @@ pub enum ReadEarMode {
     /// Always clear - EAR input is always 0
     Clear
 }
+
+#[derive(Clone, Debug)]
+pub struct ParseReadEarModeError;
 
 bitflags! {
     /// This type represents packed EAR and MIC output data.
@@ -237,6 +241,48 @@ impl TryFrom<u8> for EarMic {
 impl From<EarMic> for u8 {
     fn from(earmic: EarMic) -> u8 {
         earmic.bits()
+    }
+}
+
+impl From<ReadEarMode> for &str {
+    fn from(mode: ReadEarMode) -> Self {
+        match mode {
+            ReadEarMode::Issue3 => "Issue 3",
+            ReadEarMode::Issue2 => "Issue 2",
+            ReadEarMode::Clear => "Clear"
+        }
+    }
+}
+
+impl fmt::Display for ReadEarMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        <&str>::from(*self).fmt(f)
+    }
+}
+
+impl std::error::Error for ParseReadEarModeError {}
+
+impl fmt::Display for ParseReadEarModeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "cannot parse `ReadEarMode`: unrecognized string")
+    }
+}
+
+impl FromStr for ReadEarMode {
+    type Err = ParseReadEarModeError;
+    fn from_str(mode: &str) -> core::result::Result<Self, Self::Err> {
+        if mode.eq_ignore_ascii_case("issue 3") {
+            Ok(ReadEarMode::Issue3)
+        }
+        else if mode.eq_ignore_ascii_case("issue 2") {
+            Ok(ReadEarMode::Issue2)
+        }
+        else if mode.eq_ignore_ascii_case("clear") {
+            Ok(ReadEarMode::Clear)
+        }
+        else {
+            Err(ParseReadEarModeError)
+        }
     }
 }
 
