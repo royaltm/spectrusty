@@ -375,13 +375,7 @@ impl AyWebPlayer {
         Ok(())
     }
     /// Sets the gain for this oscillator, between 0.0 and 1.0.
-    fn set_gain(&self, mut gain: f32) {
-        if gain > 1.0 {
-            gain = 1.0;
-        }
-        if gain < 0.0 {
-            gain = 0.0;
-        }
-        self.gain.gain().set_value(gain);
+    fn set_gain(&self, gain: f32) {
+        self.gain.gain().set_value(gain.min(1.0).max(0.0));
     }
 }
