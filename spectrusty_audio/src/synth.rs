@@ -78,6 +78,10 @@ impl<T: Copy + Default, O> BandLimited<T, O> {
         self.last_nsamples = None;
         self.start_time = 0.0;
     }
+    /// Shrinks the excessive capacity of the buffer as much as possible.
+    pub fn shrink_to_fit(&mut self) {
+        self.diffs.shrink_to_fit();
+    }
     /// Ensures the frame buffer length is large enough to fit data for the specified `frame_time`
     /// with additional `margin_time`.
     ///
@@ -94,7 +98,6 @@ impl<T: Copy + Default, O> BandLimited<T, O> {
         // eprintln!("max_samples {} required_len {} frame_time {}", max_samples, required_len, frame_time);
         if self.diffs.len() != required_len {
             self.diffs.resize(required_len, T::default());
-            self.diffs.shrink_to_fit();
         }
         self.frame_time = frame_time;
     }
