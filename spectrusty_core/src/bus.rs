@@ -210,7 +210,7 @@ impl<T> fmt::Display for NullDevice<T> {
     }
 }
 
-/// A [BusDevice] allowing for plugging in and out a device at run time.
+/// A pseudo [BusDevice] allowing for plugging in and out any device at run time.
 #[derive(Clone, Default, Debug)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]

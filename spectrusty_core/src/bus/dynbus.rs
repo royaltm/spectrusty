@@ -2,16 +2,22 @@ use core::mem;
 use core::num::NonZeroU16;
 use core::fmt::{Display, Debug};
 use core::iter::IntoIterator;
-use core::ops::{Deref, DerefMut, Index, IndexMut};
+use core::ops::{Index, IndexMut};
 
 #[cfg(feature = "snapshot")]
-use serde::{Serialize, Deserialize};
+use ::serde::{Serialize, Deserialize};
+
+#[cfg(feature = "snapshot")]
+mod serde;
+
+#[cfg(feature = "snapshot")]
+pub use self::serde::*;
 
 use crate::clock::VideoTs;
 use super::{BusDevice, NullDevice};
 
 /// A trait for dynamic bus devices, which currently includes methods from [Display] and [BusDevice].
-/// Devices implementing this trait can be used with a [DynamicBusDevice].
+/// Devices implementing this trait can be used with a [DynamicBus].
 ///
 /// Implemented for all types that implement dependent traits.
 pub trait NamedBusDevice<T: Debug>: Display + BusDevice<Timestamp=T, NextDevice=NullDevice<T>>{}
@@ -20,29 +26,29 @@ impl<T: Debug, D> NamedBusDevice<T> for D where D: Display + BusDevice<Timestamp
 
 /// A type of a dynamic [NamedBusDevice].
 pub type NamedDynDevice<T> = dyn NamedBusDevice<T>;
-/// This is a type of items stored by [DynamicBusDevice].
+/// This is a type of items stored by [DynamicBus].
 ///
 /// A type of a boxed dynamic [NamedBusDevice].
 pub type BoxNamedDynDevice<T> = Box<dyn NamedBusDevice<T>>;
 
-/// A bus device that allows for adding and removing devices of different types at run time.
+/// A pseudo bus device that allows for adding and removing devices of different types at run time.
 ///
 /// The penalty is that the access to the devices must be done using a virtual call dispatch.
 /// Also the device of this type can't be cloned (nor the [ControlUnit][crate::chip::ControlUnit]
 /// with this device attached).
 ///
-/// `DynamicBusDevice` implements [BusDevice] so obviously it's possible to attach a statically
-/// dispatched next [BusDevice] to it. By default it is [NullDevice].
+/// `DynamicBus` implements [BusDevice] so obviously it's possible to attach a statically
+/// dispatched next [BusDevice] to it. By default it is [NullDevice<VideoTs>][NullDevice].
 ///
-/// Currently only types implementing [BusDevice] terminated with [NullDevice] can be appended as
-/// dynamically dispatched objects.
+/// Currently only types implementing [BusDevice] directly terminated with [NullDevice] can be
+/// appended as dynamically dispatched objects.
 #[derive(Default, Debug)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
-pub struct DynamicBusDevice<D: BusDevice=NullDevice<VideoTs>> {
-    #[cfg_attr(feature = "snapshot", serde(skip))]
-    devices: Vec<BoxNamedDynDevice<D::Timestamp>>,
+pub struct DynamicBus<D: BusDevice=NullDevice<VideoTs>> {
     #[cfg_attr(feature = "snapshot", serde(default))]
-    bus: D
+    bus: D,
+    #[cfg_attr(feature = "snapshot", serde(skip))]
+    devices: Vec<BoxNamedDynDevice<D::Timestamp>>
 }
 
 impl<'a, T: Debug, D: 'a> From<D> for Box<dyn NamedBusDevice<T> + 'a>
@@ -53,20 +59,19 @@ impl<'a, T: Debug, D: 'a> From<D> for Box<dyn NamedBusDevice<T> + 'a>
     }
 }
 
-impl<D: BusDevice> Deref for DynamicBusDevice<D> {
-    type Target = [BoxNamedDynDevice<D::Timestamp>];
-    fn deref(&self) -> &Self::Target {
-        &self.devices.as_slice()
+impl<D: BusDevice> AsRef<[BoxNamedDynDevice<D::Timestamp>]> for DynamicBus<D> {
+    fn as_ref(&self) -> &[BoxNamedDynDevice<D::Timestamp>] {
+        self.devices.as_slice()
     }
 }
 
-impl<D: BusDevice> DerefMut for DynamicBusDevice<D> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
+impl<D: BusDevice> AsMut<[BoxNamedDynDevice<D::Timestamp>]> for DynamicBus<D> {
+    fn as_mut(&mut self) -> &mut[BoxNamedDynDevice<D::Timestamp>] {
         self.devices.as_mut_slice()
     }
 }
 
-impl<D> DynamicBusDevice<D>
+impl<D> DynamicBus<D>
     where D: BusDevice
 {
     /// Returns a number of attached devices.
@@ -124,8 +129,9 @@ impl<D> DynamicBusDevice<D>
     }
 }
 
-impl<D> DynamicBusDevice<D>
-    where D: BusDevice, D::Timestamp: Debug + 'static
+impl<D> DynamicBus<D>
+    where D: BusDevice,
+          D::Timestamp: Debug + 'static
 {
     /// Removes the last device from the dynamic daisy-chain.
     ///
@@ -199,7 +205,7 @@ impl<D> DynamicBusDevice<D>
     }
 }
 
-impl<D: BusDevice> Index<usize> for DynamicBusDevice<D> {
+impl<D: BusDevice> Index<usize> for DynamicBus<D> {
     type Output = NamedDynDevice<D::Timestamp>;
     #[inline]
     fn index(&self, index: usize) -> &Self::Output {
@@ -207,14 +213,14 @@ impl<D: BusDevice> Index<usize> for DynamicBusDevice<D> {
     }
 }
 
-impl<D: BusDevice> IndexMut<usize> for DynamicBusDevice<D> {
+impl<D: BusDevice> IndexMut<usize> for DynamicBus<D> {
     #[inline]
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         self.devices[index].as_mut()
     }
 }
 
-impl<'a, D: BusDevice> IntoIterator for &'a DynamicBusDevice<D> {
+impl<'a, D: BusDevice> IntoIterator for &'a DynamicBus<D> {
     type Item = &'a BoxNamedDynDevice<D::Timestamp>;
     type IntoIter = core::slice::Iter<'a, BoxNamedDynDevice<D::Timestamp>>;
     #[inline]
@@ -223,7 +229,7 @@ impl<'a, D: BusDevice> IntoIterator for &'a DynamicBusDevice<D> {
     }
 }
 
-impl<'a, D: BusDevice> IntoIterator for &'a mut DynamicBusDevice<D> {
+impl<'a, D: BusDevice> IntoIterator for &'a mut DynamicBus<D> {
     type Item = &'a mut BoxNamedDynDevice<D::Timestamp>;
     type IntoIter = core::slice::IterMut<'a, BoxNamedDynDevice<D::Timestamp>>;
     #[inline]
@@ -232,7 +238,7 @@ impl<'a, D: BusDevice> IntoIterator for &'a mut DynamicBusDevice<D> {
     }
 }
 
-impl<D: BusDevice> IntoIterator for DynamicBusDevice<D> {
+impl<D: BusDevice> IntoIterator for DynamicBus<D> {
     type Item = BoxNamedDynDevice<D::Timestamp>;
     type IntoIter = std::vec::IntoIter<BoxNamedDynDevice<D::Timestamp>>;
     #[inline]
@@ -241,8 +247,9 @@ impl<D: BusDevice> IntoIterator for DynamicBusDevice<D> {
     }
 }
 
-impl<D> BusDevice for DynamicBusDevice<D>
-    where D: BusDevice, D::Timestamp: Debug + Copy
+impl<D> BusDevice for DynamicBus<D>
+    where D: BusDevice,
+          D::Timestamp: Debug + Copy
 {
     type Timestamp = D::Timestamp;
     type NextDevice = D;
@@ -366,7 +373,7 @@ mod tests {
 
     #[test]
     fn dynamic_bus_device_works() {
-        let mut dchain: DynamicBusDevice<NullDevice<i32>> = Default::default();
+        let mut dchain: DynamicBus<NullDevice<i32>> = Default::default();
         assert_eq!(dchain.len(), 0);
         assert_eq!(dchain.write_io(0, 0, 0), None);
         assert_eq!(dchain.read_io(0, 0), None);
