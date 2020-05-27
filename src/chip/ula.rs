@@ -113,6 +113,19 @@ pub struct Ula<M, B=NullDevice<VideoTs>, X=NoMemoryExtension, V=UlaVideoFrame> {
     last_earmic_data: EarMic, // last recorded data
 }
 
+impl<M, B, X, V: VideoFrame> Ula<M, B, X, V> {
+    /// Sets the frame counter to the specified value.
+    pub fn set_frame_counter(&mut self, fc: u64) {
+        self.frames = Wrapping(fc);
+    }
+    /// Sets the T-state counter to the specified value modulo `V::FRAME_TSTATES_COUNT`.
+    pub fn set_frame_tstate(&mut self, ts: FTs) {
+        let ts = ts.rem_euclid(V::FRAME_TSTATES_COUNT);
+        let tsc = V::tstates_to_vts(ts);
+        self.tsc = tsc
+    }
+}
+
 impl<M, B, X, V> Default for Ula<M, B, X, V>
 where M: Default,
       B: Default,

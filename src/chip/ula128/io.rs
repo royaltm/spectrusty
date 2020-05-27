@@ -18,7 +18,7 @@ impl PortAddress for Ula128MemPortAddress {
 
 bitflags! {
     #[derive(Default)]
-    pub(crate) struct Ula128MemFlags: u8 {
+    pub struct Ula128MemFlags: u8 {
         const RAM_BANK_MASK = 0b00_0111;
         const SCREEN_BANK   = 0b00_1000;
         const ROM_BANK      = 0b01_0000;

@@ -25,7 +25,7 @@ impl PortAddress for Ula3Mem2PortAddress {
 
 bitflags! {
     #[derive(Default)]
-    pub(crate) struct Ula3MemFlags: u8 {
+    pub struct Ula3MemFlags: u8 {
         const EXT_PAGING  = 0b001;
         const PAGE_LAYOUT = 0b110;
         const ROM_BANK_HI = 0b100;

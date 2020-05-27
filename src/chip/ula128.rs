@@ -19,11 +19,11 @@ use crate::chip::{
         Ula, UlaTimestamp, UlaCpuExt, UlaMemoryContention
     }
 };
-use crate::memory::{Memory128k, ZxMemory, MemoryExtension, NoMemoryExtension};
+use crate::memory::{Memory128k, ZxMemory, MemoryExtension, NoMemoryExtension, MemoryKind};
 use crate::clock::{VideoTs, FTs, VFrameTsCounter, MemoryContention};
 
 pub use video::Ula128VidFrame;
-pub(crate) use io::Ula128MemFlags;
+pub use io::Ula128MemFlags;
 
 /// Implements [MemoryContention] in a way that addresses in the range: [0x4000, 0x7FFF] and [0xC000, 0xFFFF]
 /// are being contended.
@@ -140,6 +140,34 @@ macro_rules! impl_ram_page_from {
 impl_ram_page_from!(u8, usize);
 
 impl<B, X> Ula128<B, X> {
+    /// Sets the frame counter to the specified value.
+    pub fn set_frame_counter(&mut self, fc: u64) {
+        self.ula.set_frame_counter(fc)
+    }
+    /// Sets the T-state counter to the specified value modulo `Ula128VidFrame::FRAME_TSTATES_COUNT`.
+    pub fn set_frame_tstate(&mut self, ts: FTs) {
+        self.ula.set_frame_tstate(ts)
+    }
+    /// Returns the last value sent to the memory port `0x7FFD`.
+    ///
+    /// Usefull for creating snapshots.
+    pub fn mem_port_value(&self) -> Ula128MemFlags {
+        let mut flags = Ula128MemFlags::from_bits_truncate(self.mem_page3_bank.into())
+                        & Ula128MemFlags::RAM_BANK_MASK;
+        if self.cur_screen_shadow {
+            flags.insert(Ula128MemFlags::SCREEN_BANK);
+        };
+        if let Ok((MemoryKind::Rom, rom_bank)) = self.ula.memory.page_bank(0) {
+            if rom_bank != 0 {
+                flags.insert(Ula128MemFlags::ROM_BANK);
+            }            
+        }
+        if self.mem_locked {
+            flags.insert(Ula128MemFlags::LOCK_MMU);
+        }
+        flags
+    }
+
     #[inline(always)]
     fn is_page3_contended(&self) -> bool {
         self.mem_page3_bank as u8 & 1 == 1 // banks: 1, 3, 5 and 7 are contended

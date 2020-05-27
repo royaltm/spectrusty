@@ -18,13 +18,14 @@ use crate::chip::{
         Ula, UlaTimestamp, UlaCpuExt, UlaMemoryContention
     },
     ula128::{
-        MemPage8, Ula128MemContention
+        MemPage8, Ula128MemContention, Ula128MemFlags
     }
 };
 use crate::memory::{ZxMemory, Memory128kPlus, MemoryExtension, NoMemoryExtension};
 use crate::clock::{VideoTs, FTs, VFrameTsCounter, MemoryContention, NoMemoryContention};
 
 pub use video::Ula3VidFrame;
+pub use io::Ula3MemFlags;
 
 /// Implements [MemoryContention] in a way that all addresses are being contended.
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
@@ -194,6 +195,53 @@ impl_enum_from!{SpecialPaging: u8,
                 MemPage4: u8, MemPage4: usize}
 
 impl<B, X> Ula3<B, X> {
+    /// Sets the frame counter to the specified value.
+    pub fn set_frame_counter(&mut self, fc: u64) {
+        self.ula.set_frame_counter(fc)
+    }
+    /// Sets the T-state counter to the specified value modulo `Ula3VidFrame::FRAME_TSTATES_COUNT`.
+    pub fn set_frame_tstate(&mut self, ts: FTs) {
+        self.ula.set_frame_tstate(ts)
+    }
+    /// Returns the last value sent to the memory port `0x7FFD`.
+    ///
+    /// Usefull for creating snapshots.
+    pub fn mem_port1_value(&self) -> Ula128MemFlags {
+        let mut flags = Ula128MemFlags::from_bits_truncate(self.mem_page3_bank.into())
+                        & Ula128MemFlags::RAM_BANK_MASK;
+        if self.cur_screen_shadow {
+            flags.insert(Ula128MemFlags::SCREEN_BANK);
+        };
+        let rom_bank: u8 = self.rom_bank.into();
+        if rom_bank & 1 != 0 {
+            flags.insert(Ula128MemFlags::ROM_BANK);
+        }            
+        if self.mem_locked {
+            flags.insert(Ula128MemFlags::LOCK_MMU);
+        }
+        flags
+    }
+    /// Returns the last value sent to the memory port `0x1FFD`.
+    ///
+    /// Usefull for creating snapshots.
+    pub fn mem_port2_value(&self) -> Ula3MemFlags {
+        if let Some(paging) = self.mem_special_paging {
+            let paging: u8 = paging.into();
+            Ula3MemFlags::EXT_PAGING
+            | (Ula3MemFlags::from_bits_truncate(paging << 1)
+               & Ula3MemFlags::PAGE_LAYOUT)
+        }
+        else {
+            let rom_bank: u8 = self.rom_bank.into();
+            if rom_bank & 2 != 0 {
+                Ula3MemFlags::ROM_BANK_HI
+            }
+            else {
+                Ula3MemFlags::empty()
+            }
+        }
+    }
+
     #[inline(always)]
     fn contention_kind(&self) -> ContentionKind {
         if let Some(paging) = self.mem_special_paging {
