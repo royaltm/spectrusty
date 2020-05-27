@@ -9,14 +9,15 @@ pub mod serial128;
 
 use spectrusty_core::{
     audio::{Blep, AmpLevels},
-    bus::{BusDevice, NullDevice, OptionalBusDevice, DynamicBusDevice, NamedBusDevice},
+    bus::{BusDevice, NullDevice, OptionalBusDevice, DynamicBus, DynamicSerdeBus, NamedBusDevice},
     clock::{VideoTs, FTs},
     video::VideoFrame
 };
 
-use crate::ay::{
+pub use crate::ay::{
     audio::Ay3_891xAudio,
-    Ay3_8910Io, AyPortDecode, AyIoPort, AyIoNullPort, Ay128kPortDecode, AyFullerBoxPortDecode
+    Ay3_8910Io, AyIoPort, AyIoNullPort, AyRegister,
+    AyPortDecode, Ay128kPortDecode, AyFullerBoxPortDecode
 };
 
 /// Implement this empty trait for [BusDevice] so methods from [AyAudioVBusDevice]
@@ -139,7 +140,7 @@ impl AyAudioVBusDevice for dyn NamedBusDevice<VideoTs> {
     }
 }
 
-impl<D> AyAudioVBusDevice for DynamicBusDevice<D>
+impl<D> AyAudioVBusDevice for DynamicBus<D>
     where D: AyAudioVBusDevice + BusDevice<Timestamp=VideoTs>
 {
     /// # Note
@@ -151,10 +152,26 @@ impl<D> AyAudioVBusDevice for DynamicBusDevice<D>
               V: VideoFrame,
               E: Blep
     {
-        for dev in self.iter_mut() {
+        for dev in self.into_iter() {
             dev.render_ay_audio_vts::<S, V, E>(blep, end_ts, chans)
         }
         self.next_device_mut().render_ay_audio_vts::<S, V, E>(blep, end_ts, chans)
+    }
+}
+
+impl<SD, D> AyAudioVBusDevice for DynamicSerdeBus<SD, D>
+    where D: AyAudioVBusDevice + BusDevice<Timestamp=VideoTs>
+{
+    /// # Note
+    /// This implementation forwards a call to any recognizable [Ay3_891xBusDevice] device in a
+    /// dynamic daisy-chain as well as to an upstream device.
+    #[inline]
+    fn render_ay_audio_vts<S, V, E>(&mut self, blep: &mut E, end_ts: VideoTs, chans: [usize; 3])
+        where S: AmpLevels<E::SampleDelta>,
+              V: VideoFrame,
+              E: Blep
+    {
+        (&mut **self).render_ay_audio_vts::<S, V, E>(blep, end_ts, chans)
     }
 }
 

@@ -100,4 +100,14 @@ impl ZXKeyboardMap {
         // eprintln!("keyscan: {:02x} line: {:02x}", res, line);
         res
     }
+    /// Changes the pressed state of the key indicated as a key index.
+    pub fn change_key_state(self, key: u8, pressed: bool) -> Self {
+        let mask = ZXKeyboardMap::from_bits_truncate(1 << key);
+        if pressed {
+            self | mask
+        }
+        else {
+            self &!mask
+        }
+    }
 }

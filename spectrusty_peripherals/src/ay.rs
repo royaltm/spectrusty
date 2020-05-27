@@ -348,6 +348,13 @@ where A: AyIoPort<Timestamp=T>,
     }
 }
 
+impl AyRegister {
+    /// Returns an iterator of all [AyRegister] values in an ascending order.
+    pub fn enumerate() -> impl Iterator<Item=AyRegister> {
+        (0..15).map(AyRegister::from)
+    }
+}
+
 impl Default for AyRegister {
     fn default() -> Self {
         AyRegister::ToneFineA
