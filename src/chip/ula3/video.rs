@@ -89,6 +89,10 @@ impl<D, X> Video for Ula3<D, X> {
                                &mut self.screen_changes)
         .render_pixels::<B, P, Self::VideoFrame>(buffer, pitch)
     }
+
+    fn visible_screen_bank(&self) -> usize {
+        self.beg_screen_shadow.into()
+    }
 }
 
 impl<B, X> Ula3<B, X> {

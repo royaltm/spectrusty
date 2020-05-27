@@ -80,7 +80,7 @@ pub trait Video {
     fn border_color(&self) -> BorderColor;
     /// Force sets the border area to the given color number [0, 7].
     fn set_border_color(&mut self, border: BorderColor);
-    /// Renders last emulated frame's video data into the provided pixel data `buffer`.
+    /// Renders last emulated frame's video data into the provided pixel `buffer`.
     ///
     /// * `pitch` is the number of bytes in a single row of pixel data, including padding between lines.
     /// * `border_size` determines the size of border rendered around the INK and PAPER area.
@@ -101,6 +101,8 @@ pub trait Video {
         pitch: usize,
         border_size: BorderSize
     );
+    /// Returns the screen bank index of the currently visible screen at the top of the frame.
+    fn visible_screen_bank(&self) -> usize { 0 }
 }
 /// A collection of static methods and constants raleted to video parameters.
 /// ```text
