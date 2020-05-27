@@ -18,22 +18,13 @@ pub const MEM128K_SIZE: usize = 8 * MEM16K_SIZE;
 /// Represents an external ROM as a shared pointer to a slice of bytes.
 pub type ExRom = Rc<[u8]>;
 
-// bitflags! {
-//     #[derive(Default)]
-//     pub struct MemoryFeatures: u8 {
-//         const ROM16K   = 0x01; // 2 ROMS available
-//         const ROM32K   = 0x02; // 4 ROMS available
-//         const RAM_BANKS_16K = 0x04; // 16k ram banks
-//         const RAM_BANKS_8K  = 0x08; // 8k ram banks
-//         const NONE = MemoryFeatures::empty().bits;
-//     }
-// }
-
+#[non_exhaustive]
 #[derive(Debug)]
 pub enum ZxMemoryError {
     InvalidPageIndex,
     InvalidBankIndex,
-    AddressRangeNotSupported,
+    UnsupportedAddressRange,
+    UnsupportedExRomPaging,
     Io(io::Error)
 }
 
@@ -42,9 +33,10 @@ impl std::error::Error for ZxMemoryError {}
 impl fmt::Display for ZxMemoryError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", match self {
-            ZxMemoryError::InvalidPageIndex => "Memory page index out of range",
-            ZxMemoryError::InvalidBankIndex => "Memory bank index out of range",
-            ZxMemoryError::AddressRangeNotSupported => "Address range not supported",
+            ZxMemoryError::InvalidPageIndex => "Memory page index is out of range",
+            ZxMemoryError::InvalidBankIndex => "Memory bank index is out of range",
+            ZxMemoryError::UnsupportedAddressRange => "Address range is not supported",
+            ZxMemoryError::UnsupportedExRomPaging => "EX-ROM mapping is not supported",
             ZxMemoryError::Io(err) => return err.fmt(f)
         })
     }
@@ -59,7 +51,10 @@ impl From<ZxMemoryError> for io::Error {
             ZxMemoryError::InvalidBankIndex => {
                 io::Error::new(io::ErrorKind::InvalidInput, err)
             }
-            ZxMemoryError::AddressRangeNotSupported => {
+            ZxMemoryError::UnsupportedAddressRange => {
+                io::Error::new(io::ErrorKind::InvalidInput, err)
+            }
+            ZxMemoryError::UnsupportedExRomPaging => {
                 io::Error::new(io::ErrorKind::InvalidInput, err)
             }
             ZxMemoryError::Io(err) => err
@@ -147,8 +142,7 @@ pub trait ZxMemory: Sized {
     const ROM_BANKS_MAX: usize;
     /// A maximum value allowed for a `ram_bank` argument
     const RAM_BANKS_MAX: usize;
-    // /// A hint of available memory features.
-    // const FEATURES: MemoryFeatures;
+
     /// Resets memory banks.
     fn reset(&mut self);
     /// If `addr` is above `RAMTOP` the function should return [std::u8::MAX].
@@ -172,11 +166,25 @@ pub trait ZxMemory: Sized {
     fn screen_ref(&self, screen_bank: usize) -> Result<&[u8]>;
     /// Returns a mutable slice of the screen memory.
     fn screen_mut(&mut self, screen_bank: usize) -> Result<&mut [u8]>;
-    /// `page` should be less or euqal to PAGES_MAX.
+    /// Returns what kind of memory is currently paged at the specified `page`.
+    ///
+    /// If an EX-ROM bank is currently mapped at the specified `page` a [MemoryKind::Rom] will be returned
+    /// in this instance.
+    ///
+    /// `page` should be less or equal to PAGES_MAX.
     fn page_kind(&self, page: u8) -> Result<MemoryKind>;
-    /// `page` should be less or euqal to PAGES_MAX.
+    /// Returns what kind of memory and which bank of that memory is currently paged at the specified `page`.
+    ///
+    /// # Note
+    /// Unlike [ZxMemory::page_kind] this method ignores if an EX-ROM bank is currently mapped at the
+    /// specified `page`. In this instance the returned value corresponds to a memory bank that would
+    /// be mapped at `page` if the EX-ROM bank wasn't mapped.
+    ///
+    /// `page` should be less or equal to PAGES_MAX.
+    fn page_bank(&self, page: u8) -> Result<(MemoryKind, usize)>;
+    /// `page` should be less or equal to PAGES_MAX.
     fn page_ref(&self, page: u8) -> Result<&[u8]>;
-    /// `page` should be less or euqal to PAGES_MAX.
+    /// `page` should be less or equal to PAGES_MAX.
     fn page_mut(&mut self, page: u8) -> Result<& mut[u8]>;
     /// `rom_bank` should be less or equal to `ROM_BANKS_MAX`.
     fn rom_bank_ref(&self, rom_bank: usize) -> Result<&[u8]>;
@@ -186,20 +194,30 @@ pub trait ZxMemory: Sized {
     fn ram_bank_ref(&self, ram_bank: usize) -> Result<&[u8]>;
     /// `ram_bank` should be less or equal to `RAM_BANKS_MAX`.
     fn ram_bank_mut(&mut self, ram_bank: usize) -> Result<&mut[u8]>;
-    /// `rom_bank` should be less or equal to `ROM_BANKS_MAX` and `page` should be less or euqal to PAGES_MAX.
+    /// `rom_bank` should be less or equal to `ROM_BANKS_MAX` and `page` should be less or equal to PAGES_MAX.
     fn map_rom_bank(&mut self, rom_bank: usize, page: u8) -> Result<()>;
-    /// `exrom_bank` should be one of the attachable EX-ROMS and `page` should be less or euqal to PAGES_MAX.
+    /// Maps EX-ROM bank at the specified `page`.
+    ///
+    /// `exrom_bank` should be one of the attachable EX-ROMS and `page` should be less or equal to PAGES_MAX.
+    ///
+    /// Only one EX-ROM can be mapped at the same time. If an EX-ROM bank is already mapped when calling
+    /// this function it will be unmapped first, regardless of the page the previous EX-ROM bank has been
+    /// mapped at.
     ///
     /// # Panics
-    /// [ExRom] byte size must equal [ZxMemory::PAGE_SIZE].
+    /// Panics if [ExRom] byte size is not equal to [ZxMemory::PAGE_SIZE].
     ///
     /// Not all types of memory support attaching external ROMs.
-    fn map_exrom(&mut self, _exrom_bank: ExRom, _page: u8) {
-        unimplemented!();
+    fn map_exrom(&mut self, _exrom_bank: ExRom, _page: u8) -> Result<()> {
+        return Err(ZxMemoryError::UnsupportedExRomPaging)
     }
-    /// Unmaps an external ROM if the currently mapped EX-ROM is the same as in the argument.
+    /// Unmaps an external ROM if the currently mapped EX-ROM bank is the same as in the argument.
     /// Otherwise does nothing.
     fn unmap_exrom(&mut self, _exrom_bank: &ExRom) { }
+    /// Returns `true` if an EX-ROM bank is currently being mapped at the specified memory `page`.
+    fn is_exrom_at(&mut self, _page: u8) -> bool { false }
+    /// Returns `true` if a specified EX-ROM bank is currently being mapped.
+    fn has_mapped_exrom(&mut self, _exrom_bank: &ExRom) -> bool { false }
     /// `ram_bank` should be less or equal to `RAM_BANKS_MAX` and `page` should be less or equal to PAGES_MAX.
     fn map_ram_bank(&mut self, ram_bank: usize, page: u8) -> Result<()>;
     /// Returns `Ok(MemPageOffset)` if address is equal to or less than [ZxMemory::RAMTOP].
@@ -243,7 +261,7 @@ pub trait ZxMemory: Sized {
         ) -> Result<MemPageMutIter<'a, Self>>
     {
         let range = normalize_address_range(address_range, 0, Self::RAMTOP)
-                    .map_err(|_| ZxMemoryError::AddressRangeNotSupported)?;
+                    .map_err(|_| ZxMemoryError::UnsupportedAddressRange)?;
         let cursor = range.start;
         let end = range.end;
         Ok(MemPageMutIter { mem: self, cursor, end })
@@ -262,7 +280,9 @@ pub trait ZxMemory: Sized {
     /// Fills currently paged-in pages with the data produced by the closure F.
     ///
     /// Usefull to fill RAM with random bytes.
+    ///
     /// Provide the address range.
+    ///
     /// *NOTE*: this will overwrite both ROM and RAM locations.
     fn fill_mem<R, F>(&mut self, address_range: R, mut f: F) -> Result<()>
     where R: RangeBounds<u16>, F: FnMut() -> u8

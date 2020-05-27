@@ -30,7 +30,7 @@ impl MemoryExtension for ZxInterface1MemExt {
     fn opcode_read<M: ZxMemory>(&mut self, pc: u16, memory: &mut M) -> u8 {
         match pc {
             0x0008|0x1708 => {
-                memory.map_exrom(Rc::clone(&self.exrom), 0);
+                let _ = memory.map_exrom(Rc::clone(&self.exrom), 0);
             }
             0x0700 => {
                 let res = memory.read(pc);
@@ -51,5 +51,9 @@ impl ZxInterface1MemExt {
         rd.read_exact(exrom_slice)?;
         self.exrom = exrom;
         Ok(())
+    }
+    /// Returns a reference to the EX-ROM bank.
+    pub fn exrom(&self) -> &ExRom {
+        &self.exrom
     }
 }

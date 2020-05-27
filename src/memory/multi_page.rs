@@ -217,7 +217,7 @@ impl<M: MemoryBlock> MemPageableRomRamExRom<M> {
         self.ro_pages = 0;
         self.ex_rom = None;
         for (page, &bank) in M::DEFAULT_PAGES.iter().enumerate() {
-            self.bank_to_page(bank, page as u8);
+            self.map_bank_at_page(bank, page as u8);
         }
     }
     #[inline]
@@ -241,7 +241,17 @@ impl<M: MemoryBlock> MemPageableRomRamExRom<M> {
     }
 
     #[inline]
-    fn is_exrom_attached(&mut self, ex_rom: &ExRom) -> bool {
+    fn is_exrom_page(&self, page: u8) -> bool {
+        if let Some(ExRomAttachment { page: ex_page, .. }) = self.ex_rom.as_ref() {
+            *ex_page == page
+        }
+        else {
+            false
+        }
+    }
+
+    #[inline]
+    fn is_exrom_attached(&self, ex_rom: &ExRom) -> bool {
         if let Some(ExRomAttachment { ref rom, .. }) = self.ex_rom.as_ref() {
             Rc::ptr_eq(&ex_rom, rom)
         }
@@ -274,7 +284,7 @@ impl<M: MemoryBlock> MemPageableRomRamExRom<M> {
         self.ro_pages |= ro_flag_mask(page);
     }
 
-    fn bank_to_page(&mut self, bank: usize, page: u8) {
+    fn map_bank_at_page(&mut self, bank: usize, page: u8) {
         let page = page & M::Pages::PAGES_MASK;
         let offset = bank * M::BANK_SIZE;
         let slice = &self.as_slice()[offset..offset + M::BANK_SIZE];
@@ -295,6 +305,16 @@ impl<M: MemoryBlock> MemPageableRomRamExRom<M> {
             self.ro_pages &= !mask;
         }
         *self.pages.page_mut(page) = ptr;
+    }
+
+    fn bank_at_page(&self, page: u8) -> usize {
+        let bank_p = self.ex_rom.as_ref()
+                      .filter(|ex| ex.page == page & M::Pages::PAGES_MASK)
+                      .map(|ex| ex.ptr)
+                      .unwrap_or_else(|| self.pages.page(page));
+        let mem_ptr = self.mem.as_slice().as_ptr() as usize;
+        let offset = bank_p.as_ptr() as usize - mem_ptr;
+        offset / M::BANK_SIZE
     }
 
     #[inline(always)]
@@ -427,6 +447,18 @@ impl<M> ZxMemory for MemPageableRomRamExRom<M>
             Ok(MemoryKind::Rom)
         }
     }
+    fn page_bank(&self, page: u8) -> Result<(MemoryKind, usize)> {
+        if page > Self::PAGES_MAX {
+            return Err(ZxMemoryError::InvalidPageIndex)
+        }
+        let bank = self.bank_at_page(page);
+        if bank < M::ROM_BANKS {
+            Ok((MemoryKind::Rom, bank))
+        }
+        else {
+            Ok((MemoryKind::Ram, bank - M::ROM_BANKS))
+        }
+    }
     #[inline]
     fn page_ref(&self, page: u8) -> Result<&[u8]> {
         if page > Self::PAGES_MAX {
@@ -485,7 +517,7 @@ impl<M> ZxMemory for MemPageableRomRamExRom<M>
         if page > Self::PAGES_MAX {
             return Err(ZxMemoryError::InvalidPageIndex)
         }
-        self.bank_to_page(rom_bank, page);
+        self.map_bank_at_page(rom_bank, page);
         Ok(())
     }
 
@@ -496,21 +528,28 @@ impl<M> ZxMemory for MemPageableRomRamExRom<M>
         if page > Self::PAGES_MAX {
             return Err(ZxMemoryError::InvalidPageIndex)
         }
-        self.bank_to_page(ram_bank + M::ROM_BANKS, page);
+        self.map_bank_at_page(ram_bank + M::ROM_BANKS, page);
         Ok(())
     }
     /// # Panics
     /// Panics if provided `exrom_bank` size does not match [ZxMemory::PAGE_SIZE].
-    fn map_exrom(&mut self, exrom_bank: ExRom, page: u8) {
+    fn map_exrom(&mut self, exrom_bank: ExRom, page: u8) -> Result<()> {
         if page > Self::PAGES_MAX {
-            panic!("{}", ZxMemoryError::InvalidPageIndex);
+            return Err(ZxMemoryError::InvalidPageIndex)
         }
         self.attach_exrom(exrom_bank, page);
+        Ok(())
     }
     fn unmap_exrom(&mut self, exrom_bank: &ExRom) {
         if self.is_exrom_attached(exrom_bank) {
             self.unpage_exrom();
         }
+    }
+    fn is_exrom_at(&mut self, page: u8) -> bool {
+        self.is_exrom_page(page)
+    }
+    fn has_mapped_exrom(&mut self, exrom_bank: &ExRom) -> bool {
+        self.is_exrom_attached(exrom_bank)
     }
 }
 
@@ -656,10 +695,15 @@ mod tests {
         assert_eq!(mem.read16(0xffff), u16::from_le_bytes(['7' as u8, 'R' as u8]));
         assert_eq!(mem.ro_pages, 0b1);
         assert_eq!(mem.page_kind(0).unwrap(), MemoryKind::Rom);
+        assert_eq!(mem.page_bank(0).unwrap(), (MemoryKind::Rom, 0));
         assert_eq!(mem.page_kind(1).unwrap(), MemoryKind::Ram);
+        assert_eq!(mem.page_bank(1).unwrap(), (MemoryKind::Ram, 5));
         assert_eq!(mem.page_kind(2).unwrap(), MemoryKind::Ram);
+        assert_eq!(mem.page_bank(2).unwrap(), (MemoryKind::Ram, 2));
         assert_eq!(mem.page_kind(3).unwrap(), MemoryKind::Ram);
+        assert_eq!(mem.page_bank(3).unwrap(), (MemoryKind::Ram, 7));
         assert!(mem.page_kind(4).is_err());
+        assert!(mem.page_bank(4).is_err());
         assert_eq!(mem.page_index_at(0x0000).unwrap(), MemPageOffset {kind: MemoryKind::Rom, index: 0, offset: 0});
         assert_eq!(mem.page_index_at(0x3fff).unwrap(), MemPageOffset {kind: MemoryKind::Rom, index: 0, offset: 0x3fff});
         assert_eq!(mem.page_index_at(0x4000).unwrap(), MemPageOffset {kind: MemoryKind::Ram, index: 1, offset: 0});
@@ -780,21 +824,40 @@ mod tests {
         test_page(&mem, 1, b"RAM5");
         test_page(&mem, 2, b"RAM2");
         test_page(&mem, 3, b"RAM0");
+        assert_eq!(mem.is_exrom_at(0), false);
+        assert_eq!(mem.is_exrom_at(1), false);
+        assert_eq!(mem.is_exrom_at(2), false);
+        assert_eq!(mem.is_exrom_at(3), false);
+        assert_eq!(mem.is_exrom_at(4), false);
+        assert_eq!(mem.has_mapped_exrom(&exrom), false);
         mem.unmap_exrom(&exrom);
         assert_eq!(mem.page_kind(0).unwrap(), MemoryKind::Rom);
         assert_eq!(mem.page_kind(1).unwrap(), MemoryKind::Ram);
         assert_eq!(mem.page_kind(2).unwrap(), MemoryKind::Ram);
         assert_eq!(mem.page_kind(3).unwrap(), MemoryKind::Ram);
+        assert_eq!(mem.page_bank(0).unwrap(), (MemoryKind::Rom, 0));
+        assert_eq!(mem.page_bank(1).unwrap(), (MemoryKind::Ram, 5));
+        assert_eq!(mem.page_bank(2).unwrap(), (MemoryKind::Ram, 2));
+        assert_eq!(mem.page_bank(3).unwrap(), (MemoryKind::Ram, 0));
         test_page(&mem, 0, b"ROM0");
         test_page(&mem, 1, b"RAM5");
         test_page(&mem, 2, b"RAM2");
         test_page(&mem, 3, b"RAM0");
         let mem2 = mem.clone();
-        mem.map_exrom(exrom.clone(), 0);
+        mem.map_exrom(exrom.clone(), 0).unwrap();
+        assert_eq!(mem.is_exrom_at(0), true);
+        assert_eq!(mem.is_exrom_at(1), false);
+        assert_eq!(mem.is_exrom_at(2), false);
+        assert_eq!(mem.is_exrom_at(3), false);
+        assert_eq!(mem.has_mapped_exrom(&exrom), true);
         assert_eq!(mem.page_kind(0).unwrap(), MemoryKind::Rom);
         assert_eq!(mem.page_kind(1).unwrap(), MemoryKind::Ram);
         assert_eq!(mem.page_kind(2).unwrap(), MemoryKind::Ram);
         assert_eq!(mem.page_kind(3).unwrap(), MemoryKind::Ram);
+        assert_eq!(mem.page_bank(0).unwrap(), (MemoryKind::Rom, 0));
+        assert_eq!(mem.page_bank(1).unwrap(), (MemoryKind::Ram, 5));
+        assert_eq!(mem.page_bank(2).unwrap(), (MemoryKind::Ram, 2));
+        assert_eq!(mem.page_bank(3).unwrap(), (MemoryKind::Ram, 0));
         test_page(&mem, 0, b"EROM");
         test_page(&mem, 1, b"RAM5");
         test_page(&mem, 2, b"RAM2");
@@ -803,28 +866,50 @@ mod tests {
         assert_eq!(mem2.page_kind(1).unwrap(), MemoryKind::Ram);
         assert_eq!(mem2.page_kind(2).unwrap(), MemoryKind::Ram);
         assert_eq!(mem2.page_kind(3).unwrap(), MemoryKind::Ram);
+        assert_eq!(mem2.page_bank(0).unwrap(), (MemoryKind::Rom, 0));
+        assert_eq!(mem2.page_bank(1).unwrap(), (MemoryKind::Ram, 5));
+        assert_eq!(mem2.page_bank(2).unwrap(), (MemoryKind::Ram, 2));
+        assert_eq!(mem2.page_bank(3).unwrap(), (MemoryKind::Ram, 0));
         test_page(&mem2, 0, b"ROM0");
         test_page(&mem2, 1, b"RAM5");
         test_page(&mem2, 2, b"RAM2");
         test_page(&mem2, 3, b"RAM0");
         assert_eq!(Rc::strong_count(&exrom), 2);
         mem.unmap_exrom(&exrom);
+        assert_eq!(mem.is_exrom_at(0), false);
+        assert_eq!(mem.is_exrom_at(1), false);
+        assert_eq!(mem.is_exrom_at(2), false);
+        assert_eq!(mem.is_exrom_at(3), false);
+        assert_eq!(mem.has_mapped_exrom(&exrom), false);
         assert_eq!(Rc::strong_count(&exrom), 1);
         assert_eq!(mem.page_kind(0).unwrap(), MemoryKind::Rom);
         assert_eq!(mem.page_kind(1).unwrap(), MemoryKind::Ram);
         assert_eq!(mem.page_kind(2).unwrap(), MemoryKind::Ram);
         assert_eq!(mem.page_kind(3).unwrap(), MemoryKind::Ram);
+        assert_eq!(mem.page_bank(0).unwrap(), (MemoryKind::Rom, 0));
+        assert_eq!(mem.page_bank(1).unwrap(), (MemoryKind::Ram, 5));
+        assert_eq!(mem.page_bank(2).unwrap(), (MemoryKind::Ram, 2));
+        assert_eq!(mem.page_bank(3).unwrap(), (MemoryKind::Ram, 0));
         test_page(&mem, 0, b"ROM0");
         test_page(&mem, 1, b"RAM5");
         test_page(&mem, 2, b"RAM2");
         test_page(&mem, 3, b"RAM0");
         assert_eq!(Rc::strong_count(&exrom), 1);
-        mem.map_exrom(exrom.clone(), 2);
+        mem.map_exrom(exrom.clone(), 2).unwrap();
+        assert_eq!(mem.is_exrom_at(0), false);
+        assert_eq!(mem.is_exrom_at(1), false);
+        assert_eq!(mem.is_exrom_at(2), true);
+        assert_eq!(mem.is_exrom_at(3), false);
+        assert_eq!(mem.has_mapped_exrom(&exrom), true);
         assert_eq!(Rc::strong_count(&exrom), 2);
         assert_eq!(mem.page_kind(0).unwrap(), MemoryKind::Rom);
         assert_eq!(mem.page_kind(1).unwrap(), MemoryKind::Ram);
         assert_eq!(mem.page_kind(2).unwrap(), MemoryKind::Rom);
         assert_eq!(mem.page_kind(3).unwrap(), MemoryKind::Ram);
+        assert_eq!(mem.page_bank(0).unwrap(), (MemoryKind::Rom, 0));
+        assert_eq!(mem.page_bank(1).unwrap(), (MemoryKind::Ram, 5));
+        assert_eq!(mem.page_bank(2).unwrap(), (MemoryKind::Ram, 2));
+        assert_eq!(mem.page_bank(3).unwrap(), (MemoryKind::Ram, 0));
         test_page(&mem, 0, b"ROM0");
         test_page(&mem, 1, b"RAM5");
         test_page(&mem, 2, b"EROM");
@@ -835,26 +920,45 @@ mod tests {
         assert_eq!(mem.page_kind(1).unwrap(), MemoryKind::Ram);
         assert_eq!(mem.page_kind(2).unwrap(), MemoryKind::Rom);
         assert_eq!(mem.page_kind(3).unwrap(), MemoryKind::Ram);
+        assert_eq!(mem.page_bank(0).unwrap(), (MemoryKind::Rom, 0));
+        assert_eq!(mem.page_bank(1).unwrap(), (MemoryKind::Ram, 3));
+        assert_eq!(mem.page_bank(2).unwrap(), (MemoryKind::Ram, 7));
+        assert_eq!(mem.page_bank(3).unwrap(), (MemoryKind::Ram, 0));
         test_page(&mem, 0, b"ROM0");
         test_page(&mem, 1, b"RAM3");
         test_page(&mem, 2, b"EROM");
         test_page(&mem, 3, b"RAM0");
         assert_eq!(Rc::strong_count(&exrom), 2);
+        assert_eq!(mem.is_exrom_at(0), false);
+        assert_eq!(mem.is_exrom_at(1), false);
+        assert_eq!(mem.is_exrom_at(2), true);
+        assert_eq!(mem.is_exrom_at(3), false);
+        assert_eq!(mem.has_mapped_exrom(&exrom), true);
         mem.unmap_exrom(&exrom);
+        assert_eq!(mem.is_exrom_at(2), false);
+        assert_eq!(mem.has_mapped_exrom(&exrom), false);
         assert_eq!(Rc::strong_count(&exrom), 1);
         assert_eq!(mem.page_kind(0).unwrap(), MemoryKind::Rom);
         assert_eq!(mem.page_kind(1).unwrap(), MemoryKind::Ram);
         assert_eq!(mem.page_kind(2).unwrap(), MemoryKind::Ram);
         assert_eq!(mem.page_kind(3).unwrap(), MemoryKind::Ram);
+        assert_eq!(mem.page_bank(0).unwrap(), (MemoryKind::Rom, 0));
+        assert_eq!(mem.page_bank(1).unwrap(), (MemoryKind::Ram, 3));
+        assert_eq!(mem.page_bank(2).unwrap(), (MemoryKind::Ram, 7));
+        assert_eq!(mem.page_bank(3).unwrap(), (MemoryKind::Ram, 0));
         test_page(&mem, 0, b"ROM0");
         test_page(&mem, 1, b"RAM3");
         test_page(&mem, 2, b"RAM7");
         test_page(&mem, 3, b"RAM0");
-        mem.map_exrom(exrom.clone(), 3);
+        mem.map_exrom(exrom.clone(), 3).unwrap();
         assert_eq!(mem.page_kind(0).unwrap(), MemoryKind::Rom);
         assert_eq!(mem.page_kind(1).unwrap(), MemoryKind::Ram);
         assert_eq!(mem.page_kind(2).unwrap(), MemoryKind::Ram);
         assert_eq!(mem.page_kind(3).unwrap(), MemoryKind::Rom);
+        assert_eq!(mem.page_bank(0).unwrap(), (MemoryKind::Rom, 0));
+        assert_eq!(mem.page_bank(1).unwrap(), (MemoryKind::Ram, 3));
+        assert_eq!(mem.page_bank(2).unwrap(), (MemoryKind::Ram, 7));
+        assert_eq!(mem.page_bank(3).unwrap(), (MemoryKind::Ram, 0));
         test_page(&mem, 0, b"ROM0");
         test_page(&mem, 1, b"RAM3");
         test_page(&mem, 2, b"RAM7");
@@ -865,6 +969,10 @@ mod tests {
         assert_eq!(mem.page_kind(1).unwrap(), MemoryKind::Ram);
         assert_eq!(mem.page_kind(2).unwrap(), MemoryKind::Ram);
         assert_eq!(mem.page_kind(3).unwrap(), MemoryKind::Rom);
+        assert_eq!(mem.page_bank(0).unwrap(), (MemoryKind::Rom, 0));
+        assert_eq!(mem.page_bank(1).unwrap(), (MemoryKind::Ram, 3));
+        assert_eq!(mem.page_bank(2).unwrap(), (MemoryKind::Ram, 7));
+        assert_eq!(mem.page_bank(3).unwrap(), (MemoryKind::Ram, 0));
         test_page(&mem, 0, b"ROM0");
         test_page(&mem, 1, b"RAM3");
         test_page(&mem, 2, b"RAM7");
@@ -875,6 +983,10 @@ mod tests {
         assert_eq!(mem.page_kind(1).unwrap(), MemoryKind::Rom);
         assert_eq!(mem.page_kind(2).unwrap(), MemoryKind::Ram);
         assert_eq!(mem.page_kind(3).unwrap(), MemoryKind::Rom);
+        assert_eq!(mem.page_bank(0).unwrap(), (MemoryKind::Rom, 0));
+        assert_eq!(mem.page_bank(1).unwrap(), (MemoryKind::Rom, 1));
+        assert_eq!(mem.page_bank(2).unwrap(), (MemoryKind::Ram, 7));
+        assert_eq!(mem.page_bank(3).unwrap(), (MemoryKind::Rom, 1));
         test_page(&mem, 0, b"ROM0");
         test_page(&mem, 1, b"ROM1");
         test_page(&mem, 2, b"RAM7");
@@ -886,11 +998,15 @@ mod tests {
         assert_eq!(mem.page_kind(1).unwrap(), MemoryKind::Rom);
         assert_eq!(mem.page_kind(2).unwrap(), MemoryKind::Ram);
         assert_eq!(mem.page_kind(3).unwrap(), MemoryKind::Rom);
+        assert_eq!(mem.page_bank(0).unwrap(), (MemoryKind::Rom, 0));
+        assert_eq!(mem.page_bank(1).unwrap(), (MemoryKind::Rom, 1));
+        assert_eq!(mem.page_bank(2).unwrap(), (MemoryKind::Ram, 7));
+        assert_eq!(mem.page_bank(3).unwrap(), (MemoryKind::Rom, 1));
         test_page(&mem, 0, b"ROM0");
         test_page(&mem, 1, b"ROM1");
         test_page(&mem, 2, b"RAM7");
         test_page(&mem, 3, b"ROM1");
-        mem.map_exrom(exrom.clone(), 1);
+        mem.map_exrom(exrom.clone(), 1).unwrap();
         mem.map_ram_bank(6, 1).unwrap();
         assert_eq!(Rc::strong_count(&exrom2), 1);
         assert_eq!(Rc::strong_count(&exrom), 2);
@@ -901,19 +1017,39 @@ mod tests {
         assert_eq!(mem.page_kind(1).unwrap(), MemoryKind::Rom);
         assert_eq!(mem.page_kind(2).unwrap(), MemoryKind::Ram);
         assert_eq!(mem.page_kind(3).unwrap(), MemoryKind::Rom);
+        assert_eq!(mem.page_bank(0).unwrap(), (MemoryKind::Rom, 0));
+        assert_eq!(mem.page_bank(1).unwrap(), (MemoryKind::Ram, 6));
+        assert_eq!(mem.page_bank(2).unwrap(), (MemoryKind::Ram, 7));
+        assert_eq!(mem.page_bank(3).unwrap(), (MemoryKind::Rom, 1));
         test_page(&mem, 0, b"ROM0");
         test_page(&mem, 1, b"EROM");
         test_page(&mem, 2, b"RAM7");
         test_page(&mem, 3, b"ROM1");
         assert_eq!(Rc::strong_count(&exrom), 3);
-        mem.map_exrom(exrom2.clone(), 3);
+        assert_eq!(mem.is_exrom_at(0), false);
+        assert_eq!(mem.is_exrom_at(1), true);
+        assert_eq!(mem.is_exrom_at(2), false);
+        assert_eq!(mem.is_exrom_at(3), false);
+        assert_eq!(mem.has_mapped_exrom(&exrom), true);
+        assert_eq!(mem.has_mapped_exrom(&exrom2), false);
+        mem.map_exrom(exrom2.clone(), 3).unwrap();
         mem.map_ram_bank(4, 3).unwrap();
+        assert_eq!(mem.is_exrom_at(0), false);
+        assert_eq!(mem.is_exrom_at(1), false);
+        assert_eq!(mem.is_exrom_at(2), false);
+        assert_eq!(mem.is_exrom_at(3), true);
+        assert_eq!(mem.has_mapped_exrom(&exrom), false);
+        assert_eq!(mem.has_mapped_exrom(&exrom2), true);
         assert_eq!(Rc::strong_count(&exrom2), 2);
         assert_eq!(Rc::strong_count(&exrom), 2);
         assert_eq!(mem.page_kind(0).unwrap(), MemoryKind::Rom);
         assert_eq!(mem.page_kind(1).unwrap(), MemoryKind::Ram);
         assert_eq!(mem.page_kind(2).unwrap(), MemoryKind::Ram);
         assert_eq!(mem.page_kind(3).unwrap(), MemoryKind::Rom);
+        assert_eq!(mem.page_bank(0).unwrap(), (MemoryKind::Rom, 0));
+        assert_eq!(mem.page_bank(1).unwrap(), (MemoryKind::Ram, 6));
+        assert_eq!(mem.page_bank(2).unwrap(), (MemoryKind::Ram, 7));
+        assert_eq!(mem.page_bank(3).unwrap(), (MemoryKind::Ram, 4));
         test_page(&mem, 0, b"ROM0");
         test_page(&mem, 1, b"RAM6");
         test_page(&mem, 2, b"RAM7");
@@ -925,6 +1061,10 @@ mod tests {
         assert_eq!(mem.page_kind(1).unwrap(), MemoryKind::Ram);
         assert_eq!(mem.page_kind(2).unwrap(), MemoryKind::Ram);
         assert_eq!(mem.page_kind(3).unwrap(), MemoryKind::Rom);
+        assert_eq!(mem.page_bank(0).unwrap(), (MemoryKind::Rom, 0));
+        assert_eq!(mem.page_bank(1).unwrap(), (MemoryKind::Ram, 6));
+        assert_eq!(mem.page_bank(2).unwrap(), (MemoryKind::Ram, 7));
+        assert_eq!(mem.page_bank(3).unwrap(), (MemoryKind::Ram, 4));
         test_page(&mem, 0, b"ROM0");
         test_page(&mem, 1, b"RAM6");
         test_page(&mem, 2, b"RAM7");
@@ -936,6 +1076,10 @@ mod tests {
         assert_eq!(mem.page_kind(1).unwrap(), MemoryKind::Ram);
         assert_eq!(mem.page_kind(2).unwrap(), MemoryKind::Ram);
         assert_eq!(mem.page_kind(3).unwrap(), MemoryKind::Ram);
+        assert_eq!(mem.page_bank(0).unwrap(), (MemoryKind::Rom, 0));
+        assert_eq!(mem.page_bank(1).unwrap(), (MemoryKind::Ram, 6));
+        assert_eq!(mem.page_bank(2).unwrap(), (MemoryKind::Ram, 7));
+        assert_eq!(mem.page_bank(3).unwrap(), (MemoryKind::Ram, 4));
         test_page(&mem, 0, b"ROM0");
         test_page(&mem, 1, b"RAM6");
         test_page(&mem, 2, b"RAM7");
@@ -944,6 +1088,10 @@ mod tests {
         assert_eq!(mem2.page_kind(1).unwrap(), MemoryKind::Ram);
         assert_eq!(mem2.page_kind(2).unwrap(), MemoryKind::Ram);
         assert_eq!(mem2.page_kind(3).unwrap(), MemoryKind::Ram);
+        assert_eq!(mem2.page_bank(0).unwrap(), (MemoryKind::Rom, 0));
+        assert_eq!(mem2.page_bank(1).unwrap(), (MemoryKind::Ram, 5));
+        assert_eq!(mem2.page_bank(2).unwrap(), (MemoryKind::Ram, 2));
+        assert_eq!(mem2.page_bank(3).unwrap(), (MemoryKind::Ram, 0));
         test_page(&mem2, 0, b"ROM0");
         test_page(&mem2, 1, b"RAM5");
         test_page(&mem2, 2, b"RAM2");
@@ -952,6 +1100,10 @@ mod tests {
         assert_eq!(mem3.page_kind(1).unwrap(), MemoryKind::Rom);
         assert_eq!(mem3.page_kind(2).unwrap(), MemoryKind::Ram);
         assert_eq!(mem3.page_kind(3).unwrap(), MemoryKind::Rom);
+        assert_eq!(mem3.page_bank(0).unwrap(), (MemoryKind::Rom, 0));
+        assert_eq!(mem3.page_bank(1).unwrap(), (MemoryKind::Ram, 6));
+        assert_eq!(mem3.page_bank(2).unwrap(), (MemoryKind::Ram, 7));
+        assert_eq!(mem3.page_bank(3).unwrap(), (MemoryKind::Rom, 1));
         test_page(&mem3, 0, b"ROM0");
         test_page(&mem3, 1, b"EROM");
         test_page(&mem3, 2, b"RAM7");
@@ -963,6 +1115,10 @@ mod tests {
         assert_eq!(mem3.page_kind(1).unwrap(), MemoryKind::Ram);
         assert_eq!(mem3.page_kind(2).unwrap(), MemoryKind::Ram);
         assert_eq!(mem3.page_kind(3).unwrap(), MemoryKind::Ram);
+        assert_eq!(mem3.page_bank(0).unwrap(), (MemoryKind::Rom, 0));
+        assert_eq!(mem3.page_bank(1).unwrap(), (MemoryKind::Ram, 5));
+        assert_eq!(mem3.page_bank(2).unwrap(), (MemoryKind::Ram, 2));
+        assert_eq!(mem3.page_bank(3).unwrap(), (MemoryKind::Ram, 0));
         test_page(&mem3, 0, b"ROM0");
         test_page(&mem3, 1, b"RAM5");
         test_page(&mem3, 2, b"RAM2");

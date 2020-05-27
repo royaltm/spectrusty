@@ -171,6 +171,9 @@ macro_rules! impl_zxmemory {
                     _ => Err(ZxMemoryError::InvalidPageIndex)
                 }        
             }
+            fn page_bank(&self, page: u8) -> Result<(MemoryKind, usize)> {
+                self.page_kind(page).map(|kind| (kind, 0))
+            }
             #[inline]
             fn page_ref(&self, page: u8) -> Result<&[u8]> {
                 match page {
@@ -245,7 +248,7 @@ macro_rules! impl_zxmemory {
                     a @ $rambot..=$ramtop => {
                         Ok(MemPageOffset {kind: MemoryKind::Ram, index: 1, offset: a - $rambot})
                     }
-                    _ => Err(ZxMemoryError::AddressRangeNotSupported)
+                    _ => Err(ZxMemoryError::UnsupportedAddressRange)
                 }
             }
         }

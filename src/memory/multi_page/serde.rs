@@ -160,7 +160,7 @@ mod tests {
         serde_compare(&mem, &mem_de, false);
 
         let exrom: Rc<[u8]> = Rc::from(vec![0u8;Memory128k::PAGE_SIZE]);
-        mem.map_exrom(Rc::clone(&exrom), 3);
+        mem.map_exrom(Rc::clone(&exrom), 3).unwrap();
         let sermem = serde_json::to_string(&mem).unwrap();
         let mem_de: Memory128k = serde_json::from_str(&sermem).unwrap();
         serde_compare(&mem, &mem_de, true);
