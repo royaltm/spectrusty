@@ -26,7 +26,7 @@ fn produce<T: 'static + FromSample<i16> + AudioSample + cpal::Sample + Send, R: 
     // create a band-limited pulse buffer with 1 channel
     let mut bandlim: BandLimited<i16> = BandLimited::new(1);
     // ensure BLEP has enough space to fit a single audio frame (no margin - our frames will have constant size)
-    bandlim.ensure_frame_time(audio.sample_rate, CPU_HZ, FRAME_TSTATES, 0);
+    bandlim.ensure_frame_time(audio.sample_rate, CPU_HZ as f64, FRAME_TSTATES, 0);
     let channels = audio.channels as usize;
     let mut tstamp: i32 = 0;
     let mut delta: i16 = i16::from_sample(1.0f32);

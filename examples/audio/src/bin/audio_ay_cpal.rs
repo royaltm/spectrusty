@@ -20,7 +20,7 @@ fn produce<T: 'static + FromSample<f32> + AudioSample + cpal::Sample + Send>(mut
     // create a band-limited pulse buffer with 3 channels
     let mut bandlim: BlepStereo<BandLimited<f32>> = BlepStereo::build(0.8)(BandLimited::new(2));
     // ensure BLEP has enough space to fit a single audio frame (no margin - our frames will have constant size)
-    bandlim.ensure_frame_time(audio.sample_rate, CPU_HZ, FRAME_TSTATES, 0);
+    bandlim.ensure_frame_time(audio.sample_rate, CPU_HZ as f64, FRAME_TSTATES, 0);
     let channels = audio.channels as usize;
 
     let mut ay = Ay3_891xAudio::default();

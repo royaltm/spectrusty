@@ -133,10 +133,10 @@ impl<F: BandLimOpt> AyFilePlayer<F> {
         self.ay_file = None;
         let ay_file = match parse_ay(data) {
             Ok(af) => af,
-            Err(ay_err) if ay_err.data.len() == SNA_LENGTH => {
+            Err(ay_err) if ay_err.data.len() == SNA_LENGTH as usize => {
                 self.player.memory.rom_mut()
                     .copy_from_slice(&ROM48);
-                read_sna(Cursor::new(&ay_err.data),
+                read_sna48(Cursor::new(&ay_err.data),
                         &mut self.cpu,
                         &mut self.player.memory)
                     .map_err(|e| e.to_string())?;
