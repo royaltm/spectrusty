@@ -42,6 +42,7 @@ use std::collections::{HashMap, HashSet};
 use spectrusty_peripherals::storage::microdrives::{
     MAX_USABLE_SECTORS, HEAD_SIZE,
     Sector, MicroCartridge, MicroCartridgeIdSecIter};
+use crate::ReadExactEx;
 use super::tap::{
     BlockType, Header, TapChunkWriter, TapChunkReader, TapChunkRead, TapChunkInfo,
     DATA_BLOCK_FLAG, array_name
@@ -410,28 +411,6 @@ fn copy_name(target: &mut [u8;10], name: &[u8]) {
     let name_len = name.len().min(10);
     target[..name_len].copy_from_slice(&name[..name_len]);
     target[name_len..].iter_mut().for_each(|p| *p=b' ');
-}
-
-trait ReadExt {
-    fn read_exact_or_less(&mut self, buf: &mut[u8]) -> io::Result<usize>;
-}
-
-impl<R> ReadExt for R where R: Read {
-    fn read_exact_or_less(&mut self, mut buf: &mut[u8]) -> io::Result<usize> {
-        let mut len = 0;
-        while !buf.is_empty() {
-            match self.read(buf) {
-                Ok(0) => break,
-                Ok(n) => {
-                    len += n;
-                    buf = &mut buf[n..];
-                }
-                Err(ref e) if e.kind() == io::ErrorKind::Interrupted => {}
-                Err(e) => return Err(e),
-            }
-        }
-        Ok(len)
-    }
 }
 
 impl SectorExt for Sector {
@@ -844,24 +823,23 @@ impl MicroCartridgeExt for MicroCartridge {
         }
         let mut block_seq = 0;
         let mut first_byte = 0u8;
-        let len = rd.read_exact_or_less(slice::from_mut(&mut first_byte))?;
-        if len == 0 {
+        if !rd.read_exact_or_none(slice::from_mut(&mut first_byte))? {
             return Ok(0);
         }
         for sector in self.into_iter() {
             if sector.is_free() {
                 let buf = sector.data_mut();
                 buf[0] = first_byte;
-                let len = 1 + rd.read_exact_or_less(&mut buf[1..])?;
+                let len = 1 + rd.read_exact_or_to_end(&mut buf[1..])?;
                 sector.set_file_name(file_name);
                 sector.set_file_block_seq(block_seq);
                 block_seq += 1;
                 sector.set_file_block_len(len.try_into().unwrap());
                 sector.set_save_file_flag(is_save);
-                let len = rd.read_exact_or_less(slice::from_mut(&mut first_byte))?;
-                sector.set_last_file_block(len == 0);
+                let is_last = !rd.read_exact_or_none(slice::from_mut(&mut first_byte))?;
+                sector.set_last_file_block(is_last);
                 sector.update_block_checksums();
-                if len == 0 {
+                if is_last {
                     return Ok(block_seq);
                 }
             }

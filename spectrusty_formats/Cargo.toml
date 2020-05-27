@@ -10,6 +10,7 @@ spectrusty_peripherals = { path = "../spectrusty_peripherals", version = "0.1" }
 log = "0.4"
 nom = "5.1"
 memchr = "2.3"
+bitflags = "1.2.1"
 
 [dev-dependencies]
 spectrusty = { path = "..", version = "0.1" }

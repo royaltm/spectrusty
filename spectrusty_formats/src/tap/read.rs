@@ -4,6 +4,8 @@ use core::slice;
 use core::num::NonZeroU32;
 use core::convert::{TryInto, TryFrom};
 use std::io::{ErrorKind, Error, Read, Seek, SeekFrom, Result, Take};
+
+use crate::ReadExactEx;
 use super::pulse::{ReadEncPulseIter, consts::PAUSE_PULSE_LENGTH};
 use super::{Header, TapChunkInfo, HEAD_BLOCK_FLAG, DATA_BLOCK_FLAG, HEADER_SIZE, checksum, try_checksum};
 
@@ -243,17 +245,9 @@ impl<R: Read + Seek> TapChunkRead for TapChunkReader<R> {
         }
 
         let mut size: [u8; 2] = Default::default();
-        loop {
-            match rd.read(&mut size) {
-                Ok(0) => {
-                    self.inner.set_limit(0);
-                    return Ok(None)
-                },
-                Ok(2) => break,
-                Ok(_) => return Err(Error::new(ErrorKind::UnexpectedEof, "failed to fill whole buffer")),
-                Err(ref e) if e.kind() == ErrorKind::Interrupted => continue,
-                Err(e) => return Err(e),
-            };
+        if !rd.read_exact_or_none(&mut size)? {
+            self.inner.set_limit(0);
+            return Ok(None)
         }
         let size = u16::from_le_bytes(size);
         self.chunk_index += 1;
