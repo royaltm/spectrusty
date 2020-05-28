@@ -121,6 +121,11 @@ impl<D, X> Video for Ula128<D, X> {
     fn visible_screen_bank(&self) -> usize {
         self.beg_screen_shadow.into()
     }
+
+    fn current_video_ts(&self) -> VideoTs {
+        self.ula.current_video_ts()
+    }
+
 }
 
 impl<B, X> Ula128<B, X> {

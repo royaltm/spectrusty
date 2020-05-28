@@ -102,7 +102,14 @@ pub trait Video {
         border_size: BorderSize
     );
     /// Returns the screen bank index of the currently visible screen at the top of the frame.
+    ///
+    /// The screen banks are different from memory banks.
+    /// E.g. Spectrum 128k returns `0` for the screen bank which resides in a memory bank 5 and `1`
+    /// for the screen bank which resides in a memory bank 7. For 16k/48k Spectrum this method always
+    /// returns `0`.
     fn visible_screen_bank(&self) -> usize { 0 }
+    /// Returns the current value of the video T-state counter.
+    fn current_video_ts(&self) -> VideoTs;
 }
 /// A collection of static methods and constants raleted to video parameters.
 /// ```text

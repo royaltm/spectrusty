@@ -109,6 +109,10 @@ impl<M: ZxMemory, D, X, V: VideoFrame> Video for Ula<M, D, X, V> {
     {
         self.create_renderer(border_size).render_pixels::<B, P, V>(buffer, pitch)
     }
+
+    fn current_video_ts(&self) -> VideoTs {
+        self.tsc
+    }
 }
 
 impl<M: ZxMemory, B, X, V: VideoFrame> Ula<M, B, X, V> {
