@@ -82,8 +82,6 @@ pub use spectrusty_core::clock;
 #[cfg(feature = "formats")] pub use spectrusty_formats as formats;
 #[cfg(feature = "utils")] pub use spectrusty_utils as utils;
 
-#[macro_use] extern crate bitflags;
-
 pub mod audio;
 pub mod bus;
 pub mod chip;

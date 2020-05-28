@@ -13,7 +13,7 @@ use serde::{Serialize, Deserialize};
 
 use crate::bus::{BusDevice, NullDevice};
 use crate::chip::{
-    ControlUnit, MemoryAccess,
+    ControlUnit, MemoryAccess, Ula128MemFlags,
     ula::{
         frame_cache::UlaFrameCache,
         Ula, UlaTimestamp, UlaCpuExt, UlaMemoryContention
@@ -23,7 +23,6 @@ use crate::memory::{Memory128k, ZxMemory, MemoryExtension, NoMemoryExtension, Me
 use crate::clock::{VideoTs, FTs, VFrameTsCounter, MemoryContention};
 
 pub use video::Ula128VidFrame;
-pub use io::Ula128MemFlags;
 
 /// Implements [MemoryContention] in a way that addresses in the range: [0x4000, 0x7FFF] and [0xC000, 0xFFFF]
 /// are being contended.
@@ -110,10 +109,9 @@ impl fmt::Display for TryFromU8MemPage8Error {
     }
 }
 
-impl TryFrom<u8> for MemPage8 {
-    type Error = TryFromU8MemPage8Error;
-    fn try_from(bank: u8) -> core::result::Result<Self, Self::Error> {
-        Ok(match bank {
+macro_rules! match_mempage8 {
+    ($expr:expr; $else:expr) => {
+        match $expr {
             0 => MemPage8::Bank0,
             1 => MemPage8::Bank1,
             2 => MemPage8::Bank2,
@@ -122,8 +120,21 @@ impl TryFrom<u8> for MemPage8 {
             5 => MemPage8::Bank5,
             6 => MemPage8::Bank6,
             7 => MemPage8::Bank7,
-            _ => return Err(TryFromU8MemPage8Error(bank))
-        })
+            _ => $else            
+        }
+    };
+}
+
+impl TryFrom<u8> for MemPage8 {
+    type Error = TryFromU8MemPage8Error;
+    fn try_from(bank: u8) -> core::result::Result<Self, Self::Error> {
+        Ok(match_mempage8!{ bank; return Err(TryFromU8MemPage8Error(bank)) })
+    }
+}
+
+impl From<Ula128MemFlags> for MemPage8 {
+    fn from(flags: Ula128MemFlags) -> Self {
+        match_mempage8!{ (flags & Ula128MemFlags::RAM_BANK_MASK).bits(); unreachable!() }
     }
 }
 
@@ -152,8 +163,9 @@ impl<B, X> Ula128<B, X> {
     ///
     /// Usefull for creating snapshots.
     pub fn mem_port_value(&self) -> Ula128MemFlags {
-        let mut flags = Ula128MemFlags::from_bits_truncate(self.mem_page3_bank.into())
-                        & Ula128MemFlags::RAM_BANK_MASK;
+        let mut flags = Ula128MemFlags::with_last_ram_page_bank(
+                                Ula128MemFlags::empty(),
+                                self.mem_page3_bank.into());
         if self.cur_screen_shadow {
             flags.insert(Ula128MemFlags::SCREEN_BANK);
         };

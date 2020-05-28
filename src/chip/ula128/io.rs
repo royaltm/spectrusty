@@ -1,7 +1,7 @@
-use core::convert::TryFrom;
 use core::num::NonZeroU16;
 
 use crate::z80emu::{Io, Memory};
+use crate::chip::Ula128MemFlags;
 use crate::bus::{BusDevice, PortAddress};
 use crate::clock::VideoTs;
 use crate::peripherals::{KeyboardInterface, ZXKeyboardMap};
@@ -14,16 +14,6 @@ struct Ula128MemPortAddress;
 impl PortAddress for Ula128MemPortAddress {
     const ADDRESS_MASK: u16 = 0b1000_0000_0000_0010;
     const ADDRESS_BITS: u16 = 0b0111_1111_1111_1101;
-}
-
-bitflags! {
-    #[derive(Default)]
-    pub struct Ula128MemFlags: u8 {
-        const RAM_BANK_MASK = 0b00_0111;
-        const SCREEN_BANK   = 0b00_1000;
-        const ROM_BANK      = 0b01_0000;
-        const LOCK_MMU      = 0b10_0000;
-    }
 }
 
 impl<B, X> Io for Ula128<B, X>
@@ -116,18 +106,18 @@ impl<B, X> Ula128<B, X> {
     fn write_mem_port(&mut self, data: u8, ts: VideoTs) -> bool {
         if !self.mem_locked {
             let flags = Ula128MemFlags::from_bits_truncate(data);
-            if flags.intersects(Ula128MemFlags::LOCK_MMU) {
+            if flags.is_mmu_locked() {
                 self.mem_locked = true;
             }
 
-            let cur_screen_shadow = flags.intersects(Ula128MemFlags::SCREEN_BANK);
+            let cur_screen_shadow = flags.is_shadow_screen();
             if self.cur_screen_shadow != cur_screen_shadow {
                 self.cur_screen_shadow = cur_screen_shadow;
                 self.screen_changes.push(ts);
             }
-            let rom_bank = if flags.intersects(Ula128MemFlags::ROM_BANK) { 1 } else { 0 };
+            let rom_bank = flags.rom_page_bank();
             self.ula.memory.map_rom_bank(rom_bank, 0).unwrap();
-            let page3_bank = MemPage8::try_from((flags & Ula128MemFlags::RAM_BANK_MASK).bits()).unwrap();
+            let page3_bank = MemPage8::from(flags);
             // println!("\nscr: {} pg3: {} ts: {}x{}", self.cur_screen_shadow, mem_page3_bank, ts.vc, ts.hc);
             return self.set_mem_page3_bank(page3_bank)
         }

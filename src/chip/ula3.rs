@@ -12,20 +12,20 @@ use serde::{Serialize, Deserialize};
 use crate::z80emu::{*, host::Result};
 use crate::bus::{BusDevice, NullDevice};
 use crate::chip::{
+    Ula128MemFlags, Ula3CtrlFlags, Ula3Paging,
     EarIn, ReadEarMode, ControlUnit, MemoryAccess,
     ula::{
         frame_cache::UlaFrameCache,
         Ula, UlaTimestamp, UlaCpuExt, UlaMemoryContention
     },
     ula128::{
-        MemPage8, Ula128MemContention, Ula128MemFlags
+        MemPage8, Ula128MemContention
     }
 };
 use crate::memory::{ZxMemory, Memory128kPlus, MemoryExtension, NoMemoryExtension};
 use crate::clock::{VideoTs, FTs, VFrameTsCounter, MemoryContention, NoMemoryContention};
 
 pub use video::Ula3VidFrame;
-pub use io::Ula3MemFlags;
 
 /// Implements [MemoryContention] in a way that all addresses are being contended.
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
@@ -51,20 +51,6 @@ pub(self) type InnerUla<B, X> = Ula<Memory128kPlus, B, X, Ula3VidFrame>;
 
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "snapshot", serde(try_from = "u8", into = "u8"))]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u8)]
-pub enum SpecialPaging {
-    Banks0123 = 0,
-    Banks4567 = 1,
-    Banks4563 = 2,
-    Banks4763 = 3,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct TryFromU8SpecialPagingError(pub u8);
-
-#[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "snapshot", serde(try_from = "u8", into = "u8"))]
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MemPage4 {
@@ -83,7 +69,7 @@ pub struct TryFromU8MemPage4Error(pub u8);
 #[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]
 pub struct Ula3<B=NullDevice<VideoTs>, X=NoMemoryExtension> {
     ula: InnerUla<B, X>,
-    mem_special_paging: Option<SpecialPaging>,
+    mem_special_paging: Option<Ula3Paging>,
     mem_page3_bank: MemPage8, // only in normal paging mode
     rom_bank: MemPage4,       // only in normal paging mode
     cur_screen_shadow: bool,  // current shadow screen
@@ -139,27 +125,6 @@ impl<B, X> core::fmt::Debug for Ula3<B, X>
     }
 }
 
-impl std::error::Error for TryFromU8SpecialPagingError {}
-
-impl fmt::Display for TryFromU8SpecialPagingError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "converted integer ({}) out of range for `SpecialPaging`", self.0)
-    }
-}
-
-impl TryFrom<u8> for SpecialPaging {
-    type Error = TryFromU8SpecialPagingError;
-    fn try_from(bank: u8) -> core::result::Result<Self, Self::Error> {
-        Ok(match bank {
-            0 => SpecialPaging::Banks0123,
-            1 => SpecialPaging::Banks4567,
-            2 => SpecialPaging::Banks4563,
-            3 => SpecialPaging::Banks4763,
-            _ => return Err(TryFromU8SpecialPagingError(bank))
-        })
-    }
-}
-
 impl std::error::Error for TryFromU8MemPage4Error {}
 
 impl fmt::Display for TryFromU8MemPage4Error {
@@ -191,8 +156,7 @@ macro_rules! impl_enum_from {
     )*};
 }
 
-impl_enum_from!{SpecialPaging: u8,
-                MemPage4: u8, MemPage4: usize}
+impl_enum_from!{MemPage4: u8, MemPage4: usize}
 
 impl<B, X> Ula3<B, X> {
     /// Sets the frame counter to the specified value.
@@ -207,8 +171,9 @@ impl<B, X> Ula3<B, X> {
     ///
     /// Usefull for creating snapshots.
     pub fn mem_port1_value(&self) -> Ula128MemFlags {
-        let mut flags = Ula128MemFlags::from_bits_truncate(self.mem_page3_bank.into())
-                        & Ula128MemFlags::RAM_BANK_MASK;
+        let mut flags = Ula128MemFlags::with_last_ram_page_bank(
+                                Ula128MemFlags::empty(),
+                                self.mem_page3_bank.into());
         if self.cur_screen_shadow {
             flags.insert(Ula128MemFlags::SCREEN_BANK);
         };
@@ -224,21 +189,13 @@ impl<B, X> Ula3<B, X> {
     /// Returns the last value sent to the memory port `0x1FFD`.
     ///
     /// Usefull for creating snapshots.
-    pub fn mem_port2_value(&self) -> Ula3MemFlags {
+    pub fn mem_port2_value(&self) -> Ula3CtrlFlags {
         if let Some(paging) = self.mem_special_paging {
-            let paging: u8 = paging.into();
-            Ula3MemFlags::EXT_PAGING
-            | (Ula3MemFlags::from_bits_truncate(paging << 1)
-               & Ula3MemFlags::PAGE_LAYOUT)
+            Ula3CtrlFlags::with_special_paging(Ula3CtrlFlags::empty(), paging)
         }
         else {
-            let rom_bank: u8 = self.rom_bank.into();
-            if rom_bank & 2 != 0 {
-                Ula3MemFlags::ROM_BANK_HI
-            }
-            else {
-                Ula3MemFlags::empty()
-            }
+            Ula3CtrlFlags::with_rom_page_bank_hi(Ula3CtrlFlags::empty(),
+                self.rom_bank.into())
         }
     }
 
@@ -246,8 +203,8 @@ impl<B, X> Ula3<B, X> {
     fn contention_kind(&self) -> ContentionKind {
         if let Some(paging) = self.mem_special_paging {
             match paging {
-                SpecialPaging::Banks0123 => ContentionKind::None,
-                SpecialPaging::Banks4567 => ContentionKind::Full,
+                Ula3Paging::Banks0123 => ContentionKind::None,
+                Ula3Paging::Banks4567 => ContentionKind::Full,
                 _ => ContentionKind::Ula3
             }
         }
@@ -262,7 +219,7 @@ impl<B, X> Ula3<B, X> {
     #[inline(always)]
     fn page3_screen_shadow_bank(&self) -> Option<bool> {
         match self.mem_special_paging {
-            Some(SpecialPaging::Banks4567) => Some(true),
+            Some(Ula3Paging::Banks4567) => Some(true),
             Some(..)                       => None,
             _ => match self.mem_page3_bank {
                 MemPage8::Bank5 => Some(false),
@@ -275,8 +232,8 @@ impl<B, X> Ula3<B, X> {
     #[inline(always)]
     fn page1_screen_shadow_bank(&self) -> Option<bool> {
         match self.mem_special_paging {
-            Some(SpecialPaging::Banks0123) => None,
-            Some(SpecialPaging::Banks4763) => Some(true),
+            Some(Ula3Paging::Banks0123) => None,
+            Some(Ula3Paging::Banks4763) => Some(true),
                                          _ => Some(false)
         }
     }
@@ -321,7 +278,7 @@ impl<B, X> Ula3<B, X> {
     }
     // Returns `true` if the memory contention has changed.
     #[inline]
-    fn set_mem_special_paging(&mut self, new_paging: SpecialPaging) -> bool {
+    fn set_mem_special_paging(&mut self, new_paging: Ula3Paging) -> bool {
         let contention_changed = match self.mem_special_paging {
             Some(paging) if paging == new_paging => return false,
             Some(paging) => {
@@ -330,15 +287,9 @@ impl<B, X> Ula3<B, X> {
             }
             None => true
         };
-        let banks = match new_paging {
-            SpecialPaging::Banks0123 => [0, 1, 2, 3],
-            SpecialPaging::Banks4567 => [4, 5, 6, 7],
-            SpecialPaging::Banks4563 => [4, 5, 6, 3],
-            SpecialPaging::Banks4763 => [4, 7, 6, 3],
-        };
         self.mem_special_paging = Some(new_paging);
-        for (bank, page) in banks.iter().zip(0..4) {
-            self.ula.memory.map_ram_bank(*bank, page).unwrap();
+        for (bank, page) in new_paging.ram_banks_with_pages_iter() {
+            self.ula.memory.map_ram_bank(bank, page).unwrap();
         }
         contention_changed
     }

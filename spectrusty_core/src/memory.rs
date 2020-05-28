@@ -149,7 +149,14 @@ pub trait ZxMemory: Sized {
     fn read(&self, addr: u16) -> u8;
     /// If `addr` is above `RAMTOP` the function should return [std::u16::MAX].
     fn read16(&self, addr: u16) -> u16;
+    /// Reads a byte from screen memory at the given `addr`.
+    ///
+    /// The screen banks are different from memory banks.
+    /// E.g. for Spectrum 128k then screen bank `0` resides in a memory bank 5 and screen bank `1`
+    /// resides in a memory bank 7. For 16k/48k Spectrum there is only one screen bank: `0`.
+    ///
     /// `addr` is in screen address space (0 addresses the first byte of screen memory).
+    ///
     /// # Panics
     /// If `addr` is above upper limit of screen memory address space the function should panic.
     /// If `screen_bank` doesn't exist the function should also panic.

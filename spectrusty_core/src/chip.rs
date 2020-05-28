@@ -50,7 +50,7 @@ pub trait ControlUnit {
     /// T-states are counted from 0 at the start of each frame.
     /// This method never returns the T-state counter value below 0 or past the frame counter limit.
     fn frame_tstate(&self) -> (u64, FTs);
-    /// Returns the value of the current T-state counter.
+    /// Returns the current value of the T-state counter.
     /// 
     /// Unlike [ControlUnit::frame_tstate] values return by this method can sometimes be negative as well as
     /// exceeding the maximum nuber of T-states per frame. See [ControlUnit::execute_next_frame] to learn why.
@@ -221,6 +221,207 @@ pub const fn nanos_from_frame_tc_cpu_hz(frame_ts_count: u32, cpu_hz: u32) -> u64
 pub const fn duration_from_frame_tc_cpu_hz(frame_ts_count: u32, cpu_hz: u32) -> Duration {
     let nanos = nanos_from_frame_tc_cpu_hz(frame_ts_count, cpu_hz);
     Duration::from_nanos(nanos)
+}
+
+bitflags! {
+    /// ZX Spectrum 128K / +2 memory control flags and +2A / +3 primary control flags.
+    #[derive(Default)]
+    pub struct Ula128MemFlags: u8 {
+        const RAM_BANK_MASK = 0b00_0111;
+        const SCREEN_BANK   = 0b00_1000;
+        const ROM_BANK      = 0b01_0000;
+        const LOCK_MMU      = 0b10_0000;
+    }
+}
+
+impl Ula128MemFlags {
+    /// Returns modified flags with the last memory page RAM bank index set to `bank`.
+    pub fn with_last_ram_page_bank(self, bank: usize) -> Self {
+        (self & !Ula128MemFlags::RAM_BANK_MASK) |
+        (Ula128MemFlags::from_bits_truncate(bank as u8) & Ula128MemFlags::RAM_BANK_MASK)
+    }
+    /// Returns a RAM bank index mapped at the last memory page.
+    pub fn last_ram_page_bank(self) -> usize {
+        (self & Ula128MemFlags::RAM_BANK_MASK).bits().into()
+    }
+    /// Returns a ROM bank index mapped at the first memory page.
+    pub fn rom_page_bank(self) -> usize {
+        self.intersects(Ula128MemFlags::ROM_BANK).into()
+    }
+    /// Returns `true` if a shadow screen bank bit is 1. Otherwise returns `false`.
+    pub fn is_shadow_screen(self) -> bool {
+        self.intersects(Ula128MemFlags::SCREEN_BANK)
+    }
+    /// Returns `true` if a mmu lock bit is 1. Otherwise returns `false`.
+    pub fn is_mmu_locked(self) -> bool {
+        self.intersects(Ula128MemFlags::LOCK_MMU)
+    }
+}
+
+bitflags! {
+    /// ZX Spectrum +2A / +3 secondary control flags.
+    #[derive(Default)]
+    pub struct Ula3CtrlFlags: u8 {
+        const EXT_PAGING       = 0b0_0001;
+        const PAGE_LAYOUT_MASK = 0b0_0110;
+        const ROM_BANK_HI      = 0b0_0100;
+        const DISC_MOTOR       = 0b0_1000;
+        const PRINTER_STROBE   = 0b1_0000;
+        const PAGE_LAYOUT0     = 0b0_0000;
+        const PAGE_LAYOUT1     = 0b0_0010;
+        const PAGE_LAYOUT2     = 0b0_0100;
+        const PAGE_LAYOUT3     = 0b0_0110;
+    }
+}
+
+impl Ula3CtrlFlags {
+    /// Returns modified flags with the special paging enabled and its layout set to the specified value.
+    pub fn with_special_paging(self, paging: Ula3Paging) -> Self {
+        ((self | Ula3CtrlFlags::EXT_PAGING) & !Ula3CtrlFlags::PAGE_LAYOUT_MASK)
+        | match paging {
+            Ula3Paging::Banks0123 => Ula3CtrlFlags::PAGE_LAYOUT0,
+            Ula3Paging::Banks4567 => Ula3CtrlFlags::PAGE_LAYOUT1,
+            Ula3Paging::Banks4563 => Ula3CtrlFlags::PAGE_LAYOUT2,
+            Ula3Paging::Banks4763 => Ula3CtrlFlags::PAGE_LAYOUT3,
+        }
+    }
+    /// Returns modified flags with the special paging disabled and with the rom bank high flag set from
+    /// the `rom_bank` bit1.
+    pub fn with_rom_page_bank_hi(mut self, rom_bank: usize) -> Self {
+        self.remove(Ula3CtrlFlags::EXT_PAGING);
+        self.set(Ula3CtrlFlags::ROM_BANK_HI, rom_bank & 2 != 0);
+        self
+    }
+    /// Returns `true` if a special paging is enabled. Otherwise returns `false`.
+    pub fn has_special_paging(self) -> bool {
+        self.intersects(Ula3CtrlFlags::EXT_PAGING)
+    }
+    /// Returns a special paging layout if it is enabled.
+    pub fn special_paging(self) -> Option<Ula3Paging> {
+        if self.has_special_paging() {
+            Some(match self & Ula3CtrlFlags::PAGE_LAYOUT_MASK {
+                Ula3CtrlFlags::PAGE_LAYOUT0 => Ula3Paging::Banks0123,
+                Ula3CtrlFlags::PAGE_LAYOUT1 => Ula3Paging::Banks4567,
+                Ula3CtrlFlags::PAGE_LAYOUT2 => Ula3Paging::Banks4563,
+                Ula3CtrlFlags::PAGE_LAYOUT3 => Ula3Paging::Banks4763,
+                _ => unreachable!()
+            })
+        }
+        else {
+            None
+        }
+    }
+    /// Returns a bit 1 value of rom bank index mapped at the first RAM page.
+    ///
+    /// The complete rom page bank index can be obtained by bitwise ORing the returned value with
+    /// the result from [Ula128MemFlags::rom_page_bank].
+    pub fn rom_page_bank_hi(self) -> usize {
+        ((self & Ula3CtrlFlags::ROM_BANK_HI).bits() >> 1).into()
+    }
+    /// Returns `true` if a disc motor bit is 1. Otherwise returns `false`.
+    pub fn is_disc_motor_on(self) -> bool {
+        self.intersects(Ula3CtrlFlags::DISC_MOTOR)
+    }
+    /// Returns `true` if a printer strobe bit is 1. Otherwise returns `false`.
+    pub fn is_printer_strobe_on(self) -> bool {
+        self.intersects(Ula3CtrlFlags::PRINTER_STROBE)
+    }
+}
+/*
+SCREEN_MODE:
+    000=screen 0
+    001=screen 1
+    010=hi-color (pixels screen 0, hi-attrs from screen 1)
+    011=hi-color (pixels and hi-attrs the same from screen 1)
+    100=hi-res (even cols all has pattern 00110000) ???
+    101=hi-res (odd cols from shadow, even cols from shadow attrs extended down to a full row)
+    110=hi-res
+    111=hi-res (even and odd cols from same cell in shadow)
+*/
+bitflags! {
+    /// Timex TC2048/Tx2068 memory control flags.
+    #[derive(Default)]
+    pub struct TimexCtrlFlags: u8 {
+        const SCREEN_MODE_MASK = 0b0000_0111;
+        const SCREEN_SHADOW    = 0b0000_0001;
+        const SCREEN_HIATTRS   = 0b0000_0010;
+        const SCREEN_HIRES     = 0b0000_0100;
+        const HIRES_COLOR_MASK = 0b0011_1000;
+        const DISABLE_INTR     = 0b0100_0000;
+        const MEMORY_EX_ROM    = 0b1000_0000;
+    }
+}
+
+impl TimexCtrlFlags {
+    /// Returns a color attribute for the hi-res mode screen.
+    pub fn hires_color_attr(self) -> u8 {
+        let color = self & TimexCtrlFlags::HIRES_COLOR_MASK;
+        let ink = color.bits() >> 3;
+        let paper = (color ^ TimexCtrlFlags::HIRES_COLOR_MASK).bits();
+        0b01_000_000|paper|ink
+    }
+}
+
+#[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "snapshot", serde(try_from = "u8", into = "u8"))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum Ula3Paging {
+    Banks0123 = 0,
+    Banks4567 = 1,
+    Banks4563 = 2,
+    Banks4763 = 3,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TryFromU8Ula3PagingError(pub u8);
+
+impl From<Ula3Paging> for u8 {
+    fn from(paging: Ula3Paging) -> u8 {
+        paging as u8
+    }
+}
+
+impl std::error::Error for TryFromU8Ula3PagingError {}
+
+impl fmt::Display for TryFromU8Ula3PagingError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "converted integer ({}) out of range for `Ula3Paging`", self.0)
+    }
+}
+
+impl TryFrom<u8> for Ula3Paging {
+    type Error = TryFromU8Ula3PagingError;
+    fn try_from(bank: u8) -> core::result::Result<Self, Self::Error> {
+        Ok(match bank {
+            0 => Ula3Paging::Banks0123,
+            1 => Ula3Paging::Banks4567,
+            2 => Ula3Paging::Banks4563,
+            3 => Ula3Paging::Banks4763,
+            _ => return Err(TryFromU8Ula3PagingError(bank))
+        })
+    }
+}
+
+impl Ula3Paging {
+    const RAM_BANKS0: [u8;4] = [0, 1, 2, 3];
+    const RAM_BANKS1: [u8;4] = [4, 5, 6, 7];
+    const RAM_BANKS2: [u8;4] = [4, 5, 6, 3];
+    const RAM_BANKS3: [u8;4] = [4, 7, 6, 3];
+    /// Returns a reference to an array of RAM bank indexes for a current paging variant layout.
+    pub fn ram_banks(self) -> &'static [u8] {
+        match self {
+            Ula3Paging::Banks0123 => &Self::RAM_BANKS0,
+            Ula3Paging::Banks4567 => &Self::RAM_BANKS1,
+            Ula3Paging::Banks4563 => &Self::RAM_BANKS2,
+            Ula3Paging::Banks4763 => &Self::RAM_BANKS3,
+        }
+    }
+    /// Returns an iterator of tuples of RAM bank indexes with memory page indexes for a current
+    /// paging variant layout.
+    pub fn ram_banks_with_pages_iter(self) -> impl Iterator<Item=(usize, u8)> {
+        self.ram_banks().iter().map(|&bank| bank as usize).zip(0..4)
+    }
 }
 
 impl std::error::Error for TryFromU8EarMicError {}
