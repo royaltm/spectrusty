@@ -159,6 +159,17 @@ impl<B, X> Ula128<B, X> {
     pub fn set_frame_tstate(&mut self, ts: FTs) {
         self.ula.set_frame_tstate(ts)
     }
+    /// Returns the state of the "late timings" mode.
+    pub fn has_late_timings(&self) -> bool {
+        self.ula.has_late_timings()
+    }
+    /// Sets the "late timings" mode on or off.
+    ///
+    /// In this mode interrupts are being requested just one T-state earlier than normally.
+    /// This results in all other timings being one T-state later.
+    pub fn set_late_timings(&mut self, late_timings: bool) {
+        self.ula.set_late_timings(late_timings)
+    }
     /// Returns the last value sent to the memory port `0x7FFD`.
     ///
     /// Usefull for creating snapshots.

@@ -93,6 +93,7 @@ pub struct Ula<M, B=NullDevice<VideoTs>, X=NoMemoryExtension, V=UlaVideoFrame> {
     #[cfg_attr(feature = "snapshot", serde(skip))]
     keyboard: ZXKeyboardMap,
     read_ear_mode: ReadEarMode,
+    late_timings: bool,
     // video related
     #[cfg_attr(feature = "snapshot", serde(skip))]
     pub(super) frame_cache: UlaFrameCache<V>,
@@ -124,6 +125,17 @@ impl<M, B, X, V: VideoFrame> Ula<M, B, X, V> {
         let tsc = V::tstates_to_vts(ts);
         self.tsc = tsc
     }
+    /// Returns the state of the "late timings" mode.
+    pub fn has_late_timings(&self) -> bool {
+        self.late_timings
+    }
+    /// Sets the "late timings" mode on or off.
+    ///
+    /// In this mode interrupts are being requested just one T-state earlier than normally.
+    /// This results in all other timings being one T-state later.
+    pub fn set_late_timings(&mut self, late_timings: bool) {
+        self.late_timings = late_timings;
+    }
 }
 
 impl<M, B, X, V> Default for Ula<M, B, X, V>
@@ -141,6 +153,7 @@ where M: Default,
             // keyboard
             keyboard: ZXKeyboardMap::empty(),
             read_ear_mode: ReadEarMode::Issue3,
+            late_timings: false,
             // video related
             frame_cache: Default::default(),
             border_out_changes: Vec::new(),

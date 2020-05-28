@@ -2,7 +2,7 @@ use core::num::NonZeroU16;
 
 use crate::z80emu::{Io, Memory};
 use crate::bus::BusDevice;
-use crate::clock::VideoTs;
+use crate::clock::{Ts, VideoTs};
 use crate::chip::EarMic;
 use crate::peripherals::{KeyboardInterface, ZXKeyboardMap};
 use crate::memory::{ZxMemory, MemoryExtension};
@@ -20,7 +20,7 @@ impl<M, B, X, V> Io for Ula<M, B, X, V>
 
     #[inline(always)]
     fn is_irq(&mut self, VideoTs{ vc, hc }: VideoTs) -> bool {
-        vc == 0 && hc & !31 == 0
+        vc == 0 && (hc + Ts::from(self.late_timings)) & !31 == 0
     }
 
     fn read_io(&mut self, port: u16, ts: VideoTs) -> (u8, Option<NonZeroU16>) {
