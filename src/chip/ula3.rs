@@ -182,9 +182,8 @@ impl<B, X> Ula3<B, X> {
     ///
     /// Usefull for creating snapshots.
     pub fn mem_port1_value(&self) -> Ula128MemFlags {
-        let mut flags = Ula128MemFlags::with_last_ram_page_bank(
-                                Ula128MemFlags::empty(),
-                                self.mem_page3_bank.into());
+        let mut flags = Ula128MemFlags::empty()
+                        .with_last_ram_page_bank(self.mem_page3_bank.into());
         if self.cur_screen_shadow {
             flags.insert(Ula128MemFlags::SCREEN_BANK);
         };
