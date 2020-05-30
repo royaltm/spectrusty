@@ -1,21 +1,19 @@
-use core::mem::size_of;
 use core::convert::TryFrom;
 use std::io::{self, Read, Result};
 
 use bitflags::bitflags;
 
-use spectrusty_core::z80emu::{InterruptMode};
+use spectrusty_core::z80emu::InterruptMode;
+use spectrusty_core::chip::ReadEarMode;
 use spectrusty_core::video::BorderColor;
 
-use crate::ReadExactEx;
+use crate::{StructRead, StructWrite};
 use crate::snapshot::*;
 
 pub const PAGE_SIZE: usize = 0x4000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Z80Version {
-    V1, V2, V3
-}
+pub enum Z80Version { V1, V2, V3 }
 /*
         Offset  Length  Description
         ---------------------------
@@ -64,11 +62,11 @@ Version 2 (*), 3 (when PC = 0 above):
       * 32      2       Program counter
       * 34      1       Hardware mode (see below)
       * 35      1       If in SamRam mode, bitwise state of 74ls259.
-                        For example, bit 6=1 after an OUT 31,13 (=2*6+1)
-                        If in 128 mode, contains last OUT to 0x7ffd
-            If in Timex mode, contains last OUT to 0xf4
+                        For example, bit 6=1 after an OUT 31,13 (=2*6+1);
+                        If in 128 mode, contains last OUT to 0x7ffd;
+                        If in Timex mode, contains last OUT to 0xf4;
       * 36      1       Contains 0xff if Interface I rom paged
-            If in Timex mode, contains last OUT to 0xff
+                        If in Timex mode, contains last OUT to 0xff
       * 37      1       Bit 0: 1 if R register emulation on
                         Bit 1: 1 if LDIR emulation on
                         Bit 2: AY sound in use, even on 48K machines
@@ -88,7 +86,7 @@ Version 2 (*), 3 (when PC = 0 above):
         62      1       0xff if 8192-16383 is ROM, 0 if RAM
         63      10      5 x keyboard mappings for user defined joystick
         73      10      5 x ASCII word: keys corresponding to mappings above
-03 01 03 02 03 04 03 08 03 10 Sinclair #1
+03 01 03 02 03 04 03 08 03 10 Sinclair #2
 31 00 32 00 33 00 34 00 35 00
         83      1       MGT type: 0=Disciple+Epson,1=Disciple+HP,16=Plus D
         84      1       Disciple inhibit button status: 0=out, 0ff=in
@@ -169,7 +167,10 @@ bitflags! {
 bitflags! {
     #[derive(Default)]
     pub struct Flags2: u8 {
-        const INTERRUPT_MODE   = 0b0000_0011;
+        const INTR_MODE0       = 0b0000_0000;
+        const INTR_MODE1       = 0b0000_0001;
+        const INTR_MODE2       = 0b0000_0010;
+        const INTR_MODE_MASK   = 0b0000_0011;
         const ISSUE2_EMULATION = 0b0000_0100;
         const DOUBLE_INTERRUPT = 0b0000_1000;
         const VIDEO_SYNC       = 0b0011_0000;
@@ -184,7 +185,7 @@ bitflags! {
         const LDIR_EMU      = 0b0000_0010;
         const AY_SOUND_EMU  = 0b0000_0100;
         const AY_FULLER_BOX = 0b0100_0000;
-        const HW_ALT_MODE   = 0b1000_0000;
+        const ALT_HW_MODE   = 0b1000_0000;
     }
 }
 
@@ -245,31 +246,20 @@ pub struct HeaderEx {
 #[derive(Clone, Copy, Debug, Default)]
 #[repr(C)]
 #[repr(packed)]
-struct MemoryHeader {
+pub struct MemoryHeader {
     length: [u8;2],
     page: u8
 }
 
-#[repr(C)]
-#[repr(packed)]
-union HeaderUnion {
-   bytes: [u8;size_of::<Header>()],
-   header: Header
-}
+pub const MEMORY_V1_TERM: &[u8] = &[0, 0xED, 0xED, 0];
 
-#[repr(C)]
-#[repr(packed)]
-union HeaderExUnion {
-   bytes: [u8;size_of::<HeaderEx>()],
-   header: HeaderEx
-}
-
-#[repr(C)]
-#[repr(packed)]
-union MemoryHeaderUnion {
-   bytes: [u8;core::mem::size_of::<MemoryHeader>()],
-   header: MemoryHeader
-}
+// Structs must be packed and consist of `u8` or/and arrays of `u8` primitives only.
+unsafe impl StructRead for Header {}
+unsafe impl StructRead for HeaderEx {}
+unsafe impl StructRead for MemoryHeader {}
+unsafe impl StructWrite for Header {}
+unsafe impl StructWrite for HeaderEx {}
+unsafe impl StructWrite for MemoryHeader {}
 
 impl From<u8> for Flags1 {
     fn from(mut byte: u8) -> Self {
@@ -281,6 +271,15 @@ impl From<u8> for Flags1 {
 }
 
 impl Flags1 {
+    pub fn with_border_color(self, border: BorderColor) -> Self {
+        (self & !Flags1::BORDER_COLOR) | Flags1::from(u8::from(border) << 1)
+    }
+
+    pub fn with_refresh_high_bit(mut self, r: u8) -> Self {
+        self.set(Flags1::R_HIGH_BIT, (r & 0x80) != 0);
+        self
+    }
+
     pub fn border_color(self) -> BorderColor {
         let color = (self & Flags1::BORDER_COLOR).bits() >> 1;
         BorderColor::try_from(color).unwrap()
@@ -302,8 +301,34 @@ impl From<u8> for Flags2 {
 }
 
 impl Flags2 {
+    pub fn with_interrupt_mode(self, im: InterruptMode) -> Self {
+        (self & !Flags2::INTR_MODE_MASK) | match im {
+            InterruptMode::Mode0 => Flags2::INTR_MODE0,
+            InterruptMode::Mode1 => Flags2::INTR_MODE1,
+            InterruptMode::Mode2 => Flags2::INTR_MODE2,
+        }
+    }
+
+    pub fn with_issue2_emulation(mut self, issue: ReadEarMode) -> Self {
+        self.set(Flags2::ISSUE2_EMULATION, issue == ReadEarMode::Issue2);
+        self
+    }
+
+    pub fn insert_joystick_model(&mut self, joystick: JoystickModel) -> bool {
+        let joy = match joystick {
+            JoystickModel::Cursor    => 0,
+            JoystickModel::Kempston  => 1,
+            JoystickModel::Sinclair2 => 2,
+            JoystickModel::Sinclair1 => 3,
+            _ => return false
+        } << 6;
+        self.remove(Flags2::JOYSTICK_MODEL);
+        self.insert(Flags2::from(joy));
+        true
+    }
+
     pub fn interrupt_mode(self) -> Result<InterruptMode> {
-        InterruptMode::try_from((self & Flags2::INTERRUPT_MODE).bits())
+        InterruptMode::try_from((self & Flags2::INTR_MODE_MASK).bits())
         .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "invalid interrupt mode"))
     }
 
@@ -315,8 +340,8 @@ impl Flags2 {
         match (self & Flags2::JOYSTICK_MODEL).bits() >> 6 {
             0 => JoystickModel::Cursor,
             1 => JoystickModel::Kempston,
-            2 => JoystickModel::Sinclair1,
-            3 => JoystickModel::Sinclair2,
+            2 => JoystickModel::Sinclair2,
+            3 => JoystickModel::Sinclair1,
             _ => unreachable!()
         }
     }
@@ -338,35 +363,28 @@ impl Flags3 {
     }
 
     pub fn is_alt_hw_mode(self) -> bool {
-        self.intersects(Flags3::HW_ALT_MODE)
+        self.intersects(Flags3::ALT_HW_MODE)
     }
-}
-
-pub fn load_header<R: Read>(mut rd: R) -> Result<Header> {
-    let mut hunion = HeaderUnion { bytes: Default::default() };
-    rd.read_exact(unsafe { &mut hunion.bytes })?;
-    Ok(unsafe { hunion.header })
 }
 
 pub fn load_header_ex<R: Read>(mut rd: R) -> Result<(Z80Version, HeaderEx)> {
     let mut header_length = [0u8;2];
     rd.read_exact(&mut header_length)?;
-    let header_length = u16::from_le_bytes(header_length) as usize;
+    let header_length = u16::from_le_bytes(header_length);
     let version = match header_length {
-        23 => Z80Version::V2,
+        23    => Z80Version::V2,
         54|55 => Z80Version::V3,
         _ => return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid extended header size "))
     };
-    let mut hunion_ex = HeaderExUnion { bytes: [0;size_of::<HeaderEx>()] };
-    rd.read_exact(unsafe { &mut hunion_ex.bytes[0..header_length] })?;
-    let header_ex = unsafe { hunion_ex.header };
+    let mut header_ex = HeaderEx::default();
+    header_ex.read_struct_with_limit(rd.by_ref(), header_length as usize)?;
     Ok((version, header_ex))
 }
 
-pub fn load_mem_header<R: Read>(mut rd: R) -> Result<Option<(usize, u8, bool)>> {
-    let mut hunion = MemoryHeaderUnion { bytes: Default::default() };
-    if rd.read_exact_or_none(unsafe { &mut hunion.bytes })? {
-        let header = unsafe { hunion.header };
+/// Reads a **Z80** V2/V3 memory header and returns `(length, page, is_compressed)` on success.
+pub fn load_mem_header<R: Read>(rd: R) -> Result<Option<(usize, u8, bool)>> {
+    let mut header = MemoryHeader::default();
+    if header.read_struct_or_nothing(rd)? {
         let length = u16::from_le_bytes(header.length);
         if length == u16::max_value() {
             Ok(Some((PAGE_SIZE, header.page, false)))
@@ -377,5 +395,12 @@ pub fn load_mem_header<R: Read>(mut rd: R) -> Result<Option<(usize, u8, bool)>> 
     }
     else {
         Ok(None)
+    }
+}
+
+impl MemoryHeader {
+    pub fn new(length: u16, page: u8) -> Self {
+        let length = length.to_le_bytes();
+        MemoryHeader { length, page }
     }
 }
