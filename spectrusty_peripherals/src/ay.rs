@@ -84,7 +84,7 @@ pub trait AyPortDecode: fmt::Debug {
     {
         match port & Self::PORT_MASK {
             p if p == Self::PORT_SELECT => {
-                ay_io.select_port(data);
+                ay_io.select_port_write(data);
                 true
             }
             p if p == Self::PORT_DATA_WRITE => {
@@ -290,16 +290,16 @@ where A: AyIoPort<Timestamp=T>,
     pub fn is_iob_output(&self) -> bool {
         !self.is_iob_input()
     }
-    /// Returns a previously selected register with [Ay3_891xIo::select_port].
+    /// Returns a previously selected register with [Ay3_891xIo::select_port_write].
     #[inline]
-    pub fn selected_port(&self) -> AyRegister {
+    pub fn selected_register(&self) -> AyRegister {
         self.selected_reg
     }
     /// Bits 0-3 of `data` selects a register to be read from or written to.
     ///
     /// This method is being used to interface the host controller I/O operation.
     #[inline]
-    pub fn select_port(&mut self, data: u8) {
+    pub fn select_port_write(&mut self, data: u8) {
         self.selected_reg = AyRegister::from(data & 0x0F)
     }
     /// Writes data to a previously selected register and records a change
