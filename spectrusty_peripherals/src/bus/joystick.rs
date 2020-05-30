@@ -33,15 +33,15 @@ pub type FullerJoystick<D=NullDevice<VideoTs>> = JoystickBusDevice<
                                                             D>;
 /// A convenient pair of Left and Right Joystick [BusDevice] type.
 pub type SinclairJoystick<D=NullDevice<VideoTs>> = SinclairLeftJoystick<SinclairRightJoystick<D>>;
-/// A convenient Left Sinclair Joystick [BusDevice] type.
-pub type SinclairLeftJoystick<D=NullDevice<VideoTs>> = JoystickBusDevice<
-                                                            SinclairLeftJoyPortAddress,
-                                                            SinclairJoystickDevice<SinclairJoyLeftMap>,
-                                                            D>;
-/// A convenient Right Sinclair Joystick [BusDevice] type.
+/// A convenient Right (Player 1) Sinclair Joystick [BusDevice] type.
 pub type SinclairRightJoystick<D=NullDevice<VideoTs>> = JoystickBusDevice<
                                                             SinclairRightJoyPortAddress,
                                                             SinclairJoystickDevice<SinclairJoyRightMap>,
+                                                            D>;
+/// A convenient Left (Player 2) Sinclair Joystick [BusDevice] type.
+pub type SinclairLeftJoystick<D=NullDevice<VideoTs>> = JoystickBusDevice<
+                                                            SinclairLeftJoyPortAddress,
+                                                            SinclairJoystickDevice<SinclairJoyLeftMap>,
                                                             D>;
 /// A convenient Cursor Joystick [BusDevice] type.
 pub type CursorJoystick<D=NullDevice<VideoTs>> = JoystickBusDevice<
@@ -61,8 +61,8 @@ macro_rules! joystick_names {
 joystick_names! {
     KempstonJoystick<D>: "Kempston Joystick",
     FullerJoystick<D>: "Fuller Joystick",
-    SinclairLeftJoystick<D>: "Sinclair #1 Joystick",
-    SinclairRightJoystick<D>: "Sinclair #2 Joystick",
+    SinclairRightJoystick<D>: "Sinclair #1 Joystick",
+    SinclairLeftJoystick<D>: "Sinclair #2 Joystick",
     CursorJoystick<D>: "Cursor Joystick"
 }
 
@@ -226,7 +226,7 @@ impl<D> DerefMut for MultiJoystickBusDevice<D> {
 pub enum JoystickSelect {
     Kempston(KempstonJoystickDevice),
     Fuller(FullerJoystickDevice),
-    Sinclair(SinclairJoystickDevice<SinclairJoyLeftMap>, SinclairJoystickDevice<SinclairJoyRightMap>),
+    Sinclair(SinclairJoystickDevice<SinclairJoyRightMap>, SinclairJoystickDevice<SinclairJoyLeftMap>),
     Cursor(CursorJoystickDevice),
 }
 
@@ -466,13 +466,13 @@ impl<D> BusDevice for MultiJoystickBusDevice<D>
                 Some(joystick.port_read(port))
             }
             Sinclair(joy1, joy2) => {
-                let joy_data1 = if SinclairLeftJoyPortAddress::match_port(port) {
+                let joy_data1 = if SinclairRightJoyPortAddress::match_port(port) {
                     Some(joy1.port_read(port))
                 }
                 else {
                     None
                 };
-                let joy_data2 = if SinclairRightJoyPortAddress::match_port(port) {
+                let joy_data2 = if SinclairLeftJoyPortAddress::match_port(port) {
                     Some(joy2.port_read(port))
                 }
                 else {
