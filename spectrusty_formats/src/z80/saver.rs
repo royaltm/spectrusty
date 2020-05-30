@@ -3,7 +3,6 @@ use core::iter;
 use std::io::{self, Write, Result};
 
 use spectrusty_core::z80emu::{Cpu, StkReg16, Prefix, Z80NMOS};
-use spectrusty_core::clock::FTs;
 use spectrusty_core::video::BorderColor;
 use spectrusty_core::chip::ReadEarMode;
 
@@ -323,14 +322,6 @@ fn get_nmos_cpu(cpu: CpuModel, result: &mut SnapshotResult) -> Z80NMOS {
     }
 }
 
-fn convert_tstates(ts: FTs, model: ComputerModel) -> (u16, u8) {
-    let total_ts = model.frame_tstates();
-    let qts = total_ts / 4;
-    let ts_lo = (qts - (ts.rem_euclid(qts)) - 1) as u16;
-    let ts_hi = (ts / qts - 1).rem_euclid(4) as u8;
-    (ts_lo, ts_hi)
-}
-
 /// Saves a snapshot in the **Z80** version 1 format from the provided `snapshot` instance into `wr`.
 pub fn save_z80v1<C: SnapshotCreator, W: Write>(
         snapshot: &C,
@@ -496,7 +487,7 @@ pub fn save_z80v3<C: SnapshotCreator, W: Write>(
         &mut result
     )?;
 
-    let (ts_lo, ts_hi) = convert_tstates(snapshot.current_clock(), model);
+    let (ts_lo, ts_hi) = cycles_to_z80(snapshot.current_clock(), model);
     head_ex.ts_lo = ts_lo.to_le_bytes();
     head_ex.ts_hi = ts_hi;
     if (ext.intersects(Extensions::PLUS_D) && snapshot.is_plus_d_rom_paged_in())

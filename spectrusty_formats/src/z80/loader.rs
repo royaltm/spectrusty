@@ -2,7 +2,6 @@ use std::io::{self, Read, Result};
 
 use spectrusty_core::z80emu::{CpuFlags,Z80NMOS, StkReg16, Prefix, Cpu};
 use spectrusty_core::chip::ReadEarMode;
-use spectrusty_core::clock::FTs;
 
 use crate::snapshot::*;
 use crate::StructRead;
@@ -60,14 +59,6 @@ fn select_ay_model(model: ComputerModel, flags3: Flags3) -> Option<Ay3_891xDevic
         _ if flags3.is_ay_melodik() => Some(Ay3_891xDevice::Melodik),
         _ => None
     }
-}
-
-fn calculate_tstates(head_ex: &HeaderEx, model: ComputerModel) -> FTs {
-    let total_ts = model.frame_tstates();
-    let qts = total_ts / 4;
-    let qcountdown = u16::from_le_bytes(head_ex.ts_lo) as FTs;
-    (((head_ex.ts_hi + 1) % 4 + 1) as FTs * qts - (qcountdown + 1))
-    .rem_euclid(total_ts)
 }
 
 fn mem_page_to_range(page: u8, model: ComputerModel, ext: Extensions) -> Option<MemoryRange> {
@@ -228,7 +219,7 @@ pub fn load_z80<R: Read, S: SnapshotLoader>(
         }
 
         if version == Z80Version::V3 {
-            let ts = calculate_tstates(&head_ex, model);
+            let ts = z80_to_cycles(u16::from_le_bytes(head_ex.ts_lo), head_ex.ts_hi, model);
             loader.set_clock(ts);
             let data = head_ex.port2;
             if data != 0 {

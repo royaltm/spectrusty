@@ -65,7 +65,7 @@ mod tests {
         assert_eq!(&[42], &buf[..]);
         buf.clear();
         compress_repeat_write_all(0xED, 1, &mut buf).unwrap();
-        assert_eq!(&[42], &buf[..]);
+        assert_eq!(&[0xED], &buf[..]);
         buf.clear();
         compress_repeat_write_all(0xED, 2, &mut buf).unwrap();
         assert_eq!(&[0xED,0xED,2,0xED], &buf[..]);
@@ -76,14 +76,14 @@ mod tests {
         compress_repeat_write_all(42, 5, &mut buf).unwrap();
         assert_eq!(&[0xED,0xED,5,42], &buf[..]);
         buf.clear();
-        compress_repeat_write_all(42, 9, &mut buf).unwrap();
-        assert_eq!(&[0xED,0xED,5,42,42,42,42,42], &buf[..]);
+        compress_repeat_write_all(42, 255, &mut buf).unwrap();
+        assert_eq!(&[0xED,0xED,255,42], &buf[..]);
         buf.clear();
-        compress_repeat_write_all(42, 15, &mut buf).unwrap();
-        assert_eq!(&[0xED,0xED,5,42,0xED,0xED,5,42,0xED,0xED,5,42], &buf[..]);
+        compress_repeat_write_all(42, 256, &mut buf).unwrap();
+        assert_eq!(&[0xED,0xED,255,42,42], &buf[..]);
         buf.clear();
-        compress_repeat_write_all(42, 16, &mut buf).unwrap();
-        assert_eq!(&[0xED,0xED,5,42,0xED,0xED,5,42,0xED,0xED,5,42,42], &buf[..]);
+        compress_repeat_write_all(42, 1000, &mut buf).unwrap();
+        assert_eq!(&[0xED,0xED,255,42,0xED,0xED,255,42,0xED,0xED,255,42,0xED,0xED,235,42], &buf[..]);
     }
 
     #[test]

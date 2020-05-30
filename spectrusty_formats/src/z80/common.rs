@@ -4,6 +4,7 @@ use std::io::{self, Read, Result};
 use bitflags::bitflags;
 
 use spectrusty_core::z80emu::InterruptMode;
+use spectrusty_core::clock::FTs;
 use spectrusty_core::chip::ReadEarMode;
 use spectrusty_core::video::BorderColor;
 
@@ -367,6 +368,22 @@ impl Flags3 {
     }
 }
 
+pub fn z80_to_cycles(ts_lo: u16, ts_hi: u8, model: ComputerModel) -> FTs {
+    let total_ts = model.frame_tstates();
+    let qts = total_ts / 4;
+    let qcountdown = ts_lo as FTs;
+    (((ts_hi + 1) % 4 + 1) as FTs * qts - (qcountdown + 1))
+    .rem_euclid(total_ts)
+}
+
+pub fn cycles_to_z80(ts: FTs, model: ComputerModel) -> (u16, u8) {
+    let total_ts = model.frame_tstates();
+    let qts = total_ts / 4;
+    let ts_lo = (qts - (ts.rem_euclid(qts)) - 1) as u16;
+    let ts_hi = (ts.rem_euclid(total_ts) / qts - 1).rem_euclid(4) as u8;
+    (ts_lo, ts_hi)
+}
+
 pub fn load_header_ex<R: Read>(mut rd: R) -> Result<(Z80Version, HeaderEx)> {
     let mut header_length = [0u8;2];
     rd.read_exact(&mut header_length)?;
@@ -402,5 +419,28 @@ impl MemoryHeader {
     pub fn new(length: u16, page: u8) -> Self {
         let length = length.to_le_bytes();
         MemoryHeader { length, page }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::convert::TryInto;
+    #[test]
+    fn z80_cycles_works() {
+        let model = ComputerModel::Spectrum48;
+        assert_eq!(model.frame_tstates(), 69888);
+        let model = ComputerModel::Spectrum128;
+        assert_eq!(model.frame_tstates(), 70908);
+        for model in &[ComputerModel::Spectrum48, ComputerModel::Spectrum128] {
+            let frame_ts = model.frame_tstates();
+            let qts: u16 = (frame_ts / 4).try_into().unwrap();
+            for ts in 0..frame_ts {
+                let (lo, hi) = cycles_to_z80(ts, *model);
+                assert!((0..=3).contains(&hi));
+                assert!((0..qts).contains(&lo));
+                assert_eq!(z80_to_cycles(lo, hi, *model), ts.rem_euclid(frame_ts));
+            }
+        }
     }
 }
