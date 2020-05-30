@@ -27,7 +27,7 @@ impl Default for ZxInterface1MemExt {
 }
 
 impl MemoryExtension for ZxInterface1MemExt {
-    fn opcode_read<M: ZxMemory>(&mut self, pc: u16, memory: &mut M) -> u8 {
+    fn read_opcode<M: ZxMemory>(&mut self, pc: u16, memory: &mut M) -> u8 {
         match pc {
             0x0008|0x1708 => {
                 let _ = memory.map_exrom(Rc::clone(&self.exrom), 0);

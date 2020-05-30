@@ -102,7 +102,7 @@ impl<B, X> Memory for Ula3<B, X>
 
     #[inline(always)]
     fn read_opcode(&mut self, pc: u16, _ir: u16, _ts: VideoTs) -> u8 {
-        self.ula.memext.opcode_read(pc, &mut self.ula.memory)
+        self.ula.memext.read_opcode(pc, &mut self.ula.memory)
     }
 
     #[inline]

@@ -9,8 +9,18 @@ use serde::{Serialize, Deserialize};
 pub trait MemoryExtension: core::fmt::Debug {
     /// Read op-code from the given `memory` at the given `pc` address, optionally altering provided memory.
     #[inline]
-    fn opcode_read<M: ZxMemory>(&mut self, pc: u16, memory: &mut M) -> u8 {
+    fn read_opcode<M: ZxMemory>(&mut self, pc: u16, memory: &mut M) -> u8 {
         memory.read(pc)
+    }
+    /// Writes to the memory extension port. Should return optionally modified `data` if the extension wants
+    /// to influence some other chipset functions.
+    #[inline]
+    fn write_io<M: ZxMemory>(&mut self, _port: u16, data: u8, _memory: &mut M) -> u8 {
+        data
+    }
+    /// Reads from the memory extension port. 
+    fn read_io<M: ZxMemory>(&mut self, _port: u16, _memory: &mut M) -> u8 {
+        u8::max_value()
     }
 }
 

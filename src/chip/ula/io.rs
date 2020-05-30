@@ -77,7 +77,7 @@ impl<M, B, X, V> Memory for Ula<M, B, X, V>
     #[inline(always)]
     fn read_opcode(&mut self, pc: u16, ir: u16, ts: VideoTs) -> u8 {
         self.update_snow_interference(ts, ir);
-        self.memext.opcode_read(pc, &mut self.memory)
+        self.memext.read_opcode(pc, &mut self.memory)
     }
 
     #[inline(always)]
