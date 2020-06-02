@@ -8,6 +8,10 @@
 //! * Handling of MGT +D, DISCiPLE or Multiface is currently not implemented.
 //! * Understands an .xzx extension to the version 3 (additional OUT to port 0x1ffd), but only sends it if
 //!   a selected spectrum model would handle it properly.
+//!
+//! When writing:
+//!
+//! * ROM is not being saved.
 mod common;
 mod compress;
 mod decompress;
