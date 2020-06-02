@@ -2,6 +2,8 @@
 pub mod ula;
 pub mod ula128;
 pub mod ula3;
+pub mod scld;
+pub mod plus;
 #[cfg(feature = "peripherals")]
 pub mod ay_player;
 
