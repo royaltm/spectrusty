@@ -70,6 +70,7 @@ path = "spectrusty_utils"
 [dependencies]
 log = "0.4"
 arrayvec = "0.5.1"
+bitflags = "1.2.1"
 
 [workspace]
 members = [

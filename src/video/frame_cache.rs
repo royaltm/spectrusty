@@ -1,12 +1,84 @@
-/// A trait for data iterators being used to render an image of a video frame.
+use core::convert::TryInto;
+use crate::clock::Ts;
+use crate::video::{
+  pixel_line_offset, color_line_offset,
+  CellCoords
+};
+
+/// A trait for data iterators being used to render an image of a video frame using [core::video::Renderer].
 ///
 /// This emulates the Spectrum's ULA reading two bytes of video data to compose a single cell
+/// consisting of 8 pixels.
+///
+/// The first byte returned by the iterator is interpreted as INK/PAPER bit selector and
+/// the second as a color attribute.
+pub trait VideoFrameDataIterator: Iterator<Item=(u8, u8)> {
+    /// Forwards the iterator to the beginning of the next video line.
+    fn next_line(&mut self);
+}
+
+/// A trait for data iterators being used to render an image of a video frame using [core::video::RendererPlus].
+///
+/// This emulates the Spectrum's ULAplus/Timex's SCLD reading two bytes of video data to compose a single cell
 /// consisting of 8 (or 16 in hi-res) pixels.
 ///
 /// In low resolution mode the first byte returned by the iterator is interpreted as INK/PAPER bit
 /// selector and the second as a color attribute.
 /// In hi-res mode both bytes are being used to render 16 monochrome pixels.
-pub trait VideoFrameDataIterator: Iterator<Item=(u8, u8)> {
-    /// Forwards the iterator to the next video line.
+///
+/// The third value is a horizontal timestamp latch for when the mode/palette changes should be applied.
+pub trait PlusVidFrameDataIterator: Iterator<Item=(u8, u8, Ts)> {
+    /// Forwards the iterator to the beginning of the next video line.
     fn next_line(&mut self);
+}
+
+/// The number of screen columns (bytes in line).
+pub const COLUMNS: usize = 32;
+/// The number of screen pixel lines.
+pub const PIXEL_LINES: usize = 192;
+/// The number of screen attribute rows.
+pub const ATTR_ROWS: usize = 24;
+/// Offset into screen memory where attributes data begin.
+pub const ATTRS_OFFSET: usize = 0x1800;
+
+/// Returns cell coordinates of a INK/PAPER bitmap cell.
+#[inline(always)]
+pub fn pixel_address_coords(addr: u16) -> CellCoords {
+    let column = (addr & 0b11111) as u8;
+    let row = (addr >> 5 & 0b1100_0000 |
+               addr >> 2 & 0b0011_1000 |
+               addr >> 8 & 0b0000_0111) as u8;
+    CellCoords { column, row }
+}
+/// Returns cell coordinates of a screen attribute cell.
+#[inline(always)]
+pub fn color_address_coords(addr: u16) -> CellCoords {
+    let column = (addr & 0b0001_1111) as u8;
+    let row = (addr >> 5 & 0b0001_1111) as u8;
+    CellCoords { column, row }
+}
+
+/// Returns a reference to display attributes line data.
+///
+/// * `line` should be in range: [0, [PIXEL_LINES]).
+/// * `screen` should be a reference to the screen data.
+#[inline(always)]
+pub fn attr_line_from(line: usize, screen: &[u8]) -> &[u8;32] {
+    let offset = ATTRS_OFFSET + color_line_offset(line);
+    cast_line(&screen[offset..offset + COLUMNS])
+}
+
+/// Returns a reference to INK/PAPER line data.
+///
+/// * `line` should be in range: [0, [PIXEL_LINES]).
+/// * `screen` should be a reference to the screen data.
+#[inline(always)]
+pub fn ink_line_from(line: usize, screen: &[u8]) -> &[u8;32] {
+    let offset = pixel_line_offset(line);
+    cast_line(&screen[offset..offset + COLUMNS])
+}
+
+#[inline(always)]
+fn cast_line(line_slice: &[u8]) -> &[u8; COLUMNS] {
+    line_slice.try_into().unwrap()
 }

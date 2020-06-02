@@ -182,13 +182,13 @@ pub trait VideoFrame: Copy + Debug {
     }
 
     /// Used for rendering border.
-    type HtsIter: Iterator<Item=Ts>;
+    type BorderHtsIter: Iterator<Item=Ts>;
     /// An iterator of border latch horizontal T-states.
-    fn border_whole_line_hts_iter(border_size: BorderSize) -> Self::HtsIter;
+    fn border_whole_line_hts_iter(border_size: BorderSize) -> Self::BorderHtsIter;
     /// An iterator of left border latch horizontal T-states.
-    fn border_left_hts_iter(border_size: BorderSize) -> Self::HtsIter;
+    fn border_left_hts_iter(border_size: BorderSize) -> Self::BorderHtsIter;
     /// An iterator of right border latch horizontal T-states.
-    fn border_right_hts_iter(border_size: BorderSize) -> Self::HtsIter;
+    fn border_right_hts_iter(border_size: BorderSize) -> Self::BorderHtsIter;
 
     /// Returns a horizontal T-state counter after adding an additional T-states required for emulating 
     /// a memory contention, while rendering lines that require reading video memory.

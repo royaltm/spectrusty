@@ -1,7 +1,7 @@
 //! An emulator of Sinclair Uncommitted Logic Array chip for ZX Spectrum 16k/48k PAL/NTSC.
 mod audio;
 mod earmic;
-pub(crate) mod frame_cache;
+pub mod frame_cache;
 mod io;
 mod video;
 mod video_ntsc;

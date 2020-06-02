@@ -1,15 +1,15 @@
+use core::marker::PhantomData;
 use std::iter::Peekable;
 use crate::clock::{VideoTs, Ts, VideoTsData3};
 use crate::video::{
     BorderSize, PixelBuffer, Palette, VideoFrame,
-    frame_cache::VideoFrameDataIterator
+    frame_cache::{PIXEL_LINES, VideoFrameDataIterator}
 };
 
-const PIXEL_LINES: usize = 192;
-const FLASH_MASK : u8 = 0b1000_0000;
-const BRIGHT_MASK: u8 = 0b0100_0000;
-const INK_MASK   : u8 = 0b0000_0111;
-const PAPER_MASK : u8 = 0b0011_1000;
+pub const FLASH_MASK : u8 = 0b1000_0000;
+pub const BRIGHT_MASK: u8 = 0b0100_0000;
+pub const INK_MASK   : u8 = 0b0000_0111;
+pub const PAPER_MASK : u8 = 0b0011_1000;
 
 /// Implements a method to render an image of a video frame for classic ZX Spectrum lo-res modes.
 #[derive(Debug)]
@@ -26,131 +26,140 @@ pub struct Renderer<VD, BI> {
     pub invert_flash: bool
 }
 
+struct Worker<'a, VD,
+                  BI: Iterator<Item=VideoTsData3>,
+                  B: PixelBuffer<'a>,
+                  P: Palette<Pixel=B::Pixel>,
+                  V: VideoFrame>
+{
+    border_pixel: B::Pixel,
+    frame_image_producer: VD,
+    border_changes: Peekable<BI>,
+    border_size: BorderSize,
+    invert_flash: bool,
+    _palette: PhantomData<P>,
+    _vframe: PhantomData<V>,
+}
+
 impl<VD, BI> Renderer<VD, BI>
     where VD: VideoFrameDataIterator,
           BI: Iterator<Item=VideoTsData3>,
 {
-    #[inline(always)]
-    pub fn render_pixels<'a, B: PixelBuffer<'a>, P: Palette<Pixel=B::Pixel>, C: VideoFrame>(
+    #[inline(never)]
+    pub fn render_pixels<'a, B: PixelBuffer<'a>, P: Palette<Pixel=B::Pixel>, V: VideoFrame>(
             self,
             buffer: &'a mut [u8],
             pitch: usize
         )
     {
         let Renderer {
-            mut frame_image_producer,
-            mut border,
+            border,
+            frame_image_producer,
             border_changes,
             border_size,
             invert_flash
         } = self;
 
-        let mut border_changes = border_changes.peekable();
-        let border_top = C::border_top_vsl_iter(border_size);
-        let border_bot = C::border_bot_vsl_iter(border_size);
+        let border_pixel = P::get_pixel(border);
+        let border_changes = border_changes.peekable();
+        let border_top = V::border_top_vsl_iter(border_size);
+        let border_bot = V::border_bot_vsl_iter(border_size);
         let mut line_chunks_vc = buffer.chunks_mut(pitch)
                                        .zip(border_top.start..border_bot.end);
+        let mut worker: Worker<VD, BI, B, P, V> = Worker {
+            border_pixel,
+            frame_image_producer,
+            border_changes,
+            border_size,
+            invert_flash,
+            _palette: PhantomData,
+            _vframe: PhantomData,
+        };
+
         // render top border
         for (rgb_line, vc) in line_chunks_vc.by_ref().take(border_top.len()) {
-            Self::render_border_line::<B, P, C>(rgb_line, &mut border_changes, &mut border, vc, border_size);
+            worker.render_border_line(rgb_line, vc);
         }
         // render ink/paper area with left and right border
         for (rgb_line, vc) in line_chunks_vc.by_ref().take(PIXEL_LINES) {
-            Self::render_ink_paper_line::<B, P, C>(rgb_line, &mut frame_image_producer,
-                    &mut border_changes, &mut border, invert_flash, vc, border_size);
-            frame_image_producer.next_line();
+            worker.render_ink_paper_line(rgb_line, vc);
+            worker.frame_image_producer.next_line();
         }
         // render bottom border
         for (rgb_line, vc) in line_chunks_vc {
-            Self::render_border_line::<B, P, C>(rgb_line, &mut border_changes, &mut border, vc, border_size);
+            worker.render_border_line(rgb_line, vc);
         }
     }
+}
 
-    fn render_border_line<'a, B: PixelBuffer<'a>, P: Palette<Pixel=B::Pixel>, C: VideoFrame>(
+impl<'a, VD, BI, B, P, V> Worker<'a, VD, BI, B, P, V>
+    where P: Palette,
+          VD: VideoFrameDataIterator,
+          BI: Iterator<Item=VideoTsData3>,
+          B: PixelBuffer<'a>,
+          P: Palette<Pixel=B::Pixel>,
+          V: VideoFrame
+{
+    #[inline(never)]
+    fn render_border_line(
+            &mut self,
             rgb_line: &'a mut [u8],
-            border_changes: &mut Peekable<BI>,
-            border: &mut u8,
-            vc: Ts,
-            border_size: BorderSize
+            vc: Ts
         )
     {
         let mut line_buffer = B::from_line(rgb_line);
-        let mut brd_pixel = P::get_pixel(*border);
-        let mut ts = VideoTs::new(vc, 0);
-        for hts in C::border_whole_line_hts_iter(border_size) {
+        let mut ts = VideoTs::new(vc, V::HTS_RANGE.start);
+        for hts in V::border_whole_line_hts_iter(self.border_size) {
             ts.hc = hts;
-            Self::render_border_pixels::<B,P>(&mut line_buffer, border_changes, &mut brd_pixel, border, ts);
+            self.render_border_pixels(&mut line_buffer, ts);
         }
     }
 
-    #[inline]
-    fn render_border_pixels<'a, B: PixelBuffer<'a>, P: Palette<Pixel=B::Pixel>>(
-            buffer: &mut B,
-            border_peek: &mut Peekable<BI>,
-            brd_pixel: &mut B::Pixel,
-            border: &mut u8,
-            ts: VideoTs
-        )
-    {
-            while let Some(tsc) = border_peek.peek().map(|&t| VideoTs::from(t)) {
+    #[inline(always)]
+    fn render_border_pixels(&mut self, line_buffer: &mut B, ts: VideoTs) {
+            while let Some(tsc) = self.border_changes.peek().map(|&t| VideoTs::from(t)) {
                 if tsc < ts {
-                    let brd = border_peek.next().unwrap().into_data();
-                    *border = brd;
-                    *brd_pixel = P::get_pixel(brd);
+                    let border = self.border_changes.next().unwrap().into_data();
+                    self.border_pixel = P::get_pixel(border);
                 }
                 else {
                     break;
                 }
             }
-            buffer.put_pixels(*brd_pixel, 8);
+            line_buffer.put_pixels(self.border_pixel, 8);
     }
 
-    #[allow(clippy::too_many_arguments)]
-    #[inline(always)]
-    fn render_ink_paper_line<'a, B: PixelBuffer<'a>, P: Palette<Pixel=B::Pixel>, C: VideoFrame>(
-                rgb_line: &'a mut [u8],
-                ink_attr_iter: &mut VD,
-                border_changes: &mut Peekable<BI>,
-                border: &mut u8,
-                invert_flash: bool,
-                vc: Ts,
-                border_size: BorderSize
-            )
-    {
+    #[inline(never)]
+    fn render_ink_paper_line(&mut self, rgb_line: &'a mut [u8], vc: Ts) {
         let mut line_buffer = B::from_line(rgb_line);
-        let mut brd_pixel = P::get_pixel(*border);
         // left border
-        let mut ts = VideoTs::new(vc, 0);
-        for hts in C::border_left_hts_iter(border_size) {
+        let mut ts = VideoTs::new(vc, V::HTS_RANGE.start);
+        for hts in V::border_left_hts_iter(self.border_size) {
             ts.hc = hts;
-            Self::render_border_pixels::<B,P>(&mut line_buffer, border_changes, &mut brd_pixel, border, ts);
+            self.render_border_pixels(&mut line_buffer, ts);
         }
         // ink/paper pixels
-        for (ink, attr) in ink_attr_iter {
-            put_8pixels_ink_attr::<B,P>(&mut line_buffer, ink, attr, invert_flash);
+        for (ink_mask, attr) in self.frame_image_producer.by_ref() {
+            Self::put_8pixels_ink_attr(&mut line_buffer, ink_mask, attr, self.invert_flash);
         }
         // right border
-        for hts in C::border_right_hts_iter(border_size) {
+        for hts in V::border_right_hts_iter(self.border_size) {
             ts.hc = hts;
-            Self::render_border_pixels::<B,P>(&mut line_buffer, border_changes, &mut brd_pixel, border, ts);
+            self.render_border_pixels(&mut line_buffer, ts);
         }
     }
-}
 
-#[inline(always)]
-fn put_8pixels_ink_attr<'a, B: PixelBuffer<'a>, P: Palette<Pixel=B::Pixel>>(
-        buffer: &mut B,
-        ink: u8,
-        attr: u8,
-        invert_flash: bool
-    )
-{
-    let mut pixels = if invert_flash && (attr & FLASH_MASK) != 0  { !ink } else { ink };
-    let ink_color = if (attr & BRIGHT_MASK) != 0 { attr & INK_MASK | 8 } else { attr & INK_MASK };
-    let paper_color = (attr & (BRIGHT_MASK|PAPER_MASK)) >> 3;
-    for _ in 0..8 {
-        pixels = pixels.rotate_left(1);
-        let color = if pixels & 1 != 0 { ink_color } else { paper_color };
-        buffer.put_pixel( P::get_pixel(color) );
+    #[inline(never)]
+    fn put_8pixels_ink_attr(buffer: &mut B, mut ink_mask: u8, attr: u8, invert_flash: bool) {
+        if invert_flash && (attr & FLASH_MASK) != 0  {
+            ink_mask = !ink_mask;
+        };
+        let ink_color = if (attr & BRIGHT_MASK) != 0 { attr & INK_MASK | 8 } else { attr & INK_MASK };
+        let paper_color = (attr & (BRIGHT_MASK|PAPER_MASK)) >> 3;
+        for _ in 0..8 {
+            ink_mask = ink_mask.rotate_left(1);
+            let color = if ink_mask & 1 != 0 { ink_color } else { paper_color };
+            buffer.put_pixel( P::get_pixel(color) );
+        }
     }
 }

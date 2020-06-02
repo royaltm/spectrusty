@@ -8,10 +8,15 @@ use crate::memory::ZxMemory;
 use crate::clock::{MemoryContention, VideoTs, Ts, VideoTsData3};
 use crate::video::{
     Renderer, BorderSize, BorderColor, PixelBuffer, Palette,
-    VideoFrame, Video, CellCoords, MAX_BORDER_SIZE
+    VideoFrame, Video, CellCoords, MAX_BORDER_SIZE,
+    frame_cache::{
+        pixel_address_coords, color_address_coords
+    }
 };
-use super::{Ula, UlaMemoryContention, frame_cache::{pixel_address_coords, color_address_coords}};
-use super::frame_cache::{UlaFrameCache, UlaFrameProducer};
+use super::{Ula, UlaMemoryContention};
+use super::frame_cache::{
+    UlaFrameCache, UlaFrameProducer
+};
 
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
@@ -29,19 +34,19 @@ impl VideoFrame for UlaVideoFrame {
     /// A total number of video scan lines.
     const VSL_COUNT: Ts = 312;
 
-    type HtsIter = StepBy<Range<Ts>>;
+    type BorderHtsIter = StepBy<Range<Ts>>;
 
-    fn border_whole_line_hts_iter(border_size: BorderSize) -> Self::HtsIter {
+    fn border_whole_line_hts_iter(border_size: BorderSize) -> Self::BorderHtsIter {
         let invborder = ((MAX_BORDER_SIZE - Self::border_size_pixels(border_size))/2) as Ts;
         (-20+invborder..156-invborder).step_by(4)
     }
 
-    fn border_left_hts_iter(border_size: BorderSize) -> Self::HtsIter {
+    fn border_left_hts_iter(border_size: BorderSize) -> Self::BorderHtsIter {
         let invborder = ((MAX_BORDER_SIZE - Self::border_size_pixels(border_size))/2) as Ts;
         (-20+invborder..4).step_by(4)
     }
 
-    fn border_right_hts_iter(border_size: BorderSize) -> Self::HtsIter {
+    fn border_right_hts_iter(border_size: BorderSize) -> Self::BorderHtsIter {
         let invborder = ((MAX_BORDER_SIZE - Self::border_size_pixels(border_size))/2) as Ts;
         (132..156-invborder).step_by(4)
     }

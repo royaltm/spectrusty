@@ -24,17 +24,17 @@ impl VideoFrame for UlaNTSCVidFrame {
     /// A total number of video scan lines.
     const VSL_COUNT: Ts = 264;
 
-    type HtsIter = StepBy<Range<Ts>>;
+    type BorderHtsIter = StepBy<Range<Ts>>;
 
-    fn border_whole_line_hts_iter(border_size: BorderSize) -> Self::HtsIter {
+    fn border_whole_line_hts_iter(border_size: BorderSize) -> Self::BorderHtsIter {
         UlaVideoFrame::border_whole_line_hts_iter(border_size)
     }
 
-    fn border_left_hts_iter(border_size: BorderSize) -> Self::HtsIter {
+    fn border_left_hts_iter(border_size: BorderSize) -> Self::BorderHtsIter {
         UlaVideoFrame::border_left_hts_iter(border_size)
     }
 
-    fn border_right_hts_iter(border_size: BorderSize) -> Self::HtsIter {
+    fn border_right_hts_iter(border_size: BorderSize) -> Self::BorderHtsIter {
         UlaVideoFrame::border_right_hts_iter(border_size)
     }
 

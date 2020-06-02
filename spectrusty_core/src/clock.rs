@@ -94,6 +94,12 @@ macro_rules! video_ts_packed_data {
             }
         }
 
+        impl From<&$name> for VideoTs {
+            fn from(vtsd: &$name) -> Self {
+                Self::from(*vtsd)
+            }
+        }
+
         impl $name {
             const DATA_MASK: Ts = (1 << $bits) - 1;
             #[inline]
@@ -129,6 +135,7 @@ macro_rules! video_ts_packed_data {
 video_ts_packed_data! { VideoTsData1, 1 }
 video_ts_packed_data! { VideoTsData2, 2 }
 video_ts_packed_data! { VideoTsData3, 3 }
+video_ts_packed_data! { VideoTsData6, 6 }
 
 macro_rules! fts_packed_data {
     ($name:ident, $bits:literal) => {

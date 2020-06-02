@@ -15,7 +15,7 @@ use serde::{Serialize, Deserialize};
 use z80emu::{CpuDebug, Cpu, host::Result};
 
 use crate::bus::BusDevice;
-use crate::clock::FTs;
+use crate::clock::{FTs, VideoTs, VideoTsData2};
 use crate::memory::{ZxMemory, MemoryExtension};
 
 /// A trait for directly accessing an emulated memory implementation and memory extensions.
@@ -327,38 +327,57 @@ impl Ula3CtrlFlags {
         self.intersects(Ula3CtrlFlags::PRINTER_STROBE)
     }
 }
-/*
-SCREEN_MODE:
-    000=screen 0
-    001=screen 1
-    010=hi-color (pixels screen 0, hi-attrs from screen 1)
-    011=hi-color (pixels and hi-attrs the same from screen 1)
-    100=hi-res (even cols all has pattern 00110000) ???
-    101=hi-res (odd cols from shadow, even cols from shadow attrs extended down to a full row)
-    110=hi-res
-    111=hi-res (even and odd cols from same cell in shadow)
-*/
+
 bitflags! {
     /// Timex TC2048/Tx2068 memory control flags.
     #[derive(Default)]
     pub struct TimexCtrlFlags: u8 {
         const SCREEN_MODE_MASK = 0b0000_0111;
         const SCREEN_SHADOW    = 0b0000_0001;
-        const SCREEN_HIATTRS   = 0b0000_0010;
-        const SCREEN_HIRES     = 0b0000_0100;
+        const SCREEN_HI_ATTRS  = 0b0000_0010;
+        const SCREEN_HI_RES    = 0b0000_0100;
         const HIRES_COLOR_MASK = 0b0011_1000;
         const DISABLE_INTR     = 0b0100_0000;
         const MEMORY_EX_ROM    = 0b1000_0000;
     }
 }
 
-impl TimexCtrlFlags {
-    /// Returns a color attribute for the hi-res mode screen.
-    pub fn hires_color_attr(self) -> u8 {
-        let color = self & TimexCtrlFlags::HIRES_COLOR_MASK;
-        let ink = color.bits() >> 3;
-        let paper = (color ^ TimexCtrlFlags::HIRES_COLOR_MASK).bits();
-        0b01_000_000|paper|ink
+/// Convert into a video timestamped border color change.
+// impl From<(VideoTs, TimexCtrlFlags)> for VideoTsData4 {
+//     fn from((vts, flags): (VideoTs, TimexCtrlFlags)) -> VideoTsData4 {
+//         let color = 0x08|((flags & TimexCtrlFlags::HIRES_COLOR_MASK).bits() >> 3);
+//         (vts, color).into()
+//     }
+// }
+
+/// Convert into a video timestamped color mode change.
+// impl From<(VideoTs, TimexCtrlFlags)> for VideoTsData3 {
+//     fn from((vts, flags): (VideoTs, TimexCtrlFlags)) -> VideoTsData3 {
+//         let mode = (flags & TimexCtrlFlags::SCREEN_HI_RES).bits();
+//         (vts, mode).into()
+//     }
+// }
+
+/// Convert into a video timestamped source mode change.
+impl From<(VideoTs, TimexCtrlFlags)> for VideoTsData2 {
+    fn from((vts, flags): (VideoTs, TimexCtrlFlags)) -> VideoTsData2 {
+        let source_mode = (flags & (TimexCtrlFlags::SCREEN_SHADOW|TimexCtrlFlags::SCREEN_HI_ATTRS)).bits();
+        (vts, source_mode).into()
+    }
+}
+
+bitflags! {
+    #[derive(Default)]
+    pub struct ColorMode: u8 {
+        const PALETTE   = 0b001;
+        const GRAYSCALE = 0b010;
+    }
+}
+
+impl From<u8> for ColorMode {
+    #[inline]
+    fn from(mode: u8) -> Self {
+        ColorMode::from_bits_truncate(mode)
     }
 }
 

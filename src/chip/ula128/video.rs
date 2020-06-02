@@ -8,11 +8,12 @@ use crate::memory::ZxMemory;
 use crate::clock::{VideoTs, Ts, MemoryContention, VideoTsData3};
 use crate::chip::ula::{
     Ula,
-    frame_cache::{UlaFrameCache, pixel_address_coords, color_address_coords}
+    frame_cache::UlaFrameCache
 };
 use crate::video::{
     Renderer, BorderSize, BorderColor, PixelBuffer, Palette,
-    VideoFrame, Video, CellCoords, MAX_BORDER_SIZE
+    VideoFrame, Video, CellCoords, MAX_BORDER_SIZE,
+    frame_cache::{pixel_address_coords, color_address_coords}
 };
 use super::{
     Ula128, Ula128MemContention, UlaMemoryContention,
@@ -35,19 +36,19 @@ impl VideoFrame for Ula128VidFrame {
     /// A total number of video scan lines.
     const VSL_COUNT: Ts = 311;
 
-    type HtsIter = StepBy<Range<Ts>>;
+    type BorderHtsIter = StepBy<Range<Ts>>;
 
-    fn border_whole_line_hts_iter(border_size: BorderSize) -> Self::HtsIter {
+    fn border_whole_line_hts_iter(border_size: BorderSize) -> Self::BorderHtsIter {
         let invborder = ((MAX_BORDER_SIZE - Self::border_size_pixels(border_size))/2) as Ts;
         (-22+invborder..154-invborder).step_by(4)
     }
 
-    fn border_left_hts_iter(border_size: BorderSize) -> Self::HtsIter {
+    fn border_left_hts_iter(border_size: BorderSize) -> Self::BorderHtsIter {
         let invborder = ((MAX_BORDER_SIZE - Self::border_size_pixels(border_size))/2) as Ts;
         (-22+invborder..2).step_by(4)
     }
 
-    fn border_right_hts_iter(border_size: BorderSize) -> Self::HtsIter {
+    fn border_right_hts_iter(border_size: BorderSize) -> Self::BorderHtsIter {
         let invborder = ((MAX_BORDER_SIZE - Self::border_size_pixels(border_size))/2) as Ts;
         (130..154-invborder).step_by(4)
     }
@@ -177,7 +178,7 @@ pub(crate) fn create_ula128_renderer<'a, V, M, B, X>(
             beg_screen_shadow: bool,
             shadow_frame_cache: &'a UlaFrameCache<V>,
             screen_changes:&'a mut Vec<VideoTs>
-        ) -> Renderer<Ula128FrameProducer<'a, V>, std::vec::Drain<'a, VideoTsData3>>
+        ) -> Renderer<Ula128FrameProducer<'a, V, std::vec::Drain<'a, VideoTs>>, std::vec::Drain<'a, VideoTsData3>>
     where V: VideoFrame,
           M: ZxMemory,
           Ula<M, B, X, V>: Video

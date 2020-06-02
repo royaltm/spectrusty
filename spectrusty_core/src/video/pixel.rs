@@ -49,31 +49,17 @@ pub trait Palette {
     /// ```
     #[inline]
     fn get_pixel(index: u8) -> Self::Pixel {
-        let grb = match index & 15 {
-             0 => 0b000_000_00,
-             1 => 0b000_000_10,
-             2 => 0b000_101_00,
-             3 => 0b000_101_10,
-             4 => 0b101_000_00,
-             5 => 0b101_000_10,
-             6 => 0b101_101_00,
-             7 => 0b101_101_10,
-             8 => 0b000_000_00,
-             9 => 0b000_000_11,
-            10 => 0b000_111_00,
-            11 => 0b000_111_11,
-            12 => 0b111_000_00,
-            13 => 0b111_000_11,
-            14 => 0b111_111_00,
-            15 => 0b111_111_11,
-            _ => unsafe { core::hint::unreachable_unchecked() }
-        };
-        Self::get_pixel_grb(grb)
+        Self::get_pixel_grb8(index_to_grb(index))
     }
     /// Should return one of [ULAplus](https://faqwiki.zxnet.co.uk/wiki/ULAplus#GRB_palette_entries) colors.
-    fn get_pixel_grb(g3r3b2: u8) -> Self::Pixel;
+    fn get_pixel_grb8(g3r3b2: u8) -> Self::Pixel;
+    /// Should return a grayscale pixel (0 - black, 15 - full intensity white).
+    #[inline]
+    fn get_pixel_gray4(value: u8) -> Self::Pixel {
+        Self::get_pixel_gray8((value << 4)|(value & 0x0F))
+    }
     /// Should return a grayscale pixel (0 - black, 255 - full intensity white).
-    fn get_pixel_gray(value: u8) -> Self::Pixel;
+    fn get_pixel_gray8(value: u8) -> Self::Pixel;
 }
 
 /// A [PixelBuffer] tool for placing pixels into byte buffers using 3 `u8` element arrays of color channels
@@ -145,6 +131,29 @@ pub struct GrayscalePalR5G6B5;
 /// A grayscale ZX Spectrum [Palette] implementation to be used with [PixelBufP8].
 pub struct GrayscalePalR3G3B2;
 
+#[inline]
+fn index_to_grb(index: u8) -> u8 {
+    match index & 15 {
+         0 => 0b000_000_00,
+         1 => 0b000_000_10,
+         2 => 0b000_101_00,
+         3 => 0b000_101_10,
+         4 => 0b101_000_00,
+         5 => 0b101_000_10,
+         6 => 0b101_101_00,
+         7 => 0b101_101_10,
+         8 => 0b000_000_00,
+         9 => 0b000_000_11,
+        10 => 0b000_111_00,
+        11 => 0b000_111_11,
+        12 => 0b111_000_00,
+        13 => 0b111_000_11,
+        14 => 0b111_111_00,
+        15 => 0b111_111_11,
+        _ => unsafe { core::hint::unreachable_unchecked() }
+    }
+}
+
 macro_rules! impl_pixel_buffer {
     ($pixel_buf:ty, $pixel:ty) => {
         impl<'a> PixelBuffer<'a> for $pixel_buf {
@@ -188,11 +197,11 @@ macro_rules! impl_palette {
             //     Self::COLORS[index as usize & 15]
             // }
             #[inline(always)]
-            fn get_pixel_grb(g3r3b2: u8) -> Self::Pixel {
+            fn get_pixel_grb8(g3r3b2: u8) -> Self::Pixel {
                 Self::pixel_grb(g3r3b2)
             }
             #[inline(always)]
-            fn get_pixel_gray(value: u8) -> Self::Pixel {
+            fn get_pixel_gray8(value: u8) -> Self::Pixel {
                 Self::pixel_gray(value)
             }
         }        
@@ -512,61 +521,61 @@ mod tests {
 
     #[test]
     fn pixel_palette_grb_works() {
-        assert_eq!(SpectrumPalRGB24::get_pixel_grb(0), [0, 0, 0]);
-        assert_eq!(SpectrumPalRGB24::get_pixel_grb(0b000_001_00), [0b00100100, 0, 0]);
-        assert_eq!(SpectrumPalRGB24::get_pixel_grb(0b001_010_00), [0b01001001, 0b00100100, 0]);
-        assert_eq!(SpectrumPalRGB24::get_pixel_grb(1), [0, 0, 0b01101101]);
-        assert_eq!(SpectrumPalRGB24::get_pixel_grb(0b000_101_01), [0b10110110, 0, 0b01101101]);
-        assert_eq!(SpectrumPalRGB24::get_pixel_grb(0b110_111_01), [0b11111111, 0b11011011, 0b01101101]);
-        assert_eq!(SpectrumPalRGB24::get_pixel_grb(2), [0, 0, 0b10110110]);
-        assert_eq!(SpectrumPalRGB24::get_pixel_grb(0b011_011_10), [0b01101101, 0b01101101, 0b10110110]);
-        assert_eq!(SpectrumPalRGB24::get_pixel_grb(3), [0, 0, 0b11111111]);
-        assert_eq!(SpectrumPalRGB24::get_pixel_grb(255), [255, 255, 255]);
-        assert_eq!(SpectrumPalRGBA32::get_pixel_grb(0), [0, 0, 0, 255]);
-        assert_eq!(SpectrumPalRGBA32::get_pixel_grb(0b111_011_01), [0b01101101, 0b11111111, 0b01101101, 255]);
-        assert_eq!(SpectrumPalRGBA32::get_pixel_grb(255), [255, 255, 255, 255]);
-        assert_eq!(SpectrumPalARGB32::get_pixel_grb(0), [255, 0, 0, 0]);
-        assert_eq!(SpectrumPalARGB32::get_pixel_grb(0b111_011_01), [255, 0b01101101, 0b11111111, 0b01101101]);
-        assert_eq!(SpectrumPalARGB32::get_pixel_grb(255), [255, 255, 255, 255]);
-        assert_eq!(SpectrumPalR8G8B8A8::get_pixel_grb(0), 255);
-        assert_eq!(SpectrumPalR8G8B8A8::get_pixel_grb(0b111_011_01), 0b01101101_11111111_01101101_11111111);
-        assert_eq!(SpectrumPalR8G8B8A8::get_pixel_grb(255), 0xffff_ffff);
-        assert_eq!(SpectrumPalA8R8G8B8::get_pixel_grb(0), 0xff00_0000);
-        assert_eq!(SpectrumPalA8R8G8B8::get_pixel_grb(0b111_011_01), 0b11111111_01101101_11111111_01101101);
-        assert_eq!(SpectrumPalA8R8G8B8::get_pixel_grb(255), 0xffff_ffff);
-        assert_eq!(SpectrumPalR5G6B5::get_pixel_grb(0), 0);
-        assert_eq!(SpectrumPalR5G6B5::get_pixel_grb(0b111_011_01), 0b01101_111111_01101);
-        assert_eq!(SpectrumPalR5G6B5::get_pixel_grb(255), 0xffff);
-        assert_eq!(SpectrumPalR3G3B2::get_pixel_grb(0), 0);
-        assert_eq!(SpectrumPalR3G3B2::get_pixel_grb(0b111_011_01), 0b011_111_01);
-        assert_eq!(SpectrumPalR3G3B2::get_pixel_grb(255), 0xff);
+        assert_eq!(SpectrumPalRGB24::get_pixel_grb8(0), [0, 0, 0]);
+        assert_eq!(SpectrumPalRGB24::get_pixel_grb8(0b000_001_00), [0b00100100, 0, 0]);
+        assert_eq!(SpectrumPalRGB24::get_pixel_grb8(0b001_010_00), [0b01001001, 0b00100100, 0]);
+        assert_eq!(SpectrumPalRGB24::get_pixel_grb8(1), [0, 0, 0b01101101]);
+        assert_eq!(SpectrumPalRGB24::get_pixel_grb8(0b000_101_01), [0b10110110, 0, 0b01101101]);
+        assert_eq!(SpectrumPalRGB24::get_pixel_grb8(0b110_111_01), [0b11111111, 0b11011011, 0b01101101]);
+        assert_eq!(SpectrumPalRGB24::get_pixel_grb8(2), [0, 0, 0b10110110]);
+        assert_eq!(SpectrumPalRGB24::get_pixel_grb8(0b011_011_10), [0b01101101, 0b01101101, 0b10110110]);
+        assert_eq!(SpectrumPalRGB24::get_pixel_grb8(3), [0, 0, 0b11111111]);
+        assert_eq!(SpectrumPalRGB24::get_pixel_grb8(255), [255, 255, 255]);
+        assert_eq!(SpectrumPalRGBA32::get_pixel_grb8(0), [0, 0, 0, 255]);
+        assert_eq!(SpectrumPalRGBA32::get_pixel_grb8(0b111_011_01), [0b01101101, 0b11111111, 0b01101101, 255]);
+        assert_eq!(SpectrumPalRGBA32::get_pixel_grb8(255), [255, 255, 255, 255]);
+        assert_eq!(SpectrumPalARGB32::get_pixel_grb8(0), [255, 0, 0, 0]);
+        assert_eq!(SpectrumPalARGB32::get_pixel_grb8(0b111_011_01), [255, 0b01101101, 0b11111111, 0b01101101]);
+        assert_eq!(SpectrumPalARGB32::get_pixel_grb8(255), [255, 255, 255, 255]);
+        assert_eq!(SpectrumPalR8G8B8A8::get_pixel_grb8(0), 255);
+        assert_eq!(SpectrumPalR8G8B8A8::get_pixel_grb8(0b111_011_01), 0b01101101_11111111_01101101_11111111);
+        assert_eq!(SpectrumPalR8G8B8A8::get_pixel_grb8(255), 0xffff_ffff);
+        assert_eq!(SpectrumPalA8R8G8B8::get_pixel_grb8(0), 0xff00_0000);
+        assert_eq!(SpectrumPalA8R8G8B8::get_pixel_grb8(0b111_011_01), 0b11111111_01101101_11111111_01101101);
+        assert_eq!(SpectrumPalA8R8G8B8::get_pixel_grb8(255), 0xffff_ffff);
+        assert_eq!(SpectrumPalR5G6B5::get_pixel_grb8(0), 0);
+        assert_eq!(SpectrumPalR5G6B5::get_pixel_grb8(0b111_011_01), 0b01101_111111_01101);
+        assert_eq!(SpectrumPalR5G6B5::get_pixel_grb8(255), 0xffff);
+        assert_eq!(SpectrumPalR3G3B2::get_pixel_grb8(0), 0);
+        assert_eq!(SpectrumPalR3G3B2::get_pixel_grb8(0b111_011_01), 0b011_111_01);
+        assert_eq!(SpectrumPalR3G3B2::get_pixel_grb8(255), 0xff);
     }
 
     #[test]
     fn pixel_palette_gray_works() {
         for i in 0..=255u8 {
             let v = GRAYSCALE[i as usize];
-            assert_eq!(SpectrumPalRGB24::get_pixel_gray(i), [v, v, v]);
-            assert_eq!(GrayscalePalRGB24::get_pixel_gray(i), [v, v, v]);
-            assert_eq!(GrayscalePalRGB24::get_pixel_grb(i), GrayscalePalRGB24::get_pixel_gray(i));
-            assert_eq!(SpectrumPalRGBA32::get_pixel_gray(i), [v, v, v, 255]);
-            assert_eq!(GrayscalePalRGBA32::get_pixel_gray(i), [v, v, v, 255]);
-            assert_eq!(GrayscalePalRGBA32::get_pixel_grb(i), GrayscalePalRGBA32::get_pixel_gray(i));
-            assert_eq!(SpectrumPalARGB32::get_pixel_gray(i), [255, v, v, v]);
-            assert_eq!(GrayscalePalARGB32::get_pixel_gray(i), [255, v, v, v]);
-            assert_eq!(GrayscalePalARGB32::get_pixel_grb(i), GrayscalePalARGB32::get_pixel_gray(i));
-            assert_eq!(SpectrumPalA8R8G8B8::get_pixel_gray(i), u32::from_be_bytes([255, v, v, v]));
-            assert_eq!(GrayscalePalA8R8G8B8::get_pixel_gray(i), u32::from_be_bytes([255, v, v, v]));
-            assert_eq!(GrayscalePalA8R8G8B8::get_pixel_grb(i), GrayscalePalA8R8G8B8::get_pixel_gray(i));
-            assert_eq!(SpectrumPalR8G8B8A8::get_pixel_gray(i), u32::from_be_bytes([v, v, v, 255]));
-            assert_eq!(GrayscalePalR8G8B8A8::get_pixel_gray(i), u32::from_be_bytes([v, v, v, 255]));
-            assert_eq!(GrayscalePalR8G8B8A8::get_pixel_grb(i), GrayscalePalR8G8B8A8::get_pixel_gray(i));
-            assert_eq!(SpectrumPalR5G6B5::get_pixel_gray(i), (((v as u16) >> 3) << 11)|(((v as u16) >> 2) << 5)|((v as u16) >> 3));
-            assert_eq!(GrayscalePalR5G6B5::get_pixel_gray(i), (((v as u16) >> 3) << 11)|(((v as u16) >> 2) << 5)|((v as u16) >> 3));
-            assert_eq!(GrayscalePalR5G6B5::get_pixel_grb(i), GrayscalePalR5G6B5::get_pixel_gray(i));
-            assert_eq!(SpectrumPalR3G3B2::get_pixel_gray(i), ((v >> 5) << 5)|((v >> 5) << 2)|(v >> 6));
-            assert_eq!(GrayscalePalR3G3B2::get_pixel_gray(i), ((v >> 5) << 5)|((v >> 5) << 2)|(v >> 6));
-            assert_eq!(GrayscalePalR3G3B2::get_pixel_grb(i), GrayscalePalR3G3B2::get_pixel_gray(i));
+            assert_eq!(SpectrumPalRGB24::get_pixel_gray8(i), [v, v, v]);
+            assert_eq!(GrayscalePalRGB24::get_pixel_gray8(i), [v, v, v]);
+            assert_eq!(GrayscalePalRGB24::get_pixel_grb8(i), GrayscalePalRGB24::get_pixel_gray8(i));
+            assert_eq!(SpectrumPalRGBA32::get_pixel_gray8(i), [v, v, v, 255]);
+            assert_eq!(GrayscalePalRGBA32::get_pixel_gray8(i), [v, v, v, 255]);
+            assert_eq!(GrayscalePalRGBA32::get_pixel_grb8(i), GrayscalePalRGBA32::get_pixel_gray8(i));
+            assert_eq!(SpectrumPalARGB32::get_pixel_gray8(i), [255, v, v, v]);
+            assert_eq!(GrayscalePalARGB32::get_pixel_gray8(i), [255, v, v, v]);
+            assert_eq!(GrayscalePalARGB32::get_pixel_grb8(i), GrayscalePalARGB32::get_pixel_gray8(i));
+            assert_eq!(SpectrumPalA8R8G8B8::get_pixel_gray8(i), u32::from_be_bytes([255, v, v, v]));
+            assert_eq!(GrayscalePalA8R8G8B8::get_pixel_gray8(i), u32::from_be_bytes([255, v, v, v]));
+            assert_eq!(GrayscalePalA8R8G8B8::get_pixel_grb8(i), GrayscalePalA8R8G8B8::get_pixel_gray8(i));
+            assert_eq!(SpectrumPalR8G8B8A8::get_pixel_gray8(i), u32::from_be_bytes([v, v, v, 255]));
+            assert_eq!(GrayscalePalR8G8B8A8::get_pixel_gray8(i), u32::from_be_bytes([v, v, v, 255]));
+            assert_eq!(GrayscalePalR8G8B8A8::get_pixel_grb8(i), GrayscalePalR8G8B8A8::get_pixel_gray8(i));
+            assert_eq!(SpectrumPalR5G6B5::get_pixel_gray8(i), (((v as u16) >> 3) << 11)|(((v as u16) >> 2) << 5)|((v as u16) >> 3));
+            assert_eq!(GrayscalePalR5G6B5::get_pixel_gray8(i), (((v as u16) >> 3) << 11)|(((v as u16) >> 2) << 5)|((v as u16) >> 3));
+            assert_eq!(GrayscalePalR5G6B5::get_pixel_grb8(i), GrayscalePalR5G6B5::get_pixel_gray8(i));
+            assert_eq!(SpectrumPalR3G3B2::get_pixel_gray8(i), ((v >> 5) << 5)|((v >> 5) << 2)|(v >> 6));
+            assert_eq!(GrayscalePalR3G3B2::get_pixel_gray8(i), ((v >> 5) << 5)|((v >> 5) << 2)|(v >> 6));
+            assert_eq!(GrayscalePalR3G3B2::get_pixel_grb8(i), GrayscalePalR3G3B2::get_pixel_gray8(i));
         }
     }
 }

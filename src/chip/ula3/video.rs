@@ -6,12 +6,12 @@ use serde::{Serialize, Deserialize};
 
 use crate::clock::{VideoTs, Ts};
 use crate::chip::{
-    ula::frame_cache::{pixel_address_coords, color_address_coords},
     ula128::{Ula128VidFrame, video::create_ula128_renderer}
 };
 use crate::video::{
     BorderSize, BorderColor, PixelBuffer, Palette,
-    VideoFrame, Video
+    VideoFrame, Video,
+    frame_cache::{pixel_address_coords, color_address_coords}
 };
 use super::Ula3;
 
@@ -31,18 +31,18 @@ impl VideoFrame for Ula3VidFrame {
     /// A total number of video scan lines.
     const VSL_COUNT: Ts = Ula128VidFrame::VSL_COUNT;
 
-    type HtsIter = StepBy<Range<Ts>>;
+    type BorderHtsIter = StepBy<Range<Ts>>;
 
     #[inline(always)]
-    fn border_whole_line_hts_iter(border_size: BorderSize) -> Self::HtsIter {
+    fn border_whole_line_hts_iter(border_size: BorderSize) -> Self::BorderHtsIter {
         Ula128VidFrame::border_whole_line_hts_iter(border_size)
     }
     #[inline(always)]
-    fn border_left_hts_iter(border_size: BorderSize) -> Self::HtsIter {
+    fn border_left_hts_iter(border_size: BorderSize) -> Self::BorderHtsIter {
         Ula128VidFrame::border_left_hts_iter(border_size)
     }
     #[inline(always)]
-    fn border_right_hts_iter(border_size: BorderSize) -> Self::HtsIter {
+    fn border_right_hts_iter(border_size: BorderSize) -> Self::BorderHtsIter {
         Ula128VidFrame::border_right_hts_iter(border_size)
     }
 
