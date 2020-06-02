@@ -30,6 +30,7 @@ const MAX_PAGES: usize = 8;
 const BANK16K_MASK: u16 = (MEM16K_SIZE - 1) as u16;
 const NUM_BANK16K_PAGES: usize = 4;
 const SCREEN_SIZE: u16 = 0x1B00;
+const SCLD_SCREEN_OFFSET: usize = 0x2000;
 
 pub struct MemPageableRomRamExRom<M: MemoryBlock> {
     mem: Box<M>,
@@ -96,11 +97,15 @@ macro_rules! impl_memory_block {
             type Pages = [NonNull<[u8; MEM16K_SIZE]>; NUM_BANK16K_PAGES];
             const ROM_BANKS: usize = $roms;
             const RAM_BANKS: usize = $rams;
-            const SCR_BANKS: usize = impl_memory_block!(@count $($scr),*);
+            const SCR_BANKS: usize = 2 * impl_memory_block!(@count $($scr),*);
             const BANK_SIZE: usize = MEM16K_SIZE;
             const DEFAULT_PAGES: &'static [usize] = &[$(impl_memory_block!($memtype($bank))),*];
             const SCR_BANK_OFFSETS: &'static [usize] = &[$(
                 (Self::ROM_BANKS + $scr) * Self::BANK_SIZE
+            ,)
+            // add PLUS screen pages
+            *$(
+                SCLD_SCREEN_OFFSET + (Self::ROM_BANKS + $scr) * Self::BANK_SIZE
             ),*];
 
             fn new() -> Self {
@@ -217,7 +222,7 @@ impl<M: MemoryBlock> MemPageableRomRamExRom<M> {
         self.ro_pages = 0;
         self.ex_rom = None;
         for (page, &bank) in M::DEFAULT_PAGES.iter().enumerate() {
-            self.map_bank_at_page(bank, page as u8);
+            self.map_bank_on_page(bank, page as u8);
         }
     }
     #[inline]
@@ -284,7 +289,7 @@ impl<M: MemoryBlock> MemPageableRomRamExRom<M> {
         self.ro_pages |= ro_flag_mask(page);
     }
 
-    fn map_bank_at_page(&mut self, bank: usize, page: u8) {
+    fn map_bank_on_page(&mut self, bank: usize, page: u8) {
         let page = page & M::Pages::PAGES_MASK;
         let offset = bank * M::BANK_SIZE;
         let slice = &self.as_slice()[offset..offset + M::BANK_SIZE];
@@ -307,7 +312,7 @@ impl<M: MemoryBlock> MemPageableRomRamExRom<M> {
         *self.pages.page_mut(page) = ptr;
     }
 
-    fn bank_at_page(&self, page: u8) -> usize {
+    fn bank_on_page(&self, page: u8) -> usize {
         let bank_p = self.ex_rom.as_ref()
                       .filter(|ex| ex.page == page & M::Pages::PAGES_MASK)
                       .map(|ex| ex.ptr)
@@ -421,19 +426,21 @@ impl<M> ZxMemory for MemPageableRomRamExRom<M>
     }
     #[inline]
     fn screen_ref(&self, screen_bank: usize) -> Result<&[u8]> {
-        if screen_bank >= M::SCR_BANK_OFFSETS.len() {
-            return Err(ZxMemoryError::InvalidBankIndex)
+        match M::SCR_BANK_OFFSETS.get(screen_bank) {
+            Some(&offset) => {
+                Ok(&self.as_slice()[offset..offset + SCREEN_SIZE as usize])
+            }
+            None => Err(ZxMemoryError::InvalidBankIndex)
         }
-        let offset = M::SCR_BANK_OFFSETS[screen_bank];
-        Ok(&self.as_slice()[offset..offset + SCREEN_SIZE as usize])
     }
     #[inline]
     fn screen_mut(&mut self, screen_bank: usize) -> Result<&mut [u8]> {
-        if screen_bank >= M::SCR_BANK_OFFSETS.len() {
-            return Err(ZxMemoryError::InvalidBankIndex)
+        match M::SCR_BANK_OFFSETS.get(screen_bank) {
+            Some(&offset) => {
+                Ok(&mut self.as_mut_slice()[offset..offset + SCREEN_SIZE as usize])
+            }
+            None => Err(ZxMemoryError::InvalidBankIndex)
         }
-        let offset = M::SCR_BANK_OFFSETS[screen_bank];
-        Ok(&mut self.as_mut_slice()[offset..offset + SCREEN_SIZE as usize])
     }
     #[inline]
     fn page_kind(&self, page: u8) -> Result<MemoryKind> {
@@ -451,7 +458,7 @@ impl<M> ZxMemory for MemPageableRomRamExRom<M>
         if page > Self::PAGES_MAX {
             return Err(ZxMemoryError::InvalidPageIndex)
         }
-        let bank = self.bank_at_page(page);
+        let bank = self.bank_on_page(page);
         if bank < M::ROM_BANKS {
             Ok((MemoryKind::Rom, bank))
         }
@@ -517,7 +524,7 @@ impl<M> ZxMemory for MemPageableRomRamExRom<M>
         if page > Self::PAGES_MAX {
             return Err(ZxMemoryError::InvalidPageIndex)
         }
-        self.map_bank_at_page(rom_bank, page);
+        self.map_bank_on_page(rom_bank, page);
         Ok(())
     }
 
@@ -528,7 +535,7 @@ impl<M> ZxMemory for MemPageableRomRamExRom<M>
         if page > Self::PAGES_MAX {
             return Err(ZxMemoryError::InvalidPageIndex)
         }
-        self.map_bank_at_page(ram_bank + M::ROM_BANKS, page);
+        self.map_bank_on_page(ram_bank + M::ROM_BANKS, page);
         Ok(())
     }
     /// # Panics
@@ -563,6 +570,11 @@ mod tests {
     fn page_mem_offset(mem: &Memory128k, page: u8) -> usize {
         let mem_ptr = mem.mem_ref().as_ptr() as usize;
         mem.pages.page(page).as_ptr() as usize - mem_ptr
+    }
+
+    fn screen_bank_offset(mem: &Memory128k, screen_bank: usize) -> usize {
+        let mem_ptr = mem.mem_ref().as_ptr() as usize;
+        mem.screen_ref(screen_bank).unwrap().as_ptr() as usize - mem_ptr
     }
 
     fn test_page(mem: &Memory128k, page: u8, patt: &[u8;4]) {
@@ -626,7 +638,7 @@ mod tests {
         assert_eq!(Memory128k::ROM_SIZE, 0x8000);
         assert_eq!(Memory128k::PAGE_SIZE, 0x4000);
         assert_eq!(Memory128k::PAGES_MAX, 3);
-        assert_eq!(Memory128k::SCR_BANKS_MAX, 1);
+        assert_eq!(Memory128k::SCR_BANKS_MAX, 3);
         assert_eq!(Memory128k::RAM_BANKS_MAX, 7);
         assert_eq!(Memory128k::ROM_BANKS_MAX, 1);
         let mut mem = Memory128k::default();
@@ -636,6 +648,10 @@ mod tests {
         assert_eq!(page_mem_offset(&mem, 1), 0x8000 + 5*0x4000);
         assert_eq!(page_mem_offset(&mem, 2), 0x8000 + 2*0x4000);
         assert_eq!(page_mem_offset(&mem, 3), 0x8000);
+        assert_eq!(screen_bank_offset(&mem, 0), 0x8000 + 5*0x4000);
+        assert_eq!(screen_bank_offset(&mem, 1), 0x8000 + 7*0x4000);
+        assert_eq!(screen_bank_offset(&mem, 2), 0x8000 + 5*0x4000 + 0x2000);
+        assert_eq!(screen_bank_offset(&mem, 3), 0x8000 + 7*0x4000 + 0x2000);
         assert_eq!(Memory128k::byte_address_to_page_offset(0), (0, 0));
         assert_eq!(Memory128k::byte_address_to_page_offset(0x3fff), (0, 0x3fff));
         assert_eq!(Memory128k::byte_address_to_page_offset(0x4000), (1, 0));
@@ -723,7 +739,9 @@ mod tests {
         test_ram_bank(&mem, 6, b"RAM6");
         test_ram_bank(&mem, 7, b"RAM7");
         test_screen_bank(&mem, 0, b"RAM5");
+        test_screen_bank(&mem, 2, b"RAM5");
         test_screen_bank(&mem, 1, b"RAM7");
+        test_screen_bank(&mem, 3, b"RAM7");
         mem.reset_banks();
         test_page(&mem, 0, b"ROM0");
         test_page(&mem, 1, b"RAM5");
@@ -807,6 +825,8 @@ mod tests {
         test_ram_bank(&mem2, 7, b"RAM7");
         test_screen_bank(&mem2, 0, b"RAM5");
         test_screen_bank(&mem2, 1, b"RAM7");
+        test_screen_bank(&mem2, 2, b"RAM5");
+        test_screen_bank(&mem2, 3, b"RAM7");
         test_page(&mem2, 0, b"ROM0");
         test_page(&mem2, 1, b"RAM5");
         test_page(&mem2, 2, b"RAM2");
