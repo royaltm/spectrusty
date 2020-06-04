@@ -111,14 +111,14 @@ fn select_hw_model_v2<S: SnapshotCreator>(
             return Err(io::Error::new(io::ErrorKind::InvalidInput,
                 "Z80: can't create a snapshot of SpectrumSE"))
         }
-        Tc2048|Tc2068|Ts2068 if ext.intersects(Extensions::IF1)
+        TimexTC2048|TimexTC2068|TimexTS2068 if ext.intersects(Extensions::IF1)
                              && snapshot.is_interface1_rom_paged_in() => {
             return Err(io::Error::new(io::ErrorKind::InvalidInput,
                 "Z80: can't create a snapshot of Timex + IF1 with IF1 ROM paged in"))
         }
-        Tc2048 => (14, false),
-        Tc2068 => (15, false),
-        Ts2068 => (128, false),
+        TimexTC2048 => (14, false),
+        TimexTC2068 => (15, false),
+        TimexTS2068 => (128, false),
     })
 }
 
@@ -171,16 +171,16 @@ fn select_hw_model_v3<S: SnapshotCreator>(
             return Err(io::Error::new(io::ErrorKind::InvalidInput,
                 "Z80: can't create a snapshot of SpectrumSE"))
         }
-        Tc2048|Tc2068|Ts2068 if (ext.intersects(Extensions::IF1) && snapshot.is_interface1_rom_paged_in())
+        TimexTC2048|TimexTC2068|TimexTS2068 if (ext.intersects(Extensions::IF1) && snapshot.is_interface1_rom_paged_in())
                              || (ext.intersects(Extensions::PLUS_D) && snapshot.is_plus_d_rom_paged_in())
                              || (ext.intersects(Extensions::DISCIPLE) && snapshot.is_disciple_rom_paged_in())
                              => {
             return Err(io::Error::new(io::ErrorKind::InvalidInput,
                 "Z80: can't create a snapshot of Timex with extension ROM paged in"))
         }
-        Tc2048 => (14, false),
-        Tc2068 => (15, false),
-        Ts2068 => (128, false),
+        TimexTC2048 => (14, false),
+        TimexTC2068 => (15, false),
+        TimexTS2068 => (128, false),
     })
 }
 
@@ -229,11 +229,11 @@ fn init_z80_header_ex<S: SnapshotCreator, C: Cpu>(
     head_ex.port1 = match model {
         Spectrum128|SpectrumPlus2|SpectrumPlus2A|SpectrumPlus3|SpectrumPlus3e|
         SpectrumSE => snapshot.ula128_flags().bits(),
-        Tc2048|Tc2068|Ts2068 => snapshot.timex_memory_banks(),
+        TimexTC2048|TimexTC2068|TimexTS2068 => snapshot.timex_memory_banks(),
         _ => 0
     };
     head_ex.ifrom = match model {
-        Tc2048|Ts2068|Tc2068 => {
+        TimexTC2048|TimexTS2068|TimexTC2068 => {
             if ext.intersects(Extensions::IF1|Extensions::PLUS_D|Extensions::DISCIPLE) {
                 result.insert(SnapshotResult::EXTENSTION_NSUP);
             }
@@ -295,7 +295,7 @@ fn save_all_v2v3<W: Write, S: SnapshotCreator>(
         Spectrum16 => {
             save_ram_pages(wr, snapshot, iter::once((8, 0)))
         }
-        Spectrum48|SpectrumNTSC|Tc2048|Ts2068|Tc2068 => {
+        Spectrum48|SpectrumNTSC|TimexTC2048|TimexTS2068|TimexTC2068 => {
             save_ram_pages(wr, snapshot,
                 [(8, 0), (4, 1), (5, 2)].iter().copied())
         }
@@ -334,7 +334,7 @@ pub fn save_z80v1<C: SnapshotCreator, W: Write>(
     let model = snapshot.model();
     match model {
         Spectrum48 => {},
-        Spectrum16|SpectrumNTSC|Tc2048 => {
+        Spectrum16|SpectrumNTSC|TimexTC2048 => {
             result.insert(SnapshotResult::MODEL_NSUP);
         }
         _ => return Err(io::Error::new(io::ErrorKind::InvalidInput,

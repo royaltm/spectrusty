@@ -23,9 +23,9 @@ pub enum ComputerModel {
     SpectrumPlus3,
     SpectrumPlus3e,
     SpectrumSE,
-    Tc2048,
-    Tc2068,
-    Ts2068,
+    TimexTC2048,
+    TimexTC2068,
+    TimexTS2068,
 }
 
 bitflags! {
@@ -270,7 +270,7 @@ impl ComputerModel {
                 59136
             }
             Spectrum16|Spectrum48|
-            Tc2048|Tc2068|Ts2068 => {
+            TimexTC2048|TimexTC2068|TimexTS2068 => {
                 69888
             }
             Spectrum128|SpectrumPlus2|
@@ -299,7 +299,7 @@ impl ComputerModel {
             if ext.intersects(Extensions::SAM_RAM|Extensions::IF1|Extensions::PLUS_D|Extensions::DISCIPLE) => {
                     Err(ext & (Extensions::SAM_RAM|Extensions::IF1|Extensions::PLUS_D|Extensions::DISCIPLE))
             }
-            Tc2068|Ts2068 if ext.intersects(Extensions::SAM_RAM) => Err(Extensions::SAM_RAM),
+            TimexTC2068|TimexTS2068 if ext.intersects(Extensions::SAM_RAM) => Err(Extensions::SAM_RAM),
             _ => Ok(())
         }
     }
@@ -318,9 +318,9 @@ impl From<ComputerModel> for &str {
             SpectrumPlus3  => "ZX Spectrum +3",
             SpectrumPlus3e => "ZX Spectrum +3e",
             SpectrumSE     => "ZX Spectrum SE",
-            Tc2048         => "Timex TC2048",
-            Tc2068         => "Timex TC2068",
-            Ts2068         => "Timex TS2068",
+            TimexTC2048    => "Timex TC2048",
+            TimexTC2068    => "Timex TC2068",
+            TimexTS2068    => "Timex TS2068",
         }
     }
 }

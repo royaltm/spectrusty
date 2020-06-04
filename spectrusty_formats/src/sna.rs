@@ -281,7 +281,7 @@ pub fn save_sna<C: SnapshotCreator, W: Write>(
             result.insert(SnapshotResult::MODEL_NSUP);
             true
         }
-        Spectrum16|SpectrumNTSC|Tc2048|Tc2068|Ts2068 => {
+        Spectrum16|SpectrumNTSC|TimexTC2048|TimexTC2068|TimexTS2068 => {
             result.insert(SnapshotResult::MODEL_NSUP);
             false
         }

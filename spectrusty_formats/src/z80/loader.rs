@@ -39,9 +39,9 @@ fn select_hw_model(version: Z80Version, head_ex: &HeaderEx) -> Option<(ComputerM
         // (11, _)  => (DidaktikKompakt, Extensions::empty()),
         (12, _)  => (SpectrumPlus2, Extensions::empty()),
         (13, _)  => (SpectrumPlus2A, Extensions::empty()),
-        (14, _)  => (Tc2048, Extensions::empty()),
-        (15, _)  => (Tc2068, Extensions::empty()),
-        (128, _) => (Ts2068, Extensions::empty()),
+        (14, _)  => (TimexTC2048, Extensions::empty()),
+        (15, _)  => (TimexTC2068, Extensions::empty()),
+        (128, _) => (TimexTS2068, Extensions::empty()),
         _ => return None
     })
 }
@@ -54,7 +54,7 @@ fn select_ay_model(model: ComputerModel, flags3: Flags3) -> Option<Ay3_891xDevic
         SpectrumSE => {
             Some(Ay3_891xDevice::Ay128k)
         }
-        Tc2068|Ts2068 => Some(Ay3_891xDevice::Timex),
+        TimexTC2068|TimexTS2068 => Some(Ay3_891xDevice::Timex),
         _ if flags3.is_ay_fuller_box() => Some(Ay3_891xDevice::FullerBox),
         _ if flags3.is_ay_melodik() => Some(Ay3_891xDevice::Melodik),
         _ => None
@@ -65,7 +65,7 @@ fn mem_page_to_range(page: u8, model: ComputerModel, ext: Extensions) -> Option<
     use ComputerModel::*;
     match model {
         Spectrum16|Spectrum48|
-        Tc2048|Ts2068|Tc2068 => {
+        TimexTC2048|TimexTS2068|TimexTC2068 => {
             Some(match page {
                  0 => MemoryRange::Rom(0..PAGE_SIZE),
                  1 if ext.intersects(Extensions::IF1) => MemoryRange::Interface1Rom,
@@ -234,7 +234,7 @@ pub fn load_z80<R: Read, S: SnapshotLoader>(
         }
 
         match model {
-            Tc2048|Ts2068|Tc2068 => {
+            TimexTC2048|TimexTS2068|TimexTC2068 => {
                 loader.write_port(0xf4, head_ex.port1);
             }
             Spectrum128|SpectrumPlus2|
@@ -245,7 +245,7 @@ pub fn load_z80<R: Read, S: SnapshotLoader>(
             _ => {}
         }
         match model {
-            Tc2048|Ts2068|Tc2068 => {
+            TimexTC2048|TimexTS2068|TimexTC2068 => {
                 loader.write_port(0xff, head_ex.ifrom);
             }
             Spectrum16|Spectrum48|
