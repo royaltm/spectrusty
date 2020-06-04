@@ -329,44 +329,80 @@ impl Ula3CtrlFlags {
 }
 
 bitflags! {
-    /// Timex TC2048/Tx2068 memory control flags.
+    /// Timex TC2048/TC2068/TS2068 memory control flags.
+    #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
+    #[cfg_attr(feature = "snapshot", serde(from = "u8", into = "u8"))]
     #[derive(Default)]
-    pub struct TimexCtrlFlags: u8 {
-        const SCREEN_MODE_MASK = 0b0000_0111;
-        const SCREEN_SHADOW    = 0b0000_0001;
-        const SCREEN_HI_ATTRS  = 0b0000_0010;
-        const SCREEN_HI_RES    = 0b0000_0100;
-        const HIRES_COLOR_MASK = 0b0011_1000;
-        const DISABLE_INTR     = 0b0100_0000;
-        const MEMORY_EX_ROM    = 0b1000_0000;
+    pub struct ScldCtrlFlags: u8 {
+        const SCREEN_MODE_MASK   = 0b0000_0111;
+        const SCREEN_SOURCE_MASK = 0b0000_0011;
+        const SCREEN_SHADOW      = 0b0000_0001;
+        const SCREEN_HI_ATTRS    = 0b0000_0010;
+        const SCREEN_HI_RES      = 0b0000_0100;
+        const HIRES_COLOR_MASK   = 0b0011_1000;
+        const INTR_DISABLED      = 0b0100_0000;
+        const MAP_EX_ROM         = 0b1000_0000;
     }
 }
 
-/// Convert into a video timestamped border color change.
-// impl From<(VideoTs, TimexCtrlFlags)> for VideoTsData4 {
-//     fn from((vts, flags): (VideoTs, TimexCtrlFlags)) -> VideoTsData4 {
-//         let color = 0x08|((flags & TimexCtrlFlags::HIRES_COLOR_MASK).bits() >> 3);
-//         (vts, color).into()
-//     }
-// }
+impl ScldCtrlFlags {
+    /// Returns a color index from high resolution color mask: [0, 7].
+    #[inline]
+    pub fn hires_color_index(self) -> u8 {
+        (self & ScldCtrlFlags::HIRES_COLOR_MASK).bits() >> 3
+    }
+    /// Returns `true` if a map ex rom bit is 1. Otherwise returns `false`.
+    #[inline]
+    pub fn is_map_ex_rom(self) -> bool {
+        self.intersects(ScldCtrlFlags::MAP_EX_ROM)
+    }
+    /// Returns `true` if a interrupt disabled bit is 1. Otherwise returns `false`.
+    #[inline]
+    pub fn is_intr_disabled(self) -> bool {
+        self.intersects(ScldCtrlFlags::INTR_DISABLED)
+    }
+    /// Returns `true` if a shadow screen bit is 1. Otherwise returns `false`.
+    #[inline]
+    pub fn is_screen_shadow(self) -> bool {
+        self.intersects(ScldCtrlFlags::SCREEN_SHADOW)
+    }
+    /// Returns `true` if a screen high resolution bit is 1. Otherwise returns `false`.
+    #[inline]
+    pub fn is_screen_hi_res(self) -> bool {
+        self.intersects(ScldCtrlFlags::SCREEN_HI_RES)
+    }
+    /// Returns `true` if a screen high resolution attributes bit is 1. Otherwise returns `false`.
+    #[inline]
+    pub fn is_screen_hi_attrs(self) -> bool {
+        self.intersects(ScldCtrlFlags::SCREEN_HI_ATTRS)
+    }
+}
 
-/// Convert into a video timestamped color mode change.
-// impl From<(VideoTs, TimexCtrlFlags)> for VideoTsData3 {
-//     fn from((vts, flags): (VideoTs, TimexCtrlFlags)) -> VideoTsData3 {
-//         let mode = (flags & TimexCtrlFlags::SCREEN_HI_RES).bits();
-//         (vts, mode).into()
-//     }
-// }
+impl From<ScldCtrlFlags> for u8 {
+    #[inline]
+    fn from(flags: ScldCtrlFlags) -> u8 {
+        flags.bits()
+    }
+}
+
+impl From<u8> for ScldCtrlFlags {
+    #[inline]
+    fn from(flags: u8) -> ScldCtrlFlags {
+        ScldCtrlFlags::from_bits_truncate(flags)
+    }
+}
 
 /// Convert into a video timestamped source mode change.
-impl From<(VideoTs, TimexCtrlFlags)> for VideoTsData2 {
-    fn from((vts, flags): (VideoTs, TimexCtrlFlags)) -> VideoTsData2 {
-        let source_mode = (flags & (TimexCtrlFlags::SCREEN_SHADOW|TimexCtrlFlags::SCREEN_HI_ATTRS)).bits();
+impl From<(VideoTs, ScldCtrlFlags)> for VideoTsData2 {
+    fn from((vts, flags): (VideoTs, ScldCtrlFlags)) -> VideoTsData2 {
+        let source_mode = (flags & (ScldCtrlFlags::SCREEN_SHADOW|ScldCtrlFlags::SCREEN_HI_ATTRS)).bits();
         (vts, source_mode).into()
     }
 }
 
 bitflags! {
+    #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
+    #[cfg_attr(feature = "snapshot", serde(try_from = "u8", into = "u8"))]
     #[derive(Default)]
     pub struct ColorMode: u8 {
         const PALETTE   = 0b001;
@@ -374,10 +410,28 @@ bitflags! {
     }
 }
 
-impl From<u8> for ColorMode {
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TryFromU8ColorModeError(pub u8);
+
+impl std::error::Error for TryFromU8ColorModeError {}
+
+impl fmt::Display for TryFromU8ColorModeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "converted integer ({}) out of range for `ColorMode`", self.0)
+    }
+}
+
+impl TryFrom<u8> for ColorMode {
+    type Error = TryFromU8ColorModeError;
+    fn try_from(mode: u8) -> core::result::Result<Self, Self::Error> {
+        ColorMode::from_bits(mode).ok_or_else(|| TryFromU8ColorModeError(mode))
+    }
+}
+
+impl From<ColorMode> for u8 {
     #[inline]
-    fn from(mode: u8) -> Self {
-        ColorMode::from_bits_truncate(mode)
+    fn from(mode: ColorMode) -> u8 {
+        mode.bits()
     }
 }
 

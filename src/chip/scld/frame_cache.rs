@@ -1,7 +1,7 @@
 use bitflags::bitflags;
 use crate::clock::{Ts, VideoTs, VideoTsData2};
 use crate::chip::{
-    TimexCtrlFlags,
+    ScldCtrlFlags,
     ula::{
         frame_cache::{UlaFrameCache, UlaFrameLineIter}
     }
@@ -90,11 +90,11 @@ const EMPTY_LINE_ITER: UlaFrameLineIter<'_> = UlaFrameLineIter {
 
 impl SourceMode {
     #[inline]
-    fn is_shadow(self) -> bool {
+    pub fn is_shadow(self) -> bool {
         self.intersects(SourceMode::SHADOW_SCREEN)
     }
     #[inline]
-    fn is_hicolor(self) -> bool {
+    pub fn is_hi_color(self) -> bool {
         self.intersects(SourceMode::ATTR_HI_COLOR)
     }
 }
@@ -113,10 +113,10 @@ impl From<VideoTsData2> for SourceMode {
     }
 }
 
-impl From<TimexCtrlFlags> for SourceMode {
-    fn from(flags: TimexCtrlFlags) -> SourceMode {
+impl From<ScldCtrlFlags> for SourceMode {
+    fn from(flags: ScldCtrlFlags) -> SourceMode {
         SourceMode::from(
-            (flags & (TimexCtrlFlags::SCREEN_SHADOW|TimexCtrlFlags::SCREEN_HI_ATTRS)).bits()
+            (flags & ScldCtrlFlags::SCREEN_SOURCE_MASK).bits()
         )
     }
 }
@@ -199,7 +199,7 @@ impl<'a, V, I> ScldFrameProducer<'a, V, I>
             self.line_iter.frame_pixels = &self.frame_ref.frame_cache0.frame_pixels[line];
         }
 
-        if source.is_hicolor() {
+        if source.is_hi_color() {
             self.line_iter.attr_line = ink_line_from(line, &self.frame_ref.screen1);
             self.line_iter.frame_colors = &self.frame_ref.frame_cache1.frame_pixels[line];
             self.line_iter.frame_colors_coarse = EMPTY_FRAME_LINE;

@@ -41,16 +41,16 @@ pub const ATTR_ROWS: usize = 24;
 /// Offset into screen memory where attributes data begin.
 pub const ATTRS_OFFSET: usize = 0x1800;
 
-/// Returns cell coordinates of a INK/PAPER bitmap cell.
+/// Returns cell coordinates of a INK/PAPER bitmap cell ignoring the highest 3 address bits.
 #[inline(always)]
 pub fn pixel_address_coords(addr: u16) -> CellCoords {
-    let column = (addr & 0b11111) as u8;
+    let column = (addr & 0b0001_1111) as u8;
     let row = (addr >> 5 & 0b1100_0000 |
                addr >> 2 & 0b0011_1000 |
                addr >> 8 & 0b0000_0111) as u8;
     CellCoords { column, row }
 }
-/// Returns cell coordinates of a screen attribute cell.
+/// Returns cell coordinates of a screen attribute cell ignoring the highest 6 address bits.
 #[inline(always)]
 pub fn color_address_coords(addr: u16) -> CellCoords {
     let column = (addr & 0b0001_1111) as u8;

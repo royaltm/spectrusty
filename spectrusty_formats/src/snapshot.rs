@@ -6,7 +6,7 @@ use bitflags::bitflags;
 
 use spectrusty_core::z80emu::{*, z80::*};
 use spectrusty_core::clock::{VideoTs, FTs};
-use spectrusty_core::chip::{ControlUnit, MemoryAccess, ReadEarMode, Ula128MemFlags, Ula3CtrlFlags, TimexCtrlFlags};
+use spectrusty_core::chip::{ControlUnit, MemoryAccess, ReadEarMode, Ula128MemFlags, Ula3CtrlFlags, ScldCtrlFlags};
 use spectrusty_core::video::{Video, BorderColor};
 use spectrusty_core::memory::{ZxMemory, ZxMemoryError};
 use spectrusty_peripherals::ay::AyRegister;
@@ -121,7 +121,7 @@ pub trait SnapshotCreator {
     fn ay_state(&self, _choice: Ay3_891xDevice) -> Option<(AyRegister, &[u8;16])> { None }
     fn ula128_flags(&self) -> Ula128MemFlags { unimplemented!() }
     fn ula3_flags(&self) -> Ula3CtrlFlags { unimplemented!() }
-    fn timex_flags(&self) -> TimexCtrlFlags { unimplemented!() }
+    fn timex_flags(&self) -> ScldCtrlFlags { unimplemented!() }
     fn timex_memory_banks(&self) -> u8 { unimplemented!() }
     // fn ulaplus_flags(&self) -> UlaPlusFlags;
     fn is_interface1_rom_paged_in(&self) -> bool { unimplemented!() }

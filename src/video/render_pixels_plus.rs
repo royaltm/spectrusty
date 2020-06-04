@@ -12,7 +12,6 @@ use core::marker::PhantomData;
 use std::iter::Peekable;
 use bitflags::bitflags;
 use crate::clock::{VideoTs, Ts, VideoTsData6};
-// use crate::chip::{TimexCtrlFlags};
 use crate::video::{
     BorderSize, PixelBuffer, Palette, VideoFrame,
     frame_cache::{PIXEL_LINES, PlusVidFrameDataIterator},
@@ -24,9 +23,13 @@ use super::render_pixels::{
     PAPER_MASK,
 };
 
+// #[cfg(feature = "snapshot")]
+// use serde::{Serialize, Deserialize};
+
 const CLUT_MASK: u8 = 0b1100_0000;
 
 /// The type used for ULAplus GRB/grayscale palette.
+// #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 pub struct ColorPalette(pub [u8;64]);
 
 bitflags! {
@@ -94,6 +97,12 @@ impl fmt::Debug for ColorPalette {
 }
 
 impl RenderMode {
+    /// Creates a new `RenderMode` with given `color` in range: [0, 7].
+    #[inline]
+    pub fn with_color(self, color: u8) -> Self {
+        (self & !RenderMode::COLOR_MASK)
+        | (RenderMode::from_bits_truncate(color) & RenderMode::COLOR_MASK)
+    }
     /// Returns the border or ink bits ORed with hi resolution bit.
     ///
     /// The returned value is in range: [0, 15] and represents the border color: [0, 7]
@@ -129,14 +138,6 @@ impl From<VideoTsData6> for RenderMode {
         RenderMode::from_bits_truncate(vtsr.into_data())
     }
 }
-
-// impl From<TimexCtrlFlags> for RenderMode {
-//     fn from(flags: TimexCtrlFlags) -> RenderMode {
-//         RenderMode::from(
-//             (flags & (TimexCtrlFlags::SCREEN_HI_RES)).bits()
-//         )
-//     }
-// }
 
 impl From<&PaletteChange> for VideoTs {
     fn from(vtsp: &PaletteChange) -> Self {
@@ -214,7 +215,6 @@ impl<'r, VD, MI, PI> RendererPlus<'r, VD, MI, PI>
             buffer: &'a mut [u8],
             pitch: usize
         )
-        where 'r: 'a
     {
         let RendererPlus {
             mut frame_image_producer,
@@ -322,7 +322,7 @@ impl<'r, 'a, MI, PI, B, P, V> Worker<'r, 'a, MI, PI, B, P, V>
         if self.render_mode.is_palette() {
             self.consume_palette_changes(ts);
         }
-        line_buffer.put_pixels(self.border_pixel, 8);
+        line_buffer.put_pixels(self.border_pixel, 16);
     }
 
     #[inline(never)]
