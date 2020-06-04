@@ -74,6 +74,8 @@ pub struct TryFromU8BorderColorError(pub u8);
 
 /// An interface for renderering Spectrum's pixel data to frame buffers.
 pub trait Video {
+    /// The horizontal pixel density.
+    const PIXEL_DENSITY: u32 = 1;
     /// The [VideoFrame] implementation used by the chipset emulator.
     type VideoFrame: VideoFrame;
     /// Returns the current border color number [0, 7].
@@ -101,6 +103,10 @@ pub trait Video {
         pitch: usize,
         border_size: BorderSize
     );
+    /// Returns the horizontal pixel density.
+    fn pixel_density() -> u32 {
+        Self::PIXEL_DENSITY
+    }
     /// Returns the screen bank index of the currently visible screen at the top of the frame.
     ///
     /// The screen banks are different from memory banks.
