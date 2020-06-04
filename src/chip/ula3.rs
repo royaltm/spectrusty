@@ -366,12 +366,16 @@ impl<B, X> ControlUnit for Ula3<B, X>
 
     fn reset<C: Cpu>(&mut self, cpu: &mut C, hard: bool) {
         self.ula.reset(cpu, hard);
-        self.mem_special_paging = None;
-        self.mem_page3_bank = MemPage8::Bank0;
-        self.rom_bank = MemPage4::Bank0;
-        self.cur_screen_shadow = false;
-        self.beg_screen_shadow = false;
-        self.mem_locked = false;
+        if hard {
+            self.mem_special_paging = None;
+            self.mem_page3_bank = MemPage8::Bank0;
+            self.rom_bank = MemPage4::Bank0;
+            if self.cur_screen_shadow {
+                self.screen_changes.push(self.video_ts());
+            }
+            self.cur_screen_shadow = false;
+            self.mem_locked = false;
+        }
     }
 
     fn nmi<C: Cpu>(&mut self, cpu: &mut C) -> bool {

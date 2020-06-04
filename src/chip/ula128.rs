@@ -277,10 +277,14 @@ impl<B, X> ControlUnit for Ula128<B, X>
 
     fn reset<C: Cpu>(&mut self, cpu: &mut C, hard: bool) {
         self.ula.reset(cpu, hard);
-        self.mem_page3_bank = MemPage8::Bank0;
-        self.cur_screen_shadow = false;
-        self.beg_screen_shadow = false;
-        self.mem_locked = false;
+        if hard {
+            self.mem_page3_bank = MemPage8::Bank0;
+            if self.cur_screen_shadow {
+                self.screen_changes.push(self.video_ts());
+            }
+            self.cur_screen_shadow = false;
+            self.mem_locked = false;
+        }
     }
 
     fn nmi<C: Cpu>(&mut self, cpu: &mut C) -> bool {
@@ -366,7 +370,6 @@ impl<B, X> UlaTimestamp for Ula128<B, X>
             vtsc = self.prepare_next_frame(vtsc);
         }
         vtsc
-
     }
 }
 
