@@ -10,7 +10,7 @@ use crate::video::{
 /// This emulates the Spectrum's ULA reading two bytes of video data to compose a single cell
 /// consisting of 8 pixels.
 ///
-/// The first byte returned by the iterator is interpreted as INK/PAPER bit selector and
+/// The first byte returned by the iterator is interpreted as INK/PAPER bit selector (an INK mask) and
 /// the second as a color attribute.
 pub trait VideoFrameDataIterator: Iterator<Item=(u8, u8)> {
     /// Forwards the iterator to the beginning of the next video line.
@@ -22,11 +22,12 @@ pub trait VideoFrameDataIterator: Iterator<Item=(u8, u8)> {
 /// This emulates the Spectrum's ULAplus/Timex's SCLD reading two bytes of video data to compose a single cell
 /// consisting of 8 (or 16 in hi-res) pixels.
 ///
-/// In low resolution mode the first byte returned by the iterator is interpreted as INK/PAPER bit
-/// selector and the second as a color attribute.
-/// In hi-res mode both bytes are being used to render 16 monochrome pixels.
+/// In low resolution mode the first byte returned by the iterator is interpreted as INK/PAPER bit selector
+/// (an INK mask) and the second as a color attribute.
 ///
-/// The third value is a horizontal timestamp latch for when the mode/palette changes should be applied.
+/// In high resolution both bytes are being used to render 16 monochrome pixels.
+///
+/// The third value is a horizontal timestamp latch to synchronize changes to screen mode and palette changes with.
 pub trait PlusVidFrameDataIterator: Iterator<Item=(u8, u8, Ts)> {
     /// Forwards the iterator to the beginning of the next video line.
     fn next_line(&mut self);
@@ -38,7 +39,7 @@ pub const COLUMNS: usize = 32;
 pub const PIXEL_LINES: usize = 192;
 /// The number of screen attribute rows.
 pub const ATTR_ROWS: usize = 24;
-/// Offset into screen memory where attributes data begin.
+/// The offset into screen memory where attributes data begin.
 pub const ATTRS_OFFSET: usize = 0x1800;
 
 /// Returns cell coordinates of a INK/PAPER bitmap cell ignoring the highest 3 address bits.

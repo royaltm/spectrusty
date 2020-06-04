@@ -11,6 +11,7 @@ fn col_hts(x: i16) -> i16 {
     ((x >> 1) << 3) + ((x & 1) << 1) + 3
 }
 
+/// Implements a [VideoFrameDataIterator] for 128k ULA based Spectrum models.
 pub struct Ula128FrameProducer<'a, V, I> {
     ula_frame_prod: UlaFrameProducer<'a, V>,
     shadow_frame: UlaFrameRef<'a, V>,

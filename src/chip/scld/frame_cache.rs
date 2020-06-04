@@ -40,13 +40,13 @@ use crate::video::{
        1    1    1   hi-res    p0   p1   7    s1.fp  s3.fp/dummy
 */
 bitflags! {
-    /// Flags determining the source mode for ink masks and attributes.
+    /// Flags determining the source mode for INK masks and attributes.
     ///
     /// ```text
     /// source
     /// attr shad.  mode      ink_mask  attr
-    ///    0    0   screen 0  screen 0  screen attr. 0 (8 lines)
-    ///    0    1   screen 1  screen 1  screen attr. 1 (8 lines)
+    ///    0    0   screen 0  screen 0  screen 0 attr. (8 lines)
+    ///    0    1   screen 1  screen 1  screen 1 attr. (8 lines)
     ///    1    0   combined  screen 0  screen 1
     ///    1    1   combined  screen 1  screen 1
     /// ```
@@ -56,7 +56,7 @@ bitflags! {
         const ATTR_HI_COLOR = 0b10;
     }
 }
-
+/// A reference to primary and secondary screen data with relevant frame caches.
 pub struct ScldFrameRef<'a, V> {
     /// primary screen data
     pub screen0: &'a[u8],
@@ -68,6 +68,7 @@ pub struct ScldFrameRef<'a, V> {
     pub frame_cache1: &'a UlaFrameCache<V>,
 }
 
+/// Implements a [PlusVidFrameDataIterator] for SCLD based Timex models.
 pub struct ScldFrameProducer<'a, V, I> {
     frame_ref: ScldFrameRef<'a, V>,
     line: usize,

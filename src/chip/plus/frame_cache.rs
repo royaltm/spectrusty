@@ -7,6 +7,7 @@ use crate::chip::ula::frame_cache::UlaFrameCache;
 use crate::chip::ula128::frame_cache::vc_to_line;
 use crate::chip::scld::frame_cache::{SourceMode, ScldFrameRef, ScldFrameProducer};
 
+/// Implements a [PlusVidFrameDataIterator] for ULAplus based Spectrum models.
 pub struct PlusFrameProducer<'a, V, IM, IS> {
     scld_frame_prod: ScldFrameProducer<'a, V, IM>,
     shadow_frame: ScldFrameRef<'a, V>,

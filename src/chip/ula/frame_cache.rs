@@ -13,20 +13,32 @@ use crate::video::{
 const COL_INK_HTS:  &[Ts;COLUMNS] = &[1, 3,  9, 11, 17, 19, 25, 27, 33, 35, 41, 43, 49, 51, 57, 59, 65, 67, 73, 75, 81, 83, 89, 91, 97,  99, 105, 107, 113, 115, 121, 123];
 const COL_ATTR_HTS: &[Ts;COLUMNS] = &[2, 4, 10, 12, 18, 20, 26, 28, 34, 36, 42, 44, 50, 52, 58, 60, 66, 68, 74, 76, 82, 84, 90, 92, 98, 100, 106, 108, 114, 116, 122, 124];
 
+/// Spectrum's video data frame cache.
+///
+/// When a byte is being written to the video memory and the video beam position has already passed
+/// the referenced screen cell, the cell value is being cached from memory before the data in memory
+/// is being modified.
+///
+/// The caching is performed only once per frame for each potential cell so subsequent writes to the same
+/// memory address won't modify the cached cell value.
+///
+/// When a screen is being drawn the data stored in cache will override any value currently residing in
+/// video memory.
 #[derive(Clone)]
 pub struct UlaFrameCache<V> {
-    pub frame_pixels: [(u32, [u8;COLUMNS]);PIXEL_LINES],      // pixel read precedence pixels > memory
+    pub frame_pixels: [(u32, [u8;COLUMNS]);PIXEL_LINES],      // read precedence pixels < memory
     pub frame_colors: [(u32, [u8;COLUMNS]);PIXEL_LINES],
-    pub frame_colors_coarse: [(u32, [u8;COLUMNS]);ATTR_ROWS], // color read precedence colors > colors_coarse > memory
+    pub frame_colors_coarse: [(u32, [u8;COLUMNS]);ATTR_ROWS], // read precedence colors < colors_coarse < memory
     _video_frame: PhantomData<V>
 }
 
+/// A reference to screen data with a relevant frame cache.
 pub struct UlaFrameRef<'a, V> {
     pub screen: &'a[u8],
     pub frame_cache: &'a UlaFrameCache<V>,
 }
 
-pub struct UlaFrameLineIter<'a> {
+pub(crate) struct UlaFrameLineIter<'a> {
     pub column: usize,
     pub ink_line: &'a[u8;COLUMNS],
     pub attr_line: &'a[u8;COLUMNS],
@@ -35,6 +47,7 @@ pub struct UlaFrameLineIter<'a> {
     pub frame_colors_coarse: &'a(u32, [u8;COLUMNS])
 }
 
+/// Implements a [VideoFrameDataIterator] for 16k/48k ULA based Spectrum models.
 pub struct UlaFrameProducer<'a, V> {
     frame_ref: UlaFrameRef<'a, V>,
     line: usize,
@@ -111,7 +124,7 @@ impl<'a, V> VideoFrameDataIterator for UlaFrameProducer<'a, V> {
 }
 
 impl<'a, V> Iterator for UlaFrameProducer<'a, V> {
-    type Item = <UlaFrameLineIter::<'a> as Iterator>::Item;
+    type Item = (u8, u8);
 
     #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {

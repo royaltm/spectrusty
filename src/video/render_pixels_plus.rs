@@ -1,16 +1,10 @@
 use core::fmt;
 use core::ops::{Deref, DerefMut};
 use core::marker::PhantomData;
-/*
-    frame producer: ([bank5/7,] screen0+ink0/screen1+ink1/screen0+screen1)
-    border changes (16 colors) 0-7 applies palette rules, 8-15 no palette (grayscale applies)
-    palette changes (lo/hi-res, on/off, mono/color, entry 0..=63 value: u8)
-    bit0: palette on/off
-    bit1: grayscale on/off
-    bit2: hires on/off
-*/
 use std::iter::Peekable;
+
 use bitflags::bitflags;
+
 use crate::clock::{VideoTs, Ts, VideoTsData6};
 use crate::video::{
     BorderSize, PixelBuffer, Palette, VideoFrame,
@@ -36,7 +30,7 @@ bitflags! {
     /// The render mode control flags.
     ///
     /// ```text
-    /// g p h b b b
+    /// g p h 4 2 1
     /// 0 0 0 b b b - (b)order, lo-res, palette off
     /// 1 0 0 b b b - (b)order, lo-res, palette off/grayscale on
     /// 0 1 0 b b b - (b)order, lo-res, palette on
@@ -166,7 +160,7 @@ impl PaletteChange {
     }
 }
 
-/// Implements a method to render the double resolution image of a video frame for ULAplus/SCLD modes.
+/// Implements a method to render the double pixel density image of a video frame for ULAplus/SCLD modes.
 #[derive(Debug)]
 pub struct RendererPlus<'r, VD, MI, PI> {
     /// A render mode at the beginning of the frame (includes the border color).

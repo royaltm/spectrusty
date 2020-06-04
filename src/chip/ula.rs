@@ -469,9 +469,9 @@ impl<U, B, X> UlaCpuExt for U
 
 /// Emulates the CPU's halted state at the given video timestamp.
 ///
-/// Returns a video timestamp just before the end of frame and with the `cpu` memory refresh register
-/// increased accordingly, applying any needed memory contention if the `PC` register addresses a contended
-/// memory.
+/// Returns a video timestamp set to just before the end of current frame and with the `cpu` memory refresh
+/// register increased accordingly, applying any needed memory contention if the `PC` register addresses
+/// a contended memory.
 ///
 /// This method should be called after the `cpu` executed the `HALT` instruction for the optimal emulator
 /// performance.

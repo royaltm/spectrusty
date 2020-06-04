@@ -11,7 +11,7 @@ pub const BRIGHT_MASK: u8 = 0b0100_0000;
 pub const INK_MASK   : u8 = 0b0000_0111;
 pub const PAPER_MASK : u8 = 0b0011_1000;
 
-/// Implements a method to render an image of a video frame for classic ZX Spectrum lo-res modes.
+/// Implements a method to render an image of a video frame for classic ZX Spectrum low resolution modes.
 #[derive(Debug)]
 pub struct Renderer<VD, BI> {
     /// A border color value 0..=7 at the beginning of the frame.
