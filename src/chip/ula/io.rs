@@ -32,15 +32,10 @@ impl<M, B, X, V> Io for Ula<M, B, X, V>
         if port & 1 == 0 {
             let border = BorderColor::from_bits_truncate(data);
             if self.last_border != border {
-                // println!("border: {} {:?}", border, ts);
                 self.last_border = border;
                 self.border_out_changes.push((ts, border.bits()).into());
             }
-            let earmic = EarMic::from_bits_truncate(data >> 3);
-            if self.last_earmic_data != earmic {
-                self.last_earmic_data = earmic;
-                self.earmic_out_changes.push((ts, earmic.bits()).into());
-            }
+            self.ula_write_earmic(data, ts);
         }
         else {
             if let Some(ws) = self.bus.write_io(port, data, ts) {
@@ -102,11 +97,25 @@ impl<M, B, X, V> Ula<M, B, X, V>
           V: VideoFrame
 {
     #[inline(always)]
+    pub(crate) fn ula_write_earmic(&mut self, data: u8, ts: VideoTs) {
+        let earmic = EarMic::from_bits_truncate(data >> 3);
+        if self.last_earmic_data != earmic {
+            self.last_earmic_data = earmic;
+            self.earmic_out_changes.push((ts, earmic.bits()).into());
+        }
+    }
+
+    #[inline(always)]
+    pub(crate) fn ula_io_data(&mut self, port: u16, ts: VideoTs) -> u8 {
+        self.keyboard.read_keyboard((port >> 8) as u8) &
+                (u8::from(self.read_ear_in(ts)) << 6 | 0b1011_1111)
+    }
+
+    #[inline(always)]
     pub(crate) fn ula_read_io(&mut self, port: u16, ts: VideoTs) -> Option<(u8, Option<NonZeroU16>)> {
         let bus_data = self.bus.read_io(port, ts);
         if port & 1 == 0 {
-            let ula_data = self.keyboard.read_keyboard((port >> 8) as u8) &
-                      ((u8::from(self.read_ear_in(ts)) << 6) | 0b1011_1111);
+            let ula_data = self.ula_io_data(port, ts);
             if let Some((data, ws)) = bus_data {
                 return Some((ula_data & data, ws));
             }

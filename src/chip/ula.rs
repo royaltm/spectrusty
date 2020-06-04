@@ -80,9 +80,9 @@ impl MemoryContention for UlaMemoryContention {
 }
 
 /// ZX Spectrum 16k/48k ULA.
-#[derive(Clone)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]
+#[derive(Clone)]
 pub struct Ula<M, B=NullDevice<VideoTs>, X=NoMemoryExtension, V=UlaVideoFrame> {
     pub(super) frames: Wrapping<u64>, // frame counter
     pub(super) tsc: VideoTs, // current T-state timestamp
@@ -99,8 +99,8 @@ pub struct Ula<M, B=NullDevice<VideoTs>, X=NoMemoryExtension, V=UlaVideoFrame> {
     pub(super) frame_cache: UlaFrameCache<V>,
     #[cfg_attr(feature = "snapshot", serde(skip))]
     border_out_changes: Vec<VideoTsData3>, // frame timestamp with packed border on 3 bits
-    border: BorderColor, // video frame start border color
-    last_border: BorderColor, // last recorded change
+    pub(super) border: BorderColor, // video frame start border color
+    pub(super) last_border: BorderColor, // last recorded change
     // EAR, MIC
     #[cfg_attr(feature = "snapshot", serde(skip))]
     ear_in_changes: Vec<VideoTsData1>,  // frame timestamp with packed earin on 1 bit
@@ -293,7 +293,9 @@ impl<M, B, X, V> MemoryAccess for Ula<M, B, X, V>
 }
 
 impl<M, B, X, V> Ula<M, B, X, V>
-    where M: ZxMemory, B: BusDevice<Timestamp=VideoTs>, V: VideoFrame
+    where M: ZxMemory,
+          B: BusDevice<Timestamp=VideoTs>,
+          V: VideoFrame
 {
     #[inline]
     pub(super) fn prepare_next_frame<T: MemoryContention>(

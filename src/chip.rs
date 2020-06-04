@@ -7,12 +7,13 @@ pub mod plus;
 #[cfg(feature = "peripherals")]
 pub mod ay_player;
 
-use crate::memory::ZxMemory;
+use crate::memory::{ZxMemory, PagedMemory8k};
 use crate::video::{VideoFrame, Video};
 use crate::clock::FTs;
 use ula::{Ula, UlaVideoFrame, UlaNTSC, UlaNTSCVidFrame};
 use ula128::{Ula128, Ula128VidFrame};
 use ula3::Ula3;
+use scld::Scld;
 pub use spectrusty_core::chip::*;
 
 /// ZX Spectrum PAL configuration parameters.
@@ -37,6 +38,11 @@ impl HostConfig for ZxSpectrum128Config {
 }
 
 impl<M: ZxMemory, B, X> HostConfig for Ula<M, B, X, UlaVideoFrame> {
+    const CPU_HZ: u32 = ZxSpectrumPALConfig::CPU_HZ;
+    const FRAME_TSTATES: FTs = <Self as Video>::VideoFrame::FRAME_TSTATES_COUNT;
+}
+
+impl<M: PagedMemory8k, B, X> HostConfig for Scld<M, B, X, UlaVideoFrame> {
     const CPU_HZ: u32 = ZxSpectrumPALConfig::CPU_HZ;
     const FRAME_TSTATES: FTs = <Self as Video>::VideoFrame::FRAME_TSTATES_COUNT;
 }

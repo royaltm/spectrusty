@@ -141,7 +141,6 @@ pub trait EarIn {
 /// This enum determines the EAR input (bit 6) read from the 0xFE port when there is no EAR input feed.
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
 pub enum ReadEarMode {
     /// Issue 3 keyboard behaviour - EAR input is 1 when EAR output is 1
     Issue3,

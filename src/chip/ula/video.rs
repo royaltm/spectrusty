@@ -100,9 +100,10 @@ impl<M: ZxMemory, D, X, V: VideoFrame> Video for Ula<M, D, X, V> {
     }
 
     fn set_border_color(&mut self, border: BorderColor) {
-        self.last_border = border;
-        self.border = border;
-        self.border_out_changes.clear();
+        if self.last_border != border {
+            self.border_out_changes.push((self.tsc, border.bits()).into());
+            self.last_border = border;
+        }
     }
 
     fn render_video_frame<'a, B: PixelBuffer<'a>, P: Palette<Pixel=B::Pixel>>(
@@ -149,7 +150,7 @@ impl<M: ZxMemory, B, X, V: VideoFrame> Ula<M, B, X, V> {
 
 impl<M: ZxMemory, B, X, V> Ula<M, B, X, V> {
     #[inline]
-    pub(crate) fn cleanup_video_frame_data(&mut self) {
+    pub(super) fn cleanup_video_frame_data(&mut self) {
         self.border = self.last_border;
         self.border_out_changes.clear();
         self.frame_cache.clear();

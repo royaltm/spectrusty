@@ -1,4 +1,4 @@
-// cargo +nightly bench --bench video -- --nocapture
+// cargo +nightly bench --bench video_plus -- --nocapture
 #![feature(test)]
 extern crate test;
 use test::{black_box, Bencher, stats::Summary};
