@@ -11,7 +11,7 @@ use serde::{
     de::{self, Visitor}
 };
 
-use super::{MEM32K_SIZE, MEM48K_SIZE, MEM64K_SIZE, MEM128K_SIZE};
+use super::{MEM8K_SIZE, MEM32K_SIZE, MEM48K_SIZE, MEM64K_SIZE, MEM128K_SIZE};
 
 pub fn serialize_mem<T, S>(mem: &T, serializer: S) -> Result<S::Ok, S::Error>
     where T: MemSerExt,
@@ -122,6 +122,8 @@ impl_mem_ser_de_ext!(MEM64K_SIZE);
 impl_mem_ser_de_ext!(MEM32K_SIZE + MEM128K_SIZE);
 impl_mem_ser_de_ext!(MEM64K_SIZE + MEM128K_SIZE);
 impl_mem_ser_de_ext!(MEM128K_SIZE + MEM128K_SIZE);
+impl_mem_ser_de_ext!(MEM8K_SIZE + MEM128K_SIZE);
+impl_mem_ser_de_ext!(MEM48K_SIZE + MEM128K_SIZE + MEM128K_SIZE);
 
 impl<'a, T: MemSerExt> MemSerExt for &'a T {
     fn as_slice(&self) -> &[u8] {

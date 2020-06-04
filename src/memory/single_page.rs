@@ -4,6 +4,7 @@ use serde::{Serialize, Deserialize};
 use super::serde::{serialize_mem, deserialize_mem};
 
 use super::{
+    SCREEN_SIZE,
     MemPageOffset,
     MemoryKind,
     Result,
@@ -132,7 +133,7 @@ macro_rules! impl_zxmemory {
             }
             #[inline]
             fn read_screen(&self, _screen_bank: usize, addr: u16) -> u8 {
-                if addr < 0x1B00 {
+                if addr < SCREEN_SIZE {
                     unsafe {
                         self.mem.as_ptr().add(0x4000 + addr as usize).read()
                     }
@@ -154,14 +155,14 @@ macro_rules! impl_zxmemory {
                 if screen_bank > Self::SCR_BANKS_MAX {
                     return Err(ZxMemoryError::InvalidBankIndex)
                 }
-                Ok(&self.mem[0x4000..0x5B00])
+                Ok(&self.mem[0x4000..0x4000+SCREEN_SIZE as usize])
             }
             #[inline]
             fn screen_mut(&mut self, screen_bank: usize) -> Result<&mut [u8]> {
                 if screen_bank > Self::SCR_BANKS_MAX {
                     return Err(ZxMemoryError::InvalidBankIndex)
                 }
-                Ok(&mut self.mem[0x4000..0x5B00])
+                Ok(&mut self.mem[0x4000..0x4000+SCREEN_SIZE as usize])
             }
             #[inline]
             fn page_kind(&self, page: u8) -> Result<MemoryKind> {

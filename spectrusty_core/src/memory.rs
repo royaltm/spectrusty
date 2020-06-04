@@ -14,6 +14,8 @@ pub const MEM32K_SIZE : usize = 2 * MEM16K_SIZE;
 pub const MEM48K_SIZE : usize = 3 * MEM16K_SIZE;
 pub const MEM64K_SIZE : usize = 4 * MEM16K_SIZE;
 pub const MEM128K_SIZE: usize = 8 * MEM16K_SIZE;
+pub const MEM8K_SIZE  : usize = MEM16K_SIZE / 2;
+pub const SCREEN_SIZE: u16 = 0x1B00;
 
 /// Represents an external ROM as a shared pointer to a slice of bytes.
 pub type ExRom = Rc<[u8]>;
