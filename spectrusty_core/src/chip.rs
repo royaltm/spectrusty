@@ -141,13 +141,16 @@ pub trait EarIn {
 /// This enum determines the EAR input (bit 6) read from the 0xFE port when there is no EAR input feed.
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ReadEarMode {
     /// Issue 3 keyboard behaviour - EAR input is 1 when EAR output is 1
     Issue3,
     /// Issue 2 keyboard behaviour - EAR input is 1 when either EAR or MIC output is 1
     Issue2,
     /// Always clear - EAR input is always 0
-    Clear
+    Clear,
+    /// Always set - EAR input is always 1
+    Set
 }
 
 #[derive(Clone, Debug)]
@@ -523,7 +526,8 @@ impl From<ReadEarMode> for &str {
         match mode {
             ReadEarMode::Issue3 => "Issue 3",
             ReadEarMode::Issue2 => "Issue 2",
-            ReadEarMode::Clear => "Clear"
+            ReadEarMode::Clear  => "Clear",
+            ReadEarMode::Set    => "Set"
         }
     }
 }
@@ -553,6 +557,9 @@ impl FromStr for ReadEarMode {
         }
         else if mode.eq_ignore_ascii_case("clear") {
             Ok(ReadEarMode::Clear)
+        }
+        else if mode.eq_ignore_ascii_case("set") {
+            Ok(ReadEarMode::Set)
         }
         else {
             Err(ParseReadEarModeError)

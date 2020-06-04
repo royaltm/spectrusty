@@ -175,7 +175,7 @@ impl<M, B, X, F> Ula<M, B, X, F>
         self.read_ear_in_count = Wrapping(0);
     }
 
-    pub (super) fn read_ear_in(&mut self, ts: VideoTs) -> bool {
+    pub(super) fn read_ear_in(&mut self, ts: VideoTs) -> bool {
         self.read_ear_in_count += Wrapping(1);
         match self.ear_in_changes.get(self.ear_in_last_index..) {
             Some(changes) if !changes.is_empty() => {
@@ -192,7 +192,8 @@ impl<M, B, X, F> Ula<M, B, X, F>
             _ => match self.read_ear_mode {
                 ReadEarMode::Issue3 => !(self.last_earmic_data & EarMic::EAR).is_empty(),
                 ReadEarMode::Issue2 => !(self.last_earmic_data & EarMic::EARMIC).is_empty(),
-                ReadEarMode::Clear => false
+                ReadEarMode::Clear => false,
+                ReadEarMode::Set => true,
             }
         }
     }
