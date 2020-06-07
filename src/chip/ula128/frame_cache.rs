@@ -3,6 +3,7 @@ use crate::video::{
     VideoFrame,
     frame_cache::VideoFrameDataIterator
 };
+use crate::memory::ScreenArray;
 use crate::chip::ula::frame_cache::{UlaFrameRef, UlaFrameCache, UlaFrameProducer};
 
 // const COL_HTS: [Ts;32] = [3, 5, 11, 13, 19, 21, 27, 29, 35, 37, 43, 45, 51, 53, 59, 61, 67, 69, 75, 77, 83, 85, 91, 93, 99, 101, 107, 109, 115, 117, 123, 125];
@@ -41,8 +42,8 @@ impl<'a, V, I> Ula128FrameProducer<'a, V, I>
 {
     pub fn new(
             swap_screens: bool,
-            screen0: &'a[u8],
-            screen1: &'a[u8],
+            screen0: &'a ScreenArray,
+            screen1: &'a ScreenArray,
             frame_cache0: &'a UlaFrameCache<V>,
             frame_cache1: &'a UlaFrameCache<V>,
             mut screen_changes: I

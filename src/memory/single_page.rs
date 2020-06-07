@@ -4,12 +4,14 @@ use serde::{Serialize, Deserialize};
 use super::serde::{serialize_mem, deserialize_mem};
 
 use super::{
-    SCREEN_SIZE,
     MemPageOffset,
     MemoryKind,
     Result,
     ZxMemory,
     ZxMemoryError,
+    SCREEN_SIZE,
+    ScreenArray,
+    screen_slice_to_array_ref, screen_slice_to_array_mut
 };
 
 /// A single page memory type with 16kb RAM.
@@ -151,18 +153,20 @@ macro_rules! impl_zxmemory {
                 &mut self.mem[..]
             }
             #[inline]
-            fn screen_ref(&self, screen_bank: usize) -> Result<&[u8]> {
+            fn screen_ref(&self, screen_bank: usize) -> Result<&ScreenArray> {
                 if screen_bank > Self::SCR_BANKS_MAX {
                     return Err(ZxMemoryError::InvalidBankIndex)
                 }
-                Ok(&self.mem[0x4000..0x4000+SCREEN_SIZE as usize])
+                Ok(screen_slice_to_array_ref(
+                    &self.mem[0x4000..0x4000+SCREEN_SIZE as usize]))
             }
             #[inline]
-            fn screen_mut(&mut self, screen_bank: usize) -> Result<&mut [u8]> {
+            fn screen_mut(&mut self, screen_bank: usize) -> Result<&mut ScreenArray> {
                 if screen_bank > Self::SCR_BANKS_MAX {
                     return Err(ZxMemoryError::InvalidBankIndex)
                 }
-                Ok(&mut self.mem[0x4000..0x4000+SCREEN_SIZE as usize])
+                Ok(screen_slice_to_array_mut(
+                    &mut self.mem[0x4000..0x4000+SCREEN_SIZE as usize]))
             }
             #[inline]
             fn page_kind(&self, page: u8) -> Result<MemoryKind> {

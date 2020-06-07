@@ -17,6 +17,9 @@ pub const MEM128K_SIZE: usize = 8 * MEM16K_SIZE;
 pub const MEM8K_SIZE  : usize = MEM16K_SIZE / 2;
 pub const SCREEN_SIZE: u16 = 0x1B00;
 
+/// Represents a single screen memory.
+pub type ScreenArray = [u8;SCREEN_SIZE as usize];
+
 /// Represents an external ROM as a shared pointer to a slice of bytes.
 pub type ExRom = Rc<[u8]>;
 
@@ -171,18 +174,23 @@ pub trait ZxMemory: Sized {
     fn mem_ref(&self) -> &[u8];
     /// Provides a continuous view into the whole memory (all banks: ROM + RAM).
     fn mem_mut(&mut self) -> &mut[u8];
-    /// Returns a slice of the screen memory.
-    fn screen_ref(&self, screen_bank: usize) -> Result<&[u8]>;
-    /// Returns a mutable slice of the screen memory.
-    fn screen_mut(&mut self, screen_bank: usize) -> Result<&mut [u8]>;
-    /// Returns what kind of memory is currently paged at the specified `page`.
+    /// Returns a reference to the screen memory.
+    ///
+    /// See [ZxMemory::read_screen] for an explanation of `screen_bank` argument.
+    fn screen_ref(&self, screen_bank: usize) -> Result<&ScreenArray>;
+    /// Returns a mutable reference to the screen memory.
+    ///
+    /// See [ZxMemory::read_screen] for an explanation of `screen_bank` argument.
+    fn screen_mut(&mut self, screen_bank: usize) -> Result<&mut ScreenArray>;
+    /// Returns an enum describing what kind of memory is currently paged at the specified `page`.
     ///
     /// If an EX-ROM bank is currently mapped at the specified `page` a [MemoryKind::Rom] will be returned
     /// in this instance.
     ///
     /// `page` should be less or equal to PAGES_MAX.
     fn page_kind(&self, page: u8) -> Result<MemoryKind>;
-    /// Returns what kind of memory and which bank of that memory is currently paged at the specified `page`.
+    /// Returns a tuple of an enum describing what kind of memory and which bank of that memory is
+    /// currently paged at the specified `page`.
     ///
     /// # Note
     /// Unlike [ZxMemory::page_kind] this method ignores if an EX-ROM bank is currently mapped at the
@@ -304,6 +312,7 @@ pub trait ZxMemory: Sized {
         Ok(())
     }
 }
+
 /// Implements an iterator of [PageMutSlice]s. See [ZxMemory::page_slice_iter_mut].
 pub struct MemPageMutIter<'a, Z> {
     mem: &'a mut Z,

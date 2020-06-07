@@ -10,12 +10,14 @@ use super::serde::{MemSerExt, MemDeExt, serialize_mem, deserialize_mem};
 use super::{MEM8K_SIZE, MEM16K_SIZE, MEM32K_SIZE, MEM48K_SIZE, MEM64K_SIZE, MEM128K_SIZE};
 
 use super::{
-    SCREEN_SIZE,
     Result,
     ZxMemory,
     ZxMemoryError,
     MemoryKind,
-    ExRom
+    ExRom,
+    SCREEN_SIZE,
+    ScreenArray,
+    screen_slice_to_array_ref, screen_slice_to_array_mut
 };
 
 /// An EX-ROM attachable, paged (16k) memory type with 16kb RAM and 16kb ROM.
@@ -448,19 +450,21 @@ impl<M> ZxMemory for MemPageableRomRamExRom<M>
         self.as_mut_slice()
     }
     #[inline]
-    fn screen_ref(&self, screen_bank: usize) -> Result<&[u8]> {
+    fn screen_ref(&self, screen_bank: usize) -> Result<&ScreenArray> {
         match M::SCR_BANK_OFFSETS.get(screen_bank) {
             Some(&offset) => {
-                Ok(&self.as_slice()[offset..offset + SCREEN_SIZE as usize])
+                Ok(screen_slice_to_array_ref(
+                    &self.as_slice()[offset..offset + SCREEN_SIZE as usize]))
             }
             None => Err(ZxMemoryError::InvalidBankIndex)
         }
     }
     #[inline]
-    fn screen_mut(&mut self, screen_bank: usize) -> Result<&mut [u8]> {
+    fn screen_mut(&mut self, screen_bank: usize) -> Result<&mut ScreenArray> {
         match M::SCR_BANK_OFFSETS.get(screen_bank) {
             Some(&offset) => {
-                Ok(&mut self.as_mut_slice()[offset..offset + SCREEN_SIZE as usize])
+                Ok(screen_slice_to_array_mut(
+                    &mut self.as_mut_slice()[offset..offset + SCREEN_SIZE as usize]))
             }
             None => Err(ZxMemoryError::InvalidBankIndex)
         }

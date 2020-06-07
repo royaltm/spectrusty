@@ -188,8 +188,8 @@ pub(crate) fn create_ula128_renderer<'a, V, M, B, X>(
     let invert_flash = ula.frames.0 & 16 != 0;
     let (border_changes, memory, frame_cache0) = ula.video_render_data_view();
     let frame_cache1 = shadow_frame_cache;
-    let screen0 = &memory.screen_ref(0).unwrap();
-    let screen1 = &memory.screen_ref(1).unwrap();
+    let screen0 = memory.screen_ref(0).unwrap();
+    let screen1 = memory.screen_ref(1).unwrap();
     let frame_image_producer = Ula128FrameProducer::new(
         swap_screens,
         screen0,

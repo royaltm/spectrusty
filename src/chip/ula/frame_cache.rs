@@ -1,7 +1,7 @@
 use core::fmt;
 use core::marker::PhantomData;
 use crate::clock::{Ts, VideoTs};
-use crate::memory::{ZxMemory};
+use crate::memory::{ZxMemory, ScreenArray};
 use crate::video::{
     pixel_line_offset, color_line_offset,
     VideoFrame, CellCoords,
@@ -34,7 +34,7 @@ pub struct UlaFrameCache<V> {
 
 /// A reference to screen data with a relevant frame cache.
 pub struct UlaFrameRef<'a, V> {
-    pub screen: &'a[u8],
+    pub screen: &'a ScreenArray,
     pub frame_cache: &'a UlaFrameCache<V>,
 }
 
@@ -55,13 +55,13 @@ pub struct UlaFrameProducer<'a, V> {
 }
 
 impl<'a, V> UlaFrameRef<'a, V> {
-    pub const fn new(screen: &'a [u8], frame_cache: &'a UlaFrameCache<V>) -> Self {
+    pub const fn new(screen: &'a ScreenArray, frame_cache: &'a UlaFrameCache<V>) -> Self {
         UlaFrameRef { screen, frame_cache }
     }
 }
 
 impl<'a> UlaFrameLineIter<'a> {
-    pub fn new<V>(line: usize, screen: &'a [u8], fc: &'a UlaFrameCache<V>) -> Self {
+    pub fn new<V>(line: usize, screen: &'a ScreenArray, fc: &'a UlaFrameCache<V>) -> Self {
         let frame_pixels = &fc.frame_pixels[line];
         let frame_colors = &fc.frame_colors[line];
         let frame_colors_coarse = &fc.frame_colors_coarse[line >> 3];
@@ -79,7 +79,7 @@ impl<'a> UlaFrameLineIter<'a> {
 }
 
 impl<'a, V> UlaFrameProducer<'a, V> {
-    pub fn new(screen: &'a[u8], frame_cache: &'a UlaFrameCache<V>) -> Self {
+    pub fn new(screen: &'a ScreenArray, frame_cache: &'a UlaFrameCache<V>) -> Self {
         let line = 0;
         let line_iter = UlaFrameLineIter::new(line, screen, frame_cache);
         let frame_ref = UlaFrameRef::new(screen, frame_cache);
@@ -267,7 +267,7 @@ impl<V: VideoFrame> UlaFrameCache<V> {
     /// Caches the bitmap and attribute cell at the given coordinates with the `snow` distortion applied.
     pub fn apply_snow_interference(
             &mut self,
-            screen: &[u8],
+            screen: &ScreenArray,
             CellCoords { column, row }: CellCoords,
             snow: u8
         )
@@ -275,12 +275,12 @@ impl<V: VideoFrame> UlaFrameCache<V> {
         let (row, column) = (row as usize, column as usize & 31);
         let mbit = 1 << column;
         let (mask, pixels) = &mut self.frame_pixels[row];
-        let offset_snow = (pixel_line_offset(row) & 0xFF00) | snow as usize;
+        let offset_snow = (pixel_line_offset(row) & 0x1F00) | snow as usize;
         pixels[column] = screen[offset_snow];
         *mask |= mbit;
 
         let offset = ATTRS_OFFSET + color_line_offset(row);
-        let offset_snow = (offset & 0xFF00) | snow as usize;
+        let offset_snow = (offset & 0x1F00) | snow as usize;
         let (mask, colors) = &mut self.frame_colors[row];
         colors[column] = screen[offset_snow];
         *mask |= mbit;

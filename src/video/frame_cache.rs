@@ -4,10 +4,11 @@ use crate::video::{
   pixel_line_offset, color_line_offset,
   CellCoords
 };
+use crate::memory::ScreenArray;
 
-/// A trait for data iterators being used to render an image of a video frame using [core::video::Renderer].
+/// Implemented by screen data iterators for rendering an image of a video frame using [core::video::Renderer].
 ///
-/// This emulates the Spectrum's ULA reading two bytes of video data to compose a single cell
+/// The iterator emulates the Spectrum's ULA reading two bytes of video data to compose a single cell
 /// consisting of 8 pixels.
 ///
 /// The first byte returned by the iterator is interpreted as INK/PAPER bit selector (an INK mask) and
@@ -16,8 +17,7 @@ pub trait VideoFrameDataIterator: Iterator<Item=(u8, u8)> {
     /// Forwards the iterator to the beginning of the next video line.
     fn next_line(&mut self);
 }
-
-/// A trait for data iterators being used to render an image of a video frame using [core::video::RendererPlus].
+/// Implemented by screen data iterators for rendering an image of a video frame using [core::video::RendererPlus].
 ///
 /// This emulates the Spectrum's ULAplus/Timex's SCLD reading two bytes of video data to compose a single cell
 /// consisting of 8 (or 16 in hi-res) pixels.
@@ -25,9 +25,9 @@ pub trait VideoFrameDataIterator: Iterator<Item=(u8, u8)> {
 /// In low resolution mode the first byte returned by the iterator is interpreted as INK/PAPER bit selector
 /// (an INK mask) and the second as a color attribute.
 ///
-/// In high resolution both bytes are being used to render 16 monochrome pixels.
+/// In high resolution mode both bytes are being used to render 16 monochrome pixels.
 ///
-/// The third value is a horizontal timestamp latch to synchronize changes to screen mode and palette changes with.
+/// The third value is a horizontal latch timestamp used to synchronize changes to the screen mode and the palette.
 pub trait PlusVidFrameDataIterator: Iterator<Item=(u8, u8, Ts)> {
     /// Forwards the iterator to the beginning of the next video line.
     fn next_line(&mut self);
@@ -64,7 +64,7 @@ pub fn color_address_coords(addr: u16) -> CellCoords {
 /// * `line` should be in range: [0, [PIXEL_LINES]).
 /// * `screen` should be a reference to the screen data.
 #[inline(always)]
-pub fn attr_line_from(line: usize, screen: &[u8]) -> &[u8;32] {
+pub fn attr_line_from(line: usize, screen: &ScreenArray) -> &[u8;COLUMNS] {
     let offset = ATTRS_OFFSET + color_line_offset(line);
     cast_line(&screen[offset..offset + COLUMNS])
 }
@@ -74,7 +74,7 @@ pub fn attr_line_from(line: usize, screen: &[u8]) -> &[u8;32] {
 /// * `line` should be in range: [0, [PIXEL_LINES]).
 /// * `screen` should be a reference to the screen data.
 #[inline(always)]
-pub fn ink_line_from(line: usize, screen: &[u8]) -> &[u8;32] {
+pub fn ink_line_from(line: usize, screen: &ScreenArray) -> &[u8;COLUMNS] {
     let offset = pixel_line_offset(line);
     cast_line(&screen[offset..offset + COLUMNS])
 }

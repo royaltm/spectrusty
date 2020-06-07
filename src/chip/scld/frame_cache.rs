@@ -6,6 +6,7 @@ use crate::chip::{
         frame_cache::{UlaFrameCache, UlaFrameLineIter}
     }
 };
+use crate::memory::ScreenArray;
 use crate::video::{
     VideoFrame, 
     frame_cache::{
@@ -59,9 +60,9 @@ bitflags! {
 /// A reference to primary and secondary screen data with relevant frame caches.
 pub struct ScldFrameRef<'a, V> {
     /// primary screen data
-    pub screen0: &'a[u8],
+    pub screen0: &'a ScreenArray,
     /// secondary screen data
-    pub screen1: &'a[u8],
+    pub screen1: &'a ScreenArray,
     /// primary screen frame cache
     pub frame_cache0: &'a UlaFrameCache<V>,
     /// secondary screen frame cache
@@ -124,9 +125,9 @@ impl From<ScldCtrlFlags> for SourceMode {
 
 impl<'a, V> ScldFrameRef<'a, V> {
     pub fn new(
-            screen0: &'a[u8],
+            screen0: &'a ScreenArray,
             frame_cache0: &'a UlaFrameCache<V>,
-            screen1: &'a[u8],
+            screen1: &'a ScreenArray,
             frame_cache1: &'a UlaFrameCache<V>
         ) -> Self
     {
@@ -140,9 +141,9 @@ impl<'a, V, I> ScldFrameProducer<'a, V, I>
 {
     pub fn new(
             source: SourceMode,
-            screen0: &'a[u8],
+            screen0: &'a ScreenArray,
             frame_cache0: &'a UlaFrameCache<V>,
-            screen1: &'a[u8],
+            screen1: &'a ScreenArray,
             frame_cache1: &'a UlaFrameCache<V>,
             mut source_changes: I
         ) -> Self

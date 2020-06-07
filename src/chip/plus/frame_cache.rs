@@ -3,9 +3,14 @@ use crate::video::{
     VideoFrame,
     frame_cache::PlusVidFrameDataIterator
 };
-use crate::chip::ula::frame_cache::UlaFrameCache;
-use crate::chip::ula128::frame_cache::vc_to_line;
-use crate::chip::scld::frame_cache::{SourceMode, ScldFrameRef, ScldFrameProducer};
+use crate::memory::ScreenArray;
+use crate::chip::{
+    ula::frame_cache::UlaFrameCache,
+    ula128::frame_cache::vc_to_line,
+    scld::frame_cache::{
+        SourceMode, ScldFrameRef, ScldFrameProducer
+    }
+};
 
 /// Implements a [PlusVidFrameDataIterator] for ULAplus based Spectrum models.
 pub struct PlusFrameProducer<'a, V, IM, IS> {
@@ -34,13 +39,13 @@ impl<'a, V, IM, IS> PlusFrameProducer<'a, V, IM, IS>
     pub fn new(
             swap_screens: bool,
             source: SourceMode,
-            screen0: &'a[u8],
+            screen0: &'a ScreenArray,
             frame_cache0: &'a UlaFrameCache<V>,
-            screen1: &'a[u8],
+            screen1: &'a ScreenArray,
             frame_cache1: &'a UlaFrameCache<V>,
-            screen_shadow0: &'a[u8],
+            screen_shadow0: &'a ScreenArray,
             frame_cache_shadow0: &'a UlaFrameCache<V>,
-            screen_shadow1: &'a[u8],
+            screen_shadow1: &'a ScreenArray,
             frame_cache_shadow1: &'a UlaFrameCache<V>,
             mut screen_changes: IS,
             source_changes: IM
