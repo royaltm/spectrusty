@@ -56,7 +56,8 @@ pub trait Palette {
     /// Should return a grayscale pixel (0 - black, 15 - full intensity white).
     #[inline]
     fn get_pixel_gray4(value: u8) -> Self::Pixel {
-        Self::get_pixel_gray8((value << 4)|(value & 0x0F))
+        // Self::get_pixel_gray8((value << 4)|(value & 0x0F))
+        Self::get_pixel_gray8(index_to_grb(value))
     }
     /// Should return a grayscale pixel (0 - black, 255 - full intensity white).
     fn get_pixel_gray8(value: u8) -> Self::Pixel;
@@ -192,39 +193,48 @@ macro_rules! impl_palette {
     ($palette:ty, $pixel:ty) => {
         impl Palette for $palette {
             type Pixel = $pixel;
-            // #[inline(always)]
-            // fn get_pixel(index: u8) -> Self::Pixel {
-            //     Self::COLORS[index as usize & 15]
-            // }
+
             #[inline(always)]
             fn get_pixel_grb8(g3r3b2: u8) -> Self::Pixel {
                 Self::pixel_grb(g3r3b2)
             }
             #[inline(always)]
+            fn get_pixel_gray4(index: u8) -> Self::Pixel {
+                Self::pixel_gray_grb(index_to_grb(index))
+            }
+            #[inline(always)]
             fn get_pixel_gray8(value: u8) -> Self::Pixel {
-                Self::pixel_gray(value)
+                Self::pixel_gray_intensity(value)
             }
         }        
     };
 }
 
 macro_rules! impl_pixel_grb_const {
-    ($palette:ty, $pixel:ty) => {
+    ($palette:ty, $pixel:ty, $grayscale:ident) => {
         impl $palette {
             #[inline(always)]
             fn pixel_grb(g3r3b2: u8) -> $pixel {
                 Self::COLORS_GRB[g3r3b2 as usize]
+            }
+            #[inline(always)]
+            fn pixel_gray_grb(i: u8) -> $pixel {
+                Self::pixel_gray_intensity($grayscale[i as usize])
             }
         }
     };
 }
 
 macro_rules! impl_pixel_grb_gray {
-    ($palette:ty, $pixel:ty) => {
+    ($palette:ty, $pixel:ty, $grayscale:ident) => {
         impl $palette {
             #[inline(always)]
             fn pixel_grb(g3r3b2: u8) -> $pixel {
-                Self::pixel_gray(g3r3b2)
+                Self::pixel_gray_grb(g3r3b2)
+            }
+            #[inline(always)]
+            fn pixel_gray_grb(i: u8) -> $pixel {
+                Self::pixel_gray_intensity($grayscale[i as usize])
             }
         }
     };
@@ -264,71 +274,6 @@ const fn grayscale(r: u8, g: u8, b: u8) -> u8 {
     ((13933 * r as u32 + 46871 * g as u32 + 4732 * b as u32) >> 16) as u8
 }
 
-/*
-macro_rules! impl_palette_formats {
-    ($(($r:expr,$g:expr,$b:expr)),*) => {
-        impl_palette_formats! { $(($r, $g, $b, grayscale($r, $g, $b))),* }
-    };
-
-    ($(($r:expr,$g:expr,$b:expr,$m:expr)),*) => {
-        impl SpectrumPalRGB24 {
-            pub const COLORS: [[u8;3]; 16] = [$([$r, $g, $b]),*];
-        }
-
-        impl SpectrumPalRGBA32 {
-            pub const COLORS: [[u8;4]; 16] = [$([$r, $g, $b, ALPHA_MAX]),*];
-        }
-
-        impl SpectrumPalARGB32 {
-            pub const COLORS: [[u8;4]; 16] = [$([ALPHA_MAX, $r, $g, $b]),*];
-        }
-
-        impl SpectrumPalA8R8G8B8 {
-            pub const COLORS: [u32; 16] = [$(pack_8888(ALPHA_MAX, $r, $g, $b)),*];
-        }
-
-        impl SpectrumPalR8G8B8A8 {
-            pub const COLORS: [u32; 16] = [$(pack_8888($r, $g, $b, ALPHA_MAX)),*];
-        }
-
-        impl SpectrumPalR5G6B5 {
-            pub const COLORS: [u16; 16] = [$(pack_565($r, $g, $b)),*];
-        }
-
-        impl SpectrumPalR3G3B2 {
-            pub const COLORS: [u8; 16] = [$(pack_332($r, $g, $b)),*];
-        }
-
-        impl GrayscalePalRGB24 {
-            pub const COLORS: [[u8;3]; 16] = [$([$m, $m, $m]),*];
-        }
-
-        impl GrayscalePalRGBA32 {
-            pub const COLORS: [[u8;4]; 16] = [$([$m, $m, $m, ALPHA_MAX]),*];
-        }
-
-        impl GrayscalePalARGB32 {
-            pub const COLORS: [[u8;4]; 16] = [$([ALPHA_MAX, $m, $m, $m]),*];
-        }
-
-        impl GrayscalePalA8R8G8B8 {
-            pub const COLORS: [u32; 16] = [$(pack_8888(ALPHA_MAX, $m, $m, $m)),*];
-        }
-
-        impl GrayscalePalR8G8B8A8 {
-            pub const COLORS: [u32; 16] = [$(pack_8888($m, $m, $m, ALPHA_MAX)),*];
-        }
-
-        impl GrayscalePalR5G6B5 {
-            pub const COLORS: [u16; 16] = [$(pack_565($m, $m, $m)),*];
-        }
-
-        impl GrayscalePalR3G3B2 {
-            pub const COLORS: [u8; 16] = [$(pack_332($m, $m, $m)),*];
-        }
-    };
-}
-*/
 macro_rules! impl_palette_plus_formats {
     ([$($grb:expr),*]) => {
         const GRAYSCALE: [u8; 256] = [$(grayscale(grb_2r($grb), grb_2g($grb), grb_2b($grb))),*];
@@ -338,109 +283,109 @@ macro_rules! impl_palette_plus_formats {
                 $([grb_2r($grb), grb_2g($grb), grb_2b($grb)]),*
             ];
             #[inline(always)]
-            fn pixel_gray(v: u8) -> [u8;3] { let v = GRAYSCALE[v as usize]; [v, v, v] }
+            fn pixel_gray_intensity(v: u8) -> [u8;3] { [v, v, v] }
         }
-        impl_pixel_grb_const!(SpectrumPalRGB24, [u8;3]);
+        impl_pixel_grb_const!(SpectrumPalRGB24, [u8;3], GRAYSCALE);
 
         impl SpectrumPalRGBA32 {
             const COLORS_GRB: [[u8;4]; 256] = [
                 $([grb_2r($grb), grb_2g($grb), grb_2b($grb), ALPHA_MAX]),*
             ];
             #[inline(always)]
-            fn pixel_gray(v: u8) -> [u8;4] { let v = GRAYSCALE[v as usize]; [v, v, v, ALPHA_MAX] }
+            fn pixel_gray_intensity(v: u8) -> [u8;4] { [v, v, v, ALPHA_MAX] }
         }
-        impl_pixel_grb_const!(SpectrumPalRGBA32, [u8;4]);
+        impl_pixel_grb_const!(SpectrumPalRGBA32, [u8;4], GRAYSCALE);
 
         impl SpectrumPalARGB32 {
             const COLORS_GRB: [[u8;4]; 256] = [
                 $([ALPHA_MAX, grb_2r($grb), grb_2g($grb), grb_2b($grb)]),*
             ];
             #[inline(always)]
-            fn pixel_gray(v: u8) -> [u8;4] { let v = GRAYSCALE[v as usize]; [ALPHA_MAX, v, v, v] }
+            fn pixel_gray_intensity(v: u8) -> [u8;4] { [ALPHA_MAX, v, v, v] }
         }
-        impl_pixel_grb_const!(SpectrumPalARGB32, [u8;4]);
+        impl_pixel_grb_const!(SpectrumPalARGB32, [u8;4], GRAYSCALE);
 
         impl SpectrumPalA8R8G8B8 {
             const COLORS_GRB: [u32; 256] = [
                 $(pack_8888(ALPHA_MAX, grb_2r($grb), grb_2g($grb), grb_2b($grb))),*
             ];
             #[inline(always)]
-            fn pixel_gray(v: u8) -> u32 { let v = GRAYSCALE[v as usize]; pack_8888(ALPHA_MAX, v, v, v) }
+            fn pixel_gray_intensity(v: u8) -> u32 { pack_8888(ALPHA_MAX, v, v, v) }
         }
-        impl_pixel_grb_const!(SpectrumPalA8R8G8B8, u32);
+        impl_pixel_grb_const!(SpectrumPalA8R8G8B8, u32, GRAYSCALE);
 
         impl SpectrumPalR8G8B8A8 {
             const COLORS_GRB: [u32; 256] = [
                 $(pack_8888(grb_2r($grb), grb_2g($grb), grb_2b($grb), ALPHA_MAX)),*
             ];
             #[inline(always)]
-            fn pixel_gray(v: u8) -> u32 { let v = GRAYSCALE[v as usize]; pack_8888(v, v, v, ALPHA_MAX) }
+            fn pixel_gray_intensity(v: u8) -> u32 { pack_8888(v, v, v, ALPHA_MAX) }
         }
-        impl_pixel_grb_const!(SpectrumPalR8G8B8A8, u32);
+        impl_pixel_grb_const!(SpectrumPalR8G8B8A8, u32, GRAYSCALE);
 
         impl SpectrumPalR5G6B5 {
             const COLORS_GRB: [u16; 256] = [
                 $(pack_565(grb_2r($grb), grb_2g($grb), grb_2b($grb))),*
             ];
             #[inline(always)]
-            fn pixel_gray(v: u8) -> u16 { let v = GRAYSCALE[v as usize]; pack_565(v, v, v) }
+            fn pixel_gray_intensity(v: u8) -> u16 { pack_565(v, v, v) }
         }
-        impl_pixel_grb_const!(SpectrumPalR5G6B5, u16);
+        impl_pixel_grb_const!(SpectrumPalR5G6B5, u16, GRAYSCALE);
 
         impl SpectrumPalR3G3B2 {
             const COLORS_GRB: [u8; 256] = [
                 $(pack_332(grb_2r($grb), grb_2g($grb), grb_2b($grb))),*
             ];
             #[inline(always)]
-            fn pixel_gray(v: u8) -> u8 { let v = GRAYSCALE[v as usize]; pack_332(v, v, v) }
+            fn pixel_gray_intensity(v: u8) -> u8 { pack_332(v, v, v) }
         }
-        impl_pixel_grb_const!(SpectrumPalR3G3B2, u8);
+        impl_pixel_grb_const!(SpectrumPalR3G3B2, u8, GRAYSCALE);
 
         impl GrayscalePalRGB24 {
             #[inline(always)]
-            fn pixel_gray(v: u8) -> [u8;3] { let v = GRAYSCALE[v as usize]; [v, v, v] }
+            fn pixel_gray_intensity(v: u8) -> [u8;3] { [v, v, v] }
         }
-        impl_pixel_grb_gray!(GrayscalePalRGB24, [u8;3]);
+        impl_pixel_grb_gray!(GrayscalePalRGB24, [u8;3], GRAYSCALE);
 
         impl GrayscalePalRGBA32 {
             #[inline(always)]
-            fn pixel_gray(v: u8) -> [u8;4] { let v = GRAYSCALE[v as usize]; [v, v, v, ALPHA_MAX] }
+            fn pixel_gray_intensity(v: u8) -> [u8;4] { [v, v, v, ALPHA_MAX] }
         }
-        impl_pixel_grb_gray!(GrayscalePalRGBA32, [u8;4]);
+        impl_pixel_grb_gray!(GrayscalePalRGBA32, [u8;4], GRAYSCALE);
 
         impl GrayscalePalARGB32 {
             #[inline(always)]
-            fn pixel_gray(v: u8) -> [u8;4] { let v = GRAYSCALE[v as usize]; [ALPHA_MAX, v, v, v] }
+            fn pixel_gray_intensity(v: u8) -> [u8;4] { [ALPHA_MAX, v, v, v] }
         }
-        impl_pixel_grb_gray!(GrayscalePalARGB32, [u8;4]);
+        impl_pixel_grb_gray!(GrayscalePalARGB32, [u8;4], GRAYSCALE);
 
         impl GrayscalePalA8R8G8B8 {
             #[inline(always)]
-            fn pixel_gray(v: u8) -> u32 { let v = GRAYSCALE[v as usize]; pack_8888(ALPHA_MAX, v, v, v) }
+            fn pixel_gray_intensity(v: u8) -> u32 { pack_8888(ALPHA_MAX, v, v, v) }
         }
-        impl_pixel_grb_gray!(GrayscalePalA8R8G8B8, u32);
+        impl_pixel_grb_gray!(GrayscalePalA8R8G8B8, u32, GRAYSCALE);
 
         impl GrayscalePalR8G8B8A8 {
             #[inline(always)]
-            fn pixel_gray(v: u8) -> u32 { let v = GRAYSCALE[v as usize]; pack_8888(v, v, v, ALPHA_MAX) }
+            fn pixel_gray_intensity(v: u8) -> u32 { pack_8888(v, v, v, ALPHA_MAX) }
         }
-        impl_pixel_grb_gray!(GrayscalePalR8G8B8A8, u32);
+        impl_pixel_grb_gray!(GrayscalePalR8G8B8A8, u32, GRAYSCALE);
 
         impl GrayscalePalR5G6B5 {
             #[inline(always)]
-            fn pixel_gray(v: u8) -> u16 { let v = GRAYSCALE[v as usize]; pack_565(v, v, v) }
+            fn pixel_gray_intensity(v: u8) -> u16 { pack_565(v, v, v) }
         }
-        impl_pixel_grb_gray!(GrayscalePalR5G6B5, u16);
+        impl_pixel_grb_gray!(GrayscalePalR5G6B5, u16, GRAYSCALE);
 
         impl GrayscalePalR3G3B2 {
             #[inline(always)]
-            fn pixel_gray(v: u8) -> u8 { let v = GRAYSCALE[v as usize]; pack_332(v, v, v) }
+            fn pixel_gray_intensity(v: u8) -> u8 { pack_332(v, v, v) }
         }
-        impl_pixel_grb_gray!(GrayscalePalR3G3B2, u8);
+        impl_pixel_grb_gray!(GrayscalePalR3G3B2, u8, GRAYSCALE);
     };
 }
 
-// impl_palette_formats! {
+// let colors = [
 //     (  0,  0,  0),
 //     ( 21, 21,201),
 //     (202, 33, 33),
@@ -457,9 +402,9 @@ macro_rules! impl_palette_plus_formats {
 //     ( 59,254,254),
 //     (255,255, 65),
 //     (255,255,255)
-// }
+// ];
 
-// const eval iterations where are you...
+// constant eval iterators where are you...
 impl_palette_plus_formats!([0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126,127,128,129,130,131,132,133,134,135,136,137,138,139,140,141,142,143,144,145,146,147,148,149,150,151,152,153,154,155,156,157,158,159,160,161,162,163,164,165,166,167,168,169,170,171,172,173,174,175,176,177,178,179,180,181,182,183,184,185,186,187,188,189,190,191,192,193,194,195,196,197,198,199,200,201,202,203,204,205,206,207,208,209,210,211,212,213,214,215,216,217,218,219,220,221,222,223,224,225,226,227,228,229,230,231,232,233,234,235,236,237,238,239,240,241,242,243,244,245,246,247,248,249,250,251,252,253,254,255]);
 impl_palette!(SpectrumPalRGB24,     [u8;3]);
 impl_palette!(SpectrumPalRGBA32,    [u8;4]);
@@ -553,29 +498,31 @@ mod tests {
 
     #[test]
     fn pixel_palette_gray_works() {
+        let grayscale_u16 = |v| (((v as u16) >> 3) << 11)|(((v as u16) >> 2) << 5)|((v as u16) >> 3);
+        let grayscale_u8 = |v| ((v >> 5) << 5)|((v >> 5) << 2)|(v >> 6);
         for i in 0..=255u8 {
             let v = GRAYSCALE[i as usize];
-            assert_eq!(SpectrumPalRGB24::get_pixel_gray8(i), [v, v, v]);
-            assert_eq!(GrayscalePalRGB24::get_pixel_gray8(i), [v, v, v]);
-            assert_eq!(GrayscalePalRGB24::get_pixel_grb8(i), GrayscalePalRGB24::get_pixel_gray8(i));
-            assert_eq!(SpectrumPalRGBA32::get_pixel_gray8(i), [v, v, v, 255]);
-            assert_eq!(GrayscalePalRGBA32::get_pixel_gray8(i), [v, v, v, 255]);
-            assert_eq!(GrayscalePalRGBA32::get_pixel_grb8(i), GrayscalePalRGBA32::get_pixel_gray8(i));
-            assert_eq!(SpectrumPalARGB32::get_pixel_gray8(i), [255, v, v, v]);
-            assert_eq!(GrayscalePalARGB32::get_pixel_gray8(i), [255, v, v, v]);
-            assert_eq!(GrayscalePalARGB32::get_pixel_grb8(i), GrayscalePalARGB32::get_pixel_gray8(i));
-            assert_eq!(SpectrumPalA8R8G8B8::get_pixel_gray8(i), u32::from_be_bytes([255, v, v, v]));
-            assert_eq!(GrayscalePalA8R8G8B8::get_pixel_gray8(i), u32::from_be_bytes([255, v, v, v]));
-            assert_eq!(GrayscalePalA8R8G8B8::get_pixel_grb8(i), GrayscalePalA8R8G8B8::get_pixel_gray8(i));
-            assert_eq!(SpectrumPalR8G8B8A8::get_pixel_gray8(i), u32::from_be_bytes([v, v, v, 255]));
-            assert_eq!(GrayscalePalR8G8B8A8::get_pixel_gray8(i), u32::from_be_bytes([v, v, v, 255]));
-            assert_eq!(GrayscalePalR8G8B8A8::get_pixel_grb8(i), GrayscalePalR8G8B8A8::get_pixel_gray8(i));
-            assert_eq!(SpectrumPalR5G6B5::get_pixel_gray8(i), (((v as u16) >> 3) << 11)|(((v as u16) >> 2) << 5)|((v as u16) >> 3));
-            assert_eq!(GrayscalePalR5G6B5::get_pixel_gray8(i), (((v as u16) >> 3) << 11)|(((v as u16) >> 2) << 5)|((v as u16) >> 3));
-            assert_eq!(GrayscalePalR5G6B5::get_pixel_grb8(i), GrayscalePalR5G6B5::get_pixel_gray8(i));
-            assert_eq!(SpectrumPalR3G3B2::get_pixel_gray8(i), ((v >> 5) << 5)|((v >> 5) << 2)|(v >> 6));
-            assert_eq!(GrayscalePalR3G3B2::get_pixel_gray8(i), ((v >> 5) << 5)|((v >> 5) << 2)|(v >> 6));
-            assert_eq!(GrayscalePalR3G3B2::get_pixel_grb8(i), GrayscalePalR3G3B2::get_pixel_gray8(i));
+            assert_eq!(SpectrumPalRGB24::get_pixel_gray8(i), [i, i, i]);
+            assert_eq!(GrayscalePalRGB24::get_pixel_gray8(i), [i, i, i]);
+            assert_eq!(GrayscalePalRGB24::get_pixel_grb8(i), [v, v, v]);
+            assert_eq!(SpectrumPalRGBA32::get_pixel_gray8(i), [i, i, i, 255]);
+            assert_eq!(GrayscalePalRGBA32::get_pixel_gray8(i), [i, i, i, 255]);
+            assert_eq!(GrayscalePalRGBA32::get_pixel_grb8(i), [v, v, v, 255]);
+            assert_eq!(SpectrumPalARGB32::get_pixel_gray8(i), [255, i, i, i]);
+            assert_eq!(GrayscalePalARGB32::get_pixel_gray8(i), [255, i, i, i]);
+            assert_eq!(GrayscalePalARGB32::get_pixel_grb8(i), [255, v, v, v]);
+            assert_eq!(SpectrumPalA8R8G8B8::get_pixel_gray8(i), u32::from_be_bytes([255, i, i, i]));
+            assert_eq!(GrayscalePalA8R8G8B8::get_pixel_gray8(i), u32::from_be_bytes([255, i, i, i]));
+            assert_eq!(GrayscalePalA8R8G8B8::get_pixel_grb8(i), u32::from_be_bytes([255, v, v, v]));
+            assert_eq!(SpectrumPalR8G8B8A8::get_pixel_gray8(i), u32::from_be_bytes([i, i, i, 255]));
+            assert_eq!(GrayscalePalR8G8B8A8::get_pixel_gray8(i), u32::from_be_bytes([i, i, i, 255]));
+            assert_eq!(GrayscalePalR8G8B8A8::get_pixel_grb8(i), u32::from_be_bytes([v, v, v, 255]));
+            assert_eq!(SpectrumPalR5G6B5::get_pixel_gray8(i), grayscale_u16(i));
+            assert_eq!(GrayscalePalR5G6B5::get_pixel_gray8(i), grayscale_u16(i));
+            assert_eq!(GrayscalePalR5G6B5::get_pixel_grb8(i), grayscale_u16(v));
+            assert_eq!(SpectrumPalR3G3B2::get_pixel_gray8(i), grayscale_u8(i));
+            assert_eq!(GrayscalePalR3G3B2::get_pixel_gray8(i), grayscale_u8(i));
+            assert_eq!(GrayscalePalR3G3B2::get_pixel_grb8(i), grayscale_u8(v));
         }
     }
 }
