@@ -78,7 +78,6 @@ Implemented by other components:
 */
 pub use spectrusty_core::z80emu;
 pub use spectrusty_core::clock;
-#[cfg(feature = "peripherals")] pub use spectrusty_peripherals as peripherals;
 #[cfg(feature = "formats")] pub use spectrusty_formats as formats;
 #[cfg(feature = "utils")] pub use spectrusty_utils as utils;
 
@@ -86,6 +85,7 @@ pub mod audio;
 pub mod bus;
 pub mod chip;
 pub mod memory;
+pub mod peripherals;
 pub mod video;
 
 #[cfg(test)]

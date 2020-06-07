@@ -1,6 +1,13 @@
-//! **ZX Spectrum** keyboard emulation interface.
+//! Emulator components of various ZX Spectrum peripheral devices.
+//!
+//! ZX Spectrum keyboard emulation interface.
 //!
 //! Please see also [this](http://rk.nvg.ntnu.no/sinclair/computers/zxspectrum/spec48versions.htm#issue1)
+use bitflags::bitflags;
+
+#[cfg(feature = "peripherals")]
+pub use spectrusty_peripherals::*;
+
 bitflags! {
     /// Every key's state is encoded as a single bit on this 40-bit flag type.
     /// * Bit = 1 a key is being pressed.

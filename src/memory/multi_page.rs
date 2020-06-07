@@ -43,7 +43,6 @@ impl PagedMemory16k for Memory128kPlus {}
 impl PagedMemory8k for Memory48kDock64kEx {}
 impl PagedMemory8k for Memory272k {}
 
-const MAX_PAGES: usize = 8;
 const SCLD_SCREEN_OFFSET: usize = 0x2000;
 
 pub struct MemPageableRomRamExRom<M: MemoryBlock> {

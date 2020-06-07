@@ -4,8 +4,6 @@ use core::time::Duration;
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
 
-#[cfg(feature = "snapshot")]
-
 use z80emu::{CpuDebug, Cpu, host::Result};
 
 use crate::bus::BusDevice;

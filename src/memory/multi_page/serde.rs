@@ -4,9 +4,11 @@ use arrayvec::ArrayVec;
 use serde::{Serialize, Deserialize};
 use serde::ser::{self, Serializer, SerializeStruct};
 use serde::de::{self, Deserializer};
-use super::{MAX_PAGES,
+use super::{
     ExRom, MemoryBlock, MemoryPages, MemPageableRomRamExRom, MemSerExt, MemDeExt,
     ro_flag_mask, serialize_mem, deserialize_mem};
+
+const MAX_PAGES: usize = 8;
 
 impl<M: MemoryBlock> Serialize for MemPageableRomRamExRom<M>
     where M::Pages: Copy,
