@@ -3,13 +3,10 @@
 //! For the original implementation refer to [this web site](http://www.slack.net/~ant/bl-synth).
 //!
 // TODO: re-implement the more efficient integer based blip buffer, this implementation is just enough to get going
-#![allow(unused_imports)]
 use core::marker::PhantomData;
-use core::{iter::{Skip, StepBy}, slice::Iter};
 use core::num::NonZeroUsize;
 use core::cell::Cell;
-use core::ops::{AddAssign, Add};
-use core::convert::TryFrom;
+use core::ops::AddAssign;
 
 use spectrusty_core::{
     clock::FTs,
