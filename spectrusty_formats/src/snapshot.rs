@@ -6,7 +6,10 @@ use bitflags::bitflags;
 
 use spectrusty_core::z80emu::{*, z80::*};
 use spectrusty_core::clock::{VideoTs, FTs};
-use spectrusty_core::chip::{ControlUnit, MemoryAccess, ReadEarMode, Ula128MemFlags, Ula3CtrlFlags, ScldCtrlFlags};
+use spectrusty_core::chip::{
+    ControlUnit, MemoryAccess, ReadEarMode,
+    Ula128MemFlags, Ula3CtrlFlags, ScldCtrlFlags
+};
 use spectrusty_core::video::{Video, BorderColor};
 use spectrusty_core::memory::{ZxMemory, ZxMemoryError};
 use spectrusty_peripherals::ay::AyRegister;
@@ -123,7 +126,7 @@ pub trait SnapshotCreator {
     fn ula3_flags(&self) -> Ula3CtrlFlags { unimplemented!() }
     fn timex_flags(&self) -> ScldCtrlFlags { unimplemented!() }
     fn timex_memory_banks(&self) -> u8 { unimplemented!() }
-    // fn ulaplus_flags(&self) -> UlaPlusFlags;
+    // fn ulaplus_flags(&self) -> UlaPlusRegFlags;
     fn is_interface1_rom_paged_in(&self) -> bool { unimplemented!() }
     fn is_plus_d_rom_paged_in(&self) -> bool { unimplemented!() }
     fn is_disciple_rom_paged_in(&self) -> bool { unimplemented!() }

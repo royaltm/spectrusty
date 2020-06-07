@@ -1,3 +1,23 @@
+/*! An emulator of the Timex's SCLD chip used in TC2048 / TC2068 and TS2068 models.
+
+Implementation ceveats:
+
+* Currently there are no dedicated [VideoFrame] implementations for TC2048 / TC2068 / TS2068 models,
+  in the meantime you may use the [UlaVideoFrame] and [UlaNTSCVidFrame] with [Scld].
+* SCLD ports: `0xFF` and `0xF4` as well as ULA `0xFE` port are decoded on all 8 lowest address bits as per original machines.
+* The hard reset defaults the screen mode and memory paging but leaves the border color unmodified.
+* The DOCK and EX-ROM memory pages are mapped from ROM banks as follows and depend on [ZxMemory::ROM_BANKS_MAX]:
+
+```text
+   DOCK: [0, 7]
+ EX-ROM: [8, ROM_BANKS_MAX - 2] modulo (ROM_BANKS_MAX - 9)
+16k ROM: [ROM_BANKS_MAX - 1, ROM_BANKS_MAX]
+```
+
+In case of TC2048 the 16k ROM should be loaded to rom banks: `[ROM_BANKS_MAX - 1, ROM_BANKS_MAX]`.
+In case of Tx2068 the 24k ROM should be loaded to rom banks: `[ROM_BANKS_MAX - 1, ROM_BANKS_MAX, 8]`.
+
+*/
 use crate::z80emu::{*, host::Result};
 use crate::clock::{
     FTs, VideoTs,
@@ -6,8 +26,8 @@ use crate::clock::{
 };
 use crate::bus::{BusDevice, NullDevice};
 use crate::chip::{
-    ScldCtrlFlags,
-    EarIn, ReadEarMode, ControlUnit, MemoryAccess,
+    ScldControl, ScldCtrlFlags,
+    UlaWrapper, EarIn, ReadEarMode, ControlUnit, MemoryAccess,
     ula::{
         Ula, UlaVideoFrame, UlaMemoryContention,
         UlaTimestamp, UlaCpuExt,
@@ -29,7 +49,9 @@ pub mod video;
 
 use frame_cache::SourceMode;
 
-/// Timex SCLD.
+/// This is the emulator of SCLD chip used with Timex's TC2048 / TC2068 / TS2068 models.
+///
+/// The memory implementation must implement [PagedMemory8k] trait in addition to [ZxMemory].
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]
 #[derive(Clone)]
@@ -84,9 +106,38 @@ impl<M, B, X, V> core::fmt::Debug for Scld<M, B, X, V>
             .field("beg_ctrl_flags", &self.beg_ctrl_flags)
             .field("cur_ctrl_flags", &self.cur_ctrl_flags)
             .field("mem_paged", &self.mem_paged)
+            .field("sec_frame_cache", &self.sec_frame_cache)
             .field("mode_changes", &self.mode_changes.len())
             .field("source_changes", &self.source_changes.len())
             .finish()
+    }
+}
+
+impl<M, B, X, V> UlaWrapper for Scld<M, B, X, V>
+    where M: PagedMemory8k
+{
+    type Inner = Ula<M, B, X, V>;
+
+    fn inner_ref(&self) -> &Self::Inner {
+        &self.ula
+    }
+
+    fn inner_mut(&mut self) -> &mut Self::Inner {
+        &mut self.ula
+    }
+
+    fn into_inner(self) -> Self::Inner {
+        self.ula
+    }
+}
+
+impl<M: PagedMemory8k, B, X, V> ScldControl for Scld<M, B, X, V> {
+    fn scld_ctrl_port_value(&self) -> ScldCtrlFlags {
+        self.cur_ctrl_flags
+    }
+
+    fn scld_mmu_port_value(&self) -> u8 {
+        self.mem_paged
     }
 }
 
@@ -94,38 +145,6 @@ impl<M, B, X, V> Scld<M, B, X, V>
     where M: PagedMemory8k,
           V: VideoFrame
 {
-    /// Sets the frame counter to the specified value.
-    pub fn set_frame_counter(&mut self, fc: u64) {
-        self.ula.set_frame_counter(fc)
-    }
-    /// Sets the T-state counter to the specified value modulo `V::FRAME_TSTATES_COUNT`.
-    pub fn set_frame_tstate(&mut self, ts: FTs) {
-        self.ula.set_frame_tstate(ts)
-    }
-    /// Returns the state of the "late timings" mode.
-    pub fn has_late_timings(&self) -> bool {
-        self.ula.has_late_timings()
-    }
-    /// Sets the "late timings" mode on or off.
-    ///
-    /// In this mode interrupts are being requested just one T-state earlier than normally.
-    /// This results in all other timings being one T-state later.
-    pub fn set_late_timings(&mut self, late_timings: bool) {
-        self.ula.set_late_timings(late_timings)
-    }
-    /// Returns the last value sent to the memory port `0xFF`.
-    ///
-    /// Usefull for creating snapshots.
-    pub fn scld_ctrl_port_value(&self) -> ScldCtrlFlags {
-        self.cur_ctrl_flags
-    }
-    /// Returns the last value sent to the memory port `0xF4`.
-    ///
-    /// Usefull for creating snapshots.
-    pub fn scld_mmu_port_value(&self) -> u8 {
-        self.mem_paged
-    }
-
     #[inline]
     fn push_mode_change(&mut self, ts: VideoTs, render_mode: RenderMode) {
         self.mode_changes.push((ts, render_mode.bits()).into())

@@ -62,7 +62,7 @@ impl<B, X> Io for Ula3<B, X>
 
     fn write_io(&mut self, port: u16, data: u8, ts: VideoTs) -> (Option<()>, Option<NonZeroU16>) {
         if Ula3Mem1PortAddress::match_port(port) {
-            // (self.write_mem_port(data, ts).then_some(()), None) // after stabilizing # 64260
+            // (self.write_mem1_port(data, ts).then_some(()), None) // after stabilizing # 64260
             if self.write_mem1_port(data, ts) {
                 return (Some(()), None)
             }

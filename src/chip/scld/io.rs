@@ -1,7 +1,7 @@
 use core::num::NonZeroU16;
 
 use crate::z80emu::{Io, Memory};
-use crate::chip::ScldCtrlFlags;
+use crate::chip::{UlaPortFlags, ScldCtrlFlags};
 use crate::bus::{BusDevice, PortAddress};
 use crate::clock::VideoTs;
 use crate::peripherals::{KeyboardInterface, ZXKeyboardMap};
@@ -63,9 +63,10 @@ impl<M, B, X, V> Io for Scld<M, B, X, V>
 
     fn write_io(&mut self, port: u16, data: u8, ts: VideoTs) -> (Option<()>, Option<NonZeroU16>) {
         if UlaPortAddress::match_port(port) {
-            let border = BorderColor::from_bits_truncate(data);
+            let flags = UlaPortFlags::from_bits_truncate(data);
+            let border = BorderColor::from(flags);
             self.change_border_color(border, ts);
-            self.ula.ula_write_earmic(data, ts);
+            self.ula.ula_write_earmic(flags, ts);
         }
         else if ScldCtrlPortAddress::match_port(port) {
             let flags = ScldCtrlFlags::from_bits_truncate(data);

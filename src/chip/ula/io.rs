@@ -3,7 +3,7 @@ use core::num::NonZeroU16;
 use crate::z80emu::{Io, Memory};
 use crate::bus::BusDevice;
 use crate::clock::{Ts, VideoTs};
-use crate::chip::EarMic;
+use crate::chip::{EarMic, UlaPortFlags};
 use crate::peripherals::{KeyboardInterface, ZXKeyboardMap};
 use crate::memory::{ZxMemory, MemoryExtension};
 use crate::video::{BorderColor, VideoFrame};
@@ -30,12 +30,13 @@ impl<M, B, X, V> Io for Ula<M, B, X, V>
 
     fn write_io(&mut self, port: u16, data: u8, ts: VideoTs) -> (Option<()>, Option<NonZeroU16>) {
         if port & 1 == 0 {
-            let border = BorderColor::from_bits_truncate(data);
+            let flags = UlaPortFlags::from_bits_truncate(data);
+            let border = BorderColor::from(flags);
             if self.last_border != border {
                 self.last_border = border;
                 self.border_out_changes.push((ts, border.bits()).into());
             }
-            self.ula_write_earmic(data, ts);
+            self.ula_write_earmic(flags, ts);
         }
         else {
             if let Some(ws) = self.bus.write_io(port, data, ts) {
@@ -97,8 +98,8 @@ impl<M, B, X, V> Ula<M, B, X, V>
           V: VideoFrame
 {
     #[inline(always)]
-    pub(crate) fn ula_write_earmic(&mut self, data: u8, ts: VideoTs) {
-        let earmic = EarMic::from_bits_truncate(data >> 3);
+    pub(crate) fn ula_write_earmic(&mut self, flags: UlaPortFlags, ts: VideoTs) {
+        let earmic = EarMic::from(flags);
         if self.last_earmic_data != earmic {
             self.last_earmic_data = earmic;
             self.earmic_out_changes.push((ts, earmic.bits()).into());

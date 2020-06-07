@@ -1,7 +1,11 @@
+use core::fmt;
+use core::convert::TryFrom;
+
 use bitflags::bitflags;
+
 use crate::clock::{Ts, VideoTs, VideoTsData2};
 use crate::chip::{
-    ScldCtrlFlags,
+    ScldCtrlFlags, UlaPlusRegFlags,
     ula::{
         frame_cache::{UlaFrameCache, UlaFrameLineIter}
     }
@@ -15,48 +19,38 @@ use crate::video::{
         PlusVidFrameDataIterator
     }
 };
-/*
-    mode source
-    bit2 bit1 bit0   descr     ink  attr
-       0    0    0   screen 0  p0   a0   s0.fp  s0.fc/fcc
-       0    0    1   screen 1  p1   a1   s1.fp  s1.fc/fcc
-       0    1    0   hi-color  p0   p1   s0.fp  s1.fp/dummy
-       0    1    1   hi-color  p1   p1   s1.fp  s1.fp/dummy
-       1    0    0   hi-res    p0   a0
-       1    0    1   hi-res    p1   a1
-       1    1    0   hi-res    p0   p1
-       1    1    1   hi-res    p1   p1
 
-  Bits 0-2: Screen mode. 000=screen 0, 001=screen 1, 010=hi-colour, 110=hi-res (bank 5)
-                         100=screen 0, 101=screen 1, 011=hi-colour, 111=hi-res (bank 7)
-    mode source
-    bit2 bit1 bit0   descr     ink  attr bank
-       0    0    0   screen 0  p0   a0   5    s0.fp  s0.fc/fcc 
-       0    0    1   screen 1  p1   a1   5    s2.fp  s2.fc/fcc
-       0    1    0   hi-color  p0   p1   5    s0.fp  s2.fp/dummy
-       0    1    1   hi-color  p0   p1   7    s1.fp  s3.fp/dummy
-       1    0    0   hi-res    p0   a0   7    s1.fp  s1.fc/fcc 
-       1    0    1   hi-res    p1   a1   7    s3.fp  s3.fc/fcc 
-       1    1    0   hi-res    p0   p1   5    s0.fp  s2.fp/dummy
-       1    1    1   hi-res    p0   p1   7    s1.fp  s3.fp/dummy
-*/
+#[cfg(feature = "snapshot")]
+use serde::{Serialize, Deserialize};
+
 bitflags! {
-    /// Flags determining the source mode for INK masks and attributes.
+    /// Flags determining the screen data source for INK/PAPER masks and attributes.
     ///
     /// ```text
     /// source
-    /// attr shad.  mode      ink_mask  attr
+    /// attr  sec.  mode      ink_mask  attr
     ///    0    0   screen 0  screen 0  screen 0 attr. (8 lines)
     ///    0    1   screen 1  screen 1  screen 1 attr. (8 lines)
     ///    1    0   combined  screen 0  screen 1
     ///    1    1   combined  screen 1  screen 1
     /// ```
+    #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
+    #[cfg_attr(feature = "snapshot", serde(try_from = "u8", into = "u8"))]
     #[derive(Default)]
     pub struct SourceMode: u8 {
-        const SHADOW_SCREEN = 0b01;
-        const ATTR_HI_COLOR = 0b10;
+        /// Determines the source of INK/PAPER masks.
+        const SECOND_SCREEN = 0b001;
+        /// Determines the source of attributes together with [SourceMode::SECOND_SCREEN].
+        const ATTR_HI_COLOR = 0b010;
+        const SOURCE_MASK   = 0b011;
+        /// Determines the screen bank the data is read from.
+        const SHADOW_BANK   = 0b100;
     }
 }
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TryFromU8SourceModeError(pub u8);
+
 /// A reference to primary and secondary screen data with relevant frame caches.
 pub struct ScldFrameRef<'a, V> {
     /// primary screen data
@@ -92,19 +86,23 @@ const EMPTY_LINE_ITER: UlaFrameLineIter<'_> = UlaFrameLineIter {
 
 impl SourceMode {
     #[inline]
-    pub fn is_shadow(self) -> bool {
-        self.intersects(SourceMode::SHADOW_SCREEN)
+    pub fn is_second_screen(self) -> bool {
+        self.intersects(SourceMode::SECOND_SCREEN)
     }
     #[inline]
     pub fn is_hi_color(self) -> bool {
         self.intersects(SourceMode::ATTR_HI_COLOR)
     }
+    #[inline]
+    pub fn is_shadow_bank(self) -> bool {
+        self.intersects(SourceMode::SHADOW_BANK)
+    }
 }
 
-impl From<u8> for SourceMode {
+impl From<SourceMode> for u8 {
     #[inline]
-    fn from(mode: u8) -> Self {
-        SourceMode::from_bits_truncate(mode)
+    fn from(mode: SourceMode) -> u8 {
+        mode.bits()
     }
 }
 
@@ -117,9 +115,45 @@ impl From<VideoTsData2> for SourceMode {
 
 impl From<ScldCtrlFlags> for SourceMode {
     fn from(flags: ScldCtrlFlags) -> SourceMode {
-        SourceMode::from(
+        SourceMode::from_bits_truncate(
             (flags & ScldCtrlFlags::SCREEN_SOURCE_MASK).bits()
         )
+    }
+}
+
+impl From<UlaPlusRegFlags> for SourceMode {
+    fn from(flags: UlaPlusRegFlags) -> SourceMode {
+        /*
+            ula +   source mode
+            0 0 0 -> 0 0 0      screen 0
+            0 0 1 -> 0 0 1      screen 1
+            0 1 0 -> 0 1 0      hi-color
+            0 1 1 -> 1 1 0 *    hi-color (shadow)
+            1 0 0 -> 1 0 0      screen 0 (shadow)
+            1 0 1 -> 1 0 1      screen 1 (shadow)
+            1 1 0 -> 0 1 0 *    hi-res
+            1 1 1 -> 1 1 0 *    hi-res   (shadow)
+        */
+        match (flags & UlaPlusRegFlags::SCREEN_MODE_MASK).bits() {
+            0b110       => SourceMode::ATTR_HI_COLOR, // 0b010
+            0b011|0b111 => SourceMode::SHADOW_BANK|SourceMode::ATTR_HI_COLOR, // 0b110
+            bits        => SourceMode::from_bits_truncate(bits)
+        }
+    }
+}
+
+impl std::error::Error for TryFromU8SourceModeError {}
+
+impl fmt::Display for TryFromU8SourceModeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "converted integer (0x{:x}) contains extraneous bits for `SourceMode`", self.0)
+    }
+}
+
+impl TryFrom<u8> for SourceMode {
+    type Error = TryFromU8SourceModeError;
+    fn try_from(earmic: u8) -> Result<Self, Self::Error> {
+        SourceMode::from_bits(earmic).ok_or_else(|| TryFromU8SourceModeError(earmic))
     }
 }
 
@@ -192,7 +226,7 @@ impl<'a, V, I> ScldFrameProducer<'a, V, I>
         let line = self.line;
         let source = self.source;
 
-        if source.is_shadow() {
+        if source.is_second_screen() {
             self.line_iter.ink_line = ink_line_from(line, &self.frame_ref.screen1);
             self.line_iter.frame_pixels = &self.frame_ref.frame_cache1.frame_pixels[line];
         }
@@ -206,7 +240,7 @@ impl<'a, V, I> ScldFrameProducer<'a, V, I>
             self.line_iter.frame_colors = &self.frame_ref.frame_cache1.frame_pixels[line];
             self.line_iter.frame_colors_coarse = EMPTY_FRAME_LINE;
         }
-        else if source.is_shadow() {
+        else if source.is_second_screen() {
             self.line_iter.attr_line = attr_line_from(line, &self.frame_ref.screen1);
             self.line_iter.frame_colors = &self.frame_ref.frame_cache1.frame_colors[line];
             self.line_iter.frame_colors_coarse = &self.frame_ref.frame_cache1.frame_colors_coarse[line >> 3];
@@ -271,7 +305,7 @@ impl<'a, V, I> Iterator for ScldFrameProducer<'a, V, I>
 fn vtm_next<V: VideoFrame>(vtm: VideoTsData2, line: Ts) -> (VideoTs, SourceMode) {
     let (mut vts, data) = vtm.into();
     vts.vc -= V::VSL_PIXELS.start + line;
-    (vts, data.into())
+    (vts, SourceMode::from_bits_truncate(data))
 }
 
 #[inline]

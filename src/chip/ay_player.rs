@@ -1,3 +1,4 @@
+//! An emulator of a video-less chip for ZX Spectrum to be used in a music player.
 use core::num::NonZeroU16;
 use core::marker::PhantomData;
 use core::num::Wrapping;

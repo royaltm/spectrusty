@@ -34,7 +34,7 @@ impl<B, X> Io for Ula128<B, X>
             // between reads and writes to this port, resulting in a floating data bus being used to
             // set the paging registers.
             let data = self.floating_bus(ts);
-            self.write_mem_port(data, ts); // FIXIT: read_io should allow breaks too
+            self.write_mem_port(data, ts); // FIXIT: perhaps read_io should allow breaks too
             (data, None)
         }
         else {

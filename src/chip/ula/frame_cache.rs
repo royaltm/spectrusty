@@ -174,7 +174,14 @@ impl<V> Default for UlaFrameCache<V> {
 
 impl<V> fmt::Debug for UlaFrameCache<V> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("UlaFrameCache {{ }}")
+        let count = |frame: &[(u32, _)]| -> u32 {
+            frame.iter().map(|(mask,_)| mask.count_ones()).sum()
+        };
+        f.debug_struct("UlaFrameCache")
+            .field("frame_pixels", &count(&self.frame_pixels))
+            .field("frame_colors", &count(&self.frame_colors))
+            .field("frame_colors_coarse", &count(&self.frame_colors_coarse))
+            .finish()
     }
 }
 

@@ -1,8 +1,6 @@
 //! # Video API
 pub mod pixel;
 
-use bitflags::bitflags;
-
 use core::str::FromStr;
 use core::convert::{TryInto, TryFrom};
 use core::fmt::{self, Debug};
@@ -11,7 +9,10 @@ use core::ops::{BitAnd, BitOr, Shl, Shr, Range};
 #[cfg(feature = "snapshot")]
 use serde::{Serialize, Deserialize};
 
+use bitflags::bitflags;
+
 use crate::clock::{Ts, FTs, VideoTs};
+use crate::chip::UlaPortFlags;
 
 pub use pixel::{Palette, PixelBuffer};
 
@@ -227,7 +228,7 @@ pub trait VideoFrame: Copy + Debug {
             None
         }
     }
-    /// Returns an optional cell coordinates of a so called "snow effect" interference.
+    /// Returns an optional cell coordinates of a "snow effect" interference.
     fn snow_interference_coords(_ts: VideoTs) -> Option<CellCoords> {
         None
     }
@@ -510,6 +511,13 @@ impl TryFrom<u8> for BorderColor {
     type Error = TryFromU8BorderColorError;
     fn try_from(color: u8) -> core::result::Result<Self, Self::Error> {
         BorderColor::from_bits(color).ok_or_else(|| TryFromU8BorderColorError(color))
+    }
+}
+
+impl From<UlaPortFlags> for BorderColor {
+    #[inline]
+    fn from(flags: UlaPortFlags) -> Self {
+        BorderColor::from_bits_truncate((flags & UlaPortFlags::BORDER_MASK).bits())
     }
 }
 

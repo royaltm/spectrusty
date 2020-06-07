@@ -1,8 +1,10 @@
 //! An emulator of Sinclair Uncommitted Logic Array chip for ZX Spectrum 128k/+2.
+#![macro_use]
 mod audio_earmic;
 pub mod frame_cache;
 mod io;
 pub(crate) mod video;
+mod plus;
 
 use core::fmt;
 use core::convert::TryFrom;
@@ -13,16 +15,18 @@ use serde::{Serialize, Deserialize};
 
 use crate::bus::{BusDevice, NullDevice};
 use crate::chip::{
-    ControlUnit, MemoryAccess, Ula128MemFlags,
+    UlaWrapper, Ula128Control, ControlUnit, MemoryAccess, Ula128MemFlags,
     ula::{
-        frame_cache::UlaFrameCache,
-        Ula, UlaTimestamp, UlaCpuExt, UlaMemoryContention
+        ControlUnitContention,
+        Ula, UlaTimestamp, UlaCpuExt, UlaMemoryContention,
+        frame_cache::UlaFrameCache
     }
 };
 use crate::memory::{Memory128k, ZxMemory, MemoryExtension, NoMemoryExtension, MemoryKind};
 use crate::clock::{VideoTs, FTs, VFrameTsCounter, MemoryContention};
 
 pub use video::Ula128VidFrame;
+
 
 /// Implements [MemoryContention] in a way that addresses in the range: [0x4000, 0x7FFF] and [0xC000, 0xFFFF]
 /// are being contended.
@@ -63,8 +67,8 @@ pub struct TryFromU8MemPage8Error(pub u8);
 pub struct Ula128<B=NullDevice<VideoTs>, X=NoMemoryExtension> {
     ula: InnerUla<B, X>,
     mem_page3_bank: MemPage8,
-    cur_screen_shadow: bool, // current shadow screen
     beg_screen_shadow: bool, // shadow screen when a frame began
+    cur_screen_shadow: bool, // current shadow screen
     mem_locked: bool,
     #[cfg_attr(feature = "snapshot", serde(skip))]
     shadow_frame_cache: UlaFrameCache<Ula128VidFrame>,
@@ -77,8 +81,8 @@ impl<B: Default, X: Default> Default for Ula128<B, X> {
         Ula128 {
             ula: Default::default(),
             mem_page3_bank: MemPage8::Bank0,
-            cur_screen_shadow: false,
             beg_screen_shadow: false,
+            cur_screen_shadow: false,
             mem_locked: false,
             shadow_frame_cache: Default::default(),
             screen_changes: Vec::new()
@@ -93,9 +97,10 @@ impl<B, X> core::fmt::Debug for Ula128<B, X>
         f.debug_struct("Ula128")
             .field("ula", &self.ula)
             .field("mem_page3_bank", &self.mem_page3_bank)
-            .field("cur_screen_shadow", &self.cur_screen_shadow)
             .field("beg_screen_shadow", &self.beg_screen_shadow)
+            .field("cur_screen_shadow", &self.cur_screen_shadow)
             .field("mem_locked", &self.mem_locked)
+            .field("shadow_frame_cache", &self.shadow_frame_cache)
             .field("screen_changes", &self.screen_changes.len())
             .finish()
     }
@@ -150,30 +155,24 @@ macro_rules! impl_ram_page_from {
 
 impl_ram_page_from!(u8, usize);
 
-impl<B, X> Ula128<B, X> {
-    /// Sets the frame counter to the specified value.
-    pub fn set_frame_counter(&mut self, fc: u64) {
-        self.ula.set_frame_counter(fc)
+impl<B, X> UlaWrapper for Ula128<B, X> {
+    type Inner = InnerUla<B, X>;
+
+    fn inner_ref(&self) -> &Self::Inner {
+        &self.ula
     }
-    /// Sets the T-state counter to the specified value modulo `Ula128VidFrame::FRAME_TSTATES_COUNT`.
-    pub fn set_frame_tstate(&mut self, ts: FTs) {
-        self.ula.set_frame_tstate(ts)
+
+    fn inner_mut(&mut self) -> &mut Self::Inner {
+        &mut self.ula
     }
-    /// Returns the state of the "late timings" mode.
-    pub fn has_late_timings(&self) -> bool {
-        self.ula.has_late_timings()
+
+    fn into_inner(self) -> Self::Inner {
+        self.ula
     }
-    /// Sets the "late timings" mode on or off.
-    ///
-    /// In this mode interrupts are being requested just one T-state earlier than normally.
-    /// This results in all other timings being one T-state later.
-    pub fn set_late_timings(&mut self, late_timings: bool) {
-        self.ula.set_late_timings(late_timings)
-    }
-    /// Returns the last value sent to the memory port `0x7FFD`.
-    ///
-    /// Usefull for creating snapshots.
-    pub fn mem_port_value(&self) -> Ula128MemFlags {
+}
+
+impl<B, X> Ula128Control for Ula128<B, X> {
+    fn ula128_mem_port_value(&self) -> Ula128MemFlags {
         let mut flags = Ula128MemFlags::empty()
                         .with_last_ram_page_bank(self.mem_page3_bank.into());
         if self.cur_screen_shadow {
@@ -189,9 +188,11 @@ impl<B, X> Ula128<B, X> {
         }
         flags
     }
+}
 
+impl<B, X> Ula128<B, X> {
     #[inline(always)]
-    fn is_page3_contended(&self) -> bool {
+    pub(crate) fn is_page3_contended(&self) -> bool {
         self.mem_page3_bank as u8 & 1 == 1 // banks: 1, 3, 5 and 7 are contended
     }
 
@@ -288,27 +289,11 @@ impl<B, X> ControlUnit for Ula128<B, X>
     }
 
     fn nmi<C: Cpu>(&mut self, cpu: &mut C) -> bool {
-        if self.is_page3_contended() {
-            self.ula_nmi::<Ula128MemContention, _>(cpu)
-        }
-        else {
-            self.ula_nmi::<UlaMemoryContention, _>(cpu)
-        }
+        self.nmi_with_contention(cpu)
     }
 
     fn execute_next_frame<C: Cpu>(&mut self, cpu: &mut C) {
-        loop {
-            if self.is_page3_contended() {
-                if self.ula_execute_next_frame_with_breaks::<Ula128MemContention, _>(cpu) {
-                    break
-                }
-            }
-            else {
-                if self.ula_execute_next_frame_with_breaks::<UlaMemoryContention, _>(cpu) {
-                    break;
-                }
-            }
-        }
+        self.execute_next_frame_with_contention(cpu)
     }
 
     fn ensure_next_frame(&mut self) {
@@ -321,14 +306,58 @@ impl<B, X> ControlUnit for Ula128<B, X>
             debug: Option<F>
         ) -> Result<(),()>
     {
-        if self.is_page3_contended() {
-            self.ula_execute_single_step::<Ula128MemContention,_,_>(cpu, debug)
-        }
-        else {
-            self.ula_execute_single_step::<UlaMemoryContention,_,_>(cpu, debug)
-        }
+        self.execute_single_step_with_contention(cpu, debug)
     }
 }
+
+macro_rules! impl_control_unit_contention_ula128 {
+    ($ty:ty) => {
+        impl<B, X> ControlUnitContention for $ty
+            where B: BusDevice<Timestamp=VideoTs>,
+                  X: MemoryExtension
+        {
+            fn nmi_with_contention<C: Cpu>(&mut self, cpu: &mut C) -> bool {
+                if self.is_page3_contended() {
+                    self.ula_nmi::<Ula128MemContention, _>(cpu)
+                }
+                else {
+                    self.ula_nmi::<UlaMemoryContention, _>(cpu)
+                }
+            }
+
+            fn execute_next_frame_with_contention<C: Cpu>(&mut self, cpu: &mut C) {
+                loop {
+                    if self.is_page3_contended() {
+                        if self.ula_execute_next_frame_with_breaks::<Ula128MemContention, _>(cpu) {
+                            break
+                        }
+                    }
+                    else {
+                        if self.ula_execute_next_frame_with_breaks::<UlaMemoryContention, _>(cpu) {
+                            break;
+                        }
+                    }
+                }
+            }
+
+            fn execute_single_step_with_contention<C: Cpu, F: FnOnce(CpuDebug)>(
+                    &mut self,
+                    cpu: &mut C,
+                    debug: Option<F>
+                ) -> Result<(),()>
+            {
+                if self.is_page3_contended() {
+                    self.ula_execute_single_step::<Ula128MemContention,_,_>(cpu, debug)
+                }
+                else {
+                    self.ula_execute_single_step::<UlaMemoryContention,_,_>(cpu, debug)
+                }
+            }
+        }
+    };
+}
+
+impl_control_unit_contention_ula128!(Ula128<B, X>);
 
 impl<B, X> Ula128<B, X>
     where B: BusDevice<Timestamp=VideoTs>

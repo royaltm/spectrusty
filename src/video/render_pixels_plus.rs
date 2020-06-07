@@ -1,13 +1,18 @@
+use core::convert::TryFrom;
 use core::fmt;
-use core::ops::{Deref, DerefMut};
 use core::marker::PhantomData;
+use core::ops::{Deref, DerefMut};
 use std::iter::Peekable;
+
+#[cfg(feature = "snapshot")]
+use serde::{Serialize, Deserialize};
 
 use bitflags::bitflags;
 
 use crate::clock::{VideoTs, Ts, VideoTsData6};
+use crate::chip::ColorMode;
 use crate::video::{
-    BorderSize, PixelBuffer, Palette, VideoFrame,
+    BorderColor, BorderSize, PixelBuffer, Palette, VideoFrame,
     frame_cache::{PIXEL_LINES, PlusVidFrameDataIterator},
 };
 use super::render_pixels::{
@@ -17,17 +22,20 @@ use super::render_pixels::{
     PAPER_MASK,
 };
 
-// #[cfg(feature = "snapshot")]
-// use serde::{Serialize, Deserialize};
-
 const CLUT_MASK: u8 = 0b1100_0000;
 
-/// The type used for ULAplus GRB/grayscale palette.
-// #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
-pub struct ColorPalette(pub [u8;64]);
+/// The type used for an ULAplus G3R3B2 / grayscale palette.
+#[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
+#[derive(Copy, Clone)]
+pub struct UlaPlusPalette(
+    #[cfg_attr(feature = "snapshot", serde(
+        serialize_with = "crate::memory::serde::serialize_mem_slice",
+        deserialize_with = "crate::memory::serde::deserialize_mem"))]
+    pub [u8;64]
+);
 
 bitflags! {
-    /// The render mode control flags.
+    /// Flags determining the rendering mode and the border color.
     ///
     /// ```text
     /// g p h 4 2 1
@@ -37,40 +45,44 @@ bitflags! {
     /// 1 1 0 b b b - (b)order, lo-res, palette on/grayscale on
     /// 0 0 1 i i i - (i)nk, hi-res
     /// 1 0 1 i i i - (i)nk, hi-res/grascale on
-    /// 0 1 1 - unknown mode
-    /// 1 1 1 - unknown mode
+    /// 0 1 1 - unknown mode (hi-res, palette ignored)
+    /// 1 1 1 - unknown mode (hi-res/grayscale on, palette ignored)
     /// ```
+    #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
+    #[cfg_attr(feature = "snapshot", serde(try_from = "u8", into = "u8"))]
     #[derive(Default)]
     pub struct RenderMode: u8 {
-        const MODE_MASK     = 0b111000;
-        const COLOR_MASK    = 0b000111;
-        const HI_RESOLUTION = 0b001000;
-        const PALETTE       = 0b010000;
-        const GRAYSCALE     = 0b100000;
-        const GRAY_PALETTE  = 0b110000;
-        const GRAY_HI_RES   = 0b101000;
-        const INDEX_MODE    = 0b000000;
+        const MODE_MASK      = 0b111000;
+        const COLOR_MASK     = 0b000111;
+        const HI_RESOLUTION  = 0b001000;
+        const COLOR_MODE     = 0b110000;
+        const PALETTE        = 0b010000;
+        const GRAYSCALE      = 0b100000;
+        const GRAY_PALETTE   = 0b110000;
+        const GRAY_HI_RES    = 0b101000;
+        const PALETTE_HI_RES = 0b011000;
+        const INDEX_MODE     = 0b000000;
     }
 }
 
-/// The type used to record changes of ULAPlus palette entries.
-#[derive(Debug,Default,Copy,Clone,PartialEq,Eq,PartialOrd,Ord)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TryFromU8RenderModeError(pub u8);
+
+/// The type used to record changes of ULAplus palette entries.
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PaletteChange {
-    /// The video timestamp when the change should be applied.
-    pub vts: VideoTs,
-    /// The index of palette entry to change: [0, 63].
-    pub index: u8,
-    /// A value to set the palette entry to.
-    pub color: u8
+    vts: VideoTs,
+    index: u8,
+    color: u8
 }
 
-impl Default for ColorPalette {
+impl Default for UlaPlusPalette {
     fn default() -> Self {
-        ColorPalette([0u8;64])
+        UlaPlusPalette([0u8;64])
     }
 }
 
-impl Deref for ColorPalette {
+impl Deref for UlaPlusPalette {
     type Target = [u8;64];
 
     fn deref(&self) -> &Self::Target {
@@ -78,13 +90,13 @@ impl Deref for ColorPalette {
     }
 }
 
-impl DerefMut for ColorPalette {
+impl DerefMut for UlaPlusPalette {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
 
-impl fmt::Debug for ColorPalette {
+impl fmt::Debug for UlaPlusPalette {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_list().entries(self.0.iter()).finish()
     }
@@ -117,12 +129,45 @@ impl RenderMode {
     pub fn is_palette(self) -> bool {
         self.intersects(RenderMode::PALETTE)
     }
+    /// Changes the color mode and returns boolean indicating if the color mode has changed.
+    pub fn set_color_mode(&mut self, mode: ColorMode) -> bool {
+        let color_mode = RenderMode::from_bits_truncate(mode.bits() << 4);
+        let mode_diff = (*self ^ color_mode) & RenderMode::COLOR_MODE  ;
+        if mode_diff.is_empty() {
+            false
+        }
+        else {
+            *self ^= mode_diff;
+            true
+        }
+    }
 }
 
-impl From<u8> for RenderMode {
-    #[inline]
-    fn from(mode: u8) -> Self {
-        RenderMode::from_bits_truncate(mode)
+impl std::error::Error for TryFromU8RenderModeError {}
+
+impl fmt::Display for TryFromU8RenderModeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "converted integer (0x{:x}) contains extraneous bits for `RenderMode`", self.0)
+    }
+}
+
+impl TryFrom<u8> for RenderMode {
+    type Error = TryFromU8RenderModeError;
+    fn try_from(mode: u8) -> core::result::Result<Self, Self::Error> {
+        RenderMode::from_bits(mode)
+                   .ok_or_else(|| TryFromU8RenderModeError(mode))
+    }
+}
+
+impl From<RenderMode> for u8 {
+    fn from(mode: RenderMode) -> u8 {
+        mode.bits()
+    }
+}
+
+impl From<RenderMode> for ColorMode {
+    fn from(mode: RenderMode) -> ColorMode {
+        ColorMode::from_bits_truncate((mode & RenderMode::COLOR_MODE).bits() >> 4)
     }
 }
 
@@ -130,6 +175,13 @@ impl From<VideoTsData6> for RenderMode {
     #[inline]
     fn from(vtsr: VideoTsData6) -> Self {
         RenderMode::from_bits_truncate(vtsr.into_data())
+    }
+}
+
+impl From<BorderColor> for RenderMode {
+    #[inline]
+    fn from(border: BorderColor) -> Self {
+        RenderMode::from_bits_truncate(border.into())
     }
 }
 
@@ -146,30 +198,43 @@ impl From<(VideoTs, u8, u8)> for PaletteChange {
 }
 
 impl PaletteChange {
+    /// Returns a new instance of `PaletteChange`.
+    ///
+    /// * `vts` - the video timestamp after which the change should be applied.
+    /// * `index` - the index of palette entry to change: [0, 63].
+    /// * `color` - a value to set the palette entry to.
     #[inline]
     pub fn new(vts: VideoTs, index: u8, color: u8) -> Self {
         PaletteChange { vts, index: index & 63, color }
     }
     /// Updates the color palette and returns an updated index: [0, 63].
     #[inline]
-    pub fn update_palette(self, palette: &mut ColorPalette) -> u8 {
+    pub fn update_palette(self, palette: &mut UlaPlusPalette) -> u8 {
         let PaletteChange { mut index, color, .. } = self;
         index &= 63;
         palette[index as usize] = color;
         index
+    }
+    /// Returns the index of palette entry to change: [0, 63].
+    pub fn index(&self) -> usize {
+        self.index as usize & 63
+    }
+    /// Returns the color value to set the palette entry to.
+    pub fn color(&self) -> u8 {
+        self.color
     }
 }
 
 /// Implements a method to render the double pixel density image of a video frame for ULAplus/SCLD modes.
 #[derive(Debug)]
 pub struct RendererPlus<'r, VD, MI, PI> {
-    /// A render mode at the beginning of the frame (includes the border color).
+    /// A rendering mode at the beginning of the frame (includes the border color or hi-res ink color).
     pub render_mode: RenderMode,
     /// A palette is being modified during the rendering of pixels.
-    pub palette: &'r mut ColorPalette,
+    pub palette: &'r mut UlaPlusPalette,
     /// An iterator of ink/paper pixels and attributes by line.
     pub frame_image_producer: VD,
-    /// Changes to render mode and border color.
+    /// Changes to the screen mode and the border color.
     pub mode_changes: MI,
     /// Changes to the palette.
     pub palette_changes: PI,
@@ -189,7 +254,7 @@ struct Worker<'r, 'a,
     border_pixel: B::Pixel,
     hi_res_pixel: B::Pixel,
     render_mode: RenderMode,
-    palette: &'r mut ColorPalette,
+    palette: &'r mut UlaPlusPalette,
     mode_changes: Peekable<MI>,
     palette_changes: Peekable<PI>,
     border_size: BorderSize,
@@ -254,10 +319,6 @@ impl<'r, VD, MI, PI> RendererPlus<'r, VD, MI, PI>
         // render bottom border
         for (rgb_line, vc) in line_chunks_vc {
             worker.render_border_line(rgb_line, vc);
-        }
-        // drain palette changes
-        for vts_pal in worker.palette_changes {
-            vts_pal.update_palette(worker.palette);
         }
     }
 }
@@ -403,7 +464,7 @@ fn attr_to_ink_paper(attr: u8) -> (u8, u8) {
 }
 
 #[inline(always)]
-fn attr_to_palette_color(attr: u8, palette: &ColorPalette) -> (u8, u8) {
+fn attr_to_palette_color(attr: u8, palette: &UlaPlusPalette) -> (u8, u8) {
     let clut = (attr & CLUT_MASK) >> 2;
     let ink_index = clut | (attr & INK_MASK);
     let ink_grb = palette[ink_index as usize];
@@ -413,16 +474,18 @@ fn attr_to_palette_color(attr: u8, palette: &ColorPalette) -> (u8, u8) {
 }
 
 #[inline(always)]
-fn get_border_pixel<P: Palette>(render_mode: RenderMode, palette: &ColorPalette) -> P::Pixel {
+fn get_border_pixel<P: Palette>(render_mode: RenderMode, palette: &UlaPlusPalette) -> P::Pixel {
     let border = render_mode.color_index();
     match render_mode & RenderMode::MODE_MASK {
-        RenderMode::PALETTE => P::get_pixel_grb8( palette[(8|border) as usize] ),
-        RenderMode::GRAY_PALETTE => P::get_pixel_gray8( palette[(8|border) as usize] ),
-        RenderMode::GRAY_HI_RES => P::get_pixel_gray4( border ^ INK_MASK ),
-        RenderMode::HI_RESOLUTION => P::get_pixel( border ^ INK_MASK ),
-        RenderMode::GRAYSCALE => P::get_pixel_gray4( border ),
-        RenderMode::INDEX_MODE => P::get_pixel(border),
-        _ => unimplemented!("Unimplemented render mode (palette + hi-res)")
+        RenderMode::PALETTE        => P::get_pixel_grb8( palette[(8|border) as usize] ),
+        RenderMode::GRAY_PALETTE   => P::get_pixel_gray8( palette[(8|border) as usize] ),
+        RenderMode::GRAY_HI_RES|
+        RenderMode::MODE_MASK      => P::get_pixel_gray4( border ^ INK_MASK ),
+        RenderMode::HI_RESOLUTION|
+        RenderMode::PALETTE_HI_RES => P::get_pixel( border ^ INK_MASK ),
+        RenderMode::GRAYSCALE      => P::get_pixel_gray4( border ),
+        RenderMode::INDEX_MODE     => P::get_pixel(border),
+        _ => unreachable!()
     }
 }
 

@@ -2,22 +2,16 @@ use core::num::NonZeroU32;
 use crate::audio::*;
 #[cfg(feature = "peripherals")]
 use crate::peripherals::ay::audio::AyAudioFrame;
-#[cfg(feature = "peripherals")]
-use crate::peripherals::bus::ay::AyAudioVBusDevice;
-use crate::video::VideoFrame;
-use crate::memory::PagedMemory8k;
+use crate::video::Video;
 use crate::chip::{
     EarIn, MicOut, ReadEarMode,
-    ula::Ula
 };
-use super::Scld;
+use super::UlaPlus;
 
 #[cfg(feature = "peripherals")]
-impl<A, M, B, X, F> AyAudioFrame<A> for Scld<M, B, X, F>
+impl<A, U> AyAudioFrame<A> for UlaPlus<U>
     where A: Blep,
-          M: PagedMemory8k,
-          B: AyAudioVBusDevice,
-          F: VideoFrame
+          U: Video + AyAudioFrame<A>
 {
     #[inline]
     fn render_ay_audio_frame<V: AmpLevels<A::SampleDelta>>(&mut self, blep: &mut A, chans: [usize; 3]) {
@@ -25,10 +19,9 @@ impl<A, M, B, X, F> AyAudioFrame<A> for Scld<M, B, X, F>
     }
 }
 
-impl<A, M, B, X, V> AudioFrame<A> for Scld<M, B, X, V>
+impl<A, U> AudioFrame<A> for UlaPlus<U>
     where A: Blep,
-          M: PagedMemory8k,
-          Ula<M, B, X, V>: AudioFrame<A>
+          U: Video + AudioFrame<A>
 {
     #[inline]
     fn ensure_audio_frame_time(&self, blep: &mut A, sample_rate: u32, cpu_hz: f64) {
@@ -41,10 +34,9 @@ impl<A, M, B, X, V> AudioFrame<A> for Scld<M, B, X, V>
     }
 }
 
-impl<A, M, B, X, F> EarMicOutAudioFrame<A> for Scld<M, B, X, F>
+impl<A, U> EarMicOutAudioFrame<A> for UlaPlus<U>
     where A: Blep,
-          M: PagedMemory8k,
-          F: VideoFrame
+          U: Video + EarMicOutAudioFrame<A>
 {
     #[inline(always)]
     fn render_earmic_out_audio_frame<V: AmpLevels<A::SampleDelta>>(&self, blep: &mut A, channel: usize) {
@@ -52,10 +44,9 @@ impl<A, M, B, X, F> EarMicOutAudioFrame<A> for Scld<M, B, X, F>
     }
 }
 
-impl<A, M, B, X, F> EarInAudioFrame<A> for Scld<M, B, X, F>
+impl<A, U> EarInAudioFrame<A> for UlaPlus<U>
     where A: Blep,
-          M: PagedMemory8k,
-          F: VideoFrame
+          U: Video + EarInAudioFrame<A>
 {
     #[inline(always)]
     fn render_ear_in_audio_frame<V: AmpLevels<A::SampleDelta>>(&self, blep: &mut A, channel: usize) {
@@ -63,9 +54,8 @@ impl<A, M, B, X, F> EarInAudioFrame<A> for Scld<M, B, X, F>
     }
 }
 
-impl<M, B, X, V> EarIn for Scld<M, B, X, V>
-    where M: PagedMemory8k,
-          V: VideoFrame
+impl<U> EarIn for UlaPlus<U>
+    where U: Video + EarIn
 {
     fn set_ear_in(&mut self, ear_in: bool, delta_fts: u32) {
         self.ula.set_ear_in(ear_in, delta_fts)
@@ -94,11 +84,10 @@ impl<M, B, X, V> EarIn for Scld<M, B, X, V>
     }
 }
 
-impl<'a, M: 'a, B: 'a, X: 'a, V: 'a> MicOut<'a> for Scld<M, B, X, V>
-    where M: PagedMemory8k,
-          V: VideoFrame
+impl<'a, U: 'a> MicOut<'a> for UlaPlus<U>
+    where U: Video + MicOut<'a>
 {
-    type PulseIter = <Ula<M, B, X, V> as MicOut<'a>>::PulseIter;
+    type PulseIter = <U as MicOut<'a>>::PulseIter;
     fn mic_out_pulse_iter(&'a self) -> Self::PulseIter {
         self.ula.mic_out_pulse_iter()
     }

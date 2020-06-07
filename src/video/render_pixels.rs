@@ -2,7 +2,7 @@ use core::marker::PhantomData;
 use std::iter::Peekable;
 use crate::clock::{VideoTs, Ts, VideoTsData3};
 use crate::video::{
-    BorderSize, PixelBuffer, Palette, VideoFrame,
+    BorderColor, BorderSize, PixelBuffer, Palette, VideoFrame,
     frame_cache::{PIXEL_LINES, VideoFrameDataIterator}
 };
 
@@ -14,8 +14,8 @@ pub const PAPER_MASK : u8 = 0b0011_1000;
 /// Implements a method to render an image of a video frame for classic ZX Spectrum low resolution modes.
 #[derive(Debug)]
 pub struct Renderer<VD, BI> {
-    /// A border color value 0..=7 at the beginning of the frame.
-    pub border: u8,
+    /// A border color at the beginning of the frame.
+    pub border: BorderColor,
     /// An iterator of ink/paper pixels and attributes by line.
     pub frame_image_producer: VD,
     /// Changes to border color registered with timestamps.
@@ -60,7 +60,7 @@ impl<VD, BI> Renderer<VD, BI>
             invert_flash
         } = self;
 
-        let border_pixel = P::get_pixel(border);
+        let border_pixel = P::get_pixel(border.into());
         let border_changes = border_changes.peekable();
         let border_top = V::border_top_vsl_iter(border_size);
         let border_bot = V::border_bot_vsl_iter(border_size);
