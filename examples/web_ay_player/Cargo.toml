@@ -7,17 +7,17 @@ workspace = "../.."
 publish = false
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-wasm-bindgen = {version = "0.2.59", features = ["serde-serialize"]}
-wasm-bindgen-futures = "0.4.9"
-js-sys = "0.3.36"
+wasm-bindgen = {version = "0.2", features = ["serde-serialize"]}
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
 serde = "1.0"
 serde_json = "1.0"
 
 [dependencies.web-sys]
-version = "0.3.36"
+version = "0.3"
 features = [
   'AudioBuffer',
   'AudioBufferSourceNode',
@@ -36,10 +36,6 @@ features = [
   'Response',
   'Window'
 ]
-
-# [dependencies.rand]
-# version = "^0.7"
-# features = ["wasm-bindgen"]
 
 [dependencies.spectrusty]
 version = "*"
