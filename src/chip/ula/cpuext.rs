@@ -86,33 +86,32 @@ impl<U, B, X> UlaCpuExt for U
         where Self: Memory<Timestamp=VideoTs> + Io<Timestamp=VideoTs>
     {
         let mut vtsc = self.ensure_next_frame_vtsc::<T>();
-        if cpu.is_halt() && !cpu.get_iffs().0 {
-            // HALT forever (INT disabled)
-            *vtsc = execute_halted_state_until_eof::<Self::VideoFrame,T,_>(vtsc.into(), cpu);
-        }
-        else {
-            loop {
-                match cpu.execute_with_limit(self, &mut vtsc, Self::VideoFrame::VSL_COUNT) {
-                    Ok(()) => {
-                        *vtsc = Self::ula_check_halt(vtsc.into(), cpu);
-                        break
-                    },
-                    Err(BreakCause::Halt) => {
-                        *vtsc = execute_halted_state_until_eof::<Self::VideoFrame,T,_>(vtsc.into(), cpu);
-                        break
-                    }
-                    Err(_) => {
-                        *vtsc = Self::ula_check_halt(vtsc.into(), cpu);
-                        if vtsc.is_eof() {
-                            break
-                        }
-                        else {
-                            self.set_video_ts(vtsc.into());
-                            return false
-                        }
+        let mut vc_limit = 1;
+        while !vtsc.is_eof() {
+            match cpu.execute_with_limit(self, &mut vtsc, vc_limit) {
+                Ok(()) => {
+                    *vtsc = Self::ula_check_halt(vtsc.into(), cpu);
+                },
+                Err(BreakCause::Halt) => {
+                    if vtsc.vc < 1 {
+                        // if before frame interrupt
+                        continue
                     }
                 }
+                Err(_) => {
+                    *vtsc = Self::ula_check_halt(vtsc.into(), cpu);
+                    if vtsc.is_eof() {
+                        break
+                    }
+                    self.set_video_ts(vtsc.into());
+                    return false
+                }
             }
+            if cpu.is_halt() {
+                *vtsc = execute_halted_state_until_eof::<Self::VideoFrame,T,_>(vtsc.into(), cpu);
+                break;
+            }
+            vc_limit = Self::VideoFrame::VSL_COUNT;
         }
         let vts = vtsc.into();
         self.set_video_ts(vts);
@@ -168,9 +167,9 @@ impl<U, B, X> UlaCpuExt for U
 pub fn execute_halted_state_until_eof<V: VideoFrame,
                                       M: MemoryContention,
                                       C: Cpu>(
-            mut tsc: VideoTs,
-            cpu: &mut C
-        ) -> VideoTs
+        mut tsc: VideoTs,
+        cpu: &mut C
+    ) -> VideoTs
 {
     debug_assert_eq!(0, V::HTS_COUNT % M1_CYCLE_TS as Ts);
     if tsc.vc < 0 || tsc.vc > V::VSL_COUNT || !V::is_normalized_vts(tsc) {
@@ -179,8 +178,9 @@ pub fn execute_halted_state_until_eof<V: VideoFrame,
     let mut r_incr: i32 = 0;
     if M::is_contended_address(cpu.get_pc()) && tsc.vc < V::VSL_PIXELS.end {
         let VideoTs { mut vc, mut hc } = tsc; // assume tsc is normalized
-        // move hc to the beginning of range
-        if vc < V::VSL_PIXELS.start { // border top
+        // border top
+        if vc < V::VSL_PIXELS.start {
+            // move hc to the beginning of range
             let hc_end = V::HTS_RANGE.end + (hc - V::HTS_RANGE.end).rem_euclid(M1_CYCLE_TS as Ts);
             vc += 1;
             r_incr = (i32::from(V::VSL_PIXELS.start - vc) * V::HTS_COUNT as i32 +
@@ -188,17 +188,23 @@ pub fn execute_halted_state_until_eof<V: VideoFrame,
             hc = hc_end - V::HTS_COUNT;
             vc = V::VSL_PIXELS.start;
         }
-        else {
+        // contended area, normalize hc by iterating to the end of one line
+        while vc < V::VSL_PIXELS.end {
+            let hc0 = hc - V::HTS_COUNT;
+            let r_incr0 = r_incr;
             while hc < V::HTS_RANGE.end {
                 hc = V::contention(hc) + M1_CYCLE_TS as Ts;
                 r_incr += 1;
             }
             vc += 1;
             hc -= V::HTS_COUNT;
+            if (r_incr - r_incr0) * (M1_CYCLE_TS as i32) < (hc - hc0) as i32 {
+                break; // only when at least one contention encountered
+            }
         }
-        // contended area
+        // still contended area, calculate an R increase for a whole single line
         if vc < V::VSL_PIXELS.end {
-            let mut r_line = 0; // calculate an R increase for a whole single line
+            let mut r_line = 0;
             while hc < V::HTS_RANGE.end {
                 hc = V::contention(hc) + M1_CYCLE_TS as Ts;
                 r_line += 1;
@@ -210,84 +216,17 @@ pub fn execute_halted_state_until_eof<V: VideoFrame,
         tsc.vc = V::VSL_PIXELS.end;
         tsc.hc = hc;
     }
+
     let vc = V::VSL_COUNT;
     let hc = tsc.hc.rem_euclid(M1_CYCLE_TS as Ts) - M1_CYCLE_TS as Ts;
     r_incr += (
                 (i32::from(vc) - i32::from(tsc.vc)) * V::HTS_COUNT as i32 +
                 (i32::from(hc) - i32::from(tsc.hc))
               ) / M1_CYCLE_TS as i32;
-    tsc.hc = hc;
-    tsc.vc = vc;
-    if r_incr >= 0 {
+    if r_incr > 0 {
+        tsc.hc = hc;
+        tsc.vc = vc;
         cpu.add_r(r_incr);
     }
-    else {
-        panic!("halt: a video timestamp exceeds the end of frame boundary");
-    }
     tsc
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::z80emu::{*, opconsts::HALT_OPCODE};
-    use crate::memory::{Memory64k, ZxMemory};
-    use super::*;
-    use super::super::{Ula, UlaMemoryContention, UlaVideoFrame};
-    type TestUla = Ula::<Memory64k>;
-
-    fn test_ula_contended_halt(addr: u16, vc: Ts, hc: Ts) {
-        let mut ula = TestUla::default();
-        ula.tsc.vc = vc;
-        ula.tsc.hc = hc;
-        ula.memory.write(addr, HALT_OPCODE);
-        let mut cpu = Z80NMOS::default();
-        cpu.reset();
-        cpu.set_pc(addr);
-        let mut cpu1 = cpu.clone();
-        let mut ula1 = ula.clone();
-        // execute_halted_state_until_eof::<UlaVideoFrame,UlaMemoryContention,_>(ula.tsc, &mut cpu);
-        assert_eq!(cpu.is_halt(), false);
-        ula.execute_next_frame(&mut cpu);
-        assert_eq!(cpu.is_halt(), true);
-        // chek without execute_halted_state_until_eof
-        assert_eq!(cpu1.is_halt(), false);
-        let mut tsc1 = ula1.ensure_next_frame_vtsc::<UlaMemoryContention>();
-        let mut was_halt = false;
-        loop {
-            match cpu1.execute_with_limit(&mut ula1, &mut tsc1, UlaVideoFrame::VSL_COUNT) {
-                Ok(()) => break,
-                Err(BreakCause::Halt) => {
-                    if was_halt {
-                        panic!("must not halt again");
-                    }
-                    was_halt = true;
-                    continue
-                },
-                Err(_) => unreachable!()
-            }
-        }
-        assert_eq!(cpu1.is_halt(), true);
-        assert_eq!(was_halt, true);
-        while tsc1.tsc.hc < -(M1_CYCLE_TS as Ts) {
-            match cpu1.execute_next::<_,_,CpuDebugFn>(&mut ula1, &mut tsc1, None) {
-                Ok(()) => (),
-                Err(_) => unreachable!()
-            }
-        }
-        // println!("{:?} {:?} fr: {:?}", tsc1.tsc, ula.tsc, ula.frame_tstate());
-        assert_eq!(tsc1.tsc, ula.tsc);
-        assert_eq!(cpu1, cpu);
-        // println!("=================================");
-    }
-
-    #[test]
-    fn ula_works() {
-        for vc in 0..=UlaVideoFrame::VSL_COUNT {
-            // println!("vc: {:?}", vc);
-            for hc in UlaVideoFrame::HTS_RANGE {
-                test_ula_contended_halt(0, vc, hc);
-                test_ula_contended_halt(0x4000, vc, hc);
-            }
-        }
-    }
 }
