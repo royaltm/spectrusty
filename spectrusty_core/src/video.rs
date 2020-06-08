@@ -11,7 +11,7 @@ use serde::{Serialize, Deserialize};
 
 use bitflags::bitflags;
 
-use crate::clock::{Ts, FTs, VideoTs};
+use crate::clock::{Ts, FTs, VideoTs, VFrameTsCounter, MemoryContention};
 use crate::chip::UlaPortFlags;
 
 pub use pixel::{Palette, PixelBuffer};
@@ -117,6 +117,10 @@ pub trait Video {
     fn visible_screen_bank(&self) -> usize { 0 }
     /// Returns the current value of the video T-state counter.
     fn current_video_ts(&self) -> VideoTs;
+    /// Returns the current value of the video T-state clock.
+    fn current_video_clock<T: MemoryContention>(&self) -> VFrameTsCounter<Self::VideoFrame, T> {
+        VFrameTsCounter::from(self.current_video_ts())
+    }
 }
 /// A collection of static methods and constants raleted to video parameters.
 /// ```text
