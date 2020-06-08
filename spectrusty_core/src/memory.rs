@@ -86,7 +86,7 @@ pub struct MemPageOffset {
 }
 
 /// A type returned by [MemPageMutIter] iterator.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum PageMutSlice<'a> {
     Rom(&'a mut [u8]),
     Ram(&'a mut [u8])
@@ -202,7 +202,7 @@ pub trait ZxMemory: Sized {
     /// `page` should be less or equal to PAGES_MAX.
     fn page_ref(&self, page: u8) -> Result<&[u8]>;
     /// `page` should be less or equal to PAGES_MAX.
-    fn page_mut(&mut self, page: u8) -> Result<& mut[u8]>;
+    fn page_mut(&mut self, page: u8) -> Result<&mut[u8]>;
     /// `rom_bank` should be less or equal to `ROM_BANKS_MAX`.
     fn rom_bank_ref(&self, rom_bank: usize) -> Result<&[u8]>;
     /// `rom_bank` should be less or equal to `ROM_BANKS_MAX`.

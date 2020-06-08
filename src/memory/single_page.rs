@@ -41,6 +41,9 @@ pub struct Memory64k {
     mem: Box<[u8;0x10000]>
 }
 
+const ROM_SIZE: usize = 0x4000;
+const ROM_TOP: u16 = (ROM_SIZE - 1) as u16;
+
 impl Default for Memory16k {
     fn default() -> Self {
         Memory16k { mem: Box::new([0; 0x8000]) }
@@ -60,12 +63,12 @@ impl Default for Memory64k {
 }
 
 macro_rules! impl_zxmemory {
-    ($ty:ty: ROMTOP($romtop:expr) RAMBOT($rambot:expr) RAMTOP($ramtop:expr)) => {
+    ($ty:ty: RAMBOT($rambot:expr) RAMTOP($ramtop:expr)) => {
         impl ZxMemory for $ty {
-            const ROM_SIZE: usize = 0x4000;
+            const ROM_SIZE: usize = ROM_SIZE;
             const RAMTOP: u16 = $ramtop;
             const PAGES_MAX: u8 = 1;
-            const SCR_BANKS_MAX: usize = 0;
+            const SCR_BANKS_MAX: usize = 1;
             const ROM_BANKS_MAX: usize = 0;
             const RAM_BANKS_MAX: usize = 0;
             // const FEATURES: MemoryFeatures = MemoryFeatures::NONE;
@@ -123,7 +126,7 @@ macro_rules! impl_zxmemory {
                         let ptr16 = ptr as *mut u16;
                         ptr16.write_unaligned(val.to_le());
                     }
-                    a if a == $romtop => {
+                    a if a == ROM_TOP => {
                         self.write(a.wrapping_add(1), (val >> 8) as u8);
                     }
                     a if a == $ramtop => {
@@ -154,19 +157,23 @@ macro_rules! impl_zxmemory {
             }
             #[inline]
             fn screen_ref(&self, screen_bank: usize) -> Result<&ScreenArray> {
-                if screen_bank > Self::SCR_BANKS_MAX {
-                    return Err(ZxMemoryError::InvalidBankIndex)
-                }
+                let start = match screen_bank {
+                    0 => 0x4000,
+                    1 => 0x6000,
+                    _ => return Err(ZxMemoryError::InvalidBankIndex)
+                };
                 Ok(screen_slice_to_array_ref(
-                    &self.mem[0x4000..0x4000+SCREEN_SIZE as usize]))
+                    &self.mem[start..start+SCREEN_SIZE as usize]))
             }
             #[inline]
             fn screen_mut(&mut self, screen_bank: usize) -> Result<&mut ScreenArray> {
-                if screen_bank > Self::SCR_BANKS_MAX {
-                    return Err(ZxMemoryError::InvalidBankIndex)
-                }
+                let start = match screen_bank {
+                    0 => 0x4000,
+                    1 => 0x6000,
+                    _ => return Err(ZxMemoryError::InvalidBankIndex)
+                };
                 Ok(screen_slice_to_array_mut(
-                    &mut self.mem[0x4000..0x4000+SCREEN_SIZE as usize]))
+                    &mut self.mem[start..start+SCREEN_SIZE as usize]))
             }
             #[inline]
             fn page_kind(&self, page: u8) -> Result<MemoryKind> {
@@ -199,29 +206,28 @@ macro_rules! impl_zxmemory {
                 if rom_bank > Self::ROM_BANKS_MAX {
                     return Err(ZxMemoryError::InvalidBankIndex)
                 }
-                Ok(&self.mem[..=$romtop])
+                Ok(&self.mem[..Self::ROM_SIZE])
             }
 
             fn rom_bank_mut(&mut self, rom_bank: usize) -> Result<&mut[u8]> {
                 if rom_bank > Self::ROM_BANKS_MAX {
                     return Err(ZxMemoryError::InvalidBankIndex)
                 }
-                Ok(&mut self.mem[..=$romtop])
+                Ok(&mut self.mem[..Self::ROM_SIZE])
             }
 
             fn ram_bank_ref(&self, ram_bank: usize) -> Result<&[u8]> {
                 if ram_bank > Self::RAM_BANKS_MAX {
                     return Err(ZxMemoryError::InvalidBankIndex)
                 }
-                Ok(&self.mem[$rambot..=$ramtop])
+                Ok(&self.mem[Self::ROM_SIZE..=$ramtop])
             }
-
 
             fn ram_bank_mut(&mut self, ram_bank: usize) -> Result<&mut[u8]> {
                 if ram_bank > Self::RAM_BANKS_MAX {
                     return Err(ZxMemoryError::InvalidBankIndex)
                 }
-                Ok(&mut self.mem[$rambot..=$ramtop])
+                Ok(&mut self.mem[Self::ROM_SIZE..=$ramtop])
             }
 
             fn map_rom_bank(&mut self, rom_bank: usize, page: u8) -> Result<()> {
@@ -245,13 +251,14 @@ macro_rules! impl_zxmemory {
             }
 
             fn page_index_at(&self, address: u16) -> Result<MemPageOffset> {
+                const RAM_BOT: u16 = ROM_TOP + 1;
                 #[allow(unreachable_patterns)]
                 match address {
-                    a @ 0..=$romtop => {
+                    a @ 0..=ROM_TOP => {
                         Ok(MemPageOffset {kind: MemoryKind::Rom, index: 0, offset: a})
                     }
-                    a @ $rambot..=$ramtop => {
-                        Ok(MemPageOffset {kind: MemoryKind::Ram, index: 1, offset: a - $rambot})
+                    a @ RAM_BOT..=$ramtop => {
+                        Ok(MemPageOffset {kind: MemoryKind::Ram, index: 1, offset: a - RAM_BOT})
                     }
                     _ => Err(ZxMemoryError::UnsupportedAddressRange)
                 }
@@ -260,6 +267,58 @@ macro_rules! impl_zxmemory {
     };
 }
 
-impl_zxmemory! { Memory16k: ROMTOP(0x3FFF) RAMBOT(0x4000) RAMTOP(0x7FFF) }
-impl_zxmemory! { Memory48k: ROMTOP(0x3FFF) RAMBOT(0x4000) RAMTOP(0xFFFF) }
-impl_zxmemory! { Memory64k: ROMTOP(0x3FFF) RAMBOT(0x0000) RAMTOP(0xFFFF) }
+impl_zxmemory! { Memory16k: RAMBOT(0x4000) RAMTOP(0x7FFF) }
+impl_zxmemory! { Memory48k: RAMBOT(0x4000) RAMTOP(0xFFFF) }
+impl_zxmemory! { Memory64k: RAMBOT(0x0000) RAMTOP(0xFFFF) }
+
+#[cfg(test)]
+mod tests {
+    use crate::memory::*;
+    use super::*;
+
+    #[test]
+    fn test_memory_single_page_work() {
+       memory_single_page_work::<Memory16k>();
+       memory_single_page_work::<Memory48k>();
+       memory_single_page_work::<Memory64k>();
+
+       memory_single_page_rom::<Memory16k>(true);
+       memory_single_page_rom::<Memory48k>(true);
+       memory_single_page_rom::<Memory64k>(false);
+    }
+
+    fn memory_single_page_rom<M: ZxMemory + Default>(is_ro: bool) {
+        let mut mem = M::default();
+        for addr in 0..=ROM_TOP {
+            assert_eq!(mem.read(addr), 0);
+            mem.write(addr, 201);
+            if is_ro {
+                assert_eq!(mem.read(addr), 0);
+            }
+            else {
+                assert_eq!(mem.read(addr), 201);
+            }
+        }        
+        for addr in ROM_TOP + 1..=M::RAMTOP {
+            assert_eq!(mem.read(addr), 0);
+            mem.write(addr, 201);
+            assert_eq!(mem.read(addr), 201);
+        }        
+    }
+
+
+    fn memory_single_page_work<M: ZxMemory + Default + Clone>() {
+        assert_eq!(M::ROM_SIZE, 0x4000);
+        assert_eq!(M::PAGE_SIZE, 0x4000);
+        assert_eq!(M::PAGES_MAX, 1);
+        assert_eq!(M::SCR_BANKS_MAX, 1);
+        assert_eq!(M::RAM_BANKS_MAX, 0);
+        assert_eq!(M::ROM_BANKS_MAX, 0);
+        let mut mem = M::default();
+        let mut mem1 = mem.clone();
+        let pages: Vec<_> = mem.page_slice_iter_mut(..).unwrap().collect();
+        assert_eq!(pages.len(), 2);
+        assert_eq!(pages[0], PageMutSlice::Rom(mem1.page_mut(0).unwrap()));
+        assert_eq!(pages[1], PageMutSlice::Ram(mem1.page_mut(1).unwrap()));
+    }
+}
