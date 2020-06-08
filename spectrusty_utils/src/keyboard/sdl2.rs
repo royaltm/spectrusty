@@ -2,7 +2,7 @@
 //!
 //! Requires "sdl2" feature to be enabled.
 use sdl2::keyboard::{Mod as Modifier, Keycode};
-use spectrusty_peripherals::{ZXKeyboardMap,
+use spectrusty::peripherals::{ZXKeyboardMap,
     joystick::{JoystickInterface, Directions},
     serial::KeypadKeys
 };

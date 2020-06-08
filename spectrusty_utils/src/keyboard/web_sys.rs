@@ -2,7 +2,7 @@
 //!
 //! Requires "web-sys" feature to be enabled.
 use web_sys::KeyboardEvent;
-use spectrusty_peripherals::{ZXKeyboardMap,
+use spectrusty::peripherals::{ZXKeyboardMap,
     joystick::{JoystickInterface, Directions},
     serial::KeypadKeys
 };

@@ -9,7 +9,8 @@ default = []
 
 [dependencies]
 spectrusty_formats = { path = "../spectrusty_formats", version = "0.1" }
-spectrusty_peripherals = { path = "../spectrusty_peripherals", version = "0.1" }
+# spectrusty_peripherals = { path = "../spectrusty_peripherals", version = "0.1" }
+spectrusty = { path = "..", version = "0.1" }
 
 [dependencies.minifb]
 version = "0.16"

@@ -2,7 +2,7 @@
 //!
 //! Requires "winit" feature to be enabled.
 use winit::event::{VirtualKeyCode, ElementState, ModifiersState};
-use spectrusty_peripherals::{ZXKeyboardMap,
+use spectrusty::peripherals::{ZXKeyboardMap,
     joystick::{JoystickInterface, Directions},
     serial::KeypadKeys
 };

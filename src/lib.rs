@@ -79,7 +79,6 @@ Implemented by other components:
 pub use spectrusty_core::z80emu;
 pub use spectrusty_core::clock;
 #[cfg(feature = "formats")] pub use spectrusty_formats as formats;
-#[cfg(feature = "utils")] pub use spectrusty_utils as utils;
 
 pub mod audio;
 pub mod bus;

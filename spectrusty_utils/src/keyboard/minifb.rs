@@ -2,7 +2,7 @@
 //!
 //! Requires "minifb" feature to be enabled.
 use minifb::Key;
-use spectrusty_peripherals::{ZXKeyboardMap,
+use spectrusty::peripherals::{ZXKeyboardMap,
     joystick::{JoystickInterface, Directions},
     serial::KeypadKeys
 };

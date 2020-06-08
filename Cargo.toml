@@ -17,17 +17,13 @@ all-features = true
 
 [features]
 default = ["snapshot", "compression", "peripherals", "formats"]
-sdl2 = ["spectrusty_audio/sdl2", "spectrusty_utils/sdl2"]
+sdl2 = ["spectrusty_audio/sdl2"]
 cpal = ["spectrusty_audio/cpal"]
-minifb = ["spectrusty_utils/minifb"]
-web-sys = ["spectrusty_utils/web-sys"]
-winit = ["spectrusty_utils/winit"]
 compression = ["spectrusty_core/compression"]
 snapshot = ["serde", "arrayvec/serde", "spectrusty_core/snapshot", "spectrusty_peripherals/snapshot"]
 audio = ["spectrusty_audio"]
 formats = ["spectrusty_formats"]
 peripherals = ["spectrusty_peripherals"]
-utils = ["spectrusty_utils"]
 
 [dev-dependencies]
 smallvec = "1.1.0"
@@ -61,11 +57,6 @@ optional = true
 default-features = false
 version = "0.1"
 path = "spectrusty_peripherals"
-
-[dependencies.spectrusty_utils]
-optional = true
-version = "0.1"
-path = "spectrusty_utils"
 
 [dependencies]
 log = "0.4"
