@@ -30,6 +30,7 @@ smallvec = "1.1.0"
 serde_json = "1.0"
 bincode = "1.2"
 rand = {version = "0.7", features = ["small_rng"]}
+reqwest = { version = "0.10", features = ["blocking"] }
 
 [dependencies.serde]
 default-features = true

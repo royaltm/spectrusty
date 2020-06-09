@@ -41,7 +41,7 @@ pub use video_ntsc::UlaNTSCVidFrame;
 pub type UlaNTSC<M, B=NullDevice<VideoTs>, X=NoMemoryExtension> = Ula<M, B, X, UlaNTSCVidFrame>;
 
 /// Implements [MemoryContention] in a way that addresses in the range: [0x4000, 0x7FFF] are being contended.
-#[derive(Clone, Copy, Default, Debug, PartialEq)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct UlaMemoryContention;
 
 impl MemoryContention for UlaMemoryContention {

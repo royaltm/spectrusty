@@ -20,7 +20,7 @@ use super::{
     frame_cache::Ula128FrameProducer
 };
 
-#[derive(Clone, Copy, Default, Debug, PartialEq)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 pub struct Ula128VidFrame;
 

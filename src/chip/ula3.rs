@@ -31,7 +31,7 @@ use crate::clock::{VideoTs, FTs, VFrameTsCounter, MemoryContention, NoMemoryCont
 pub use video::Ula3VidFrame;
 
 /// Implements [MemoryContention] in a way that all addresses are being contended.
-#[derive(Clone, Copy, Default, Debug, PartialEq)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct FullMemContention;
 
 impl MemoryContention for FullMemContention {
@@ -40,7 +40,7 @@ impl MemoryContention for FullMemContention {
 }
 
 /// Implements [MemoryContention] in a way that addresses in the range: [0x0000, 0xBFFF] are being contended.
-#[derive(Clone, Copy, Default, Debug, PartialEq)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct Ula3MemContention;
 
 impl MemoryContention for Ula3MemContention {

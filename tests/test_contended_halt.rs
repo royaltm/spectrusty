@@ -1,3 +1,4 @@
+//! Tests the custom emulation of the Z80 halted state with the memory contention.
 use spectrusty::z80emu::{*, opconsts::HALT_OPCODE, host::cycles::M1_CYCLE_TS};
 use spectrusty::memory::{Memory64k, ZxMemory};
 use spectrusty::chip::{*, ula::*, ula128::*, ula3::*, plus::*};
@@ -71,18 +72,30 @@ fn ula_contended_all_tstates<U>()
              for<'a> UlaPlusInner<'a>
 {
     let mut sums = [0u32;2];
+    let mut test_line = |vc| for hc in U::VideoFrame::HTS_RANGE {
+        // println!("  hc: {:?}", hc);
+        sums[0] += ula_contended_halt::<U>(0, vc, hc) as u32;
+        sums[1] += ula_contended_halt::<U>(0x4000, vc, hc) as u32;
+    };
+
+    #[cfg(not(debug_assertions))]
     for vc in 0..=U::VideoFrame::VSL_COUNT {
         // println!("vc: {:?}", vc);
-        for hc in U::VideoFrame::HTS_RANGE {
-            // println!("  hc: {:?}", hc);
-            sums[0] += ula_contended_halt::<U>(0, vc, hc) as u32;
-            sums[1] += ula_contended_halt::<U>(0x4000, vc, hc) as u32;
-        }
+        test_line(vc);
+    }
+    #[cfg(debug_assertions)]
+    for vc in (0..3)
+              .chain(U::VideoFrame::VSL_PIXELS.start-3..U::VideoFrame::VSL_PIXELS.start + 4)
+              .chain(U::VideoFrame::VSL_PIXELS.end-3..U::VideoFrame::VSL_PIXELS.end + 4)
+              .chain(U::VideoFrame::VSL_COUNT-3..=U::VideoFrame::VSL_COUNT) {
+        // println!("vc: {:?}", vc);
+        test_line(vc);
     }
     assert_ne!(sums[0], sums[1]);
 }
 
 #[test]
+#[ignore]
 fn test_contened_halt() {
     println!("\nUla");
     ula_contended_all_tstates::<Ula<Memory64k>>();
@@ -105,7 +118,7 @@ fn ula_halt_irq<U>(vc: Ts, hc: Ts, late_timings: bool, halt_limit: u32) -> u16
     ula.set_video_counter(VideoTs::new(vc, hc));
     ula.memory_mut().fill_mem(.., || HALT_OPCODE).unwrap();
     ula.memory_mut().page_mut(0).unwrap()[0x38..0x3B].copy_from_slice(&[
-            // +13
+              // +13       IRQ
         0x03, // + 6 0038  INC  BC
         0xFB, // + 4 0039  EI
         0xC9, // +10 003A  RET

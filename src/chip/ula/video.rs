@@ -18,7 +18,7 @@ use super::frame_cache::{
     UlaFrameCache, UlaFrameProducer
 };
 
-#[derive(Clone, Copy, Default, Debug, PartialEq)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 pub struct UlaVideoFrame;
 

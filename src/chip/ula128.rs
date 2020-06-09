@@ -30,7 +30,7 @@ pub use video::Ula128VidFrame;
 
 /// Implements [MemoryContention] in a way that addresses in the range: [0x4000, 0x7FFF] and [0xC000, 0xFFFF]
 /// are being contended.
-#[derive(Clone, Copy, Default, Debug, PartialEq)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct Ula128MemContention;
 
 impl MemoryContention for Ula128MemContention {

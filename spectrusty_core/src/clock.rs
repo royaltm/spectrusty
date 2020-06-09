@@ -18,7 +18,7 @@ pub type Ts = i16;
 /// A timestamp type that consists of two video counters: vertical and horizontal.
 ///
 /// `VideoTs { vc: 0, hc: 0 }` marks the start of the video frame.
-#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Debug)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 pub struct VideoTs {
     /// A vertical counter - a video scan-line index.
@@ -33,7 +33,7 @@ pub struct VideoTs {
 ///
 /// Counts additional T-states according to contention specified by generic parameters:
 /// `V:` [VideoFrame] and `C:` [MemoryContention].
-#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Debug)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct VFrameTsCounter<V, C>  {
     /// The current timestamp value of this counter.
     pub tsc: VideoTs,
@@ -47,7 +47,7 @@ pub trait MemoryContention: Copy + Debug {
 }
 
 /// Implements [MemoryContention] in a way that no address is being contended.
-#[derive(Clone, Copy, Default, Debug, PartialEq)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct NoMemoryContention;
 
 impl MemoryContention for NoMemoryContention {
@@ -277,6 +277,37 @@ impl<V: VideoFrame, C> AddAssign<u32> for VFrameTsCounter<V, C> {
     }
 }
 
+#[macro_export]
+macro_rules! ula_io_contention {
+    ($mc:ident, $port:expr, $hc:ident, $contention:path) => {
+        {
+            use $crate::z80emu::host::cycles::*;
+            if $mc::is_contended_address($port) {
+                $hc = $contention($hc) + IO_IORQ_LOW_TS as Ts;
+                if $port & 1 == 0 { // C:1, C:3
+                    $contention($hc) + (IO_CYCLE_TS - IO_IORQ_LOW_TS) as Ts
+                }
+                else { // C:1, C:1, C:1, C:1
+                    let mut hc1 = $hc;
+                    for _ in 0..(IO_CYCLE_TS - IO_IORQ_LOW_TS) {
+                        hc1 = $contention(hc1) + 1;
+                    }
+                    hc1
+                }
+            }
+            else {
+                $hc += IO_IORQ_LOW_TS as Ts;
+                if $port & 1 == 0 { // N:1 C:3
+                    $contention($hc) + (IO_CYCLE_TS - IO_IORQ_LOW_TS) as Ts
+                }
+                else { // N:4
+                    $hc + (IO_CYCLE_TS - IO_IORQ_LOW_TS) as Ts
+                }
+            }
+        }
+    };
+}
+
 impl<V: VideoFrame, C: MemoryContention> Clock for VFrameTsCounter<V, C> {
     type Limit = Ts;
     type Timestamp = VideoTs;
@@ -368,35 +399,38 @@ impl<V: VideoFrame, C: MemoryContention> Clock for VFrameTsCounter<V, C> {
         //     println!("0x{:04x}: {} {:?}", port, self.as_tstates(), self.tsc);
         // }
         let hc1 = if V::is_contended_line_no_mreq(vc) {
-            if C::is_contended_address(port) {
-                hc = V::contention(hc) + IO_IORQ_LOW_TS as Ts;
-                if port & 1 == 0 { // C:1, C:3
-                    V::contention(hc) + (IO_CYCLE_TS - IO_IORQ_LOW_TS) as Ts
-                }
-                else { // C:1, C:1, C:1, C:1
-                    let mut hc1 = hc;
-                    for _ in 0..(IO_CYCLE_TS - IO_IORQ_LOW_TS) {
-                        hc1 = V::contention(hc1) + 1;
-                    }
-                    hc1
-                }
-            }
-            else {
-                hc += IO_IORQ_LOW_TS as Ts;
-                if port & 1 == 0 { // N:1 C:3
-                    V::contention(hc) + (IO_CYCLE_TS - IO_IORQ_LOW_TS) as Ts
-                }
-                else { // N:4
-                    hc + (IO_CYCLE_TS - IO_IORQ_LOW_TS) as Ts
-                }
-            }
+            ula_io_contention!(C, port, hc, V::contention)
+            // if C::is_contended_address(port) {
+            //     hc = V::contention(hc) + IO_IORQ_LOW_TS as Ts;
+            //     if port & 1 == 0 { // C:1, C:3
+            //         V::contention(hc) + (IO_CYCLE_TS - IO_IORQ_LOW_TS) as Ts
+            //     }
+            //     else { // C:1, C:1, C:1, C:1
+            //         let mut hc1 = hc;
+            //         for _ in 0..(IO_CYCLE_TS - IO_IORQ_LOW_TS) {
+            //             hc1 = V::contention(hc1) + 1;
+            //         }
+            //         hc1
+            //     }
+            // }
+            // else {
+            //     hc += IO_IORQ_LOW_TS as Ts;
+            //     if port & 1 == 0 { // N:1 C:3
+            //         V::contention(hc) + (IO_CYCLE_TS - IO_IORQ_LOW_TS) as Ts
+            //     }
+            //     else { // N:4
+            //         hc + (IO_CYCLE_TS - IO_IORQ_LOW_TS) as Ts
+            //     }
+            // }
         }
         else {
             hc += IO_IORQ_LOW_TS as Ts;
             hc + (IO_CYCLE_TS - IO_IORQ_LOW_TS) as Ts
         };
+        let mut vtsc = *self;
+        vtsc.set_hc_after_small_increment(hc);
         self.set_hc_after_small_increment(hc1);
-        Self::new(vc, hc).as_timestamp()
+        vtsc.tsc
     }
 
     fn add_wait_states(&mut self, _bus: u16, wait_states: NonZeroU16) {
