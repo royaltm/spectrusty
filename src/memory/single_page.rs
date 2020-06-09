@@ -181,7 +181,7 @@ macro_rules! impl_zxmemory {
                     0 => Ok(MemoryKind::Rom),
                     1 => Ok(MemoryKind::Ram),
                     _ => Err(ZxMemoryError::InvalidPageIndex)
-                }        
+                }
             }
             fn page_bank(&self, page: u8) -> Result<(MemoryKind, usize)> {
                 self.page_kind(page).map(|kind| (kind, 0))
@@ -192,7 +192,7 @@ macro_rules! impl_zxmemory {
                     0 => Ok(&self.mem[..Self::ROM_SIZE]),
                     1 => Ok(&self.mem[Self::ROM_SIZE..]),
                     _ => Err(ZxMemoryError::InvalidPageIndex)
-                }        
+                }
             }
             #[inline]
             fn page_mut(&mut self, page: u8) -> Result<&mut[u8]> {
@@ -200,7 +200,7 @@ macro_rules! impl_zxmemory {
                     0 => Ok(&mut self.mem[..Self::ROM_SIZE]),
                     1 => Ok(&mut self.mem[Self::ROM_SIZE..]),
                     _ => Err(ZxMemoryError::InvalidPageIndex)
-                }        
+                }
             }
             fn rom_bank_ref(&self, rom_bank: usize) -> Result<&[u8]> {
                 if rom_bank > Self::ROM_BANKS_MAX {
@@ -306,7 +306,6 @@ mod tests {
         }        
     }
 
-
     fn memory_single_page_work<M: ZxMemory + Default + Clone>() {
         assert_eq!(M::ROM_SIZE, 0x4000);
         assert_eq!(M::PAGE_SIZE, 0x4000);
@@ -316,9 +315,18 @@ mod tests {
         assert_eq!(M::ROM_BANKS_MAX, 0);
         let mut mem = M::default();
         let mut mem1 = mem.clone();
-        let pages: Vec<_> = mem.page_slice_iter_mut(..).unwrap().collect();
-        assert_eq!(pages.len(), 2);
-        assert_eq!(pages[0], PageMutSlice::Rom(mem1.page_mut(0).unwrap()));
-        assert_eq!(pages[1], PageMutSlice::Ram(mem1.page_mut(1).unwrap()));
-    }
+        let mut index = 0;
+        mem.for_each_page_mut(.., |page| {
+            if index == 0 {
+                assert!(page.is_rom());
+            }
+            else {
+                assert!(page.is_ram());
+            }
+            assert_eq!(page.into_mut_slice(), mem1.page_mut(index).unwrap());
+            index += 1;
+            Ok(())
+        }).unwrap();
+        assert_eq!(index, 2);
+   }
 }
