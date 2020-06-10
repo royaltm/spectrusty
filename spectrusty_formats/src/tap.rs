@@ -2,7 +2,7 @@
 
 # TAP format
 
-Based on [faqwiki.zxnet.co.uk](https://faqwiki.zxnet.co.uk/wiki/TAP_format):
+See also [faqwiki.zxnet.co.uk](https://faqwiki.zxnet.co.uk/wiki/TAP_format):
 
 A **TAP** file consist of blocks of data each prepended by a 2 byte (LSB) block length indicator.
 Those blocks will be referenced here as *TAP chunks*.

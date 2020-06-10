@@ -7,8 +7,7 @@ The [UlaPlus] chipset responds to the two ports (fully decoded):
 * `0xBF3B` - the register port (write only),
 * `0xFF3B` - the data port (read and write)
 
-and provides the new graphics capabilities according to the ULAplus specification:
-https://faqwiki.zxnet.co.uk/wiki/ULAplus.
+and provides the new graphics capabilities according to the ULAplus [specification](https://faqwiki.zxnet.co.uk/wiki/ULAplus).
 
 Implementation ceveats:
 
@@ -33,7 +32,6 @@ In 128k mode there are four available screen memory areas and in this emulator t
 | screen 1        |     5     | 0x2000-0x3AFF | secondary   |  2  |
 | shadow screen 0 |     7     | 0x0000-0x1AFF | pri. shadow |  1  |
 | shadow screen 1 |     7     | 0x2000-0x3AFF | sec. shadow |  3  |
-|-----------------|-----------|---------------|-------------|-----|
 
 In 48k mode there are two available screen memory areas:
 
@@ -41,7 +39,6 @@ In 48k mode there are two available screen memory areas:
 |------------|---------------|-------------|-----|
 | screen 0   | 0x4000-0x5AFF | primary     |  0  |
 | screen 1   | 0x6000-0x7AFF | secondary   |  1  |
-|------------|---------------|-------------|-----|
 
 ¹ - Relative to the beginning of the 16kb page.
 ² - A screen bank argument for e.g. [ZxMemory::screen_ref] and [ZxMemory::screen_mut].

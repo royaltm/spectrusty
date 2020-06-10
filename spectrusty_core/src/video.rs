@@ -76,12 +76,15 @@ pub struct TryFromU8BorderColorError(pub u8);
 /// An interface for renderering Spectrum's pixel data to frame buffers.
 pub trait Video {
     /// The horizontal pixel density.
+    ///
+    /// It's 1 for chipsets that can render only low resolution modes and 2 for chipsets that
+    /// are high resolution capable.
     const PIXEL_DENSITY: u32 = 1;
     /// The [VideoFrame] implementation used by the chipset emulator.
     type VideoFrame: VideoFrame;
-    /// Returns the current border color number [0, 7].
+    /// Returns the current border color.
     fn border_color(&self) -> BorderColor;
-    /// Force sets the border area to the given color number [0, 7].
+    /// Force sets the border area to the given color.
     fn set_border_color(&mut self, border: BorderColor);
     /// Renders last emulated frame's video data into the provided pixel `buffer`.
     ///
@@ -90,7 +93,9 @@ pub trait Video {
     ///
     /// Note that different [BorderSize]s will result in a different size of the rendered `buffer` area.
     ///
-    /// To predetermine the size of the rendered buffer area use [VideoFrame::screen_size_pixels].
+    /// To predetermine the size of the rendered buffer area use [Video::render_size_pixels].
+    /// To get the size of the video screen in low resolution pixels only use [VideoFrame::screen_size_pixels]
+    /// e.g. for an aspect ratio calculation.
     ///
     /// * [PixelBuffer] implementation is used to write pixels into the `buffer`.
     /// * [Palette] implementation is used to create colors from the Spectrum colors.
@@ -170,8 +175,10 @@ pub trait VideoFrame: Copy + Debug {
             BorderSize::Nil     => 0
         }
     }
-    /// A rendered screen pixel size (horizontal, vertical) measured in low resolution pixels
-    /// depending on the border size selection.
+    /// Returns output screen pixel size (horizontal, vertical), including the border area, measured
+    /// in low resolution pixels.
+    ///
+    /// The size depends on the given `border_size`.
     fn screen_size_pixels(border_size: BorderSize) -> (u32, u32) {
         let border = 2 * Self::border_size_pixels(border_size);
         let w = PAL_HC - 2*MAX_BORDER_SIZE + border;
@@ -179,13 +186,13 @@ pub trait VideoFrame: Copy + Debug {
                 .min((Self::VSL_BORDER_BOT + 1 - Self::VSL_BORDER_TOP) as u32);
         (w, h)
     }
-    /// An iterator of the top border low resolution scan line indexes.
+    /// Returns an iterator of the top border low resolution scan line indexes.
     fn border_top_vsl_iter(border_size: BorderSize) -> Range<Ts> {
         let border = Self::border_size_pixels(border_size) as Ts;
         let top = (Self::VSL_PIXELS.start - border).max(Self::VSL_BORDER_TOP);
         top..Self::VSL_PIXELS.start
     }
-    /// An iterator of the bottom border low resolution scan line indexes.
+    /// Returns an iterator of the bottom border low resolution scan line indexes.
     fn border_bot_vsl_iter(border_size: BorderSize) -> Range<Ts> {
         let border = Self::border_size_pixels(border_size) as Ts;
         let bot = (Self::VSL_PIXELS.end + border).min(Self::VSL_BORDER_BOT);
@@ -194,11 +201,11 @@ pub trait VideoFrame: Copy + Debug {
 
     /// Used for rendering border.
     type BorderHtsIter: Iterator<Item=Ts>;
-    /// An iterator of border latch horizontal T-states.
+    /// Returns an iterator of border latch horizontal T-states.
     fn border_whole_line_hts_iter(border_size: BorderSize) -> Self::BorderHtsIter;
-    /// An iterator of left border latch horizontal T-states.
+    /// Returns an iterator of left border latch horizontal T-states.
     fn border_left_hts_iter(border_size: BorderSize) -> Self::BorderHtsIter;
-    /// An iterator of right border latch horizontal T-states.
+    /// Returns an iterator of right border latch horizontal T-states.
     fn border_right_hts_iter(border_size: BorderSize) -> Self::BorderHtsIter;
 
     /// Returns a horizontal T-state counter after adding an additional T-states required for emulating 
@@ -531,7 +538,7 @@ impl From<BorderColor> for u8 {
     }
 }
 
-/// An offset into INK/PAPER bitmap memory of the given vertical coordinate `y` [0, 192) (0 on top).
+/// Returns an offset into INK/PAPER bitmap memory of the given vertical coordinate `y` [0, 192) (0 on top).
 #[inline(always)]
 pub fn pixel_line_offset<T>(y: T) -> T
     where T: Copy + From<u16> + BitAnd<Output=T> + Shl<u16, Output=T> + BitOr<Output=T>
@@ -541,7 +548,7 @@ pub fn pixel_line_offset<T>(y: T) -> T
     (y & T::from(0b1100_0000) ) << 5
 }
 
-/// An offset into attributes memory of the given vertical coordinate `y` [0, 192) (0 on top).
+/// Returns an offset into attributes memory of the given vertical coordinate `y` [0, 192) (0 on top).
 #[inline(always)]
 pub fn color_line_offset<T>(y: T) -> T
     where T: Copy + From<u16> + Shr<u16, Output=T> + Shl<u16, Output=T>

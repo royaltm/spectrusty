@@ -15,6 +15,7 @@ use crate::video::{
 };
 use super::Ula3;
 
+/// Implements [VideoFrame] for Amstrad Gate Array (+3/+2A models).
 #[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 pub struct Ula3VidFrame;

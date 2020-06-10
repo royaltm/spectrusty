@@ -23,9 +23,10 @@ pub use super::{AudioHandleError, AudioHandleErrorKind};
 
 /// The struct for producing and controling the audio playback.
 ///
-/// It embeds the interconnected pair of [carousel]'s [AudioFrameProducer] with the [AudioFrameConsumer]
-/// directly exposing the `producer` to the user. The consumer lives in the **cpal** audio thread and is
-/// responsible for filling up the audio output buffer with sample data sent by the `producer`.
+/// It embeds the interconnected pair of [carousel][crate::carousel]'s [AudioFrameProducer] with the
+/// [AudioFrameConsumer] directly exposing the `producer` to the user. The consumer lives in the
+/// **cpal** audio thread and is responsible for filling up the audio output buffer with sample data
+/// sent by the `producer`.
 ///
 /// The `T` parameter should be one of the [sample primitives][cpal::Sample].
 pub struct AudioHandle<T: cpal::Sample + AudioSample> {

@@ -26,9 +26,9 @@ impl<T: Debug, D> NamedBusDevice<T> for D where D: Display + BusDevice<Timestamp
 
 /// A type of a dynamic [NamedBusDevice].
 pub type NamedDynDevice<T> = dyn NamedBusDevice<T>;
-/// This is a type of items stored by [DynamicBus].
-///
 /// A type of a boxed dynamic [NamedBusDevice].
+///
+/// This is a type of items stored by [DynamicBus].
 pub type BoxNamedDynDevice<T> = Box<dyn NamedBusDevice<T>>;
 
 /// A pseudo bus device that allows for adding and removing devices of different types at run time.

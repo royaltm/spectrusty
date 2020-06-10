@@ -1,4 +1,4 @@
-//! The core components of Spectrusty: The ZX Spectrum emulator library
+//! The core components of Spectrusty: The ZX Spectrum emulator library.
 pub mod audio;
 pub mod bus;
 pub mod chip;

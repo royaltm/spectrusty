@@ -1,4 +1,4 @@
-//! Memory API. This module defines [ZxMemory] trait.
+//! Memory API.
 use core::fmt;
 use core::ops::{Bound, Range, RangeBounds};
 use std::rc::Rc;
@@ -85,7 +85,7 @@ pub struct MemPageOffset {
     pub offset: u16
 }
 
-/// A type returned by [MemPageMutIter] iterator.
+/// A type yielded by [ZxMemory::for_each_page_mut].
 #[derive(Debug, PartialEq)]
 pub enum PageMutSlice<'a> {
     Rom(&'a mut [u8]),

@@ -196,7 +196,7 @@ impl<W: Write> PulseDecodeWriter<W> {
     ///
     /// In case of [std::io::Error] the information about number of bytes written is lost.
     ///
-    /// [MicOut::mic_out_pulse_iter]: spectrusty_core::audio::MicOut::mic_out_pulse_iter
+    /// [MicOut::mic_out_pulse_iter]: spectrusty_core::chip::MicOut::mic_out_pulse_iter
     pub fn write_decoded_pulses<I>(&mut self, iter: I) -> Result<Option<NonZeroU32>>
         where I: Iterator<Item=NonZeroU32>
     {

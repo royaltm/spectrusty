@@ -43,7 +43,7 @@ pub struct TapReadInfoIter<TR> {
 pub struct TapChunkPulseIter<R> {
     /// Determines if a next chunk should be processed after the previous one ends.
     ///
-    /// * `false` to start iterating over pulses of the next chunk a [TapChunkPulseIter::next_chunk]
+    /// * `false` to start iterating over pulses of the next chunk a [TapChunkRead::next_chunk]
     ///   method should be called first. Until then the [Iterator::next] will return `None`.
     /// * `true` the next chunk will be processed automatically and a single pulse of interval of
     ///   [PAUSE_PULSE_LENGTH] T-states is emitted before lead pulses of the next chunk.
@@ -61,7 +61,7 @@ pub trait TapChunkRead {
     /// Returns this chunk's remaining bytes to be read.
     fn chunk_limit(&self) -> u16;
     /// Repositions the inner reader to the start of a file and sets inner limit to 0.
-    /// To read the first chunk you need to call [TapChunkReader::next_chunk] first.
+    /// To read the first chunk you need to call [TapChunkRead::next_chunk] first.
     fn rewind(&mut self);
     /// Forwards the inner reader to the position of the next *TAP* chunk.
     ///
@@ -69,8 +69,6 @@ pub trait TapChunkRead {
     ///
     /// On success returns `Ok(size)` in bytes of the next *TAP* chunk
     /// and limits the inner [Take] reader to that size.
-    ///
-    /// Clears [TapChunkReader::checksum].
     fn next_chunk(&mut self) -> Result<Option<u16>>;
     /// Forwards the inner reader to the position of a next `skip` + 1 *TAP* chunks.
     /// Returns `Ok(None)` if end of file has been reached.
@@ -238,6 +236,7 @@ impl<R: Read + Seek> TapChunkRead for TapChunkReader<R> {
         self.next_pos = 0;
     }
 
+    /// Also clears [TapChunkReader::checksum].
     fn next_chunk(&mut self) -> Result<Option<u16>> {
         let rd = self.inner.get_mut();
         if self.next_pos != rd.seek(SeekFrom::Start(self.next_pos))? {

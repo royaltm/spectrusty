@@ -34,7 +34,7 @@ pub struct Tape<F> {
     pub tap: Option<Tap<F>>
 }
 
-/// A specific [TapCabinet] for workng directly with [fs::File]s.
+/// A specific [TapCabinet] for workng directly with [File]s.
 pub type TapFileCabinet = TapCabinet<File, PathBuf>;
 
 /// A slightly more advanced [Tap] organizer that allows handling an arbitrary number of emulated tape casettes.
@@ -423,7 +423,7 @@ impl<F: Write + Read + Seek> Tap<F> {
     /// The cursor position of the reader is set to the beginning of a file.
     ///
     /// If `self` is a [Tap::Writer] this method ensures that the chunk being currently written is
-    /// comitted thus ensuring the integrity of the TAP file and also calls the [Writer::flush] on
+    /// comitted thus ensuring the integrity of the TAP file and also calls the [Write::flush] on
     /// the file before transforming it.
     pub fn try_into_reader(self) -> Result<Self> {
         let mut file = self.try_into_file()?;
@@ -436,7 +436,7 @@ impl<F: Write + Read + Seek> Tap<F> {
     /// The cursor position of the writer is set to the end of a file.
     ///
     /// If `self` is already a [Tap::Writer] this method ensures that the chunk being currently written
-    /// is comitted thus ensuring the integrity of the TAP file and also calls the [Writer::flush] on
+    /// is comitted thus ensuring the integrity of the TAP file and also calls the [Write::flush] on
     /// the file before transforming it.
     pub fn try_into_writer(self) -> Result<Self> {
         let mut file = self.try_into_file()?;
@@ -447,7 +447,7 @@ impl<F: Write + Read + Seek> Tap<F> {
     /// Returns the unwrapped file on success.
     ///
     /// If `self` is a [Tap::Writer] this method ensures that the chunk being currently written is
-    /// comitted thus ensuring the integrity of the TAP file and also calls the [Writer::flush] on
+    /// comitted thus ensuring the integrity of the TAP file and also calls the [Write::flush] on
     /// the file before returning it.
     pub fn try_into_file(self) -> Result<F> {
         Ok(match self {
@@ -547,7 +547,7 @@ impl<F: Write + Read + Seek> Tape<F> {
     /// Returns `Ok(true)` if the inserted [Tap] was a [Tap::Writer]. In this instance the cursor
     /// position of the reader is set to the beginning of a file and this method ensures that
     /// the chunk being currently written is comitted thus ensuring the integrity of the TAP
-    /// file and also calls the [Writer::flush] on the file before transforming it.
+    /// file and also calls the [Write::flush] on the file before transforming it.
     ///
     /// If the inserted [Tap] is already a [Tap::Reader] or if there is no [Tap] inserted returns
     /// `Ok(false)`.

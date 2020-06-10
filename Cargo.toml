@@ -16,7 +16,7 @@ keywords = ["ZX Spectrum", "retro"]
 all-features = true
 
 [features]
-default = ["snapshot", "compression", "peripherals", "formats"]
+default = ["formats", "peripherals", "snapshot", "compression"]
 sdl2 = ["spectrusty_audio/sdl2"]
 cpal = ["spectrusty_audio/cpal"]
 compression = ["spectrusty_core/compression"]

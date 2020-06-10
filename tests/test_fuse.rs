@@ -495,11 +495,12 @@ impl Clock for TestCounter {
             contentions_vts.push(VideoCounter::new(vc, hc).as_timestamp());
             hc
         };
-        // The timestamp after the complete cycle.
+        // ula_io_contention! modifies `hc`.
         let hc_end = ula_io_contention!(UlaMemoryContention, port, hc, contention);
         // The timestamp when the PR/PW operation takes place.
         let vts_op = VideoCounter::new(vc, hc).as_timestamp();
         assert_eq!(vts_op, self.vtsc.add_io(port));
+        // The timestamp after the complete cycle.
         assert_eq!(VideoCounter::new(vc, hc_end), self.vtsc);
         // An expected PR/PW event will be optionally captured below.
         let mut prw_evt: Option<Event> = None;

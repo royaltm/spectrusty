@@ -256,6 +256,9 @@ pub fn map_keypad_key(key: Keycode, parens: bool) -> KeypadKeys {
 /// * `key` is the key code.
 /// * `pressed` should be `true` if the `key` has been pressed down or `false` if it has been released.
 /// * `parens` should be `true` if `/` and `*` keys should be mapped as [LPAREN] and [RPAREN], `false` otherwise.
+///
+/// [LPAREN]: KeypadKeys::LPAREN
+/// [RPAREN]: KeypadKeys::RPAREN
 pub fn update_keypad_keys(mut cur: KeypadKeys, key: Keycode, pressed: bool, parens: bool) -> KeypadKeys {
     let chg = map_keypad_key(key, parens);
     if !chg.is_empty() {

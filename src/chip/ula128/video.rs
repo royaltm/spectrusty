@@ -20,6 +20,7 @@ use super::{
     frame_cache::Ula128FrameProducer
 };
 
+/// Implements [VideoFrame] for ULA 128k.
 #[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 pub struct Ula128VidFrame;

@@ -6,18 +6,20 @@ use crate::video::{
 };
 use crate::memory::ScreenArray;
 
-/// Implemented by screen data iterators for rendering an image of a video frame using [core::video::Renderer].
+/// Implemented by screen data iterators for rendering an image of a video frame using [Renderer].
 ///
 /// The iterator emulates the Spectrum's ULA reading two bytes of video data to compose a single cell
 /// consisting of 8 pixels.
 ///
 /// The first byte returned by the iterator is interpreted as INK/PAPER bit selector (an INK mask) and
 /// the second as a color attribute.
+///
+/// [Renderer]: crate::video::Renderer
 pub trait VideoFrameDataIterator: Iterator<Item=(u8, u8)> {
     /// Forwards the iterator to the beginning of the next video line.
     fn next_line(&mut self);
 }
-/// Implemented by screen data iterators for rendering an image of a video frame using [core::video::RendererPlus].
+/// Implemented by screen data iterators for rendering an image of a video frame using [RendererPlus].
 ///
 /// This emulates the Spectrum's ULAplus/Timex's SCLD reading two bytes of video data to compose a single cell
 /// consisting of 8 (or 16 in hi-res) pixels.
@@ -28,6 +30,8 @@ pub trait VideoFrameDataIterator: Iterator<Item=(u8, u8)> {
 /// In high resolution mode both bytes are being used to render 16 monochrome pixels.
 ///
 /// The third value is a horizontal latch timestamp used to synchronize changes to the screen mode and the palette.
+///
+/// [RendererPlus]: crate::video::RendererPlus
 pub trait PlusVidFrameDataIterator: Iterator<Item=(u8, u8, Ts)> {
     /// Forwards the iterator to the beginning of the next video line.
     fn next_line(&mut self);

@@ -40,7 +40,7 @@ pub enum PulseIterState {
 /// for each byte read including the initial flag byte.
 ///
 /// This iterator may be used to feed pulses to the `EAR in` buffer of the ZX Spectrum emulator
-/// (e.g. via [EarIn::feed_ear_in][spectrusty_core::audio::EarIn::feed_ear_in])
+/// (e.g. via [EarIn::feed_ear_in][spectrusty_core::chip::EarIn::feed_ear_in])
 /// or to produce sound with a help of [Bandwidth-Limited Pulse Buffer][spectrusty_core::audio::Blep].
 ///
 /// Best used with [tap][crate::tap] utilites.

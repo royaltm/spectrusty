@@ -48,7 +48,7 @@ pub trait ControlUnit {
     /// Returns the current value of the T-state counter.
     /// 
     /// Unlike [ControlUnit::frame_tstate] values return by this method can sometimes be negative as well as
-    /// exceeding the maximum nuber of T-states per frame. See [ControlUnit::execute_next_frame] to learn why.
+    /// exceeding the maximum nuber of T-states per frame.
     fn current_tstate(&self) -> FTs;
     /// Returns `true` if the value of the current T-state counter has reached a certain arbitrary limit which
     /// is very close to the maximum number of T-states per frame.
@@ -84,8 +84,8 @@ pub trait ControlUnit {
     fn ensure_next_frame(&mut self);
     /// Executes a single instruction on the `cpu` with the option to pass a debugging function.
     ///
-    /// If the T-state counter nears the end of a frame prepares the internal state for the next frame before
-    /// executing the next instruction.
+    /// If the T-state counter value is near the end of a frame prepares the internal state for the next frame
+    /// before executing the next instruction.
     fn execute_single_step<C: Cpu,
                            F: FnOnce(CpuDebug)>(
             &mut self,

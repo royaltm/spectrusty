@@ -27,6 +27,7 @@ pub trait SerializeDynDevice {
 pub trait DeserializeDynDevice<'de> {
     /// The type used as dynamic device's [BusDevice::Timestamp].
     type Timestamp;
+    /// This function should deserialize and return the dynamic device on success.
     fn deserialize_dyn_device<D: Deserializer<'de>>(
         deserializer: D
     ) -> Result<Box<dyn NamedBusDevice<Self::Timestamp>>, D::Error>;
@@ -34,7 +35,8 @@ pub trait DeserializeDynDevice<'de> {
 
 /// A wrapper for [DynamicBus] that is able to serialize and deserialize together with devices attached to it.
 ///
-/// Use this instead of [DynamicBus] when specifying [crate::chip::ControlUnit::BusDevice].
+/// Use this type instead of [DynamicBus] when specifying [crate::chip::ControlUnit::BusDevice] or
+/// [BusDevice::NextDevice].
 ///
 /// Provide a type that implements [SerializeDynDevice] and [DeserializeDynDevice] as struct's generic parameter `S`.
 #[repr(transparent)]

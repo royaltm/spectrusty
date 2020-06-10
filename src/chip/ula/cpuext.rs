@@ -162,7 +162,7 @@ impl<U, B, X> UlaCpuExt for U
 /// # Panics
 ///
 /// The timestamp - `tsc` passed here must be normalized and its vertical component must be positive and
-/// its composite value must be less than [<V as VideoFrame>::FRAME_TSTATES_COUNT][VideoFrame::FRAME_TSTATES_COUNT].
+/// its composite value must be less than [V::FRAME_TSTATES_COUNT][VideoFrame::FRAME_TSTATES_COUNT].
 /// Otherwise this method panics.
 pub fn execute_halted_state_until_eof<V: VideoFrame,
                                       M: MemoryContention,

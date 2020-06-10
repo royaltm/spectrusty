@@ -8,6 +8,7 @@ use crate::clock::{VideoTs, Ts};
 use crate::video::{BorderSize, VideoFrame, CellCoords};
 use super::UlaVideoFrame;
 
+/// Implements [VideoFrame] for NTSC ULA.
 #[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 pub struct UlaNTSCVidFrame;

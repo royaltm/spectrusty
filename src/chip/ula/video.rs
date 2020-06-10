@@ -18,6 +18,7 @@ use super::frame_cache::{
     UlaFrameCache, UlaFrameProducer
 };
 
+/// Implements [VideoFrame] for PAL ULA.
 #[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 pub struct UlaVideoFrame;

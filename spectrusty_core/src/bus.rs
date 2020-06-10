@@ -65,7 +65,7 @@ impl<T: Debug + 'static> dyn NamedBusDevice<T> + 'static {
 ///
 /// This trait allows to attach many, different devices to form a so called "daisy chain".
 ///
-/// Implementations of of this trait should be provided as [ControlUnit::BusDevice] associated type.
+/// Implementations of this trait should be provided as [ControlUnit::BusDevice] associated type.
 ///
 /// [ControlUnit]: crate::chip::ControlUnit
 /// [ControlUnit::BusDevice]: crate::chip::ControlUnit::BusDevice
@@ -164,6 +164,8 @@ pub trait PortAddress: Debug {
 }
 
 /// A daisy-chain terminator device. Use it as the last device in a chain.
+///
+/// Substitute `T` with a timestamp type.
 #[derive(Clone, Default, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 pub struct NullDevice<T>(PhantomData<T>);

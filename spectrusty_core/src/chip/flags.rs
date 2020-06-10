@@ -40,7 +40,7 @@ bitflags! {
 pub struct TryFromU8EarMicError(pub u8);
 
 bitflags! {
-    /// ZX Spectrum's port flags.
+    /// ZX Spectrum's ULA port flags.
     #[derive(Default)]
     pub struct UlaPortFlags: u8 {
         const BORDER_MASK   = 0b0000_0111;

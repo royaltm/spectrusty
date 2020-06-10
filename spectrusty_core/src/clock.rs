@@ -10,9 +10,9 @@ use serde::{Serialize, Deserialize};
 
 use crate::video::VideoFrame;
 
-/// A simple timestamp type - measured in T-states.
+/// A linear T-state timestamp type.
 pub type FTs = i32;
-/// A horizontal T-state or a video scanline index type for [VideoTs].
+/// A type used for a horizontal T-state timestamp or a video scanline index for [VideoTs].
 pub type Ts = i16;
 
 /// A timestamp type that consists of two video counters: vertical and horizontal.
@@ -277,6 +277,18 @@ impl<V: VideoFrame, C> AddAssign<u32> for VFrameTsCounter<V, C> {
     }
 }
 
+/// A macro being used to implement an ULA I/O contention scheme, for [z80emu::Clock::add_io] method of
+/// [VFrameTsCounter][clock::VFrameTsCounter].
+/// It's being exported for the purpose of performing FUSE tests.
+///
+/// * $mc should be a type implementing [clock::MemoryContention] trait.
+/// * $port is a port address.
+/// * $hc is an identifier of a mutable variable containing the `hc` property of a `VideoTs` timestamp.
+/// * $contention should be a path to the [video::VideoFrame::contention] function.
+///
+/// The macro returns a horizontal timestamp pointing after the whole I/O cycle is over.
+/// The `hc` variable is modified to contain a horizontal timestamp indicating when the data R/W operation 
+/// takes place.
 #[macro_export]
 macro_rules! ula_io_contention {
     ($mc:ident, $port:expr, $hc:ident, $contention:path) => {

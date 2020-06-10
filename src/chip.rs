@@ -40,7 +40,7 @@ impl HostConfig for ZxSpectrum128Config {
 
 /// A grouping trait of all common control traits for all emulated `Ula` chipsets except audio rendering.
 ///
-/// For audio rendering see [UlaAudioFrame].
+/// For audio rendering see [crate::audio::UlaAudioFrame].
 pub trait UlaCommon: UlaControl +
                      ControlUnit +
                      MemoryAccess +
