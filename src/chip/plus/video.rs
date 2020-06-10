@@ -44,6 +44,10 @@ impl<U> Video for UlaPlus<U>
     fn current_video_ts(&self) -> VideoTs {
         self.ula.current_video_ts()
     }
+
+    fn visible_screen_bank(&self) -> usize {
+        (self.cur_source_mode.is_shadow_bank() ^ self.ula.cur_screen_shadow()).into()
+    }
 }
 
 impl<'a, U> UlaPlus<U>

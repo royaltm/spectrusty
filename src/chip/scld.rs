@@ -17,6 +17,8 @@ Implementation ceveats:
 In case of TC2048 the 16k ROM should be loaded to rom banks: `[ROM_BANKS_MAX - 1, ROM_BANKS_MAX]`.
 In case of Tx2068 the 24k ROM should be loaded to rom banks: `[ROM_BANKS_MAX - 1, ROM_BANKS_MAX, 8]`.
 
+[UlaNTSCVidFrame]: crate::chip::ula::UlaNTSCVidFrame
+[ZxMemory::ROM_BANKS_MAX]: crate::memory::ZxMemory::ROM_BANKS_MAX
 */
 use crate::z80emu::{*, host::Result};
 use crate::clock::{
@@ -43,15 +45,17 @@ use crate::video::{VideoFrame, BorderColor, RenderMode};
 use serde::{Serialize, Deserialize};
 
 pub mod frame_cache;
-pub mod audio_earmic;
-pub mod io;
-pub mod video;
+mod audio_earmic;
+mod io;
+mod video;
 
 use frame_cache::SourceMode;
 
 /// This is the emulator of SCLD chip used with Timex's TC2048 / TC2068 / TS2068 models.
 ///
 /// The memory implementation must implement [PagedMemory8k] trait in addition to [ZxMemory].
+///
+/// [ZxMemory]: crate::memory::ZxMemory
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]
 #[derive(Clone)]

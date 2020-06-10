@@ -147,6 +147,8 @@ pub trait UlaPlusInner<'a>: Video + MemoryAccess {
     fn shadow_frame_cache_mut_mem_ref(&mut self) -> (&mut UlaFrameCache<Self::VideoFrame>, &Self::Memory);
     /// Returns true if the shadow screen is displayed at the beginning of the video frame.
     fn beg_screen_shadow(&self) -> bool;
+    /// Returns true if the shadow screen is currently being displayed.
+    fn cur_screen_shadow(&self) -> bool;
     /// Returns references to components necessary for video rendering.
     fn video_render_data_view(
         &'a mut self

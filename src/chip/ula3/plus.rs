@@ -69,6 +69,10 @@ impl<'a, B, X> UlaPlusInner<'a> for Ula3<B, X>
         self.beg_screen_shadow
     }
 
+    fn cur_screen_shadow(&self) -> bool {
+        self.cur_screen_shadow
+    }
+
     fn video_render_data_view(
         &mut self
     ) -> (

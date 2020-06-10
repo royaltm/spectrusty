@@ -21,7 +21,7 @@ pub struct Ula128FrameProducer<'a, V, I> {
 }
 
 #[inline(always)]
-pub fn vc_to_line<V: VideoFrame>(mut vts: VideoTs, line: Ts) -> VideoTs {
+pub(crate) fn vc_to_line<V: VideoFrame>(mut vts: VideoTs, line: Ts) -> VideoTs {
     vts.vc -= V::VSL_PIXELS.start + line;
     vts
 }
