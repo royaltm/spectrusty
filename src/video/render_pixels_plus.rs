@@ -420,7 +420,7 @@ impl<'r, 'a, MI, PI, B, P, V> Worker<'r, 'a, MI, PI, B, P, V>
                     };
                     let (ink, paper) = attr_to_ink_paper(attr);
                     if self.render_mode.is_grayscale() {
-                        (P::get_pixel_gray4(ink), P::get_pixel_gray4(paper))
+                        (P::get_pixel_gray(ink), P::get_pixel_gray(paper))
                     }
                     else {
                         (P::get_pixel(ink), P::get_pixel(paper))
@@ -480,10 +480,10 @@ fn get_border_pixel<P: Palette>(render_mode: RenderMode, palette: &UlaPlusPalett
         RenderMode::PALETTE        => P::get_pixel_grb8( palette[(8|border) as usize] ),
         RenderMode::GRAY_PALETTE   => P::get_pixel_gray8( palette[(8|border) as usize] ),
         RenderMode::GRAY_HI_RES|
-        RenderMode::MODE_MASK      => P::get_pixel_gray4( border ^ INK_MASK ),
+        RenderMode::MODE_MASK      => P::get_pixel_gray( border ^ INK_MASK ),
         RenderMode::HI_RESOLUTION|
         RenderMode::PALETTE_HI_RES => P::get_pixel( border ^ INK_MASK ),
-        RenderMode::GRAYSCALE      => P::get_pixel_gray4( border ),
+        RenderMode::GRAYSCALE      => P::get_pixel_gray( border ),
         RenderMode::INDEX_MODE     => P::get_pixel(border),
         _ => unreachable!()
     }
@@ -493,7 +493,7 @@ fn get_border_pixel<P: Palette>(render_mode: RenderMode, palette: &UlaPlusPalett
 fn get_hi_res_ink_pixel<P: Palette>(render_mode: RenderMode) -> P::Pixel {
     let color = render_mode.color_index();
     if render_mode.is_grayscale() {
-        P::get_pixel_gray4( color )
+        P::get_pixel_gray( color )
     }
     else {
         P::get_pixel( color )

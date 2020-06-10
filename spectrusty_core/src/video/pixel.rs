@@ -1,19 +1,19 @@
 //! Building blocks for rendering pixel surfaces.
 use core::slice::IterMut;
 
-/// A trait for providing a way of placing pixels into byte buffers.
+/// A trait for providing a way for placing pixels into byte buffers.
 pub trait PixelBuffer<'a> {
     /// Specifies the type used for pixels.
     type Pixel: Copy;
     /// Should return a new instance of `PixelBuffer` implementation from the mutable slice of bytes representing
     /// a single line of pixels of the target buffer.
     fn from_line(line_buffer: &'a mut [u8]) -> Self;
-    /// Puts a next `pixel` into the line buffer and increases an internal cursor position by a single pixel.
+    /// Puts the next `pixel` into the line buffer and increases an internal cursor position by a single pixel.
     ///
     /// If the internal buffer boundaries would be overflown, this method must not panic, but instead it
     /// should just return without writing anything to the underyling buffer.
     fn put_pixel(&mut self, pixel: Self::Pixel);
-    /// Puts a `count` number of `pixel` copies into the line buffer and increases an internal cursor position
+    /// Puts `count` number of `pixel` copies into the line buffer and increases an internal cursor position
     /// accordingly.
     ///
     /// If the internal buffer boundaries would be overflown, this method must not panic, but instead it
@@ -51,14 +51,12 @@ pub trait Palette {
     fn get_pixel(index: u8) -> Self::Pixel {
         Self::get_pixel_grb8(index_to_grb(index))
     }
+    /// Should return a grayscale pixel with the intensity of one of the ZX Spectrum colors: [0, 15].
+    ///
+    /// See [Palette::get_pixel] for color values.
+    fn get_pixel_gray(index: u8) -> Self::Pixel;
     /// Should return one of [ULAplus](https://faqwiki.zxnet.co.uk/wiki/ULAplus#GRB_palette_entries) colors.
     fn get_pixel_grb8(g3r3b2: u8) -> Self::Pixel;
-    /// Should return a grayscale pixel (0 - black, 15 - full intensity white).
-    #[inline]
-    fn get_pixel_gray4(value: u8) -> Self::Pixel {
-        // Self::get_pixel_gray8((value << 4)|(value & 0x0F))
-        Self::get_pixel_gray8(index_to_grb(value))
-    }
     /// Should return a grayscale pixel (0 - black, 255 - full intensity white).
     fn get_pixel_gray8(value: u8) -> Self::Pixel;
 }
@@ -199,7 +197,7 @@ macro_rules! impl_palette {
                 Self::pixel_grb(g3r3b2)
             }
             #[inline(always)]
-            fn get_pixel_gray4(index: u8) -> Self::Pixel {
+            fn get_pixel_gray(index: u8) -> Self::Pixel {
                 Self::pixel_gray_grb(index_to_grb(index))
             }
             #[inline(always)]
