@@ -223,7 +223,7 @@ pub trait SnapshotLoader {
 
 /// Returns `true` if a `cpu` is safe for snapshotting using lossy formats.
 pub fn is_cpu_safe_for_snapshot<C: Cpu>(cpu: &C) -> bool {
-    !(cpu.is_after_prefix() || cpu.is_after_ei())
+    !cpu.is_after_prefix()
 }
 
 /// Makes sure CPU is in a state that is safe for a snapshot, otherwise executes instructions until it's safe.
