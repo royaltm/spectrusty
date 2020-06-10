@@ -109,11 +109,19 @@ pub trait Video {
         pitch: usize,
         border_size: BorderSize
     );
+    /// Returns rendered screen pixel size (horizontal, vertical), including the border area, measured
+    /// in pixels depending on [Video::PIXEL_DENSITY].
+    ///
+    /// The size depends on the given `border_size`.
+    fn render_size_pixels(border_size: BorderSize) -> (u32, u32) {
+        let (width, height) = Self::VideoFrame::screen_size_pixels(border_size);
+        (width * Self::pixel_density(), height)
+    }
     /// Returns the horizontal pixel density.
     fn pixel_density() -> u32 {
         Self::PIXEL_DENSITY
     }
-    /// Returns the screen bank index of the currently visible screen at the top of the frame.
+    /// Returns the screen bank index of the currently visible screen.
     ///
     /// The screen banks are different from memory banks.
     /// E.g. Spectrum 128k returns `0` for the screen bank which resides in a memory bank 5 and `1`
