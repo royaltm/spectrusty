@@ -1,5 +1,5 @@
 [package]
-name = "spectrusty_utils"
+name = "spectrusty-utils"
 version = "0.1.0"
 authors = ["Rafal Michalski <royaltm75@gmail.com>"]
 edition = "2018"
@@ -8,9 +8,18 @@ edition = "2018"
 default = []
 
 [dependencies]
-spectrusty_formats = { path = "../spectrusty_formats", version = "0.1" }
-# spectrusty_peripherals = { path = "../spectrusty_peripherals", version = "0.1" }
-spectrusty = { path = "..", version = "0.1" }
+
+[dependencies.spectrusty-formats]
+version = "0.1"
+path = "../spectrusty-formats"
+
+[dependencies.spectrusty-peripherals]
+version = "0.1"
+path = "../spectrusty-peripherals"
+
+[dependencies.spectrusty]
+version = "0.1"
+path = ".."
 
 [dependencies.minifb]
 version = "0.16"

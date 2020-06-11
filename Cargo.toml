@@ -17,13 +17,45 @@ all-features = true
 
 [features]
 default = ["formats", "peripherals", "snapshot", "compression"]
-sdl2 = ["spectrusty_audio/sdl2"]
-cpal = ["spectrusty_audio/cpal"]
-compression = ["spectrusty_core/compression"]
-snapshot = ["serde", "arrayvec/serde", "spectrusty_core/snapshot", "spectrusty_peripherals/snapshot"]
-audio = ["spectrusty_audio"]
-formats = ["spectrusty_formats"]
-peripherals = ["spectrusty_peripherals"]
+sdl2 = ["spectrusty-audio/sdl2"]
+cpal = ["spectrusty-audio/cpal"]
+compression = ["spectrusty-core/compression"]
+snapshot = ["serde", "arrayvec/serde", "spectrusty-core/snapshot", "spectrusty-peripherals/snapshot"]
+audio = ["spectrusty-audio"]
+formats = ["spectrusty-formats"]
+peripherals = ["spectrusty-peripherals"]
+
+[dependencies]
+log = "0.4"
+arrayvec = "0.5.1"
+bitflags = "1.2.1"
+
+[dependencies.spectrusty-core]
+version = "0.1"
+default-features = false
+path = "spectrusty-core"
+
+[dependencies.spectrusty-audio]
+version = "0.1"
+optional = true
+path = "spectrusty-audio"
+
+[dependencies.spectrusty-formats]
+version = "0.1"
+optional = true
+path = "spectrusty-formats"
+
+[dependencies.spectrusty-peripherals]
+version = "0.1"
+default-features = false
+optional = true
+path = "spectrusty-peripherals"
+
+[dependencies.serde]
+version = "1.0"
+default-features = true
+features = ["derive"]
+optional = true
 
 [dev-dependencies]
 smallvec = "1.1.0"
@@ -32,46 +64,30 @@ bincode = "1.2"
 rand = {version = "0.7", features = ["small_rng"]}
 reqwest = { version = "0.10", features = ["blocking"] }
 
-[dependencies.serde]
-default-features = true
-features = ["derive"]
-optional = true
-version = "1.0"
-
-[dependencies.spectrusty_core]
-default-features = false
-version = "0.1"
-path = "spectrusty_core"
-
-[dependencies.spectrusty_audio]
-optional = true
-version = "0.1"
-path = "spectrusty_audio"
-
-[dependencies.spectrusty_formats]
-optional = true
-version = "0.1"
-path = "spectrusty_formats"
-
-[dependencies.spectrusty_peripherals]
-optional = true
-default-features = false
-version = "0.1"
-path = "spectrusty_peripherals"
-
-[dependencies]
-log = "0.4"
-arrayvec = "0.5.1"
-bitflags = "1.2.1"
-
 [workspace]
 members = [
-  "spectrusty_audio",
-  "spectrusty_core",
-  "spectrusty_formats",
-  "spectrusty_peripherals",
-  "spectrusty_utils",
+  "spectrusty-audio",
+  "spectrusty-core",
+  "spectrusty-formats",
+  "spectrusty-peripherals",
+  "spectrusty-utils",
   "examples/audio",
-  "examples/sdl2_zxspectrum",
-  "examples/web_ay_player",
+  "examples/sdl2-zxspectrum",
+  "examples/web-ay-player",
+  "examples/web-zxspectrum",
+  "examples/zxspectrum-common",
 ]
+
+default-members = [
+  "spectrusty-core",
+  "spectrusty-audio",
+  "spectrusty-formats",
+  "spectrusty-peripherals",
+  "spectrusty-utils",
+  "."
+]
+
+[profile.release]
+# lto = true
+# panic = 'abort'
+# opt-level = 's'

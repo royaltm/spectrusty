@@ -16,11 +16,11 @@ with utilities. The additional libraries can be used separately or from within t
 Several features control which components will be included.
 
 * spectrusty - this library.
-* [spectrusty_core] - defines basic traits and structs, re-exported.
-* [spectrusty_audio] - tools for synthesizing and playing audio samples, feature: "audio", re-exported as [audio].
-* [spectrusty_formats] - file formats and utilities, feature: "formats", re-exported as [formats].
-* [spectrusty_peripherals] - emulators of various peripherals, feature: "peripherals", re-exported as [peripherals].
-* [spectrusty_utils] - additional utils, like TAPe organizers, keyboard helpers for various platforms, not included.
+* [spectrusty-core] - defines basic traits and structs, re-exported.
+* [spectrusty-audio] - tools for synthesizing and playing audio samples, feature: "audio", re-exported as [audio].
+* [spectrusty-formats] - file formats and utilities, feature: "formats", re-exported as [formats].
+* [spectrusty-peripherals] - emulators of various peripherals, feature: "peripherals", re-exported as [peripherals].
+* [spectrusty-utils] - additional utils, like TAPe organizers, keyboard helpers for various platforms, not included.
 * [z80emu] - Zilog's Z80 CPU family emulator, re-exported as [z80emu].
 
 Additional features:
@@ -114,7 +114,7 @@ These are the most commonly used:
 
 [SDL2]: https://crates.io/crates/sdl2
 [cpal]: https://crates.io/crates/cpal
-[spectrusty_utils]: https://github.com/royaltm/spectrusty/spectrusty_utils
+[spectrusty_utils]: https://github.com/royaltm/spectrusty/spectrusty-utils
 [BusDevice]: bus::BusDevice
 [Blep]: audio::Blep
 [ZxMemory]: memory::ZxMemory

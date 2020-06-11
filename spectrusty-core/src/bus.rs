@@ -70,7 +70,7 @@ impl<T: Debug + 'static> dyn NamedBusDevice<T> + 'static {
 /// [ControlUnit]: crate::chip::ControlUnit
 /// [ControlUnit::BusDevice]: crate::chip::ControlUnit::BusDevice
 pub trait BusDevice: Debug {
-    /// A type used as a time stamp. Must be the same as [Io::Timestamp][z80emu::Io::Timestamp]
+    /// A type used as a time stamp. Must be the same as [Io::Timestamp][crate::z80emu::Io::Timestamp]
     /// implemented by a [ControlUnit][crate::chip::ControlUnit] and for all the following devices
     /// in a daisy chain.
     type Timestamp: Sized;
