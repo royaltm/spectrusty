@@ -1,7 +1,11 @@
-//! An implementation of the [Fuse](https://sourceforge.net/projects/fuse-emulator/) eumulator Z80 tests.
+//! Performs tests of the CPU instructions and contention emulation using tests from the [Fuse]
+//! ZX Spectrum emulator.
 //!
-//! To run these tests, source files are needed to be present in the "tests/fuse" directory.
+//! To run these tests, "tests.in" and "tests.expected" source files are needed to be present in the
+//! "tests/fuse" directory.
 //! This program attempts to download them before running all the tests if the files are not present.
+//!
+//! [Fuse]: https://sourceforge.net/projects/fuse-emulator/
 use core::num::{NonZeroU8, NonZeroU16};
 use std::cell::RefCell;
 use std::error::Error;
@@ -16,13 +20,13 @@ use spectrusty::clock::{FTs, Ts, VideoTs, VFrameTsCounter, MemoryContention};
 use spectrusty_core::ula_io_contention;
 use spectrusty::chip::ula::{UlaMemoryContention, UlaVideoFrame};
 
+type DynResult<T> = Result<T, Box<dyn Error>>;
+
 // here, the current test case's expected events are being consumed from
 thread_local!(static EVENTS: ExpectedEvents = RefCell::new(VecDeque::new()));
 type ExpectedEvents = RefCell<VecDeque<Event>>;
 // internal clock type
 type VideoCounter = VFrameTsCounter<UlaVideoFrame, UlaMemoryContention>;
-
-type DynResult<T> = Result<T, Box<dyn Error>>;
 
 // Fuse tests are crafted for NMOS flavour
 type CPU = Z80NMOS;
@@ -32,7 +36,7 @@ type CPU = Z80NMOS;
 struct TestCase {
     name: String,
     // CMOS has no internal flavour state, it's better for CPU comparison
-    // since "tests.in" contains no corresponding flavour state
+    // since "tests.expected" contains no corresponding flavour state
     cpu: Z80CMOS,
     tsc: TestCounter,
     mem: TestMemory,
@@ -453,7 +457,7 @@ impl Clock for TestCounter {
     }
 
     fn add_no_mreq(&mut self, address: u16, add_ts: NonZeroU8) {
-        // The z80emu differentiates the MREQ and internal cycles, but in fuse the internal cycles are hardcoded
+        // The z80emu differentiates the MREQ and internal cycles, but in Fuse the internal cycles are hardcoded
         // in its Z80 emulation as a series of MC.
         let mut vtsc = self.vtsc;
         for _ in 0..add_ts.get() {
@@ -486,7 +490,7 @@ impl Clock for TestCounter {
     fn add_io(&mut self, port: u16) -> VideoTs {
         // The port contention (PC) in Fuse is hard-coded in its Z80 emulation. In z80emu the contention
         // is delegated to Clock methods which depend on the VideoFrame and MemoryContention traits
-        // and Clock::add_io is being always invoked once before the IO::read_io (PR) or IO::write_io (PW).
+        // and Clock::add_io is being always invoked only once before the IO::read_io (PR) or IO::write_io (PW).
         let VideoTs { vc, mut hc } = *self.vtsc;
         // Collect the contention event timestamps from the ula_io_contention macro which is used internally
         // by the Clock::add_io implementation for VFrameTsCounter.
@@ -581,7 +585,7 @@ fn debug_cpu(deb: CpuDebug) {
     println!("{:x}", deb);
 }
 
-const TESTS_DIR: &str = r"tests/fuse";
+const TESTS_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), r"/tests/fuse");
 const FUSE_URL: &str = "https://sourceforge.net/p/fuse-emulator/fuse/ci/master/tree/z80/tests/{{name}}?format=raw";
 
 fn test_file_path(name: &str) -> PathBuf {
