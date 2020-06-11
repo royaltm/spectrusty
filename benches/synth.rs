@@ -10,7 +10,7 @@ use spectrusty::audio::synth::*;
 
 pub const SAMPLE_RATE: u32 = 48000;
 pub const FRAME_TSTATES: FTs = 70908;
-pub const CPU_HZ: u32 = 3_546_900;
+pub const CPU_HZ: f64 = 3_546_900.0;
 
 #[bench]
 fn bench_blep_f32_to_f32(ben: &mut Bencher) {

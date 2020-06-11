@@ -6,6 +6,7 @@ use test::{black_box, Bencher, stats::Summary};
 use spectrusty::clock::*;
 use spectrusty::video::{*, pixel::*};
 use spectrusty::chip::ula::{*, frame_cache::*};
+use spectrusty::memory::{ScreenArray, SCREEN_SIZE};
 use rand::prelude::*;
 
 type PixelBuf<'a> = PixelBufA24<'a>;
@@ -100,7 +101,8 @@ fn bench_video<V>(
     where V: VideoFrame
 {
     let Summary { median, .. } = ben.bench(|ben| {
-        let screen: Vec<u8> = (0..6912).map(|_| random()).collect();
+        let mut screen: ScreenArray = [0u8;SCREEN_SIZE as usize];
+        thread_rng().fill(&mut screen[..]);
         let (w, h) = V::screen_size_pixels(BorderSize::Full);
         let pitch = w as usize * PixelBuf::pixel_stride();
         let mut buffer = vec![0u8;pitch * h as usize];
@@ -109,7 +111,7 @@ fn bench_video<V>(
             for _ in 0..50 {
                 invert_flash = !invert_flash;
                 let renderer = Renderer {
-                    border: 7,
+                    border: BorderColor::WHITE,
                     frame_image_producer: UlaFrameProducer::new(&screen, &frame_cache),
                     border_changes: border_changes.iter().copied(),
                     border_size: BorderSize::Full,

@@ -7,6 +7,7 @@ use spectrusty::clock::*;
 use spectrusty::video::{*, pixel::*};
 use spectrusty::chip::ula::frame_cache::*;
 use spectrusty::chip::ula128::{*, frame_cache::*};
+use spectrusty::memory::{ScreenArray, SCREEN_SIZE};
 use rand::prelude::*;
 
 type PixelBuf<'a> = PixelBufA24<'a>;
@@ -166,8 +167,10 @@ fn bench_video<V>(
     where V: VideoFrame
 {
     let Summary { median, .. } = ben.bench(|ben| {
-        let screen0: Vec<u8> = (0..6912).map(|_| random()).collect();
-        let screen1: Vec<u8> = (0..6912).map(|_| random()).collect();
+        let mut screen0: ScreenArray = [0u8;SCREEN_SIZE as usize];
+        thread_rng().fill(&mut screen0[..]);
+        let mut screen1: ScreenArray = [0u8;SCREEN_SIZE as usize];
+        thread_rng().fill(&mut screen1[..]);
         let (w, h) = V::screen_size_pixels(BorderSize::Full);
         let pitch = w as usize * PixelBuf::pixel_stride();
         let mut buffer = vec![0u8;pitch * h as usize];
@@ -180,7 +183,7 @@ fn bench_video<V>(
                 let producer = Ula128FrameProducer::new(shadow_screen, &screen0, &screen1, &frame_cache0, &frame_cache1,
                                 screen_changes.iter().copied());
                 let renderer = Renderer {
-                    border: 7,
+                    border: BorderColor::WHITE,
                     frame_image_producer: producer,
                     border_changes: border_changes.iter().copied(),
                     border_size: BorderSize::Full,
