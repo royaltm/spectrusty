@@ -61,7 +61,7 @@ use super::ay::PassByAyAudioBusDevice;
 
 pub use crate::{
     storage::microdrives::*,
-    serial::*,
+    serial::{SerialPortDevice, DataState, ControlState, Rs232Io, BAUD_RATES, DEFAULT_BAUD_RATE},
     network::zxnet::*
 };
 

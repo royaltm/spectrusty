@@ -16,7 +16,7 @@ use spectrusty_core::{
 
 pub use crate::ay::{
     audio::Ay3_891xAudio,
-    Ay3_8910Io, AyIoPort, AyIoNullPort, AyRegister,
+    Ay3_8910Io, Ay3_8912Io, Ay3_8913Io, AyIoPort, AyIoNullPort, AyRegister,
     AyPortDecode, Ay128kPortDecode, AyFullerBoxPortDecode
 };
 

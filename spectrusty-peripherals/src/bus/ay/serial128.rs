@@ -1,9 +1,11 @@
 //! A collection of custom [Ay3_891xBusDevice] types for Spectrum's 128k with [SerialPorts128].
 use core::fmt;
 use spectrusty_core::{bus::BusDevice, clock::VideoTs};
-use crate::ay::{AyIoNullPort, Ay128kPortDecode, serial128::SerialPorts128};
-use crate::serial::{NullSerialPort, Rs232Io, SerialKeypad};
+use crate::ay::{AyIoNullPort, Ay128kPortDecode};
+pub use crate::ay::serial128::SerialPorts128;
+pub use crate::serial::{NullSerialPort, Rs232Io, SerialKeypad};
 use super::Ay3_891xBusDevice;
+
 
 /// This type implements a [BusDevice][spectrusty_core::bus::BusDevice] emulating AY-3-8912 with an extension
 /// [keypad][SerialKeypad].
