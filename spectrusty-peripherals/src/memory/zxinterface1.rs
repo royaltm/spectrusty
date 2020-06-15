@@ -56,4 +56,12 @@ impl ZxInterface1MemExt {
     pub fn exrom(&self) -> &ExRom {
         &self.exrom
     }
+    /// Removes data from the EX-ROM bank.
+    ///
+    /// # Note
+    /// If the EX-ROM bank has been paged in, it won't be paged out automatically after the EX-ROM data
+    /// is cleared from the extension.
+    pub fn clear_exrom(&mut self) {
+        self.exrom = Rc::new([]);
+    }
 }
