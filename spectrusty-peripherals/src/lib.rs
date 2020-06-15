@@ -8,6 +8,7 @@ pub mod joystick;
 pub mod memory;
 pub mod mouse;
 pub mod network;
+pub mod parallel;
 pub mod serial;
 pub mod storage;
 pub mod zxprinter;

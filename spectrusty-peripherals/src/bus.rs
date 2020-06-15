@@ -3,5 +3,6 @@ pub mod ay;
 pub mod debug;
 pub mod joystick;
 pub mod mouse;
+pub mod parallel;
 pub mod zxinterface1;
 pub mod zxprinter;
