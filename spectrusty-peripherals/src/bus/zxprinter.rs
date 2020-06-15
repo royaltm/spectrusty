@@ -60,14 +60,14 @@ impl PortAddress for ZxPrinterPortAddress {
 #[derive(Clone, Copy, Default, Debug)]
 pub struct Alphacom32PortAddress;
 impl PortAddress for Alphacom32PortAddress {
-    const ADDRESS_MASK: u16 = 0b0000_0000_1000_0100;
+    const ADDRESS_MASK: u16 = 0b0000_0000_0100_0100;
     const ADDRESS_BITS: u16 = 0b0000_0000_1111_1011;
 }
 
 #[derive(Clone, Copy, Default, Debug)]
 pub struct TS2040PortAddress;
 impl PortAddress for TS2040PortAddress {
-    const ADDRESS_MASK: u16 = 0b0000_0000_1111_1111;
+    const ADDRESS_MASK: u16 = 0b0000_0000_1000_0100;
     const ADDRESS_BITS: u16 = 0b0000_0000_1111_1011;
 }
 
