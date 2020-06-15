@@ -15,6 +15,7 @@ bitflags! {
     /// * Bit = 0 a key is not being pressed.
     #[derive(Default)]
     #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
+    #[cfg_attr(feature = "snapshot", serde(from = "u32", into = "u32"))]
     pub struct KeypadKeys: u32 {
         /// The 1st (top) physical keypad row's mask.
         const ROW1_MASK = 0b0000_0000_1111_0000_0000;
@@ -376,5 +377,17 @@ impl<V: VideoFrame> SerialKeypad<V> {
                 }
             }
         }
+    }
+}
+
+impl From<u32> for KeypadKeys {
+    fn from(keys: u32) -> Self {
+        KeypadKeys::from_bits_truncate(keys)
+    }
+}
+
+impl From<KeypadKeys> for u32 {
+    fn from(keys: KeypadKeys) -> Self {
+        keys.bits()
     }
 }

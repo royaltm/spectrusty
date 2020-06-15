@@ -43,8 +43,10 @@ const CPU_HZ: u32 = 3_500_000;
 #[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]
 pub struct Rs232Io<V, R, W> {
     /// A reader providing data received by Spectrum.
+    #[cfg_attr(feature = "snapshot", serde(default))]
     pub reader: R,
     /// A writer receiving data from Spectrum.
+    #[cfg_attr(feature = "snapshot", serde(default))]
     pub writer: W,
     // bit_interval: u32, // CPU_HZ / BAUDS
     read_io: ReadStatus,

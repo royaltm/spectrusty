@@ -39,14 +39,17 @@ use super::AyIoPort;
 #[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]
 pub struct SerialPorts128<S1,S2> {
     /// A [SerialPortDevice] connected to a `KEYPAD` port.
+    #[cfg_attr(feature = "snapshot", serde(default))]
     pub serial1: S1,
     /// A [SerialPortDevice] connected to a `RS232` port.
+    #[cfg_attr(feature = "snapshot", serde(default))]
     pub serial2: S2,
     io_state: Serial128Io,
 }
 
 bitflags! {
     #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
+    #[cfg_attr(feature = "snapshot", serde(from = "u8", into = "u8"))]
     struct Serial128Io: u8 {
         const SER1_CTS      = 0b0000_0001;
         const SER1_RXD      = 0b0000_0010;
@@ -67,6 +70,18 @@ bitflags! {
 impl Default for Serial128Io {
     fn default() -> Self {
         Serial128Io::all()
+    }
+}
+
+impl From<u8> for Serial128Io {
+    fn from(keys: u8) -> Self {
+        Serial128Io::from_bits_truncate(keys)
+    }
+}
+
+impl From<Serial128Io> for u8 {
+    fn from(keys: Serial128Io) -> Self {
+        keys.bits()
     }
 }
 

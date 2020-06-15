@@ -85,7 +85,7 @@ pub struct DebugSpooler;
 #[cfg_attr(feature = "snapshot", serde(rename_all="camelCase"))]
 pub struct ZxPrinterDevice<V, S> {
     /// An instance of the [Spooler] trait implementation type.
-    #[cfg_attr(feature = "snapshot", serde(default))]
+    #[cfg_attr(feature = "snapshot", serde(skip))]
     pub spooler: S,
     /// Can be changed to adjust speed. Default is 855 T-states (~16 dot lines / sec.).
     pub bit_delay: u16,

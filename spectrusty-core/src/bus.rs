@@ -120,17 +120,19 @@ pub trait BusDevice: Debug {
     ///
     /// Default implementation forwards this call to the next device.
     ///
+    /// Returns an optional tuple with the (data, insert wait states).
+    ///
     /// **NOTE**: Implementations of bus devices should only need to forward this call if it does not apply
     /// to this device or if not all bits are modified by the implementing device. In the latter case
     /// the result from the forwarded call should be logically `ANDed` with the result of reading from this
-    ///  device and if the upstream result is `None` the result should be returned with all unused bits set to 1.
+    /// device and if the upstream result is `None` the result should be returned with all unused bits set to 1.
     #[inline(always)]
     fn read_io(&mut self, port: u16, timestamp: Self::Timestamp) -> Option<(u8, Option<NonZeroU16>)> {
         self.next_device_mut().read_io(port, timestamp)
     }
     /// This method is called by the control unit during an I/O write cycle.
     ///
-    /// Returns `true` if the device blocked writing through.
+    /// Returns `Some(insert wait states)` if the device has blocked writing through it.
     ///
     /// Default implementation forwards this call to the next device.
     ///
