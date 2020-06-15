@@ -1,4 +1,5 @@
 //! **TAP** format related utilities for sweetening the handling of **TAP** files.
+use core::fmt;
 use core::convert::TryFrom;
 use core::num::NonZeroU32;
 use std::borrow::Cow;
@@ -6,7 +7,7 @@ use std::path::{Path, PathBuf};
 use std::fs::{OpenOptions, File};
 use std::io::{Read, Write, Result, Seek, SeekFrom};
 
-use spectrusty_formats::tap::*;
+use spectrusty::formats::tap::*;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum TapState {
@@ -26,6 +27,7 @@ pub enum Tap<F> {
 }
 
 /// The struct that emulates a simple tape recorder.
+#[derive(Debug)]
 pub struct Tape<F> {
     /// `true` if the tape is playing, depending on the [Tap] variant it may indicate tape playback or recording.
     /// `false` then the tape has stopped.
@@ -45,6 +47,15 @@ pub struct TapCabinet<F, S> {
     taps: Vec<(Tap<F>, S)>,
     current: usize,
     state: TapState
+}
+
+impl<F> fmt::Debug for Tap<F> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Tap::Reader(..) => "Tap::Reader(..)".fmt(f),
+            Tap::Writer(..) => "Tap::Writer(..)".fmt(f)
+        }
+    }
 }
 
 impl TapFileCabinet {

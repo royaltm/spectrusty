@@ -5,20 +5,23 @@ authors = ["Rafal Michalski <royaltm75@gmail.com>"]
 edition = "2018"
 
 [features]
-default = []
+default = ["snapshot", "compression"]
+snapshot = ["serde", "spectrusty/snapshot"]
+compression = ["spectrusty/compression"]
 
 [dependencies]
+log = "0.4"
 
-[dependencies.spectrusty-formats]
-version = "0.1"
-path = "../spectrusty-formats"
-
-[dependencies.spectrusty-peripherals]
-version = "0.1"
-path = "../spectrusty-peripherals"
+[dependencies.serde]
+version = "1.0"
+default-features = true
+features = ["derive"]
+optional = true
 
 [dependencies.spectrusty]
 version = "0.1"
+default-features = false
+features = ["formats", "peripherals"]
 path = ".."
 
 [dependencies.minifb]
