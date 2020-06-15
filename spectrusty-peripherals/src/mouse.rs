@@ -37,7 +37,7 @@ pub trait MouseInterface {
     /// Returns a state of all mouse buttons.
     fn get_buttons(&self) -> MouseButtons;
     /// Moves the mouse by the given interval.
-    fn move_mouse<M: Into<MouseMovement>>(&mut self, mov: M);
+    fn move_mouse(&mut self, mov: MouseMovement);
 }
 
 /// A mouse device interface used by the mouse [bus][crate::bus::mouse] device implementation.
@@ -76,7 +76,7 @@ impl MouseInterface for NullMouseDevice {
     fn get_buttons(&self) -> MouseButtons {
         MouseButtons::empty()
     }
-    fn move_mouse<M: Into<MouseMovement>>(&mut self, _mov: M) {}  
+    fn move_mouse(&mut self, _mov: MouseMovement) {}
 }
 
 impl MouseDevice for NullMouseDevice {

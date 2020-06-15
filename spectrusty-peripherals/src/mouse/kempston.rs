@@ -82,8 +82,7 @@ impl MouseInterface for KempstonMouseDevice {
         self.buttons
     }
     #[inline]
-    fn move_mouse<M: Into<MouseMovement>>(&mut self, mov: M) {
-        let movement = mov.into();
+    fn move_mouse(&mut self, movement: MouseMovement) {
         self.data_x = clamped_move(self.data_x, movement.horizontal);
         self.data_y = clamped_move(self.data_y, -movement.vertical);
     }
