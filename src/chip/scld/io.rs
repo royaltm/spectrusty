@@ -45,19 +45,25 @@ impl<M, B, X, V> Io for Scld<M, B, X, V>
     }
 
     fn read_io(&mut self, port: u16, ts: VideoTs) -> (u8, Option<NonZeroU16>) {
-        if UlaPortAddress::match_port(port) {
-            (self.ula.ula_io_data(port, ts) & 0b0101_1111,
-             None)
-        }
-        else if ScldCtrlPortAddress::match_port(port) {
+        if ScldCtrlPortAddress::match_port(port) {
             (self.cur_ctrl_flags.bits(), None)
         }
         else if ScldMmuPortAddress::match_port(port) {
             (self.mem_paged, None)
         }
         else {
-            self.ula.bus.read_io(port, ts)
-                        .unwrap_or_else(|| (!0, None) )
+            let bus_data = self.ula.bus.read_io(port, ts);
+            if UlaPortAddress::match_port(port) {
+                let ula_data = self.ula.ula_io_data(port, ts) & 0b0101_1111;
+                if let Some((data, ws)) = bus_data {
+                    return (ula_data & data, ws);
+                }
+                (ula_data, None)
+            }
+            else {
+                self.ula.bus.read_io(port, ts)
+                            .unwrap_or_else(|| (!0, None) )
+            }
         }
     }
 
