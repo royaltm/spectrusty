@@ -30,6 +30,7 @@ pub enum ZxMemoryError {
     InvalidBankIndex,
     UnsupportedAddressRange,
     UnsupportedExRomPaging,
+    InvalidExRomSize,
     Io(io::Error)
 }
 
@@ -42,6 +43,7 @@ impl fmt::Display for ZxMemoryError {
             ZxMemoryError::InvalidBankIndex => "Memory bank index is out of range",
             ZxMemoryError::UnsupportedAddressRange => "Address range is not supported",
             ZxMemoryError::UnsupportedExRomPaging => "EX-ROM mapping is not supported",
+            ZxMemoryError::InvalidExRomSize => "EX-ROM size is smaller than the memory page size",
             ZxMemoryError::Io(err) => return err.fmt(f)
         })
     }
@@ -50,19 +52,8 @@ impl fmt::Display for ZxMemoryError {
 impl From<ZxMemoryError> for io::Error {
     fn from(err: ZxMemoryError) -> Self {
         match err {
-            ZxMemoryError::InvalidPageIndex => {
-                io::Error::new(io::ErrorKind::InvalidInput, err)
-            }
-            ZxMemoryError::InvalidBankIndex => {
-                io::Error::new(io::ErrorKind::InvalidInput, err)
-            }
-            ZxMemoryError::UnsupportedAddressRange => {
-                io::Error::new(io::ErrorKind::InvalidInput, err)
-            }
-            ZxMemoryError::UnsupportedExRomPaging => {
-                io::Error::new(io::ErrorKind::InvalidInput, err)
-            }
-            ZxMemoryError::Io(err) => err
+            ZxMemoryError::Io(err) => err,
+            e => io::Error::new(io::ErrorKind::InvalidInput, e)
         }
     }
 }
@@ -240,9 +231,6 @@ pub trait ZxMemory: Sized {
     /// Only one EX-ROM can be mapped at the same time. If an EX-ROM bank is already mapped when calling
     /// this function it will be unmapped first, regardless of the page the previous EX-ROM bank has been
     /// mapped at.
-    ///
-    /// # Panics
-    /// Panics if [ExRom] byte size is not equal to [ZxMemory::PAGE_SIZE].
     ///
     /// Not all types of memory support attaching external ROMs.
     fn map_exrom(&mut self, _exrom_bank: ExRom, _page: u8) -> Result<()> {

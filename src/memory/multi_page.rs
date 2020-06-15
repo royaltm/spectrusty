@@ -65,7 +65,7 @@ pub trait MemoryBlock: Sized {
     fn as_slice(&self) -> &[u8];
     fn as_mut_slice(&mut self) -> &mut [u8];
     fn cast_slice_as_bank_ptr(slice: &[u8]) -> NonNull<<Self::Pages as MemoryPages>::PagePtrType> {
-        assert!(slice.len() >= Self::BANK_SIZE);
+        assert!(slice.len() >= core::mem::size_of::<<Self::Pages as MemoryPages>::PagePtrType>());
         let ptr = slice.as_ptr() as *const <Self::Pages as MemoryPages>::PagePtrType;
         // SAFETY: ok because we just checked that the length fits
         NonNull::from(unsafe { &(*ptr) })
@@ -564,14 +564,17 @@ impl<M> ZxMemory for MemPageableRomRamExRom<M>
         self.map_bank_on_page(ram_bank + M::ROM_BANKS, page);
         Ok(())
     }
-    /// # Panics
-    /// Panics if provided `exrom_bank` size does not match [ZxMemory::PAGE_SIZE].
     fn map_exrom(&mut self, exrom_bank: ExRom, page: u8) -> Result<()> {
         if page > Self::PAGES_MAX {
-            return Err(ZxMemoryError::InvalidPageIndex)
+            Err(ZxMemoryError::InvalidPageIndex)
         }
-        self.attach_exrom(exrom_bank, page);
-        Ok(())
+        else if exrom_bank.len() >= M::BANK_SIZE {
+            self.attach_exrom(exrom_bank, page);
+            Ok(())
+        }
+        else {
+            Err(ZxMemoryError::InvalidExRomSize)
+        }
     }
     fn unmap_exrom(&mut self, exrom_bank: &ExRom) {
         if self.is_exrom_attached(exrom_bank) {
