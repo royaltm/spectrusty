@@ -103,10 +103,30 @@ impl fmt::Debug for UlaPlusPalette {
 }
 
 impl RenderMode {
-    /// Creates a new `RenderMode` with given `color` in range: [0, 7].
+    /// Extracts color mode as `ColorMode` from `self`.
+    #[inline]
+    pub fn into_color_mode(self) -> ColorMode {
+        ColorMode::from_bits_truncate((self & RenderMode::COLOR_MODE).bits() >> 4)
+    }
+    /// Creates a new `RenderMode` from border color. The screen mode is set to default.
+    #[inline]
+    pub fn from_border_color(border: BorderColor) -> RenderMode {
+        RenderMode::from_bits_truncate(border.into())
+    }
+    /// Creates a new `RenderMode` with a given color `mode` replacing the previous one.
+    ///
+    /// Other bits are left unmodified.
+    #[inline]
+    pub fn with_color_mode(self, mode: ColorMode) -> Self {
+        (self - RenderMode::COLOR_MODE)
+        | (RenderMode::from_bits_truncate(mode.bits() << 4) & RenderMode::COLOR_MODE)
+    }
+    /// Creates a new `RenderMode` with a given `color` in range: [0, 7].
+    ///
+    /// Other bits are left unmodified.
     #[inline]
     pub fn with_color(self, color: u8) -> Self {
-        (self & !RenderMode::COLOR_MASK)
+        (self - RenderMode::COLOR_MASK)
         | (RenderMode::from_bits_truncate(color) & RenderMode::COLOR_MASK)
     }
     /// Returns the border or ink bits ORed with hi resolution bit.
@@ -128,18 +148,6 @@ impl RenderMode {
     #[inline]
     pub fn is_palette(self) -> bool {
         self.intersects(RenderMode::PALETTE)
-    }
-    /// Changes the color mode and returns boolean indicating if the color mode has changed.
-    pub fn set_color_mode(&mut self, mode: ColorMode) -> bool {
-        let color_mode = RenderMode::from_bits_truncate(mode.bits() << 4);
-        let mode_diff = (*self ^ color_mode) & RenderMode::COLOR_MODE  ;
-        if mode_diff.is_empty() {
-            false
-        }
-        else {
-            *self ^= mode_diff;
-            true
-        }
     }
 }
 
@@ -165,23 +173,10 @@ impl From<RenderMode> for u8 {
     }
 }
 
-impl From<RenderMode> for ColorMode {
-    fn from(mode: RenderMode) -> ColorMode {
-        ColorMode::from_bits_truncate((mode & RenderMode::COLOR_MODE).bits() >> 4)
-    }
-}
-
 impl From<VideoTsData6> for RenderMode {
     #[inline]
     fn from(vtsr: VideoTsData6) -> Self {
         RenderMode::from_bits_truncate(vtsr.into_data())
-    }
-}
-
-impl From<BorderColor> for RenderMode {
-    #[inline]
-    fn from(border: BorderColor) -> Self {
-        RenderMode::from_bits_truncate(border.into())
     }
 }
 

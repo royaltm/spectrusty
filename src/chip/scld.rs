@@ -195,7 +195,7 @@ impl<M, B, X, V> Scld<M, B, X, V>
         }
         // source mode
         if diff_flags.intersects(ScldCtrlFlags::SCREEN_SOURCE_MASK) {
-            let source_mode = SourceMode::from(flags);
+            let source_mode = SourceMode::from_scld_flags(flags);
             self.source_changes.push((ts, source_mode.bits()).into());
         }
         // render mode

@@ -17,14 +17,14 @@ impl PortAddress for UlaPortAddress {
 }
 
 #[derive(Clone, Copy, Default, Debug)]
-struct ScldCtrlPortAddress;
+pub(crate) struct ScldCtrlPortAddress;
 impl PortAddress for ScldCtrlPortAddress {
     const ADDRESS_MASK: u16 = 0b0000_0000_1111_1111;
     const ADDRESS_BITS: u16 = 0b0000_0000_1111_1111;
 }
 
 #[derive(Clone, Copy, Default, Debug)]
-struct ScldMmuPortAddress;
+pub(crate) struct ScldMmuPortAddress;
 impl PortAddress for ScldMmuPortAddress {
     const ADDRESS_MASK: u16 = 0b0000_0000_1111_1111;
     const ADDRESS_BITS: u16 = 0b0000_0000_1111_0100;

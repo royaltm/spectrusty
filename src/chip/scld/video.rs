@@ -1,9 +1,6 @@
 use core::iter::{self, Empty};
-// use core::ops::Range;
 use std::vec::Drain;
 
-// #[cfg(feature = "snapshot")]
-// use serde::{Serialize, Deserialize};
 use crate::memory::PagedMemory8k;
 use crate::clock::{VideoTs, VideoTsData2, VideoTsData6};
 use crate::video::{
@@ -85,7 +82,7 @@ impl<M, D, X, V> Scld<M, D, X, V>
         let screen0 = self.ula.memory.screen_ref(0).unwrap();
         let screen1 = self.ula.memory.screen_ref(1).unwrap();
         let frame_image_producer = ScldFrameProducer::new(
-            SourceMode::from(self.beg_ctrl_flags),
+            SourceMode::from_scld_flags(self.beg_ctrl_flags),
             screen0, &self.ula.frame_cache,
             screen1, &self.sec_frame_cache,
             self.source_changes.drain(..));

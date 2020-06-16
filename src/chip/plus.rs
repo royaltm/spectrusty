@@ -3,18 +3,25 @@
 This emulator wraps one of ULA chipset emulators that implements [UlaPlusInner] trait, and enhances its graphics
 with ULAplus capabilities.
 
-The [UlaPlus] chipset responds to the two ports (fully decoded):
+The [UlaPlus] chipset responds to the ports (fully decoded):
+* `0xFF` - the main screen mode port (read and write, has priority),
 * `0xBF3B` - the register port (write only),
 * `0xFF3B` - the data port (read and write)
 
-and provides the new graphics capabilities according to the ULAplus [specification](https://faqwiki.zxnet.co.uk/wiki/ULAplus).
+and provides the new graphics capabilities according to the ULAplus version 1.1 [specification](https://faqwiki.zxnet.co.uk/wiki/ULAplus).
 
-Implementation ceveats:
+Implementation ceveats (may change in the future releases):
 
-* The ULAplus capabilities can be disabled and enabled in run time with [UlaPlus::enable_ulaplus_modes].
+* No HSL or CMYK 1.0 support, instead a grayscale mode has been implemented (1.1, see below for details).
+* The new way of multiplexing the 2-bit blue value to obtain a 3-bit blue value (1.1).
+* [SCLD][super::scld] (Timex) modes are also supported: secondary screen, hi-color, hi-res and shadow screen bank.
+* Port `0xFF` has priority over the register port. Bits 0 to 5 written to port `0xBF3B` with mode group set
+  are bitwise ORed with the bits written previously to port `0xFF`. In palette mode bits are not modified.
+* Reading value previously written to port `0xFF` is disabled by default, to not confuse some programs (BBC BASIC)
+  that the chipset supports SCLD MMU paging. This can be enabled with [UlaPlus::enable_reading_scld_mode].
+* The ULAplus capabilities can be disabled or enabled in run time with [UlaPlus::enable_ulaplus_modes].
 * Hard reset sets the screen and color mode to the default and sets all palette entries to 0, but doesn't change
   the ULAplus capabilities disable flag.
-* [SCLD][super::scld] modes are also supported: secondary screen, hi-color, hi-res and shadow screen bank.
 * The inner chip features and bugs (e.g. floating bus, keyboard issue, snow interference) are carried through
   and in case of the snow effect only the primary screens are being affected.
 * The disable bit of Spectrum's 128k memory paging doesn't affect the ULAplus modes, but it makes the shadow memory
@@ -24,7 +31,8 @@ Implementation ceveats:
 * In grayscale mode with palette enabled, each palette entry describes a grayscale intensity from 0 to 255.
 * In classic 15 color and high resolution modes, each color is converted to a grayscale based on the color intensity.
 
-In 128k mode there are four available screen memory areas and in this emulator they are referenced as:
+In 128k mode there are four available screen memory areas and in this documentation and source code they are 
+referenced as:
 
 | identifier      | 16kb page | address range¹| aliases     | idx²|
 |-----------------|-----------|---------------|-------------|-----|
@@ -60,8 +68,10 @@ use crate::clock::{
     NoMemoryContention, MemoryContention
 };
 use crate::chip::{
-    ControlUnit, MemoryAccess, UlaPortFlags, UlaPlusRegFlags, Ula128MemFlags, Ula3CtrlFlags,
-    Ula128Control, Ula3Control, ColorMode, UlaWrapper,
+    ControlUnit, MemoryAccess,
+    UlaPortFlags, ScldCtrlFlags, UlaPlusRegFlags, ColorMode, Ula128MemFlags, Ula3CtrlFlags,
+    Ula128Control, Ula3Control,
+    UlaWrapper,
     scld::frame_cache::SourceMode,
     ula::{
         Ula,
@@ -91,7 +101,10 @@ use crate::memory::{ZxMemory, MemoryExtension};
 pub struct UlaPlus<U: Video> {
     ula: U,
     ulaplus_disabled: bool,
+    scld_mode_rw: bool,
+    scld_mode: ScldCtrlFlags, // the last entry written
     register_flags: UlaPlusRegFlags, // the last entry written
+    color_mode: ColorMode, // the last entry written
     beg_render_mode: RenderMode,
     cur_render_mode: RenderMode,
     beg_source_mode: SourceMode,
@@ -166,9 +179,12 @@ impl<U> Default for UlaPlus<U>
         UlaPlus {
             ula: U::default(),
             ulaplus_disabled: false,
-            register_flags: UlaPlusRegFlags::empty(),
-            beg_render_mode: border.into(),
-            cur_render_mode: border.into(),
+            scld_mode_rw: false,
+            scld_mode: ScldCtrlFlags::default(),
+            register_flags: UlaPlusRegFlags::default(),
+            color_mode: ColorMode::default(),
+            beg_render_mode: RenderMode::from_border_color(border),
+            cur_render_mode: RenderMode::from_border_color(border),
             beg_source_mode: SourceMode::default(),
             cur_source_mode: SourceMode::default(),
             sec_frame_cache: UlaFrameCache::default(),
@@ -189,7 +205,10 @@ impl<U> fmt::Debug for UlaPlus<U>
         f.debug_struct("UlaPlus")
             .field("ula", &self.ula)
             .field("ulaplus_disabled", &self.ulaplus_disabled)
+            .field("scld_mode_rw", &self.scld_mode_rw)
+            .field("scld_mode", &self.scld_mode)
             .field("register_flags", &self.register_flags)
+            .field("color_mode", &self.color_mode)
             .field("beg_render_mode", &self.beg_render_mode)
             .field("cur_render_mode", &self.cur_render_mode)
             .field("beg_source_mode", &self.beg_source_mode)
@@ -239,20 +258,41 @@ impl<U> Ula3Control for UlaPlus<U>
 impl<'a, U> UlaPlus<U>
     where U: UlaPlusInner<'a>
 {
+    /// Returns `true` if reading the `0xFF` port returns the previous write or `false` if bus data is being read.
+    pub fn can_read_scld_mode(&mut self) -> bool {
+        self.scld_mode_rw
+    }
+    /// Determines if reading the `0xFF` port returns the previous write or bus data.
+    pub fn enable_reading_scld_mode(&mut self, enable_reading: bool) {
+        self.scld_mode_rw = enable_reading;
+    }
+    /// Returns `true` if ULAplus modes and ports are enabled or `false` otherwise.
+    pub fn is_ulaplus_enabled(&self) -> bool {
+        !self.ulaplus_disabled
+    }
     /// Controls the ULAplus ports and graphics availability.
     ///
-    /// When disabled, ULAplus ports become available to the underlying devices and the rendering and color modes
+    /// When disabled, ULAplus ports become available to the underlying devices and the screen and color modes
     /// are being reset to the default. However, palette entries are left unmodified. The last register port
     /// value written is also left unmodified.
     ///
-    /// When enabled, ULAplus ports become responsive but the rendering and color modes are left unmodified.
+    /// When enabled, ULAplus ports become responsive again but the screen mode is not restored unless it has
+    /// been previously written to `0xFF` port. In this instance the screen mode gets restored from the last
+    /// value written to `0xFF` port. The color mode is always being restored.
     pub fn enable_ulaplus_modes(&mut self, enable: bool) {
+        let ts = self.ula.current_video_ts();
         self.ulaplus_disabled = !enable;
-        if !enable {
-            let ts = self.ula.current_video_ts();
-            self.update_source_mode(SourceMode::default(), ts);
-            let render_mode = self.ula.border_color().into();
+        if enable {
+            let flags = self.scld_mode.into_plus_mode();
+            let render_mode = self.render_mode_from_plus_flags(flags)
+                                  .with_color_mode(self.color_mode);
             self.update_render_mode(render_mode, ts);
+            self.update_source_mode(SourceMode::from_plus_reg_flags(flags), ts);
+        }
+        else if !enable {
+            let render_mode = RenderMode::from_border_color(self.ula.border_color());
+            self.update_render_mode(render_mode, ts);
+            self.update_source_mode(SourceMode::default(), ts);
         }
     }
     /// Returns the last value sent to the register port `0xBF3B`.
@@ -312,20 +352,32 @@ impl<'a, U> UlaPlus<U>
         }
     }
 
+    fn render_mode_from_plus_flags(&self, flags: UlaPlusRegFlags) -> RenderMode {
+        if flags.is_screen_hi_res() {
+            (self.cur_render_mode | RenderMode::HI_RESOLUTION)
+                        .with_color(flags.hires_color_index())
+        }
+        else {
+            (self.cur_render_mode & !RenderMode::HI_RESOLUTION)
+                        .with_color(self.ula.border_color().into())
+        }
+    }
+
+    fn update_screen_mode(&mut self, flags: UlaPlusRegFlags, ts: VideoTs) {
+        self.update_source_mode(SourceMode::from_plus_reg_flags(flags), ts);
+        self.update_render_mode(self.render_mode_from_plus_flags(flags), ts);
+    }
+
+    fn write_scld_ctrl_port(&mut self, data: u8, ts: VideoTs) {
+        let flags = ScldCtrlFlags::from(data);
+        self.scld_mode = flags;
+        self.update_screen_mode(flags.into_plus_mode(), ts);
+    }
+
     fn write_plus_regs_port(&mut self, data: u8, ts: VideoTs) {
         let flags = UlaPlusRegFlags::from(data);
         if flags.is_mode_group() {
-            self.update_source_mode(SourceMode::from(flags), ts);
-
-            let render_mode = if flags.is_screen_hi_res() {
-                (self.cur_render_mode | RenderMode::HI_RESOLUTION)
-                            .with_color(flags.hires_color_index())
-            }
-            else {
-                (self.cur_render_mode & !RenderMode::HI_RESOLUTION)
-                            .with_color(self.ula.border_color().into())
-            };
-            self.update_render_mode(render_mode, ts);
+            self.update_screen_mode(flags|self.scld_mode.into_plus_mode(), ts);
         }
         self.register_flags = flags;
     }
@@ -339,9 +391,9 @@ impl<'a, U> UlaPlus<U>
             }
         }
         else if self.register_flags.is_mode_group() {
-            if self.cur_render_mode.set_color_mode(ColorMode::from_bits_truncate(data)) {
-                self.mode_changes.push((ts, self.cur_render_mode.bits()).into())
-            }
+            let color_mode = ColorMode::from_bits_truncate(data);
+            self.color_mode = color_mode;
+            self.update_render_mode(self.cur_render_mode.with_color_mode(color_mode), ts);
         }        
     }
 
@@ -350,7 +402,7 @@ impl<'a, U> UlaPlus<U>
             self.cur_palette[index as usize]
         }
         else {
-            ColorMode::from(self.cur_render_mode).bits()
+            self.color_mode.bits()
         }
     }
 }
@@ -418,8 +470,10 @@ impl<'a, U> ControlUnit for UlaPlus<U>
         self.ula.reset(cpu, hard);
         if hard {
             let ts = self.ula.current_video_ts();
+            self.scld_mode = ScldCtrlFlags::default();
+            self.color_mode = ColorMode::default();
             self.register_flags = UlaPlusRegFlags::default();
-            let render_mode = self.ula.border_color().into();
+            let render_mode = RenderMode::from_border_color(self.ula.border_color());
             self.update_render_mode(render_mode, ts);
             self.update_source_mode(SourceMode::default(), ts);
             for (p, index) in self.cur_palette.iter_mut().zip(0..64) {

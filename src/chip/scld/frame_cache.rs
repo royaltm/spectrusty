@@ -86,6 +86,32 @@ const EMPTY_LINE_ITER: UlaFrameLineIter<'_> = UlaFrameLineIter {
 
 impl SourceMode {
     #[inline]
+    pub fn from_scld_flags(flags: ScldCtrlFlags) -> SourceMode {
+        SourceMode::from_bits_truncate(
+            (flags & ScldCtrlFlags::SCREEN_SOURCE_MASK).bits()
+        )
+    }
+    #[inline]
+    pub fn from_plus_reg_flags(flags: UlaPlusRegFlags) -> SourceMode {
+        /*
+            ula +   source mode
+            0 0 0 -> 0 0 0      screen 0
+            0 0 1 -> 0 0 1      screen 1
+            0 1 0 -> 0 1 0      hi-color
+            0 1 1 -> 1 1 0 *    hi-color (shadow)
+            1 0 0 -> 1 0 0      screen 0 (shadow)
+            1 0 1 -> 1 0 1      screen 1 (shadow)
+            1 1 0 -> 0 1 0 *    hi-res
+            1 1 1 -> 1 1 0 *    hi-res   (shadow)
+        */
+        match (flags & UlaPlusRegFlags::SCREEN_MODE_MASK).bits() {
+            0b110 => SourceMode::ATTR_HI_COLOR, // 0b010
+            0b011|
+            0b111 => SourceMode::SHADOW_BANK|SourceMode::ATTR_HI_COLOR, // 0b110
+            bits  => SourceMode::from_bits_truncate(bits)
+        }
+    }
+    #[inline]
     pub fn is_second_screen(self) -> bool {
         self.intersects(SourceMode::SECOND_SCREEN)
     }
@@ -110,35 +136,6 @@ impl From<VideoTsData2> for SourceMode {
     #[inline]
     fn from(vtsm: VideoTsData2) -> Self {
         SourceMode::from_bits_truncate(vtsm.into_data())
-    }
-}
-
-impl From<ScldCtrlFlags> for SourceMode {
-    fn from(flags: ScldCtrlFlags) -> SourceMode {
-        SourceMode::from_bits_truncate(
-            (flags & ScldCtrlFlags::SCREEN_SOURCE_MASK).bits()
-        )
-    }
-}
-
-impl From<UlaPlusRegFlags> for SourceMode {
-    fn from(flags: UlaPlusRegFlags) -> SourceMode {
-        /*
-            ula +   source mode
-            0 0 0 -> 0 0 0      screen 0
-            0 0 1 -> 0 0 1      screen 1
-            0 1 0 -> 0 1 0      hi-color
-            0 1 1 -> 1 1 0 *    hi-color (shadow)
-            1 0 0 -> 1 0 0      screen 0 (shadow)
-            1 0 1 -> 1 0 1      screen 1 (shadow)
-            1 1 0 -> 0 1 0 *    hi-res
-            1 1 1 -> 1 1 0 *    hi-res   (shadow)
-        */
-        match (flags & UlaPlusRegFlags::SCREEN_MODE_MASK).bits() {
-            0b110       => SourceMode::ATTR_HI_COLOR, // 0b010
-            0b011|0b111 => SourceMode::SHADOW_BANK|SourceMode::ATTR_HI_COLOR, // 0b110
-            bits        => SourceMode::from_bits_truncate(bits)
-        }
     }
 }
 

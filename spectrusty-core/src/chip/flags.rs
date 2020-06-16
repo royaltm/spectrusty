@@ -129,13 +129,18 @@ bitflags! {
 }
 
 bitflags! {
-    /// ULAplus data port flags for [UlaPlusRegFlags::MODE_GROUP].
+    /// ULAplus data port flags when register port is set to [UlaPlusRegFlags::MODE_GROUP].
+    #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
+    #[cfg_attr(feature = "snapshot", serde(try_from = "u8", into = "u8"))]
     #[derive(Default)]
     pub struct ColorMode: u8 {
         const PALETTE   = 0b001;
         const GRAYSCALE = 0b010;
     }
 }
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TryFromU8ColorModeError(pub u8);
 
 /****************************** ReadEarMode ******************************/
 
@@ -352,6 +357,15 @@ impl Ula3Paging {
 /****************************** ScldCtrlFlags ******************************/
 
 impl ScldCtrlFlags {
+    /// Returns scren mode with hi-res colors from `flags` as ULAplus register flags in mode group.
+    #[inline]
+    pub fn into_plus_mode(self) -> UlaPlusRegFlags {
+        UlaPlusRegFlags::from_bits_truncate(
+            (self & (ScldCtrlFlags::SCREEN_MODE_MASK
+                     |ScldCtrlFlags::HIRES_COLOR_MASK)
+            ).bits()
+        )|UlaPlusRegFlags::MODE_GROUP
+    }
     /// Returns a color index from high resolution color mask: [0, 7].
     #[inline]
     pub fn hires_color_index(self) -> u8 {
@@ -371,6 +385,16 @@ impl ScldCtrlFlags {
     #[inline]
     pub fn is_screen_hi_res(self) -> bool {
         self.intersects(ScldCtrlFlags::SCREEN_HI_RES)
+    }
+    /// Returns `true` if a screen high color bit is 1. Otherwise returns `false`.
+    #[inline]
+    pub fn is_screen_hi_attrs(self) -> bool {
+        self.intersects(ScldCtrlFlags::SCREEN_HI_ATTRS)
+    }
+    /// Returns `true` if a screen secondary bit is 1. Otherwise returns `false`.
+    #[inline]
+    pub fn is_screen_secondary(self) -> bool {
+        self.intersects(ScldCtrlFlags::SCREEN_SECONDARY)
     }
 }
 
@@ -426,5 +450,28 @@ impl From<u8> for UlaPlusRegFlags {
     #[inline]
     fn from(flags: u8) -> UlaPlusRegFlags {
         UlaPlusRegFlags::from_bits_truncate(flags)
+    }
+}
+
+/****************************** ColorMode ******************************/
+
+impl std::error::Error for TryFromU8ColorModeError {}
+
+impl fmt::Display for TryFromU8ColorModeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "converted integer (0x{:x}) contains extraneous bits for `ColorMode`", self.0)
+    }
+}
+
+impl TryFrom<u8> for ColorMode {
+    type Error = TryFromU8ColorModeError;
+    fn try_from(color_mode: u8) -> core::result::Result<Self, Self::Error> {
+        ColorMode::from_bits(color_mode).ok_or_else(|| TryFromU8ColorModeError(color_mode))
+    }
+}
+
+impl From<ColorMode> for u8 {
+    fn from(color_mode: ColorMode) -> u8 {
+        color_mode.bits()
     }
 }

@@ -3,7 +3,7 @@ use core::num::NonZeroU16;
 use crate::z80emu::{Io, Memory};
 use crate::bus::{PortAddress};
 use crate::clock::VideoTs;
-use crate::chip::{ControlUnit, UlaPortFlags};
+use crate::chip::{ControlUnit, UlaPortFlags, scld::io::ScldCtrlPortAddress};
 use crate::peripherals::{KeyboardInterface, ZXKeyboardMap};
 use crate::memory::ZxMemory;
 use crate::video::{Video, BorderColor};
@@ -39,6 +39,10 @@ impl<'a, U> Io for UlaPlus<U>
         if PlusDataPortAddress::match_port(port) && !self.ulaplus_disabled {
             (self.read_plus_data_port(), None)
         }
+        else if ScldCtrlPortAddress::match_port(port) && !self.ulaplus_disabled
+                                                      && self.scld_mode_rw {
+            (self.scld_mode.bits(), None)
+        }
         else {
             self.ula.read_io(port, ts)
         }
@@ -49,6 +53,9 @@ impl<'a, U> Io for UlaPlus<U>
             let border = BorderColor::from_bits_truncate(data);
             self.change_border_color(border, ts);
             self.ula.ula_write_earmic(UlaPortFlags::from_bits_truncate(data), ts);
+        }
+        else if ScldCtrlPortAddress::match_port(port) && !self.ulaplus_disabled {
+            self.write_scld_ctrl_port(data, ts);
         }
         else if PlusRegisterPortAddress::match_port(port) && !self.ulaplus_disabled {
             self.write_plus_regs_port(data, ts);
