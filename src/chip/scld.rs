@@ -46,8 +46,10 @@ use serde::{Serialize, Deserialize};
 
 pub mod frame_cache;
 mod audio_earmic;
-mod io;
+pub(crate) mod io;
 mod video;
+#[cfg(feature = "formats")]
+mod screen;
 
 use frame_cache::SourceMode;
 

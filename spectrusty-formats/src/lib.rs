@@ -8,6 +8,7 @@ pub mod mdr;
 pub mod sna;
 pub mod tap;
 pub mod snapshot;
+pub mod scr;
 pub mod z80;
 // pub mod tzx;
 

@@ -4,6 +4,8 @@ mod audio_earmic;
 mod io;
 mod video;
 mod plus;
+#[cfg(feature = "formats")]
+mod screen;
 
 use core::convert::TryFrom;
 use core::fmt;

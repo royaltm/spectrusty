@@ -5,6 +5,8 @@ pub mod frame_cache;
 mod io;
 pub(crate) mod video;
 mod plus;
+#[cfg(feature = "formats")]
+mod screen;
 
 use core::fmt;
 use core::convert::TryFrom;

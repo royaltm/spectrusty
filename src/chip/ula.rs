@@ -10,6 +10,8 @@ mod video;
 mod video_ntsc;
 mod plus;
 mod cpuext;
+#[cfg(feature = "formats")]
+mod screen;
 
 use core::num::Wrapping;
 

@@ -60,6 +60,8 @@ pub mod frame_cache;
 mod audio_earmic;
 mod io;
 mod video;
+#[cfg(feature = "formats")]
+mod screen;
 
 use crate::z80emu::{*, host::Result};
 use crate::bus::BusDevice;
