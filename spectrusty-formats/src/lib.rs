@@ -1,4 +1,4 @@
-//! ZX Spectrum related various file format utilities.
+//! ZX Spectrum related file format utilities.
 // http://www.worldofspectrum.org/faq/reference/formats.htm
 // http://www.worldofspectrum.org/TZXformat.html
 use std::io::{self, Read, Write};
@@ -14,10 +14,10 @@ pub mod z80;
 
 /// A trait that extends [Read] with methods that ease reading from chunked files.
 pub trait ReadExactEx: Read {
-    /// Reads the exact number of bytes required to fill `buf` and returns `Ok(true)` or returns
-    /// `Ok(false)` if exactly zero bytes were read. In this instance `buf` will be left unmodified.
+    /// Reads all bytes to fill `buf` or until EOF. If successful, returns the total number of bytes read.
     ///
-    /// If at least one byte was read, this function behaves exactly like [Read::read_exact].
+    /// This function behaves like [Read::read_to_end] but it reads data into the mutable slice
+    /// instead of into a Vec and stops reading when the whole `buf` has been filled.
     fn read_exact_or_to_end(&mut self, mut buf: &mut[u8]) -> io::Result<usize> {
         let orig_len = buf.len();
         while !buf.is_empty() {
@@ -30,10 +30,10 @@ pub trait ReadExactEx: Read {
         }
         Ok(orig_len - buf.len())
     }
-    /// Reads all bytes to fill `buf` or until EOF. If successful, returns the total number of bytes read.
+    /// Reads the exact number of bytes required to fill `buf` and returns `Ok(true)` or returns
+    /// `Ok(false)` if exactly zero bytes were read. In this instance `buf` will be left unmodified.
     ///
-    /// This function behaves like [Read::read_to_end] but it reads data into the mutable slice
-    /// instead of into a Vec and stops reading when the whole `buf` has been filled.
+    /// If at least one byte was read, this function behaves exactly like [Read::read_exact].
     fn read_exact_or_none(&mut self, buf: &mut [u8]) -> io::Result<bool> {
         let bytes_read = self.read_exact_or_to_end(buf)?;
         if bytes_read == 0 {

@@ -647,6 +647,26 @@ impl<V> ZXMicrodrives<V> {
         assert!(index < MAX_DRIVES);
         self.drives[index].take()
     }
+    /// Returns `true` if a cartridge is present in the `drive_index`.
+    ///
+    /// `drive_index` is a drive index number from 0 to 7.
+    ///
+    /// # Panics
+    /// Panics if the `drive_index` is above 7.
+    pub fn is_cartridge_inserted(&mut self, index: usize) -> bool {
+        assert!(index < MAX_DRIVES);
+        self.drives[index].is_some()
+    }
+    /// Returns a reference to a cartridge if it's present in the `drive_index`.
+    ///
+    /// `drive_index` is a drive index number from 0 to 7.
+    ///
+    /// # Panics
+    /// Panics if the `drive_index` is above 7.
+    pub fn cartridge_at(&self, index: usize) -> Option<&MicroCartridge> {
+        assert!(index < MAX_DRIVES);
+        self.drives[index].as_ref()
+    }
     /// Returns a reference to the cartridge that is being currently in use along with its drive index.
     pub fn cartridge_in_use(&self) -> Option<(usize, &MicroCartridge)> {
         self.motor_on_drive.and_then(move |drive_on| {

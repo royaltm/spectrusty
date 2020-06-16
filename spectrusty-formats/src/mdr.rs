@@ -126,11 +126,16 @@ pub trait MicroCartridgeExt: Sized {
     fn catalog_name(&self) -> Result<Option<Cow<'_, str>>, MdrValidationError>;
     /// Checks if each formatted sector has flags property set and if all checksums are valid.
     fn validate_sectors(&self) -> Result<usize, MdrValidationError>;
+    /// Returns the number of sectors being used by file data.
+    fn count_sectors_in_use(&self) -> usize;
     /// Reads the content of an `.mdr` file into the [MicroCartridge] sectors.
     ///
     /// The content of sectors is not being validated. The file can contain from 1 to 254 sectors.
     /// If the file contains an additional byte, it is being read as a flag which is non-zero
     /// if the cartridge is write protected.
+    ///
+    /// Provide the cartridge sector capacity as `max_sectors`. If the file contains more sectors
+    /// than `max_sectors` the cartridge sector capacity will equal to the number of sectors read.
     ///
     /// Use [MicroCartridgeExt::validate_sectors] to verify sector's content.
     fn from_mdr<R: Read>(rd: R, max_sectors: usize) -> io::Result<Self>;
@@ -604,7 +609,11 @@ impl fmt::Display for Catalog {
 
 impl fmt::Display for CatFile {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} {} bytes {} blocks {} copies", self.file_type, self.size, self.blocks, self.copies)
+        write!(f, "{} {:5} bytes {:2} blk.", self.file_type, self.size, self.blocks)?;
+        if self.copies != 1 {
+            write!(f, " {} copies", self.copies)?;
+        }
+        Ok(())
     }
 }
 
@@ -958,13 +967,17 @@ impl MicroCartridgeExt for MicroCartridge {
         Ok(count)
     }
 
+    fn count_sectors_in_use(&self) -> usize {
+        self.into_iter().filter(|sec| !sec.is_free()).count()
+    }
+
     fn from_mdr<R: Read>(mut rd: R, max_sectors: usize) -> io::Result<Self> {
         let mut sectors: Vec<Sector> = Vec::with_capacity(max_sectors);
         let mut write_protect = false;
         'sectors: loop {
             let mut sector = Sector::default();
             loop {
-                match rd.read(&mut sector.head) {
+                match rd.read_exact_or_to_end(&mut sector.head) {
                     Ok(0) => break 'sectors,
                     Ok(1) => {
                         write_protect = sector.head[0] != 0;
@@ -987,6 +1000,7 @@ impl MicroCartridgeExt for MicroCartridge {
         if sectors.len() == 0 {
             return Err(io::Error::new(io::ErrorKind::InvalidData, "no sectors read"));
         }
+        let max_sectors = max_sectors.max(sectors.len());
         Ok(MicroCartridge::new_with_sectors(sectors, write_protect, max_sectors))
     }
 
@@ -1027,6 +1041,9 @@ mod tests {
         assert!(mdr.catalog().unwrap().is_none());
         assert!(mdr.file_type("hello world").unwrap().is_none());
         assert!(mdr.file_info("hello world").unwrap().is_none());
+        assert_eq!(mdr.count_sectors_in_use(), 0);
+        assert_eq!(mdr.max_sectors(), 256);
+        assert_eq!(mdr.count_formatted(), 0);
         let mut mdr = MicroCartridge::new_formatted(10, "testing");
         for i in 0..10 {
             assert_eq!(mdr[i].is_free(), true);
@@ -1034,6 +1051,9 @@ mod tests {
             assert_eq!(mdr[i].catalog_name(), b"testing   ");
             assert_eq!(mdr[i].validate().unwrap(), ());
         }
+        assert_eq!(mdr.count_sectors_in_use(), 0);
+        assert_eq!(mdr.max_sectors(), 10);
+        assert_eq!(mdr.count_formatted(), 10);
         assert_eq!(mdr.catalog_name().unwrap().unwrap(), "testing   ");
         let catalog = mdr.catalog().unwrap().unwrap();
         assert_eq!(catalog.name, "testing   ");
@@ -1043,6 +1063,9 @@ mod tests {
         assert_eq!(mdr.file_type("hello world").unwrap().unwrap(), CatFileType::Data);
         assert_eq!(mdr.file_info("hello world").unwrap().unwrap(),
                 CatFile { size: 5, blocks: 1, copies: 1, file_type: CatFileType::Data});
+        assert_eq!(mdr.count_sectors_in_use(), 1);
+        assert_eq!(mdr.max_sectors(), 10);
+        assert_eq!(mdr.count_formatted(), 10);
         let catalog = mdr.catalog().unwrap().unwrap();
         assert_eq!(catalog.name, "testing   ");
         assert_eq!(catalog.files.len(), 1);
