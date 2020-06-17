@@ -304,7 +304,7 @@ pub fn save_sna<C: SnapshotCreator, W: Write>(
             result.insert(SnapshotResult::CPU_MODEL_NSUP);
             cpu.clone().into_flavour()
         },
-        CpuModel::BM(cpu) => {
+        CpuModel::BM1(cpu) => {
             result.insert(SnapshotResult::CPU_MODEL_NSUP);
             cpu.clone().into_flavour()
         }

@@ -315,7 +315,7 @@ fn get_nmos_cpu(cpu: CpuModel, result: &mut SnapshotResult) -> Z80NMOS {
             result.insert(SnapshotResult::CPU_MODEL_NSUP);
             cpu.clone().into_flavour()
         },
-        CpuModel::BM(cpu) => {
+        CpuModel::BM1(cpu) => {
             result.insert(SnapshotResult::CPU_MODEL_NSUP);
             cpu.clone().into_flavour()
         }

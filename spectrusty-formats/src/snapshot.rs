@@ -73,7 +73,7 @@ pub enum Ay3_891xDevice {
 pub enum CpuModel {
     NMOS(Z80NMOS),
     CMOS(Z80CMOS),
-    BM(Z80BM),
+    BM1(Z80BM1),
 }
 
 impl<F: Flavour> From<CpuModel> for Z80<F>
@@ -83,7 +83,7 @@ impl<F: Flavour> From<CpuModel> for Z80<F>
         match cpu {
             CpuModel::NMOS(z80) => z80.into_flavour(),
             CpuModel::CMOS(z80) => z80.into_flavour(),
-            CpuModel::BM(z80)   => z80.into_flavour(),
+            CpuModel::BM1(z80)   => z80.into_flavour(),
         }
     }
 }
