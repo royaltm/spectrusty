@@ -10,11 +10,12 @@ use sdl2::{VideoSubsystem,
             // rect::Rect,
             render::WindowCanvas,
             messagebox::{ show_simple_message_box, MessageBoxFlag }};
-pub fn alert(text: Cow<str>) {
+
+pub fn alert_window(text: Cow<str>) {
     show_simple_message_box(MessageBoxFlag::ERROR, "ZX Spectrum", &text, None).expect("to show message box");
 }
 
-pub fn info(text: Cow<str>) {
+pub fn info_window(text: Cow<str>) {
     show_simple_message_box(MessageBoxFlag::INFORMATION, "ZX Spectrum", &text, None).expect("to show message box");
 }
 
