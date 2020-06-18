@@ -11,7 +11,7 @@ use serde::{Serialize, Deserialize};
 
 use bitflags::bitflags;
 
-use crate::clock::{Ts, FTs, VideoTs, VFrameTsCounter, MemoryContention};
+use crate::clock::{Ts, FTs, VideoTs, VFrameTsCounter};
 use crate::chip::UlaPortFlags;
 
 pub use pixel::{Palette, PixelBuffer};
@@ -131,9 +131,7 @@ pub trait Video {
     /// Returns the current value of the video T-state counter.
     fn current_video_ts(&self) -> VideoTs;
     /// Returns the current value of the video T-state clock.
-    fn current_video_clock<T: MemoryContention>(&self) -> VFrameTsCounter<Self::VideoFrame, T> {
-        VFrameTsCounter::from(self.current_video_ts())
-    }
+    fn current_video_clock(&self) -> VFrameTsCounter<Self::VideoFrame>;
 }
 /// A collection of static methods and constants raleted to video parameters.
 /// ```text

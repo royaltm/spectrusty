@@ -24,14 +24,15 @@ use crate::z80emu::{*, host::Result};
 use crate::clock::{
     FTs, VideoTs,
     VideoTsData2, VideoTsData6,
-    VFrameTsCounter, MemoryContention
+    VFrameTsCounter
 };
 use crate::bus::{BusDevice, NullDevice};
 use crate::chip::{
     ScldControl, ScldCtrlFlags,
     UlaWrapper, EarIn, ReadEarMode, ControlUnit, MemoryAccess,
     ula::{
-        Ula, UlaVideoFrame, UlaMemoryContention,
+        Ula, UlaVideoFrame,
+        ULA_CONTENTION_MASK,
         UlaTimestamp, UlaCpuExt,
         frame_cache::UlaFrameCache
     }
@@ -318,15 +319,15 @@ impl<M, B, X, V> ControlUnit for Scld<M, B, X, V>
     }
 
     fn nmi<C: Cpu>(&mut self, cpu: &mut C) -> bool {
-        self.ula_nmi::<UlaMemoryContention, _>(cpu)
+        self.ula_nmi(cpu)
     }
 
     fn execute_next_frame<C: Cpu>(&mut self, cpu: &mut C) {
-        while !self.ula_execute_next_frame_with_breaks::<UlaMemoryContention, _>(cpu) {}
+        while !self.ula_execute_next_frame_with_breaks(cpu) {}
     }
 
     fn ensure_next_frame(&mut self) {
-        self.ensure_next_frame_vtsc::<UlaMemoryContention>();
+        self.ensure_next_frame_vtsc();
     }
 
     fn execute_single_step<C: Cpu, F: FnOnce(CpuDebug)>(
@@ -335,7 +336,7 @@ impl<M, B, X, V> ControlUnit for Scld<M, B, X, V>
             debug: Option<F>
         ) -> Result<(),()>
     {
-        self.ula_execute_single_step::<UlaMemoryContention,_,_>(cpu, debug)
+        self.ula_execute_single_step(cpu, debug)
     }
 }
 
@@ -345,10 +346,10 @@ impl<M, B, X, V> Scld<M, B, X, V>
           V: VideoFrame
 {
     #[inline]
-    fn prepare_next_frame<T: MemoryContention>(
+    fn prepare_next_frame(
             &mut self,
-            vtsc: VFrameTsCounter<V, T>
-        ) -> VFrameTsCounter<V, T>
+            vtsc: VFrameTsCounter<V>
+        ) -> VFrameTsCounter<V>
     {
         self.beg_ctrl_flags = self.cur_ctrl_flags;
         self.sec_frame_cache.clear();
@@ -376,11 +377,11 @@ impl<M, B, X, V> UlaTimestamp for Scld<M, B, X, V>
         self.ula.set_video_ts(vts)
     }
 
-    fn ensure_next_frame_vtsc<T: MemoryContention>(
+    fn ensure_next_frame_vtsc(
             &mut self
-        ) -> VFrameTsCounter<V, T>
+        ) -> VFrameTsCounter<V>
     {
-        let mut vtsc = VFrameTsCounter::from(self.ula.tsc);
+        let mut vtsc = VFrameTsCounter::from_video_ts(self.ula.tsc, ULA_CONTENTION_MASK);
         if vtsc.is_eof() {
             vtsc = self.prepare_next_frame(vtsc);
         }

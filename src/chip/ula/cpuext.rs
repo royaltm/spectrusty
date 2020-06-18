@@ -10,8 +10,7 @@ use crate::z80emu::{
 use crate::bus::BusDevice;
 use crate::chip::{MemoryAccess, ControlUnit};
 use crate::clock::{
-    HALT_VC_THRESHOLD, VideoTs, Ts, VFrameTsCounter,
-    MemoryContention
+    HALT_VC_THRESHOLD, VideoTs, Ts, VFrameTsCounter
 };
 use crate::memory::MemoryExtension;
 use crate::video::VideoFrame;
@@ -31,21 +30,21 @@ pub(crate) trait UlaTimestamp {
     type VideoFrame: VideoFrame;
     fn video_ts(&self) -> VideoTs;
     fn set_video_ts(&mut self, vts: VideoTs);
-    fn ensure_next_frame_vtsc<T: MemoryContention>(&mut self) -> VFrameTsCounter<Self::VideoFrame, T>;
+    fn ensure_next_frame_vtsc(&mut self) -> VFrameTsCounter<Self::VideoFrame>;
 }
 
 pub(crate) trait UlaCpuExt: UlaTimestamp {
-    fn ula_nmi<T: MemoryContention, C: Cpu>(&mut self, cpu: &mut C) -> bool;
-    fn ula_execute_next_frame_with_breaks<T: MemoryContention, C: Cpu>(
+    fn ula_nmi<C: Cpu>(&mut self, cpu: &mut C) -> bool;
+    fn ula_execute_next_frame_with_breaks<C: Cpu>(
             &mut self,
             cpu: &mut C
         ) -> bool;
-    fn ula_execute_single_step<T: MemoryContention, C: Cpu, F: FnOnce(CpuDebug)>(
+    fn ula_execute_single_step<C: Cpu, F: FnOnce(CpuDebug)>(
             &mut self,
             cpu: &mut C,
             debug: Option<F>
         ) -> Result<(),()>;
-    fn ula_execute_instruction<T: MemoryContention, C: Cpu>(
+    fn ula_execute_instruction<C: Cpu>(
             &mut self,
             cpu: &mut C,
             code: u8
@@ -72,20 +71,20 @@ impl<U, B, X> UlaCpuExt for U
           B: BusDevice<Timestamp=VideoTs>,
           X: MemoryExtension
 {
-    fn ula_nmi<T: MemoryContention, C: Cpu>(&mut self, cpu: &mut C) -> bool {
-        let mut vtsc = self.ensure_next_frame_vtsc::<T>();
+    fn ula_nmi<C: Cpu>(&mut self, cpu: &mut C) -> bool {
+        let mut vtsc = self.ensure_next_frame_vtsc();
         let res = cpu.nmi(self, &mut vtsc);
         self.set_video_ts(vtsc.into());
         res
     }
 
-    fn ula_execute_next_frame_with_breaks<T: MemoryContention, C: Cpu>(
+    fn ula_execute_next_frame_with_breaks<C: Cpu>(
             &mut self,
             cpu: &mut C
         ) -> bool
         where Self: Memory<Timestamp=VideoTs> + Io<Timestamp=VideoTs>
     {
-        let mut vtsc = self.ensure_next_frame_vtsc::<T>();
+        let mut vtsc = self.ensure_next_frame_vtsc();
         let mut vc_limit = 1;
         while !vtsc.is_eof() {
             match cpu.execute_with_limit(self, &mut vtsc, vc_limit) {
@@ -108,7 +107,7 @@ impl<U, B, X> UlaCpuExt for U
                 }
             }
             if cpu.is_halt() {
-                *vtsc = execute_halted_state_until_eof::<Self::VideoFrame,T,_>(vtsc.into(), cpu);
+                vtsc = execute_halted_state_until_eof(vtsc, cpu);
                 break;
             }
             vc_limit = Self::VideoFrame::VSL_COUNT;
@@ -119,7 +118,7 @@ impl<U, B, X> UlaCpuExt for U
         true
     }
 
-    fn ula_execute_single_step<T: MemoryContention, C: Cpu, F>(
+    fn ula_execute_single_step<C: Cpu, F>(
             &mut self,
             cpu: &mut C,
             debug: Option<F>
@@ -127,14 +126,14 @@ impl<U, B, X> UlaCpuExt for U
         where F: FnOnce(CpuDebug),
               Self: Memory<Timestamp=VideoTs> + Io<Timestamp=VideoTs, WrIoBreak=(), RetiBreak=()>
     {
-        let mut vtsc = self.ensure_next_frame_vtsc::<T>();
+        let mut vtsc = self.ensure_next_frame_vtsc();
         let res = cpu.execute_next(self, &mut vtsc, debug);
         *vtsc = Self::ula_check_halt(vtsc.into(), cpu);
         self.set_video_ts(vtsc.into());
         res
     }
 
-    fn ula_execute_instruction<T: MemoryContention, C: Cpu>(
+    fn ula_execute_instruction<C: Cpu>(
             &mut self,
             cpu: &mut C,
             code: u8
@@ -142,7 +141,7 @@ impl<U, B, X> UlaCpuExt for U
         where Self: Memory<Timestamp=VideoTs> + Io<Timestamp=VideoTs, WrIoBreak=(), RetiBreak=()>
     {
         const DEBUG: Option<CpuDebugFn> = None;
-        let mut vtsc = self.ensure_next_frame_vtsc::<T>();
+        let mut vtsc = self.ensure_next_frame_vtsc();
         let res = cpu.execute_instruction(self, &mut vtsc, DEBUG, code);
         *vtsc = Self::ula_check_halt(vtsc.into(), cpu);
         self.set_video_ts(vtsc.into());
@@ -164,20 +163,18 @@ impl<U, B, X> UlaCpuExt for U
 /// The timestamp - `tsc` passed here must be normalized and its vertical component must be positive and
 /// its composite value must be less than [V::FRAME_TSTATES_COUNT][VideoFrame::FRAME_TSTATES_COUNT].
 /// Otherwise this method panics.
-pub fn execute_halted_state_until_eof<V: VideoFrame,
-                                      M: MemoryContention,
-                                      C: Cpu>(
-        mut tsc: VideoTs,
+pub fn execute_halted_state_until_eof<V: VideoFrame, C: Cpu>(
+        mut tsc: VFrameTsCounter<V>,
         cpu: &mut C
-    ) -> VideoTs
+    ) -> VFrameTsCounter<V>
 {
     debug_assert_eq!(0, V::HTS_COUNT % M1_CYCLE_TS as Ts);
-    if tsc.vc < 0 || tsc.vc > V::VSL_COUNT || !V::is_normalized_vts(tsc) {
+    if tsc.vc < 0 || tsc.vc > V::VSL_COUNT || !V::is_normalized_vts(*tsc) {
         panic!("halt: a timestamp must be within the video frame range and normalized");
     }
     let mut r_incr: i32 = 0;
-    if M::is_contended_address(cpu.get_pc()) && tsc.vc < V::VSL_PIXELS.end {
-        let VideoTs { mut vc, mut hc } = tsc; // assume tsc is normalized
+    if tsc.is_contended_address(cpu.get_pc()) && tsc.vc < V::VSL_PIXELS.end {
+        let VideoTs { mut vc, mut hc } = *tsc; // assume tsc is normalized
         // border top
         if vc < V::VSL_PIXELS.start {
             // move hc to the beginning of range

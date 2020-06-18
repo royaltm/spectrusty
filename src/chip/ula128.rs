@@ -20,27 +20,20 @@ use crate::chip::{
     UlaWrapper, Ula128Control, ControlUnit, MemoryAccess, Ula128MemFlags,
     ula::{
         ControlUnitContention,
-        Ula, UlaTimestamp, UlaCpuExt, UlaMemoryContention,
+        Ula, UlaTimestamp, UlaCpuExt,
+        ULA_CONTENTION_MASK,
         frame_cache::UlaFrameCache
     }
 };
 use crate::memory::{Memory128k, ZxMemory, MemoryExtension, NoMemoryExtension, MemoryKind};
-use crate::clock::{VideoTs, FTs, VFrameTsCounter, MemoryContention};
+use crate::clock::{VideoTs, FTs, VFrameTsCounter};
 
 pub use video::Ula128VidFrame;
 
 
-/// Implements [MemoryContention] in a way that addresses in the range: [0x4000, 0x7FFF] and [0xC000, 0xFFFF]
-/// are being contended.
-#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
-pub struct Ula128MemContention;
-
-impl MemoryContention for Ula128MemContention {
-    #[inline]
-    fn is_contended_address(addr: u16) -> bool {
-        addr & 0x4000 == 0x4000
-    }
-}
+/// A contention mask representing addresses in the range: [0x4000, 0x7FFF] and [0xC000, 0xFFFF]
+/// being contended.
+pub const ULA128_CONTENTION_MASK: u8 = 0b1100_1100;
 
 pub(self) type InnerUla<B, X> = Ula<Memory128k, B, X, Ula128VidFrame>;
 
@@ -299,7 +292,7 @@ impl<B, X> ControlUnit for Ula128<B, X>
     }
 
     fn ensure_next_frame(&mut self) {
-        self.ensure_next_frame_vtsc::<UlaMemoryContention>();
+        self.ensure_next_frame_vtsc();
     }
 
     fn execute_single_step<C: Cpu, F: FnOnce(CpuDebug)>(
@@ -319,27 +312,11 @@ macro_rules! impl_control_unit_contention_ula128 {
                   X: MemoryExtension
         {
             fn nmi_with_contention<C: Cpu>(&mut self, cpu: &mut C) -> bool {
-                if self.is_page3_contended() {
-                    self.ula_nmi::<Ula128MemContention, _>(cpu)
-                }
-                else {
-                    self.ula_nmi::<UlaMemoryContention, _>(cpu)
-                }
+                self.ula_nmi(cpu)
             }
 
             fn execute_next_frame_with_contention<C: Cpu>(&mut self, cpu: &mut C) {
-                loop {
-                    if self.is_page3_contended() {
-                        if self.ula_execute_next_frame_with_breaks::<Ula128MemContention, _>(cpu) {
-                            break
-                        }
-                    }
-                    else {
-                        if self.ula_execute_next_frame_with_breaks::<UlaMemoryContention, _>(cpu) {
-                            break;
-                        }
-                    }
-                }
+                while !self.ula_execute_next_frame_with_breaks(cpu) {}
             }
 
             fn execute_single_step_with_contention<C: Cpu, F: FnOnce(CpuDebug)>(
@@ -348,12 +325,7 @@ macro_rules! impl_control_unit_contention_ula128 {
                     debug: Option<F>
                 ) -> Result<(),()>
             {
-                if self.is_page3_contended() {
-                    self.ula_execute_single_step::<Ula128MemContention,_,_>(cpu, debug)
-                }
-                else {
-                    self.ula_execute_single_step::<UlaMemoryContention,_,_>(cpu, debug)
-                }
+                self.ula_execute_single_step(cpu, debug)
             }
         }
     };
@@ -365,10 +337,10 @@ impl<B, X> Ula128<B, X>
     where B: BusDevice<Timestamp=VideoTs>
 {
     #[inline]
-    fn prepare_next_frame<T: MemoryContention>(
+    fn prepare_next_frame(
             &mut self,
-            vtsc: VFrameTsCounter<Ula128VidFrame, T>
-        ) -> VFrameTsCounter<Ula128VidFrame, T>
+            vtsc: VFrameTsCounter<Ula128VidFrame>
+        ) -> VFrameTsCounter<Ula128VidFrame>
     {
         // println!("vis: {} nxt: {} p3: {}", self.beg_screen_shadow, self.cur_screen_shadow, self.mem_page3_bank);
         self.beg_screen_shadow = self.cur_screen_shadow;
@@ -392,11 +364,17 @@ impl<B, X> UlaTimestamp for Ula128<B, X>
         self.ula.set_video_ts(vts)
     }
     #[inline(always)]
-    fn ensure_next_frame_vtsc<T: MemoryContention>(
+    fn ensure_next_frame_vtsc(
             &mut self
-        ) -> VFrameTsCounter<Self::VideoFrame, T>
+        ) -> VFrameTsCounter<Self::VideoFrame>
     {
-        let mut vtsc = VFrameTsCounter::from(self.ula.tsc);
+        let contention_mask = if self.is_page3_contended() {
+            ULA128_CONTENTION_MASK
+        }
+        else {
+            ULA_CONTENTION_MASK
+        };
+        let mut vtsc = VFrameTsCounter::from_video_ts(self.ula.tsc, contention_mask);
         if vtsc.is_eof() {
             vtsc = self.prepare_next_frame(vtsc);
         }

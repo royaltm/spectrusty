@@ -1,7 +1,7 @@
 use std::vec::Drain;
 
 use crate::memory::ZxMemory;
-use crate::clock::{VideoTs, VideoTsData2, VideoTsData6};
+use crate::clock::{VideoTs, VideoTsData2, VideoTsData6, VFrameTsCounter};
 use crate::video::{
     RendererPlus, PaletteChange, BorderSize, BorderColor, PixelBuffer, Palette, Video,
     frame_cache::{
@@ -47,6 +47,10 @@ impl<U> Video for UlaPlus<U>
 
     fn visible_screen_bank(&self) -> usize {
         (self.cur_source_mode.is_shadow_bank() ^ self.ula.cur_screen_shadow()).into()
+    }
+
+    fn current_video_clock(&self) -> VFrameTsCounter<Self::VideoFrame> {
+        self.ula.current_video_clock()
     }
 }
 

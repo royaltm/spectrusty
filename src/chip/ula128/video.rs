@@ -5,9 +5,10 @@ use core::ops::Range;
 use serde::{Serialize, Deserialize};
 
 use crate::memory::ZxMemory;
-use crate::clock::{VideoTs, Ts, MemoryContention, VideoTsData3};
+use crate::clock::{VideoTs, Ts, VideoTsData3, VFrameTsCounter, is_contended_address};
 use crate::chip::ula::{
     Ula,
+    ULA_CONTENTION_MASK,
     frame_cache::UlaFrameCache
 };
 use crate::video::{
@@ -16,7 +17,8 @@ use crate::video::{
     frame_cache::{pixel_address_coords, color_address_coords}
 };
 use super::{
-    Ula128, Ula128MemContention, UlaMemoryContention,
+    Ula128,
+    ULA128_CONTENTION_MASK,
     frame_cache::Ula128FrameProducer
 };
 
@@ -128,6 +130,15 @@ impl<D, X> Video for Ula128<D, X> {
         self.ula.current_video_ts()
     }
 
+    fn current_video_clock(&self) -> VFrameTsCounter<Self::VideoFrame> {
+        let contention_mask = if self.is_page3_contended() {
+            ULA128_CONTENTION_MASK
+        }
+        else {
+            ULA_CONTENTION_MASK
+        };
+        VFrameTsCounter::from_video_ts(self.ula.current_video_ts(), contention_mask)
+    }
 }
 
 impl<B, X> Ula128<B, X> {
@@ -154,12 +165,12 @@ impl<B, X> Ula128<B, X> {
 
     #[inline(always)]
     pub(super) fn update_snow_interference(&mut self, ts: VideoTs, ir: u16) {
-        let is_contended = if self.is_page3_contended() {
-            Ula128MemContention::is_contended_address(ir)
+        let contention_mask = if self.is_page3_contended() {
+            ULA128_CONTENTION_MASK
         } else {
-            UlaMemoryContention::is_contended_address(ir)
+            ULA_CONTENTION_MASK
         };
-        if is_contended {
+        if is_contended_address(contention_mask, ir) {
             if let Some(coords) = Ula128VidFrame::snow_interference_coords(ts) {
                 let (screen, frame_cache) = if self.cur_screen_shadow {
                     (self.ula.memory.screen_ref(1).unwrap(), &mut self.shadow_frame_cache)

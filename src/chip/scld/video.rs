@@ -2,7 +2,7 @@ use core::iter::{self, Empty};
 use std::vec::Drain;
 
 use crate::memory::PagedMemory8k;
-use crate::clock::{VideoTs, VideoTsData2, VideoTsData6};
+use crate::clock::{VideoTs, VideoTsData2, VideoTsData6, VFrameTsCounter};
 use crate::video::{
     RendererPlus, UlaPlusPalette, PaletteChange, BorderSize, BorderColor, PixelBuffer, Palette,
     VideoFrame, Video,
@@ -45,6 +45,10 @@ impl<M, D, X, V> Video for Scld<M, D, X, V>
 
     fn current_video_ts(&self) -> VideoTs {
         self.ula.current_video_ts()
+    }
+
+    fn current_video_clock(&self) -> VFrameTsCounter<Self::VideoFrame> {
+        self.ula.current_video_clock()
     }
 }
 

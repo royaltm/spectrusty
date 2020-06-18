@@ -840,9 +840,9 @@ impl<V: VideoFrame> ZXMicrodrives<V> {
 #[cfg(test)]
 mod tests {
     use spectrusty::clock::VFrameTsCounter;
-    use spectrusty::chip::ula::{UlaVideoFrame, UlaMemoryContention};
+    use spectrusty::chip::ula::{UlaVideoFrame, ULA_CONTENTION_MASK};
     use super::*;
-    type UlaTsCounter = VFrameTsCounter<UlaVideoFrame, UlaMemoryContention>;
+    type UlaTsCounter = VFrameTsCounter<UlaVideoFrame>;
 
     #[test]
     fn microdrives_works() {
@@ -879,7 +879,7 @@ mod tests {
         assert_eq!(drive.last_ts, VideoTs::new(0, 50));
         assert_eq!(drive.motor_on_drive, NonZeroU8::new(2));
         assert_eq!(drive.read_state(VideoTs::new(0, 60)), CartridgeState { gap: false, syn: false, write_protect: false});
-        let mut utsc = UlaTsCounter::new(1, 0);
+        let mut utsc = UlaTsCounter::new(1, 0, ULA_CONTENTION_MASK);
         for _ in 0..10 {
             let delay = drive.write_data(0, utsc.into());
             println!("delay 0x00: {} {:?}", delay, utsc.tsc);

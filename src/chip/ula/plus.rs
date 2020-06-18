@@ -1,7 +1,7 @@
 use core::iter::Empty;
 
 use crate::bus::BusDevice;
-use crate::clock::{VideoTs, MemoryContention, VFrameTsCounter};
+use crate::clock::{VideoTs, VFrameTsCounter};
 use crate::chip::{UlaPortFlags, ula::frame_cache::UlaFrameCache};
 use crate::memory::{ZxMemory, MemoryExtension};
 use crate::video::{BorderColor, VideoFrame};
@@ -34,10 +34,10 @@ impl<'a, M, B, X, V> UlaPlusInner<'a> for Ula<M, B, X, V>
         false
     }
 
-    fn prepare_next_frame<T: MemoryContention>(
+    fn prepare_next_frame(
         &mut self,
-        vtsc: VFrameTsCounter<Self::VideoFrame, T>
-    ) -> VFrameTsCounter<Self::VideoFrame, T> {
+        vtsc: VFrameTsCounter<Self::VideoFrame>
+    ) -> VFrameTsCounter<Self::VideoFrame> {
         self.prepare_next_frame(vtsc)
     }
 

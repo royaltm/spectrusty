@@ -31,7 +31,6 @@ use crate::memory::{ZxMemory, MemoryExtension, NoMemoryExtension};
 use crate::peripherals::ZXKeyboardMap;
 use crate::clock::{
     VideoTs, FTs, VFrameTsCounter,
-    MemoryContention, NoMemoryContention,
     VideoTsData1, VideoTsData2, VideoTsData3};
 use frame_cache::UlaFrameCache;
 
@@ -42,16 +41,8 @@ pub use video_ntsc::UlaNTSCVidFrame;
 /// ZX Spectrum NTSC 16k/48k ULA.
 pub type UlaNTSC<M, B=NullDevice<VideoTs>, X=NoMemoryExtension> = Ula<M, B, X, UlaNTSCVidFrame>;
 
-/// Implements [MemoryContention] in a way that addresses in the range: [0x4000, 0x7FFF] are being contended.
-#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
-pub struct UlaMemoryContention;
-
-impl MemoryContention for UlaMemoryContention {
-    #[inline]
-    fn is_contended_address(addr: u16) -> bool {
-        addr & 0xC000 == 0x4000
-    }
-}
+/// A contention mask representing addresses in the range: [0x4000, 0x7FFF] being contended.
+pub const ULA_CONTENTION_MASK: u8 = 0b0000_1100;
 
 /// ZX Spectrum 16k/48k ULA.
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
@@ -237,7 +228,7 @@ impl<M, B, X, V> ControlUnit for Ula<M, B, X, V>
         }
         else {
             const DEBUG: Option<CpuDebugFn> = None;
-            let mut vtsc: VFrameTsCounter<V, NoMemoryContention> = VideoTs::default().into();
+            let mut vtsc: VFrameTsCounter<V> = VFrameTsCounter::from_video_ts(VideoTs::default(), ULA_CONTENTION_MASK);
             let _ = cpu.execute_instruction(self, &mut vtsc, DEBUG, opconsts::RST_00H_OPCODE);
         }
     }
@@ -251,7 +242,7 @@ impl<M, B, X, V> ControlUnit for Ula<M, B, X, V>
     }
 
     fn ensure_next_frame(&mut self) {
-        self.ensure_next_frame_vtsc::<UlaMemoryContention>();
+        self.ensure_next_frame_vtsc();
     }
 
     fn execute_single_step<C: Cpu, F: FnOnce(CpuDebug)>(
@@ -273,11 +264,11 @@ macro_rules! impl_control_unit_contention_ula {
                   V: VideoFrame
         {
             fn nmi_with_contention<C: Cpu>(&mut self, cpu: &mut C) -> bool {
-                self.ula_nmi::<UlaMemoryContention, _>(cpu)
+                self.ula_nmi(cpu)
             }
 
             fn execute_next_frame_with_contention<C: Cpu>(&mut self, cpu: &mut C) {
-                while !self.ula_execute_next_frame_with_breaks::<UlaMemoryContention, _>(cpu) {}
+                while !self.ula_execute_next_frame_with_breaks(cpu) {}
             }
 
             fn execute_single_step_with_contention<C: Cpu, F: FnOnce(CpuDebug)>(
@@ -286,7 +277,7 @@ macro_rules! impl_control_unit_contention_ula {
                     debug: Option<F>
                 ) -> Result<(),()>
             {
-                self.ula_execute_single_step::<UlaMemoryContention,_,_>(cpu, debug)
+                self.ula_execute_single_step(cpu, debug)
             }
         }
     };
@@ -300,10 +291,10 @@ impl<M, B, X, V> Ula<M, B, X, V>
           V: VideoFrame
 {
     #[inline]
-    pub(super) fn prepare_next_frame<T: MemoryContention>(
+    pub(super) fn prepare_next_frame(
             &mut self,
-            mut vtsc: VFrameTsCounter<V, T>
-        ) -> VFrameTsCounter<V, T>
+            mut vtsc: VFrameTsCounter<V>
+        ) -> VFrameTsCounter<V>
     {
         self.bus.next_frame(vtsc.as_timestamp());
         self.frames += Wrapping(1);
@@ -332,11 +323,11 @@ impl<M, B, X, V> UlaTimestamp for Ula<M, B, X, V>
         self.tsc = vts
     }
 
-    fn ensure_next_frame_vtsc<T: MemoryContention>(
+    fn ensure_next_frame_vtsc(
             &mut self
-        ) -> VFrameTsCounter<V, T>
+        ) -> VFrameTsCounter<V>
     {
-        let mut vtsc = VFrameTsCounter::from(self.tsc);
+        let mut vtsc = VFrameTsCounter::from_video_ts(self.tsc, ULA_CONTENTION_MASK);
         if vtsc.is_eof() {
             vtsc = self.prepare_next_frame(vtsc);
         }

@@ -1,7 +1,7 @@
 use std::vec::Drain;
 
 use crate::bus::BusDevice;
-use crate::clock::{VideoTs, MemoryContention, VFrameTsCounter};
+use crate::clock::{VideoTs, VFrameTsCounter};
 use crate::chip::{UlaPortFlags, ula::frame_cache::UlaFrameCache};
 use crate::memory::MemoryExtension;
 use crate::video::BorderColor;
@@ -30,10 +30,10 @@ impl<'a, B, X> UlaPlusInner<'a> for Ula128<B, X>
         self.ula.update_last_border_color(border)
     }
 
-    fn prepare_next_frame<T: MemoryContention>(
+    fn prepare_next_frame(
         &mut self,
-        vtsc: VFrameTsCounter<Self::VideoFrame, T>
-    ) -> VFrameTsCounter<Self::VideoFrame, T> {
+        vtsc: VFrameTsCounter<Self::VideoFrame>
+    ) -> VFrameTsCounter<Self::VideoFrame> {
         self.prepare_next_frame(vtsc)
     }
 

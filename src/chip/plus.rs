@@ -66,8 +66,7 @@ mod screen;
 use crate::z80emu::{*, host::Result};
 use crate::bus::BusDevice;
 use crate::clock::{
-    VideoTs, FTs, VFrameTsCounter, VideoTsData2, VideoTsData6,
-    NoMemoryContention, MemoryContention
+    VideoTs, FTs, VFrameTsCounter, VideoTsData2, VideoTsData6
 };
 use crate::chip::{
     ControlUnit, MemoryAccess,
@@ -77,11 +76,13 @@ use crate::chip::{
     scld::frame_cache::SourceMode,
     ula::{
         Ula,
-        ControlUnitContention, UlaTimestamp, UlaCpuExt, UlaMemoryContention,
+        ControlUnitContention, UlaTimestamp, UlaCpuExt,
         frame_cache::UlaFrameCache
     },
-    ula128::{Ula128, Ula128MemContention},
-    ula3::{Ula3, ContentionKind, FullMemContention, Ula3MemContention},
+    ula128::{Ula128},
+    ula3::{
+        Ula3
+    },
 };
 use crate::video::{
     BorderColor, Video, VideoFrame, RenderMode, UlaPlusPalette, PaletteChange
@@ -139,10 +140,10 @@ pub trait UlaPlusInner<'a>: Video + MemoryAccess {
     /// Updates the border color, returns `true` if the border color has changed.
     fn update_last_border_color(&mut self, border: BorderColor) -> bool;
     /// Prepares the internal variables for the next frame.
-    fn prepare_next_frame<T: MemoryContention>(
+    fn prepare_next_frame(
         &mut self,
-        vtsc: VFrameTsCounter<Self::VideoFrame, T>
-    ) -> VFrameTsCounter<Self::VideoFrame, T>;
+        vtsc: VFrameTsCounter<Self::VideoFrame>
+    ) -> VFrameTsCounter<Self::VideoFrame>;
     /// Sets the video counter.
     fn set_video_counter(&mut self, vts: VideoTs);
     /// Returns `Some(is_shadow)` if a screen memory is accessible at page address: 0x4000-0x5FFF.
@@ -496,7 +497,7 @@ impl<'a, U> ControlUnit for UlaPlus<U>
     }
 
     fn ensure_next_frame(&mut self) {
-        self.ensure_next_frame_vtsc::<UlaMemoryContention>();
+        self.ensure_next_frame_vtsc();
     }
 
     fn execute_single_step<C: Cpu, F: FnOnce(CpuDebug)>(
@@ -513,10 +514,10 @@ impl<'a, U> UlaPlus<U>
     where U: UlaPlusInner<'a>
 {
     #[inline]
-    fn prepare_next_frame<T: MemoryContention>(
+    fn prepare_next_frame(
             &mut self,
-            vtsc: VFrameTsCounter<U::VideoFrame, T>
-        ) -> VFrameTsCounter<U::VideoFrame, T>
+            vtsc: VFrameTsCounter<U::VideoFrame>
+        ) -> VFrameTsCounter<U::VideoFrame>
     {
         self.beg_render_mode = self.cur_render_mode;
         self.beg_source_mode = self.cur_source_mode;
@@ -545,11 +546,11 @@ impl<'a, U> UlaTimestamp for UlaPlus<U>
         self.ula.set_video_counter(vts)
     }
     #[inline(always)]
-    fn ensure_next_frame_vtsc<T: MemoryContention>(
+    fn ensure_next_frame_vtsc(
             &mut self
-        ) -> VFrameTsCounter<Self::VideoFrame, T>
+        ) -> VFrameTsCounter<Self::VideoFrame>
     {
-        let mut vtsc = VFrameTsCounter::from(self.ula.current_video_ts());
+        let mut vtsc = self.ula.current_video_clock();
         if vtsc.is_eof() {
             vtsc = self.prepare_next_frame(vtsc);
         }
@@ -563,22 +564,8 @@ impl_control_unit_contention_ula!(UlaPlus<Ula<M, B, X, V>>);
 
 /********************************* Ula128 *********************************/
 
-impl<B, X> UlaPlus<Ula128<B, X>> {
-    #[inline(always)]
-    fn is_page3_contended(&self) -> bool {
-        self.ula.is_page3_contended()
-    }
-}
-
 impl_control_unit_contention_ula128!(UlaPlus<Ula128<B, X>>);
 
 /********************************* Ula3 *********************************/
-
-impl<B, X> UlaPlus<Ula3<B, X>> {
-    #[inline(always)]
-    fn contention_kind(&self) -> ContentionKind {
-        self.ula.contention_kind()
-    }
-}
 
 impl_control_unit_contention_ula3!(UlaPlus<Ula3<B, X>>);

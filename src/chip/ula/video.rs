@@ -5,7 +5,7 @@ use core::ops::Range;
 use serde::{Serialize, Deserialize};
 
 use crate::memory::ZxMemory;
-use crate::clock::{MemoryContention, VideoTs, Ts, VideoTsData3};
+use crate::clock::{VideoTs, Ts, VFrameTsCounter, VideoTsData3, is_contended_address};
 use crate::video::{
     Renderer, BorderSize, BorderColor, PixelBuffer, Palette,
     VideoFrame, Video, CellCoords, MAX_BORDER_SIZE,
@@ -13,7 +13,7 @@ use crate::video::{
         pixel_address_coords, color_address_coords
     }
 };
-use super::{Ula, UlaMemoryContention};
+use super::{Ula, ULA_CONTENTION_MASK};
 use super::frame_cache::{
     UlaFrameCache, UlaFrameProducer
 };
@@ -120,6 +120,10 @@ impl<M: ZxMemory, D, X, V: VideoFrame> Video for Ula<M, D, X, V> {
     fn current_video_ts(&self) -> VideoTs {
         self.tsc
     }
+
+    fn current_video_clock(&self) -> VFrameTsCounter<Self::VideoFrame> {
+        VFrameTsCounter::from_video_ts(self.tsc, ULA_CONTENTION_MASK)
+    }
 }
 
 impl<M: ZxMemory, B, X, V: VideoFrame> Ula<M, B, X, V> {
@@ -140,7 +144,7 @@ impl<M: ZxMemory, B, X, V: VideoFrame> Ula<M, B, X, V> {
 
     #[inline(always)]
     pub(super) fn update_snow_interference(&mut self, ts: VideoTs, ir: u16) {
-        if UlaMemoryContention::is_contended_address(ir) {
+        if is_contended_address(ULA_CONTENTION_MASK, ir) {
             if let Some(coords) = V::snow_interference_coords(ts) {
                 let screen = self.memory.screen_ref(0).unwrap();
                 self.frame_cache.apply_snow_interference(screen, coords, ir as u8)

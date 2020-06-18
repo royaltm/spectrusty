@@ -40,7 +40,7 @@ fn execute_next_frame_no_halt_emu<U, C>(ula: &mut U, cpu: &mut C, mut halt_limit
 {
     assert_eq!(cpu.is_halt(), false);
     ula.ensure_next_frame();
-    let mut tsc = ula.current_video_clock::<UlaMemoryContention>();
+    let mut tsc = ula.current_video_clock();
     loop {
         match cpu.execute_with_limit(ula, &mut tsc, U::VideoFrame::VSL_COUNT) {
             Ok(()) => break,

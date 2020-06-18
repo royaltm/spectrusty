@@ -4,7 +4,7 @@ use core::ops::Range;
 #[cfg(feature = "snapshot")]
 use serde::{Serialize, Deserialize};
 
-use crate::clock::{VideoTs, Ts};
+use crate::clock::{VideoTs, Ts, VFrameTsCounter};
 use crate::chip::{
     ula128::{Ula128VidFrame, video::create_ula128_renderer}
 };
@@ -97,6 +97,10 @@ impl<D, X> Video for Ula3<D, X> {
 
     fn current_video_ts(&self) -> VideoTs {
         self.ula.current_video_ts()
+    }
+
+    fn current_video_clock(&self) -> VFrameTsCounter<Self::VideoFrame> {
+        VFrameTsCounter::from_video_ts(self.ula.current_video_ts(), self.contention_mask())
     }
 }
 
