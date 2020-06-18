@@ -28,13 +28,13 @@ pub trait DotMatrixGfx {
     ///
     /// You may use `image` crate to render an actual image in some popular format:
     ///
-    /// ```ignore
+    /// ```text
     /// let mut buf: Vec<u8> = Vec::new();
     /// if let Some((width, height)) = printer.write_gfx_data(&mut buf) {
     ///     let img = image::ImageBuffer::<image::Luma<u8>, _>::from_vec(width, height, buf);
     ///     img.save("printed.png").unwrap();
     ///     // or alternatively
-    ///     image::save_buffer("printed.png", &buf, width, height, image::ColorType::L8)?;
+    ///     image::save_buffer("printed.png", &buf, width, height, image::ColorType::L8).unwrap();
     /// }
     /// ```
     fn write_gfx_data(&mut self, target: &mut Vec<u8>) -> Option<(u32, u32)>;
