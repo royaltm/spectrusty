@@ -1,7 +1,7 @@
 use core::iter::Empty;
 
 use crate::bus::BusDevice;
-use crate::clock::{VideoTs, VFrameTsCounter};
+use crate::clock::VideoTs;
 use crate::chip::{UlaPortFlags, ula::frame_cache::UlaFrameCache};
 use crate::memory::{ZxMemory, MemoryExtension};
 use crate::video::{BorderColor, VideoFrame};
@@ -32,17 +32,6 @@ impl<'a, M, B, X, V> UlaPlusInner<'a> for Ula<M, B, X, V>
             return true
         }
         false
-    }
-
-    fn prepare_next_frame(
-        &mut self,
-        vtsc: VFrameTsCounter<Self::VideoFrame>
-    ) -> VFrameTsCounter<Self::VideoFrame> {
-        self.prepare_next_frame(vtsc)
-    }
-
-    fn set_video_counter(&mut self, vts: VideoTs) {
-        self.tsc = vts;
     }
 
     fn page1_screen0_shadow_bank(&self) -> Option<bool> {

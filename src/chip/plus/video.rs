@@ -20,6 +20,7 @@ impl<U> Video for UlaPlus<U>
     const PIXEL_DENSITY: u32 = 2;
 
     type VideoFrame = U::VideoFrame;
+    type Contention = U::Contention;
 
     #[inline]
     fn border_color(&self) -> BorderColor {
@@ -49,8 +50,12 @@ impl<U> Video for UlaPlus<U>
         (self.cur_source_mode.is_shadow_bank() ^ self.ula.cur_screen_shadow()).into()
     }
 
-    fn current_video_clock(&self) -> VFrameTsCounter<Self::VideoFrame> {
+    fn current_video_clock(&self) -> VFrameTsCounter<Self::VideoFrame, Self::Contention> {
         self.ula.current_video_clock()
+    }
+
+    fn set_video_ts(&mut self, vts: VideoTs) {
+        self.ula.set_video_ts(vts);
     }
 }
 

@@ -16,9 +16,9 @@ use std::io::{Read, BufReader, BufRead, ErrorKind};
 use std::fs::{File, OpenOptions};
 
 use spectrusty::z80emu::*;
-use spectrusty::clock::{FTs, Ts, VideoTs, VFrameTsCounter};
+use spectrusty::clock::{FTs, Ts, VideoTs, VFrameTsCounter, MemoryContention};
 use spectrusty_core::ula_io_contention;
-use spectrusty::chip::ula::{UlaVideoFrame, ULA_CONTENTION_MASK};
+use spectrusty::chip::ula::{UlaVideoFrame, UlaMemoryContention};
 
 type DynResult<T> = Result<T, Box<dyn Error>>;
 
@@ -26,7 +26,7 @@ type DynResult<T> = Result<T, Box<dyn Error>>;
 thread_local!(static EVENTS: ExpectedEvents = RefCell::new(VecDeque::new()));
 type ExpectedEvents = RefCell<VecDeque<Event>>;
 // internal clock type
-type VideoCounter = VFrameTsCounter<UlaVideoFrame>;
+type VideoCounter = VFrameTsCounter<UlaVideoFrame, UlaMemoryContention>;
 
 // Fuse tests are crafted for NMOS flavour
 type CPU = Z80NMOS;
@@ -50,7 +50,7 @@ struct TestCounter {
 
 impl Default for TestCounter {
     fn default() -> Self {
-        let vtsc = VideoCounter::from_video_ts(VideoTs::default(), ULA_CONTENTION_MASK);
+        let vtsc = VideoCounter::from_video_ts(VideoTs::default(), UlaMemoryContention);
         TestCounter { vtsc }
     }
 }
@@ -413,14 +413,14 @@ impl Memory for TestCase {
 
 impl From<FTs> for TestCounter {
     fn from(ts: FTs) -> Self {
-        let vtsc = VideoCounter::from_tstates(ts, ULA_CONTENTION_MASK);
+        let vtsc = VideoCounter::from_tstates(ts, UlaMemoryContention);
         TestCounter { vtsc }
     }
 }
 
 impl From<VideoTs> for TestCounter {
     fn from(vts: VideoTs) -> Self {
-        let vtsc = VideoCounter::from_video_ts(vts, ULA_CONTENTION_MASK);
+        let vtsc = VideoCounter::from_video_ts(vts, UlaMemoryContention);
         TestCounter { vtsc }
     }
 }
@@ -503,16 +503,16 @@ impl Clock for TestCounter {
         // by the Clock::add_io implementation for VFrameTsCounter.
         let mut contentions_vts = Vec::with_capacity(4);
         let mut contention = |hc| {
-            contentions_vts.push(VideoCounter::new(vc, hc, ULA_CONTENTION_MASK).as_timestamp());
+            contentions_vts.push(VideoCounter::new(vc, hc, UlaMemoryContention).as_timestamp());
             hc
         };
         // ula_io_contention! modifies `hc`.
-        let hc_end = ula_io_contention!(ULA_CONTENTION_MASK, port, hc, contention);
+        let hc_end = ula_io_contention!(UlaMemoryContention, port, hc, contention);
         // The timestamp when the PR/PW operation takes place.
-        let vts_op = VideoCounter::new(vc, hc, ULA_CONTENTION_MASK).as_timestamp();
+        let vts_op = VideoCounter::new(vc, hc, UlaMemoryContention).as_timestamp();
         assert_eq!(vts_op, self.vtsc.add_io(port));
         // The timestamp after the complete cycle.
-        assert_eq!(VideoCounter::new(vc, hc_end, ULA_CONTENTION_MASK), self.vtsc);
+        assert_eq!(VideoCounter::new(vc, hc_end, UlaMemoryContention), self.vtsc);
         // An expected PR/PW event will be optionally captured below.
         let mut prw_evt: Option<Event> = None;
         for vts in contentions_vts.into_iter() {

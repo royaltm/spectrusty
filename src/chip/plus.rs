@@ -66,7 +66,8 @@ mod screen;
 use crate::z80emu::{*, host::Result};
 use crate::bus::BusDevice;
 use crate::clock::{
-    VideoTs, FTs, VFrameTsCounter, VideoTsData2, VideoTsData6
+    VideoTs, FTs, VFrameTsCounter, MemoryContention,
+    VideoTsData2, VideoTsData6
 };
 use crate::chip::{
     ControlUnit, MemoryAccess,
@@ -75,19 +76,14 @@ use crate::chip::{
     UlaWrapper,
     scld::frame_cache::SourceMode,
     ula::{
-        Ula,
-        ControlUnitContention, UlaTimestamp, UlaCpuExt,
+        UlaControlExt, UlaCpuExt,
         frame_cache::UlaFrameCache
-    },
-    ula128::{Ula128},
-    ula3::{
-        Ula3
     },
 };
 use crate::video::{
-    BorderColor, Video, VideoFrame, RenderMode, UlaPlusPalette, PaletteChange
+    BorderColor, Video, RenderMode, UlaPlusPalette, PaletteChange
 };
-use crate::memory::{ZxMemory, MemoryExtension};
+use crate::memory::MemoryExtension;
 
 /*
   G G i i i h a s UlaPlusRegFlags
@@ -139,13 +135,6 @@ pub trait UlaPlusInner<'a>: Video + MemoryAccess {
     fn push_screen_change(&mut self, ts: VideoTs);
     /// Updates the border color, returns `true` if the border color has changed.
     fn update_last_border_color(&mut self, border: BorderColor) -> bool;
-    /// Prepares the internal variables for the next frame.
-    fn prepare_next_frame(
-        &mut self,
-        vtsc: VFrameTsCounter<Self::VideoFrame>
-    ) -> VFrameTsCounter<Self::VideoFrame>;
-    /// Sets the video counter.
-    fn set_video_counter(&mut self, vts: VideoTs);
     /// Returns `Some(is_shadow)` if a screen memory is accessible at page address: 0x4000-0x5FFF.
     fn page1_screen0_shadow_bank(&self) -> Option<bool>;
     /// Returns `Some(is_shadow)` if a screen memory is accessible at page address: 0x6000-0x7FFF.
@@ -434,9 +423,15 @@ impl<U> MemoryAccess for UlaPlus<U>
     }
 }
 
-impl<'a, U> ControlUnit for UlaPlus<U>
-    where U: ControlUnit + UlaPlusInner<'a>,
-          Self: ControlUnitContention
+impl<U, B, X> ControlUnit for UlaPlus<U>
+    where U: for<'a> UlaPlusInner<'a>
+             + ControlUnit<BusDevice=B>
+             + UlaControlExt
+             + MemoryAccess<MemoryExt=X>
+             + Memory<Timestamp=VideoTs>
+             + Io<Timestamp=VideoTs, WrIoBreak=(), RetiBreak=()>,
+          B: BusDevice<Timestamp=VideoTs>,
+          X: MemoryExtension
 {
     type BusDevice = U::BusDevice;
 
@@ -489,11 +484,11 @@ impl<'a, U> ControlUnit for UlaPlus<U>
     }
 
     fn nmi<C: Cpu>(&mut self, cpu: &mut C) -> bool {
-        self.nmi_with_contention(cpu)
+        self.ula_nmi(cpu)
     }
 
     fn execute_next_frame<C: Cpu>(&mut self, cpu: &mut C) {
-        self.execute_next_frame_with_contention(cpu)
+        while !self.ula_execute_next_frame_with_breaks(cpu) {}
     }
 
     fn ensure_next_frame(&mut self) {
@@ -506,18 +501,17 @@ impl<'a, U> ControlUnit for UlaPlus<U>
             debug: Option<F>
         ) -> Result<(),()>
     {
-        self.execute_single_step_with_contention(cpu, debug)
+        self.ula_execute_single_step(cpu, debug)
     }
 }
 
-impl<'a, U> UlaPlus<U>
-    where U: UlaPlusInner<'a>
+impl<U> UlaControlExt for UlaPlus<U>
+    where U: for<'a> UlaPlusInner<'a> + ControlUnit + UlaControlExt
 {
-    #[inline]
-    fn prepare_next_frame(
+    fn prepare_next_frame<C: MemoryContention>(
             &mut self,
-            vtsc: VFrameTsCounter<U::VideoFrame>
-        ) -> VFrameTsCounter<U::VideoFrame>
+            vtsc: VFrameTsCounter<U::VideoFrame, C>
+        ) -> VFrameTsCounter<U::VideoFrame, C>
     {
         self.beg_render_mode = self.cur_render_mode;
         self.beg_source_mode = self.cur_source_mode;
@@ -530,42 +524,4 @@ impl<'a, U> UlaPlus<U>
         self.mode_changes.clear();
         self.ula.prepare_next_frame(vtsc)
     }
-
 }
-
-impl<'a, U> UlaTimestamp for UlaPlus<U>
-    where U: UlaPlusInner<'a>
-{
-    type VideoFrame = <U as Video>::VideoFrame;
-    #[inline(always)]
-    fn video_ts(&self) -> VideoTs {
-        self.ula.current_video_ts()
-    }
-    #[inline(always)]
-    fn set_video_ts(&mut self, vts: VideoTs) {
-        self.ula.set_video_counter(vts)
-    }
-    #[inline(always)]
-    fn ensure_next_frame_vtsc(
-            &mut self
-        ) -> VFrameTsCounter<Self::VideoFrame>
-    {
-        let mut vtsc = self.ula.current_video_clock();
-        if vtsc.is_eof() {
-            vtsc = self.prepare_next_frame(vtsc);
-        }
-        vtsc
-    }
-}
-
-/********************************* Ula *********************************/
-
-impl_control_unit_contention_ula!(UlaPlus<Ula<M, B, X, V>>);
-
-/********************************* Ula128 *********************************/
-
-impl_control_unit_contention_ula128!(UlaPlus<Ula128<B, X>>);
-
-/********************************* Ula3 *********************************/
-
-impl_control_unit_contention_ula3!(UlaPlus<Ula3<B, X>>);

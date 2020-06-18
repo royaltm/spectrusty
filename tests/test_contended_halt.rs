@@ -12,7 +12,7 @@ fn ula_contended_halt<U>(addr: u16, vc: Ts, hc: Ts) -> u8
              for<'a> UlaPlusInner<'a>
 {
     let mut ula = U::default();
-    ula.set_video_counter(VideoTs::new(vc, hc));
+    ula.set_video_ts(VideoTs::new(vc, hc));
     ula.memory_mut().page_mut((addr / 0x4000) as u8).unwrap()[addr as usize % 0x4000] = HALT_OPCODE;
     let mut cpu = Z80NMOS::default();
     cpu.reset();
@@ -115,7 +115,7 @@ fn ula_halt_irq<U>(vc: Ts, hc: Ts, late_timings: bool, halt_limit: u32) -> u16
 {
     let mut ula = U::default();
     ula.set_late_timings(late_timings);
-    ula.set_video_counter(VideoTs::new(vc, hc));
+    ula.set_video_ts(VideoTs::new(vc, hc));
     ula.memory_mut().fill_mem(.., || HALT_OPCODE).unwrap();
     ula.memory_mut().page_mut(0).unwrap()[0x38..0x3B].copy_from_slice(&[
               // +13       IRQ

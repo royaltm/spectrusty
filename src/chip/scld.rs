@@ -24,7 +24,7 @@ use crate::z80emu::{*, host::Result};
 use crate::clock::{
     FTs, VideoTs,
     VideoTsData2, VideoTsData6,
-    VFrameTsCounter
+    VFrameTsCounter, MemoryContention
 };
 use crate::bus::{BusDevice, NullDevice};
 use crate::chip::{
@@ -32,15 +32,14 @@ use crate::chip::{
     UlaWrapper, EarIn, ReadEarMode, ControlUnit, MemoryAccess,
     ula::{
         Ula, UlaVideoFrame,
-        ULA_CONTENTION_MASK,
-        UlaTimestamp, UlaCpuExt,
+        UlaControlExt, UlaCpuExt,
         frame_cache::UlaFrameCache
     }
 };
 use crate::memory::{
     PagedMemory8k, MemoryExtension, NoMemoryExtension,
 };
-use crate::video::{VideoFrame, BorderColor, RenderMode};
+use crate::video::{Video, VideoFrame, BorderColor, RenderMode};
 
 #[cfg(feature = "snapshot")]
 use serde::{Serialize, Deserialize};
@@ -314,7 +313,7 @@ impl<M, B, X, V> ControlUnit for Scld<M, B, X, V>
         self.ula.reset(cpu, hard);
         if hard {
             self.mem_paged = 0;
-            self.change_ctrl_flag(ScldCtrlFlags::empty(), self.ula.video_ts());
+            self.change_ctrl_flag(ScldCtrlFlags::empty(), self.current_video_ts());
         }
     }
 
@@ -340,51 +339,20 @@ impl<M, B, X, V> ControlUnit for Scld<M, B, X, V>
     }
 }
 
-impl<M, B, X, V> Scld<M, B, X, V>
+impl<M, B, X, V> UlaControlExt for Scld<M, B, X, V>
     where M: PagedMemory8k,
           B: BusDevice<Timestamp=VideoTs>,
           V: VideoFrame
 {
-    #[inline]
-    fn prepare_next_frame(
+    fn prepare_next_frame<C: MemoryContention>(
             &mut self,
-            vtsc: VFrameTsCounter<V>
-        ) -> VFrameTsCounter<V>
+            vtsc: VFrameTsCounter<V, C>
+        ) -> VFrameTsCounter<V, C>
     {
         self.beg_ctrl_flags = self.cur_ctrl_flags;
         self.sec_frame_cache.clear();
         self.mode_changes.clear();
         self.source_changes.clear();
         self.ula.prepare_next_frame(vtsc)
-    }
-
-}
-
-impl<M, B, X, V> UlaTimestamp for Scld<M, B, X, V>
-    where M: PagedMemory8k,
-          B: BusDevice<Timestamp=VideoTs>,
-          V: VideoFrame
-{
-    type VideoFrame = V;
-
-    #[inline]
-    fn video_ts(&self) -> VideoTs {
-        self.ula.video_ts()
-    }
-
-    #[inline]
-    fn set_video_ts(&mut self, vts: VideoTs) {
-        self.ula.set_video_ts(vts)
-    }
-
-    fn ensure_next_frame_vtsc(
-            &mut self
-        ) -> VFrameTsCounter<V>
-    {
-        let mut vtsc = VFrameTsCounter::from_video_ts(self.ula.tsc, ULA_CONTENTION_MASK);
-        if vtsc.is_eof() {
-            vtsc = self.prepare_next_frame(vtsc);
-        }
-        vtsc
     }
 }

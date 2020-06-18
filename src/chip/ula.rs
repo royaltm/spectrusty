@@ -30,7 +30,7 @@ use crate::video::{BorderColor, VideoFrame};
 use crate::memory::{ZxMemory, MemoryExtension, NoMemoryExtension};
 use crate::peripherals::ZXKeyboardMap;
 use crate::clock::{
-    VideoTs, FTs, VFrameTsCounter,
+    VideoTs, FTs, VFrameTsCounter, MemoryContention,
     VideoTsData1, VideoTsData2, VideoTsData3};
 use frame_cache::UlaFrameCache;
 
@@ -41,8 +41,9 @@ pub use video_ntsc::UlaNTSCVidFrame;
 /// ZX Spectrum NTSC 16k/48k ULA.
 pub type UlaNTSC<M, B=NullDevice<VideoTs>, X=NoMemoryExtension> = Ula<M, B, X, UlaNTSCVidFrame>;
 
-/// A contention mask representing addresses in the range: [0x4000, 0x7FFF] being contended.
-pub const ULA_CONTENTION_MASK: u8 = 0b0000_1100;
+/// A struct implementing [MemoryContention] for addresses in the range: [0x4000, 0x7FFF] being contended.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+pub struct UlaMemoryContention;
 
 /// ZX Spectrum 16k/48k ULA.
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
@@ -77,6 +78,13 @@ pub struct Ula<M, B=NullDevice<VideoTs>, X=NoMemoryExtension, V=UlaVideoFrame> {
     prev_earmic_ts: FTs, // previously recorded change timestamp
     prev_earmic_data: EarMic, // previous frame last recorded data
     last_earmic_data: EarMic, // last recorded data
+}
+
+impl MemoryContention for UlaMemoryContention {
+    #[inline]
+    fn is_contended_address(self, address: u16) -> bool {
+        address & 0xC000 == 0x4000
+    }
 }
 
 impl<M, B, X, V: VideoFrame> UlaControl for Ula<M, B, X, V> {
@@ -228,17 +236,17 @@ impl<M, B, X, V> ControlUnit for Ula<M, B, X, V>
         }
         else {
             const DEBUG: Option<CpuDebugFn> = None;
-            let mut vtsc: VFrameTsCounter<V> = VFrameTsCounter::from_video_ts(VideoTs::default(), ULA_CONTENTION_MASK);
+            let mut vtsc: VFrameTsCounter<V, _> = VFrameTsCounter::from_video_ts(VideoTs::default(), UlaMemoryContention);
             let _ = cpu.execute_instruction(self, &mut vtsc, DEBUG, opconsts::RST_00H_OPCODE);
         }
     }
 
     fn nmi<C: Cpu>(&mut self, cpu: &mut C) -> bool {
-        self.nmi_with_contention(cpu)
+        self.ula_nmi(cpu)
     }
 
     fn execute_next_frame<C: Cpu>(&mut self, cpu: &mut C) {
-        self.execute_next_frame_with_contention(cpu)
+        while !self.ula_execute_next_frame_with_breaks(cpu) {}
     }
 
     fn ensure_next_frame(&mut self) {
@@ -251,50 +259,19 @@ impl<M, B, X, V> ControlUnit for Ula<M, B, X, V>
             debug: Option<F>
         ) -> Result<(),()>
     {
-        self.execute_single_step_with_contention(cpu, debug)
+        self.ula_execute_single_step(cpu, debug)
     }
 }
 
-macro_rules! impl_control_unit_contention_ula {
-    ($ty:ty) => {
-        impl<M, B, X, V> ControlUnitContention for $ty
-            where M: ZxMemory,
-                  B: BusDevice<Timestamp=VideoTs>,
-                  X: MemoryExtension,
-                  V: VideoFrame
-        {
-            fn nmi_with_contention<C: Cpu>(&mut self, cpu: &mut C) -> bool {
-                self.ula_nmi(cpu)
-            }
-
-            fn execute_next_frame_with_contention<C: Cpu>(&mut self, cpu: &mut C) {
-                while !self.ula_execute_next_frame_with_breaks(cpu) {}
-            }
-
-            fn execute_single_step_with_contention<C: Cpu, F: FnOnce(CpuDebug)>(
-                    &mut self,
-                    cpu: &mut C,
-                    debug: Option<F>
-                ) -> Result<(),()>
-            {
-                self.ula_execute_single_step(cpu, debug)
-            }
-        }
-    };
-}
-
-impl_control_unit_contention_ula!(Ula<M, B, X, V>);
-
-impl<M, B, X, V> Ula<M, B, X, V>
+impl<M, B, X, V> UlaControlExt for Ula<M, B, X, V>
     where M: ZxMemory,
           B: BusDevice<Timestamp=VideoTs>,
           V: VideoFrame
 {
-    #[inline]
-    pub(super) fn prepare_next_frame(
+    fn prepare_next_frame<C: MemoryContention>(
             &mut self,
-            mut vtsc: VFrameTsCounter<V>
-        ) -> VFrameTsCounter<V>
+            mut vtsc: VFrameTsCounter<V, C>
+        ) -> VFrameTsCounter<V, C>
     {
         self.bus.next_frame(vtsc.as_timestamp());
         self.frames += Wrapping(1);
@@ -302,35 +279,6 @@ impl<M, B, X, V> Ula<M, B, X, V>
         self.cleanup_earmic_frame_data();
         vtsc.wrap_frame();
         self.tsc = vtsc.into();
-        vtsc
-    }
-}
-
-impl<M, B, X, V> UlaTimestamp for Ula<M, B, X, V>
-    where M: ZxMemory,
-          B: BusDevice<Timestamp=VideoTs>,
-          V: VideoFrame
-{
-    type VideoFrame = V;
-
-    #[inline]
-    fn video_ts(&self) -> VideoTs {
-        self.tsc
-    }
-
-    #[inline]
-    fn set_video_ts(&mut self, vts: VideoTs) {
-        self.tsc = vts
-    }
-
-    fn ensure_next_frame_vtsc(
-            &mut self
-        ) -> VFrameTsCounter<V>
-    {
-        let mut vtsc = VFrameTsCounter::from_video_ts(self.tsc, ULA_CONTENTION_MASK);
-        if vtsc.is_eof() {
-            vtsc = self.prepare_next_frame(vtsc);
-        }
         vtsc
     }
 }

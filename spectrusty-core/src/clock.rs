@@ -27,31 +27,31 @@ pub struct VideoTs {
     pub hc: Ts,
 }
 
+/// A trait used by [VFrameTsCounter] for checking if an `address` is a contended one.
+pub trait MemoryContention: Copy + Debug {
+    fn is_contended_address(self, address: u16) -> bool;
+}
+
 /// A generic [VideoTs] based T-states counter.
 ///
 /// Implements [Clock] for counting T-states when code is being executed by [z80emu::Cpu].
 ///
 /// Counts additional T-states according to contention specified by generic parameters:
-/// `V:` [VideoFrame].
+/// `V:` [VideoFrame] and `C:` [MemoryContention].
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
-pub struct VFrameTsCounter<V>  {
+pub struct VFrameTsCounter<V, C>  {
     /// The current timestamp value of this counter.
     pub tsc: VideoTs,
     /// Each bit represents an 8 kilobyte memory page starting from the lowest (rightmost) bit.
     ///
     /// When a bit value is 1 the address range of the page is considered contended.
-    pub contention_mask: u8,
+    pub contention: C,
     _video: PhantomData<V>,
 }
 
 /// If a vertical counter of [VideoTs] exceeds this value, signals the control unit to emulate hanging
 /// CPU indefinitely.
 pub const HALT_VC_THRESHOLD: i16 = i16::max_value() >> 1;
-
-#[inline(always)]
-pub fn is_contended_address(contention_mask: u8, address: u16) -> bool {
-    contention_mask & (1u8 << (address >> 13)) != 0
-}
 
 const WAIT_STATES_THRESHOLD: u16 = i16::max_value() as u16 - 256;
 
@@ -194,15 +194,18 @@ impl VideoTs {
     }
 }
 
-impl<V: VideoFrame> VFrameTsCounter<V> {
+impl<V, C> VFrameTsCounter<V, C>
+    where V: VideoFrame,
+          C: MemoryContention
+{
     /// Constructs a new and normalized `VFrameTsCounter` from the given vertical and horizontal counter values.
     ///
     /// # Panics
     /// Panics when values given lead to an overflow of the capacity of [VideoTs].
     #[inline]
-    pub fn new(vc: Ts, hc: Ts, contention_mask: u8) -> Self {
+    pub fn new(vc: Ts, hc: Ts, contention: C) -> Self {
         let tsc = V::normalize_vts(VideoTs::new(vc, hc));
-        VFrameTsCounter { tsc, contention_mask, _video: PhantomData }
+        VFrameTsCounter { tsc, contention, _video: PhantomData }
     }
     /// Builds a [VFrameTsCounter] from the given count of T-states.
     ///
@@ -210,15 +213,15 @@ impl<V: VideoFrame> VFrameTsCounter<V> {
     ///
     /// Panics when the given `ts` overflows the capacity of [VideoTs].
     #[inline]
-    pub fn from_tstates(ts: FTs, contention_mask: u8) -> Self {
+    pub fn from_tstates(ts: FTs, contention: C) -> Self {
         let tsc = V::tstates_to_vts(ts);
-        VFrameTsCounter { tsc, contention_mask, _video: PhantomData }
+        VFrameTsCounter { tsc, contention, _video: PhantomData }
     }
 
     #[inline]
-    pub fn from_video_ts(vts: VideoTs, contention_mask: u8) -> Self {
+    pub fn from_video_ts(vts: VideoTs, contention: C) -> Self {
         let tsc = V::normalize_vts(vts);
-        VFrameTsCounter { tsc, contention_mask, _video: PhantomData }
+        VFrameTsCounter { tsc, contention, _video: PhantomData }
     }
     /// Returns the number of T-states measured from the start of the frame.
     ///
@@ -263,7 +266,7 @@ impl<V: VideoFrame> VFrameTsCounter<V> {
 
     #[inline]
     pub fn is_contended_address(self, address: u16) -> bool {
-        is_contended_address(self.contention_mask, address)
+        self.contention.is_contended_address(address)
     }
 
     #[inline(always)]
@@ -276,7 +279,7 @@ impl<V: VideoFrame> VFrameTsCounter<V> {
     }
 }
 
-impl<V: VideoFrame> AddAssign<u32> for VFrameTsCounter<V> {
+impl<V: VideoFrame, C> AddAssign<u32> for VFrameTsCounter<V, C> {
     fn add_assign(&mut self, delta: u32) {
         self.tsc = V::vts_add_ts(self.tsc, delta);
     }
@@ -299,7 +302,7 @@ macro_rules! ula_io_contention {
     ($mc:expr, $port:expr, $hc:ident, $contention:path) => {
         {
             use $crate::z80emu::host::cycles::*;
-            if $crate::clock::is_contended_address($mc, $port) {
+            if $mc.is_contended_address($port) {
                 $hc = $contention($hc) + IO_IORQ_LOW_TS as Ts;
                 if $port & 1 == 0 { // C:1, C:3
                     $contention($hc) + (IO_CYCLE_TS - IO_IORQ_LOW_TS) as Ts
@@ -325,7 +328,7 @@ macro_rules! ula_io_contention {
     };
 }
 
-impl<V: VideoFrame> Clock for VFrameTsCounter<V> {
+impl<V: VideoFrame, C: MemoryContention> Clock for VFrameTsCounter<V, C> {
     type Limit = Ts;
     type Timestamp = VideoTs;
     fn is_past_limit(&self, limit: Self::Limit) -> bool {
@@ -339,7 +342,7 @@ impl<V: VideoFrame> Clock for VFrameTsCounter<V> {
 
     fn add_no_mreq(&mut self, address: u16, add_ts: NonZeroU8) {
         let mut hc = self.tsc.hc;
-        if is_contended_address(self.contention_mask, address) && V::is_contended_line_no_mreq(self.tsc.vc) {
+        if self.contention.is_contended_address(address) && V::is_contended_line_no_mreq(self.tsc.vc) {
             for _ in 0..add_ts.get() {
                 hc = V::contention(hc) + 1;
             }
@@ -357,7 +360,7 @@ impl<V: VideoFrame> Clock for VFrameTsCounter<V> {
         //     // 0xC008..=0xC011 => println!("0x{:04x}: {} {:?}", address, self.as_tstates(), self.tsc),
         //     _ => {}
         // }
-        let hc = if is_contended_address(self.contention_mask, address) && V::is_contended_line_mreq(self.tsc.vc) {
+        let hc = if self.contention.is_contended_address(address) && V::is_contended_line_mreq(self.tsc.vc) {
             V::contention(self.tsc.hc)
         }
         else {
@@ -368,7 +371,7 @@ impl<V: VideoFrame> Clock for VFrameTsCounter<V> {
     }
 
     fn add_mreq(&mut self, address: u16) -> Self::Timestamp {
-        let hc = if is_contended_address(self.contention_mask, address) && V::is_contended_line_mreq(self.tsc.vc) {
+        let hc = if self.contention.is_contended_address(address) && V::is_contended_line_mreq(self.tsc.vc) {
             V::contention(self.tsc.hc)
         }
         else {
@@ -381,7 +384,7 @@ impl<V: VideoFrame> Clock for VFrameTsCounter<V> {
     // fn add_io(&mut self, port: u16) -> Self::Timestamp {
     //     let VideoTs{ vc, hc } = self.tsc;
     //     let hc = if V::is_contended_line_no_mreq(vc) {
-    //         if is_contended_address(self.contention_mask, port) {
+    //         if self.contention.is_contended_address(port) {
     //             let hc = V::contention(hc) + 1;
     //             if port & 1 == 0 { // C:1, C:3
     //                 V::contention(hc) + (IO_CYCLE_TS - 1) as Ts
@@ -416,7 +419,7 @@ impl<V: VideoFrame> Clock for VFrameTsCounter<V> {
         //     println!("0x{:04x}: {} {:?}", port, self.as_tstates(), self.tsc);
         // }
         let hc1 = if V::is_contended_line_no_mreq(vc) {
-            ula_io_contention!(self.contention_mask, port, hc, V::contention)
+            ula_io_contention!(self.contention, port, hc, V::contention)
             // if is_contended_address(self.contention_mask, port) {
             //     hc = V::contention(hc) + IO_IORQ_LOW_TS as Ts;
             //     if port & 1 == 0 { // C:1, C:3
@@ -471,14 +474,14 @@ impl<V: VideoFrame> Clock for VFrameTsCounter<V> {
 }
 
 
-impl<V> From<VFrameTsCounter<V>> for VideoTs {
+impl<V, C> From<VFrameTsCounter<V, C>> for VideoTs {
     #[inline(always)]
-    fn from(vftsc: VFrameTsCounter<V>) -> VideoTs {
+    fn from(vftsc: VFrameTsCounter<V, C>) -> VideoTs {
         vftsc.tsc
     }
 }
 
-impl<V> Deref for VFrameTsCounter<V> {
+impl<V, C> Deref for VFrameTsCounter<V, C> {
     type Target = VideoTs;
 
     fn deref(&self) -> &Self::Target {
@@ -486,7 +489,7 @@ impl<V> Deref for VFrameTsCounter<V> {
     }
 }
 
-impl<V> DerefMut for VFrameTsCounter<V> {
+impl<V, C> DerefMut for VFrameTsCounter<V, C> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.tsc
     }

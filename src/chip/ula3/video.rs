@@ -13,7 +13,7 @@ use crate::video::{
     VideoFrame, Video,
     frame_cache::{pixel_address_coords, color_address_coords}
 };
-use super::Ula3;
+use super::{Ula3, Ula3MemContention};
 
 /// Implements [VideoFrame] for Amstrad Gate Array (+3/+2A models).
 #[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
@@ -66,6 +66,7 @@ impl VideoFrame for Ula3VidFrame {
 
 impl<D, X> Video for Ula3<D, X> {
     type VideoFrame = Ula3VidFrame;
+    type Contention = Ula3MemContention;
 
     #[inline]
     fn border_color(&self) -> BorderColor {
@@ -99,8 +100,13 @@ impl<D, X> Video for Ula3<D, X> {
         self.ula.current_video_ts()
     }
 
-    fn current_video_clock(&self) -> VFrameTsCounter<Self::VideoFrame> {
-        VFrameTsCounter::from_video_ts(self.ula.current_video_ts(), self.contention_mask())
+    fn current_video_clock(&self) -> VFrameTsCounter<Self::VideoFrame, Self::Contention> {
+        let contention = self.memory_contention();
+        VFrameTsCounter::from_video_ts(self.ula.current_video_ts(), contention)
+    }
+
+    fn set_video_ts(&mut self, vts: VideoTs) {
+        self.ula.set_video_ts(vts);
     }
 }
 

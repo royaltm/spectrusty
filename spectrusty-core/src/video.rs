@@ -11,7 +11,7 @@ use serde::{Serialize, Deserialize};
 
 use bitflags::bitflags;
 
-use crate::clock::{Ts, FTs, VideoTs, VFrameTsCounter};
+use crate::clock::{Ts, FTs, VideoTs, VFrameTsCounter, MemoryContention};
 use crate::chip::UlaPortFlags;
 
 pub use pixel::{Palette, PixelBuffer};
@@ -82,6 +82,8 @@ pub trait Video {
     const PIXEL_DENSITY: u32 = 1;
     /// The [VideoFrame] implementation used by the chipset emulator.
     type VideoFrame: VideoFrame;
+    /// The [MemoryContention] implementation used by the chipset emulator.
+    type Contention: MemoryContention;
     /// Returns the current border color.
     fn border_color(&self) -> BorderColor;
     /// Force sets the border area to the given color.
@@ -130,8 +132,10 @@ pub trait Video {
     fn visible_screen_bank(&self) -> usize { 0 }
     /// Returns the current value of the video T-state counter.
     fn current_video_ts(&self) -> VideoTs;
+    /// Modifies the current value of the video T-state counter.
+    fn set_video_ts(&mut self, vts: VideoTs);
     /// Returns the current value of the video T-state clock.
-    fn current_video_clock(&self) -> VFrameTsCounter<Self::VideoFrame>;
+    fn current_video_clock(&self) -> VFrameTsCounter<Self::VideoFrame, Self::Contention>;
 }
 /// A collection of static methods and constants raleted to video parameters.
 /// ```text

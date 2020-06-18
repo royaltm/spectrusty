@@ -1,7 +1,7 @@
 use std::vec::Drain;
 
 use crate::bus::BusDevice;
-use crate::clock::{VideoTs, VFrameTsCounter};
+use crate::clock::VideoTs;
 use crate::chip::{UlaPortFlags, ula::frame_cache::UlaFrameCache};
 use crate::memory::MemoryExtension;
 use crate::video::BorderColor;
@@ -28,17 +28,6 @@ impl<'a, B, X> UlaPlusInner<'a> for Ula3<B, X>
 
     fn update_last_border_color(&mut self, border: BorderColor) -> bool {
         self.ula.update_last_border_color(border)
-    }
-
-    fn prepare_next_frame(
-        &mut self,
-        vtsc: VFrameTsCounter<Self::VideoFrame>
-    ) -> VFrameTsCounter<Self::VideoFrame> {
-        self.prepare_next_frame(vtsc)
-    }
-
-    fn set_video_counter(&mut self, vts: VideoTs) {
-        self.ula.tsc = vts;
     }
 
     fn page1_screen0_shadow_bank(&self) -> Option<bool> {

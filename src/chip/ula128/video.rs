@@ -5,10 +5,9 @@ use core::ops::Range;
 use serde::{Serialize, Deserialize};
 
 use crate::memory::ZxMemory;
-use crate::clock::{VideoTs, Ts, VideoTsData3, VFrameTsCounter, is_contended_address};
+use crate::clock::{VideoTs, Ts, VideoTsData3, VFrameTsCounter, MemoryContention};
 use crate::chip::ula::{
     Ula,
-    ULA_CONTENTION_MASK,
     frame_cache::UlaFrameCache
 };
 use crate::video::{
@@ -17,8 +16,7 @@ use crate::video::{
     frame_cache::{pixel_address_coords, color_address_coords}
 };
 use super::{
-    Ula128,
-    ULA128_CONTENTION_MASK,
+    Ula128, Ula128MemContention,
     frame_cache::Ula128FrameProducer
 };
 
@@ -97,6 +95,7 @@ impl VideoFrame for Ula128VidFrame {
 
 impl<D, X> Video for Ula128<D, X> {
     type VideoFrame = Ula128VidFrame;
+    type Contention = Ula128MemContention;
 
     #[inline]
     fn border_color(&self) -> BorderColor {
@@ -130,14 +129,13 @@ impl<D, X> Video for Ula128<D, X> {
         self.ula.current_video_ts()
     }
 
-    fn current_video_clock(&self) -> VFrameTsCounter<Self::VideoFrame> {
-        let contention_mask = if self.is_page3_contended() {
-            ULA128_CONTENTION_MASK
-        }
-        else {
-            ULA_CONTENTION_MASK
-        };
-        VFrameTsCounter::from_video_ts(self.ula.current_video_ts(), contention_mask)
+    fn current_video_clock(&self) -> VFrameTsCounter<Self::VideoFrame, Self::Contention> {
+        let contention = self.memory_contention();
+        VFrameTsCounter::from_video_ts(self.ula.current_video_ts(), contention)
+    }
+
+    fn set_video_ts(&mut self, vts: VideoTs) {
+        self.ula.set_video_ts(vts);
     }
 }
 
@@ -165,12 +163,7 @@ impl<B, X> Ula128<B, X> {
 
     #[inline(always)]
     pub(super) fn update_snow_interference(&mut self, ts: VideoTs, ir: u16) {
-        let contention_mask = if self.is_page3_contended() {
-            ULA128_CONTENTION_MASK
-        } else {
-            ULA_CONTENTION_MASK
-        };
-        if is_contended_address(contention_mask, ir) {
+        if self.memory_contention().is_contended_address(ir) {
             if let Some(coords) = Ula128VidFrame::snow_interference_coords(ts) {
                 let (screen, frame_cache) = if self.cur_screen_shadow {
                     (self.ula.memory.screen_ref(1).unwrap(), &mut self.shadow_frame_cache)

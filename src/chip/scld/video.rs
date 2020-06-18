@@ -10,6 +10,7 @@ use crate::video::{
         pixel_address_coords, color_address_coords
     }
 };
+use crate::chip::ula::UlaMemoryContention;
 use super::frame_cache::{
     SourceMode, ScldFrameProducer
 };
@@ -21,6 +22,7 @@ impl<M, D, X, V> Video for Scld<M, D, X, V>
 {
     const PIXEL_DENSITY: u32 = 2;
     type VideoFrame = V;
+    type Contention = UlaMemoryContention;
 
     #[inline]
     fn border_color(&self) -> BorderColor {
@@ -47,10 +49,15 @@ impl<M, D, X, V> Video for Scld<M, D, X, V>
         self.ula.current_video_ts()
     }
 
-    fn current_video_clock(&self) -> VFrameTsCounter<Self::VideoFrame> {
+    fn current_video_clock(&self) -> VFrameTsCounter<Self::VideoFrame, Self::Contention> {
         self.ula.current_video_clock()
     }
+
+    fn set_video_ts(&mut self, vts: VideoTs) {
+        self.ula.set_video_ts(vts);
+    }
 }
+
 
 impl<M, D, X, V> Scld<M, D, X, V>
     where M: PagedMemory8k,

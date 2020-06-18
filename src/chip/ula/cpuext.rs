@@ -10,30 +10,28 @@ use crate::z80emu::{
 use crate::bus::BusDevice;
 use crate::chip::{MemoryAccess, ControlUnit};
 use crate::clock::{
-    HALT_VC_THRESHOLD, VideoTs, Ts, VFrameTsCounter
+    HALT_VC_THRESHOLD, VideoTs, Ts, VFrameTsCounter, MemoryContention
 };
 use crate::memory::MemoryExtension;
-use crate::video::VideoFrame;
+use crate::video::{Video, VideoFrame};
 
-/// Methods for code execution with memory contention specific to a chipset.
-pub trait ControlUnitContention {
-    fn nmi_with_contention<C: Cpu>(&mut self, cpu: &mut C) -> bool;
-    fn execute_next_frame_with_contention<C: Cpu>(&mut self, cpu: &mut C);
-    fn execute_single_step_with_contention<C: Cpu, F: FnOnce(CpuDebug)>(
+pub trait UlaControlExt: Video {
+    /// This method is used by wrappers with a different contention scheme.
+    fn prepare_next_frame<C: MemoryContention>(
             &mut self,
-            cpu: &mut C,
-            debug: Option<F>
-        ) -> Result<(),()>;
+            vtsc: VFrameTsCounter<Self::VideoFrame, C>
+        ) -> VFrameTsCounter<Self::VideoFrame, C>;
+
+    fn ensure_next_frame_vtsc(&mut self) -> VFrameTsCounter<Self::VideoFrame, Self::Contention> {
+        let mut vtsc = self.current_video_clock();
+        if vtsc.is_eof() {
+            vtsc = self.prepare_next_frame(vtsc);
+        }
+        vtsc
+    }
 }
 
-pub(crate) trait UlaTimestamp {
-    type VideoFrame: VideoFrame;
-    fn video_ts(&self) -> VideoTs;
-    fn set_video_ts(&mut self, vts: VideoTs);
-    fn ensure_next_frame_vtsc(&mut self) -> VFrameTsCounter<Self::VideoFrame>;
-}
-
-pub(crate) trait UlaCpuExt: UlaTimestamp {
+pub(crate) trait UlaCpuExt: UlaControlExt {
     fn ula_nmi<C: Cpu>(&mut self, cpu: &mut C) -> bool;
     fn ula_execute_next_frame_with_breaks<C: Cpu>(
             &mut self,
@@ -63,7 +61,7 @@ pub(crate) trait UlaCpuExt: UlaTimestamp {
 }
 
 impl<U, B, X> UlaCpuExt for U
-    where U: UlaTimestamp +
+    where U: UlaControlExt +
              ControlUnit<BusDevice=B> +
              MemoryAccess<MemoryExt=X> +
              Memory<Timestamp=VideoTs> +
@@ -163,10 +161,11 @@ impl<U, B, X> UlaCpuExt for U
 /// The timestamp - `tsc` passed here must be normalized and its vertical component must be positive and
 /// its composite value must be less than [V::FRAME_TSTATES_COUNT][VideoFrame::FRAME_TSTATES_COUNT].
 /// Otherwise this method panics.
-pub fn execute_halted_state_until_eof<V: VideoFrame, C: Cpu>(
-        mut tsc: VFrameTsCounter<V>,
+pub fn execute_halted_state_until_eof<V, T, C>(
+        mut tsc: VFrameTsCounter<V, T>,
         cpu: &mut C
-    ) -> VFrameTsCounter<V>
+    ) -> VFrameTsCounter<V, T>
+    where V: VideoFrame, T: MemoryContention, C: Cpu
 {
     debug_assert_eq!(0, V::HTS_COUNT % M1_CYCLE_TS as Ts);
     if tsc.vc < 0 || tsc.vc > V::VSL_COUNT || !V::is_normalized_vts(*tsc) {
