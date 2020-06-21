@@ -56,6 +56,10 @@ impl<M, D, X, V> Video for Scld<M, D, X, V>
     fn set_video_ts(&mut self, vts: VideoTs) {
         self.ula.set_video_ts(vts);
     }
+
+    fn flash_state(&self) -> bool {
+        self.ula.flash_state()
+    }
 }
 
 
@@ -90,6 +94,7 @@ impl<M, D, X, V> Scld<M, D, X, V>
                           Empty<PaletteChange>>
     {
         let render_mode = self.beg_render_mode();
+        let invert_flash = self.flash_state();
         let screen0 = self.ula.memory.screen_ref(0).unwrap();
         let screen1 = self.ula.memory.screen_ref(1).unwrap();
         let frame_image_producer = ScldFrameProducer::new(
@@ -105,7 +110,7 @@ impl<M, D, X, V> Scld<M, D, X, V>
             mode_changes: self.mode_changes.drain(..),
             palette_changes: iter::empty(),
             border_size,
-            invert_flash: self.ula.frames.0 & 16 != 0
+            invert_flash
         }
     }
 }

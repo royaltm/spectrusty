@@ -1,6 +1,6 @@
 //! A collection of custom [Ay3_891xBusDevice] types for Spectrum's 128k with [SerialPorts128].
 use core::fmt;
-use spectrusty_core::{bus::BusDevice, clock::VideoTs};
+use spectrusty_core::{bus::BusDevice, clock::VFrameTs};
 use crate::ay::{AyIoNullPort, Ay128kPortDecode};
 pub use crate::ay::serial128::SerialPorts128;
 pub use crate::serial::{NullSerialPort, Rs232Io, SerialKeypad};
@@ -13,19 +13,19 @@ pub type Ay3_8912Keypad<V, D> = Ay3_891xBusDevice<
                                                 Ay128kPortDecode,
                                                 SerialPorts128<
                                                     SerialKeypad<V>,
-                                                    NullSerialPort<VideoTs>
+                                                    NullSerialPort<VFrameTs<V>>
                                                 >,
-                                                AyIoNullPort<VideoTs>, D>;
+                                                AyIoNullPort<VFrameTs<V>>, D>;
 
 /// This type implements a [BusDevice][spectrusty_core::bus::BusDevice] emulating AY-3-8912 with a [RS-232][Rs232Io]
 /// communication.
 pub type Ay3_8912Rs232<V, D, R, W> = Ay3_891xBusDevice<
                                                 Ay128kPortDecode,
                                                 SerialPorts128<
-                                                    NullSerialPort<VideoTs>,
+                                                    NullSerialPort<VFrameTs<V>>,
                                                     Rs232Io<V, R, W>
                                                 >,
-                                                AyIoNullPort<VideoTs>, D>;
+                                                AyIoNullPort<VFrameTs<V>>, D>;
 
 /// This type implements a [BusDevice][spectrusty_core::bus::BusDevice] emulating AY-3-8912 with extension
 /// [keypad][SerialKeypad] and [RS-232][Rs232Io] communication.
@@ -35,7 +35,7 @@ pub type Ay3_8912KeypadRs232<V, D, R, W> = Ay3_891xBusDevice<
                                                     SerialKeypad<V>,
                                                     Rs232Io<V, R, W>
                                                 >,
-                                                AyIoNullPort<VideoTs>, D>;
+                                                AyIoNullPort<VFrameTs<V>>, D>;
 
 impl<V, D: BusDevice> fmt::Display for Ay3_8912Keypad<V, D> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

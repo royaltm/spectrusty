@@ -32,7 +32,8 @@ impl PortAddress for ScldMmuPortAddress {
 
 impl<M, B, X, V> Io for Scld<M, B, X, V>
     where M: PagedMemory8k,
-          B: BusDevice<Timestamp=VideoTs>,
+          B: BusDevice,
+          B::Timestamp: From<VideoTs>,
           V: VideoFrame
 {
     type Timestamp = VideoTs;
@@ -52,7 +53,7 @@ impl<M, B, X, V> Io for Scld<M, B, X, V>
             (self.mem_paged, None)
         }
         else {
-            let bus_data = self.ula.bus.read_io(port, ts);
+            let bus_data = self.ula.bus.read_io(port, ts.into());
             if UlaPortAddress::match_port(port) {
                 let ula_data = self.ula.ula_io_data(port, ts) & 0b0101_1111;
                 if let Some((data, ws)) = bus_data {
@@ -61,7 +62,7 @@ impl<M, B, X, V> Io for Scld<M, B, X, V>
                 (ula_data, None)
             }
             else {
-                self.ula.bus.read_io(port, ts)
+                self.ula.bus.read_io(port, ts.into())
                             .unwrap_or_else(|| (!0, None) )
             }
         }
@@ -76,13 +77,13 @@ impl<M, B, X, V> Io for Scld<M, B, X, V>
         }
         else if ScldCtrlPortAddress::match_port(port) {
             let flags = ScldCtrlFlags::from_bits_truncate(data);
-            self.change_ctrl_flag(flags, ts);
+            self.set_ctrl_flags_value(flags, ts);
         }
         else if ScldMmuPortAddress::match_port(port) {
-            self.change_mem_paged(data);
+            self.set_mmu_flags_value(data);
         }
         else {
-            if let Some(ws) = self.ula.bus.write_io(port, data, ts) {
+            if let Some(ws) = self.ula.bus.write_io(port, data, ts.into()) {
                 return (None, NonZeroU16::new(ws))
             }
         }
@@ -92,7 +93,6 @@ impl<M, B, X, V> Io for Scld<M, B, X, V>
 
 impl<M, B, X, V> Memory for Scld<M, B, X, V>
     where M: PagedMemory8k,
-          B: BusDevice<Timestamp=VideoTs>,
           X: MemoryExtension,
           V: VideoFrame
 {

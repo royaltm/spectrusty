@@ -10,7 +10,7 @@ use crate::z80emu::{
 use crate::bus::BusDevice;
 use crate::chip::{MemoryAccess, ControlUnit};
 use crate::clock::{
-    HALT_VC_THRESHOLD, VideoTs, Ts, VFrameTsCounter, MemoryContention
+    HALT_VC_THRESHOLD, VideoTs, VFrameTs, Ts, VFrameTsCounter, MemoryContention
 };
 use crate::memory::MemoryExtension;
 use crate::video::{Video, VideoFrame};
@@ -66,7 +66,7 @@ impl<U, B, X> UlaCpuExt for U
              MemoryAccess<MemoryExt=X> +
              Memory<Timestamp=VideoTs> +
              Io<Timestamp=VideoTs, WrIoBreak=(), RetiBreak=()>,
-          B: BusDevice<Timestamp=VideoTs>,
+          B: BusDevice<Timestamp=VFrameTs<U::VideoFrame>>,
           X: MemoryExtension
 {
     fn ula_nmi<C: Cpu>(&mut self, cpu: &mut C) -> bool {
@@ -80,14 +80,13 @@ impl<U, B, X> UlaCpuExt for U
             &mut self,
             cpu: &mut C
         ) -> bool
-        where Self: Memory<Timestamp=VideoTs> + Io<Timestamp=VideoTs>
     {
         let mut vtsc = self.ensure_next_frame_vtsc();
         let mut vc_limit = 1;
         while !vtsc.is_eof() {
             match cpu.execute_with_limit(self, &mut vtsc, vc_limit) {
                 Ok(()) => {
-                    *vtsc = Self::ula_check_halt(vtsc.into(), cpu);
+                    **vtsc = Self::ula_check_halt(vtsc.into(), cpu);
                 },
                 Err(BreakCause::Halt) => {
                     if vtsc.vc < 1 {
@@ -96,7 +95,7 @@ impl<U, B, X> UlaCpuExt for U
                     }
                 }
                 Err(_) => {
-                    *vtsc = Self::ula_check_halt(vtsc.into(), cpu);
+                    **vtsc = Self::ula_check_halt(vtsc.into(), cpu);
                     if vtsc.is_eof() {
                         break
                     }
@@ -110,9 +109,8 @@ impl<U, B, X> UlaCpuExt for U
             }
             vc_limit = Self::VideoFrame::VSL_COUNT;
         }
-        let vts = vtsc.into();
-        self.set_video_ts(vts);
-        self.bus_device_mut().update_timestamp(vts);
+        self.set_video_ts(vtsc.into());
+        self.bus_device_mut().update_timestamp(vtsc.into());
         true
     }
 
@@ -122,11 +120,10 @@ impl<U, B, X> UlaCpuExt for U
             debug: Option<F>
         ) -> Result<(),()>
         where F: FnOnce(CpuDebug),
-              Self: Memory<Timestamp=VideoTs> + Io<Timestamp=VideoTs, WrIoBreak=(), RetiBreak=()>
     {
         let mut vtsc = self.ensure_next_frame_vtsc();
         let res = cpu.execute_next(self, &mut vtsc, debug);
-        *vtsc = Self::ula_check_halt(vtsc.into(), cpu);
+        **vtsc = Self::ula_check_halt(vtsc.into(), cpu);
         self.set_video_ts(vtsc.into());
         res
     }
@@ -136,12 +133,11 @@ impl<U, B, X> UlaCpuExt for U
             cpu: &mut C,
             code: u8
         ) -> Result<(), ()>
-        where Self: Memory<Timestamp=VideoTs> + Io<Timestamp=VideoTs, WrIoBreak=(), RetiBreak=()>
     {
         const DEBUG: Option<CpuDebugFn> = None;
         let mut vtsc = self.ensure_next_frame_vtsc();
         let res = cpu.execute_instruction(self, &mut vtsc, DEBUG, code);
-        *vtsc = Self::ula_check_halt(vtsc.into(), cpu);
+        **vtsc = Self::ula_check_halt(vtsc.into(), cpu);
         self.set_video_ts(vtsc.into());
         res
     }
@@ -158,22 +154,24 @@ impl<U, B, X> UlaCpuExt for U
 ///
 /// # Panics
 ///
-/// The timestamp - `tsc` passed here must be normalized and its vertical component must be positive and
+/// The timestamp - `vtsc` passed here must be normalized and its vertical component must be positive and
 /// its composite value must be less than [V::FRAME_TSTATES_COUNT][VideoFrame::FRAME_TSTATES_COUNT].
 /// Otherwise this method panics.
 pub fn execute_halted_state_until_eof<V, T, C>(
-        mut tsc: VFrameTsCounter<V, T>,
+        mut vtsc: VFrameTsCounter<V, T>,
         cpu: &mut C
     ) -> VFrameTsCounter<V, T>
-    where V: VideoFrame, T: MemoryContention, C: Cpu
+    where V: VideoFrame,
+          T: MemoryContention,
+          C: Cpu
 {
     debug_assert_eq!(0, V::HTS_COUNT % M1_CYCLE_TS as Ts);
-    if tsc.vc < 0 || tsc.vc > V::VSL_COUNT || !V::is_normalized_vts(*tsc) {
+    if vtsc.vc < 0 || vtsc.vc > V::VSL_COUNT || !vtsc.is_normalized() {
         panic!("halt: a timestamp must be within the video frame range and normalized");
     }
     let mut r_incr: i32 = 0;
-    if tsc.is_contended_address(cpu.get_pc()) && tsc.vc < V::VSL_PIXELS.end {
-        let VideoTs { mut vc, mut hc } = *tsc; // assume tsc is normalized
+    if vtsc.is_contended_address(cpu.get_pc()) && vtsc.vc < V::VSL_PIXELS.end {
+        let VideoTs { mut vc, mut hc } = **vtsc; // assume vtsc is normalized
         // border top
         if vc < V::VSL_PIXELS.start {
             // move hc to the beginning of range
@@ -209,20 +207,20 @@ pub fn execute_halted_state_until_eof<V, T, C>(
             r_incr += i32::from(V::VSL_PIXELS.end - vc) * r_line;
         }
         // bottom border
-        tsc.vc = V::VSL_PIXELS.end;
-        tsc.hc = hc;
+        vtsc.vc = V::VSL_PIXELS.end;
+        vtsc.hc = hc;
     }
 
     let vc = V::VSL_COUNT;
-    let hc = tsc.hc.rem_euclid(M1_CYCLE_TS as Ts) - M1_CYCLE_TS as Ts;
+    let hc = vtsc.hc.rem_euclid(M1_CYCLE_TS as Ts) - M1_CYCLE_TS as Ts;
     r_incr += (
-                (i32::from(vc) - i32::from(tsc.vc)) * V::HTS_COUNT as i32 +
-                (i32::from(hc) - i32::from(tsc.hc))
+                (i32::from(vc) - i32::from(vtsc.vc)) * V::HTS_COUNT as i32 +
+                (i32::from(hc) - i32::from(vtsc.hc))
               ) / M1_CYCLE_TS as i32;
     if r_incr > 0 {
-        tsc.hc = hc;
-        tsc.vc = vc;
+        vtsc.hc = hc;
+        vtsc.vc = vc;
         cpu.add_r(r_incr);
     }
-    tsc
+    vtsc
 }

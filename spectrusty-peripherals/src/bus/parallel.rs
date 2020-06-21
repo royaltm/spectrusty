@@ -7,8 +7,7 @@ use core::ops::{Deref, DerefMut};
 use serde::{Serialize, Deserialize};
 
 use spectrusty_core::{
-    bus::{BusDevice, NullDevice, PortAddress},
-    clock::VideoTs
+    bus::{BusDevice, PortAddress},
 };
 use super::ay::PassByAyAudioBusDevice;
 
@@ -16,7 +15,7 @@ pub use crate::parallel::*;
 
 pub type Plus3CentronicsWriterBusDevice<V, D, W> = Plus3CentronicsBusDevice<ParallelPortWriter<V, W>, D>;
 
-impl<S, D> fmt::Display for Plus3CentronicsBusDevice<S, D> {
+impl<P, D> fmt::Display for Plus3CentronicsBusDevice<P, D> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("+3 Centronics Port")
     }
@@ -51,7 +50,7 @@ impl CentronicsFlags {
 /// Substitute `P` with a type implementing [ParallelPortDevice].
 #[derive(Clone, Default, Debug)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
-pub struct Plus3CentronicsBusDevice<P, D=NullDevice<VideoTs>>
+pub struct Plus3CentronicsBusDevice<P, D>
 {
     /// Provides a direct access to the [ParallelPortDevice].
     #[cfg_attr(feature = "snapshot", serde(default))]
@@ -91,10 +90,11 @@ impl<P, D> DerefMut for Plus3CentronicsBusDevice<P, D> {
 impl<P, D> PassByAyAudioBusDevice for Plus3CentronicsBusDevice<P, D> {}
 
 impl<P, D> BusDevice for Plus3CentronicsBusDevice<P, D>
-    where P: ParallelPortDevice<Timestamp=VideoTs> + fmt::Debug,
-          D: BusDevice<Timestamp=VideoTs>,
+    where P: ParallelPortDevice<Timestamp=D::Timestamp> + fmt::Debug,
+          D: BusDevice,
+          D::Timestamp: Copy
 {
-    type Timestamp = VideoTs;
+    type Timestamp = D::Timestamp;
     type NextDevice = D;
 
     #[inline]

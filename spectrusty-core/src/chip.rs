@@ -27,19 +27,13 @@ pub trait MemoryAccess {
     fn memory_mut(&mut self) -> &mut Self::Memory;
 }
 
-/// A trait for controling an emulated chipset.
-pub trait ControlUnit {
-    /// The type of the first attached [BusDevice].
-    type BusDevice: BusDevice;
-    /// Returns a mutable reference to the first bus device.
-    fn bus_device_mut(&mut self) -> &mut Self::BusDevice;
-    /// Returns a reference to the first bus device.
-    fn bus_device_ref(&self) -> &Self::BusDevice;
-    /// Destructs self and returns the instance of the bus device.
-    fn into_bus_device(self) -> Self::BusDevice;
-    /// Returns the value of the current execution frame counter. The [ControlUnit] implementation should
+/// The trait for reading and modifying the state of frame and cycle counters.
+pub trait FrameState {
+    /// Returns the value of the current execution frame counter. The [FrameState] implementation should
     /// count passing frames infinitely wrapping at 2^64.
     fn current_frame(&self) -> u64;
+    /// Sets the frame counter to the specified value.
+    fn set_frame_counter(&mut self, fc: u64);
     /// Returns a normalized frame counter and a T-state counter values.
     ///
     /// T-states are counted from 0 at the start of each frame.
@@ -50,9 +44,23 @@ pub trait ControlUnit {
     /// Unlike [ControlUnit::frame_tstate] values return by this method can sometimes be negative as well as
     /// exceeding the maximum nuber of T-states per frame.
     fn current_tstate(&self) -> FTs;
+    /// Sets the T-state counter to the specified value modulo `<Self as Video>::FRAME_TSTATES_COUNT`.
+    fn set_frame_tstate(&mut self, ts: FTs);
     /// Returns `true` if the value of the current T-state counter has reached a certain arbitrary limit which
     /// is very close to the maximum number of T-states per frame.
     fn is_frame_over(&self) -> bool;
+}
+
+/// The main trait implemented for chipsets for accessing devices and running the emulation.
+pub trait ControlUnit {
+    /// The type of the first attached [BusDevice].
+    type BusDevice: BusDevice;
+    /// Returns a mutable reference to the first bus device.
+    fn bus_device_mut(&mut self) -> &mut Self::BusDevice;
+    /// Returns a reference to the first bus device.
+    fn bus_device_ref(&self) -> &Self::BusDevice;
+    /// Destructs self and returns the instance of the bus device.
+    fn into_bus_device(self) -> Self::BusDevice;
     /// Performs a system reset.
     ///
     /// When `hard` is:
@@ -168,6 +176,17 @@ pub trait HostConfig {
     fn frame_duration() -> Duration {
         duration_from_frame_tc_cpu_hz(Self::FRAME_TSTATES as u32, Self::CPU_HZ)
     }
+}
+
+/// A generic trait, usefull for chipset implementations based on other underlying implementations.
+pub trait InnerAccess {
+    type Inner;
+    /// Returns a reference to the inner chipset.
+    fn inner_ref(&self) -> &Self::Inner;
+    /// Returns a mutable reference to the inner chipset.
+    fn inner_mut(&mut self) -> &mut Self::Inner;
+    /// Destructs `self` and returns the inner chipset.
+    fn into_inner(self) -> Self::Inner;
 }
 
 // pub const fn duration_from_frame_time(frame_time: f64) -> std::time::Duration {
@@ -332,5 +351,34 @@ impl AnimationFrameSyncTimer {
             return Some(excess_duration_millis)
         }
         None
+    }
+}
+
+impl<U, I> FrameState for U
+    where U: InnerAccess<Inner=I>,
+          I: FrameState
+{
+    fn current_frame(&self) -> u64 {
+        self.inner_ref().current_frame()
+    }
+
+    fn set_frame_counter(&mut self, fc: u64) {
+        self.inner_mut().set_frame_counter(fc)
+    }
+
+    fn frame_tstate(&self) -> (u64, FTs) {
+        self.inner_ref().frame_tstate()
+    }
+
+    fn current_tstate(&self) -> FTs {
+        self.inner_ref().current_tstate()
+    }
+
+    fn set_frame_tstate(&mut self, ts: FTs) {
+        self.inner_mut().set_frame_tstate(ts)
+    }
+
+    fn is_frame_over(&self) -> bool {
+        self.inner_ref().is_frame_over()
     }
 }

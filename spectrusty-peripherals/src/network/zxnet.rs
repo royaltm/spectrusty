@@ -6,7 +6,7 @@ use std::time::{Instant};
 #[allow(unused_imports)]
 use log::{error, warn, info, debug, trace};
 
-use spectrusty_core::{clock::VideoTs, video::VideoFrame};
+use spectrusty_core::{clock::VFrameTs, video::VideoFrame};
 pub use super::zxnet_udp::*;
 
 const CPU_HZ: f32 = 3_500_000.0;
@@ -46,7 +46,7 @@ pub trait ZxNetSocket {
 pub struct ZxNet<V, S> {
     /// A direct access to the underlying [ZxNetSocket] implementation.
     pub socket: S,
-    event_ts: VideoTs,
+    event_ts: VFrameTs<V>,
     dir_io: NetDir,
     io: NetState,
     net_state: bool,
@@ -125,7 +125,7 @@ enum NetState {
 // scout: 1 x x x x x x x 0 
 //(2.5ms) 1 [ 0 x x x x x x x x 1 * bytes ] 0
 impl<V: VideoFrame, S: ZxNetSocket> ZxNet<V, S> {
-    pub fn send_state(&mut self, net: bool, timestamp: VideoTs) {
+    pub fn send_state(&mut self, net: bool, timestamp: VFrameTs<V>) {
         match self.io {
             NetState::Idle(..) => {
                 // println!("set scout: {} {} {}", net, V::vts_diff(self.event_ts, timestamp), V::vts_to_tstates(timestamp));
@@ -136,7 +136,7 @@ impl<V: VideoFrame, S: ZxNetSocket> ZxNet<V, S> {
                 // println!("OUTPAK start from scout");
                 self.socket.begin_packet();
                 self.dir_io = NetDir::Outbound;
-                self.event_ts = V::vts_add_ts(timestamp, OUTPAK_START_DELAY);
+                self.event_ts = timestamp + OUTPAK_START_DELAY;
                 self.io = NetState::OutputStart;
             }
             NetState::OutputScout => {
@@ -146,17 +146,17 @@ impl<V: VideoFrame, S: ZxNetSocket> ZxNet<V, S> {
             }
             NetState::InputData(0) if net && timestamp >= self.event_ts => { // reply or body packet out OUTPAK
                 // println!("reply or body packet OUTPAK: {}", V::vts_diff(self.event_ts, timestamp));
-                self.event_ts = V::vts_add_ts(timestamp, OUTPAK_START_DELAY);
+                self.event_ts = timestamp + OUTPAK_START_DELAY;
                 self.io = NetState::OutputStart;
             }
             NetState::OutputStart if !net && timestamp < self.event_ts => {
                 // println!("OUTPAK start: {}", V::vts_diff(self.event_ts, timestamp));
-                self.event_ts = V::vts_add_ts(timestamp, BIT_DELAY);
+                self.event_ts = timestamp + BIT_DELAY;
                 self.io = NetState::OutputData(0x80);
             }
             NetState::OutputData(bits) if timestamp < self.event_ts => {
                 let next_bits = ((bits & !1)| u8::from(net)).rotate_right(1);
-                self.event_ts = V::vts_add_ts(timestamp, BIT_DELAY);
+                self.event_ts = timestamp + BIT_DELAY;
                 self.io = if bits & 1 == 1 {
                     NetState::OutputStop(next_bits)
                 }
@@ -198,7 +198,7 @@ impl<V: VideoFrame, S: ZxNetSocket> ZxNet<V, S> {
                         }
                     }
                 }
-                self.event_ts = V::vts_add_ts(timestamp, BYTE_DELAY);
+                self.event_ts = timestamp + BYTE_DELAY;
             }
             NetState::OutputEnd if !net && timestamp < self.event_ts => { // end outpack
                 self.event_ts = timestamp; // TODO: SOME TIMEOUT
@@ -250,11 +250,11 @@ impl<V: VideoFrame, S: ZxNetSocket> ZxNet<V, S> {
         }
     }
 
-    pub fn poll_state(&mut self, timestamp: VideoTs) -> bool {
+    pub fn poll_state(&mut self, timestamp: VFrameTs<V>) -> bool {
         match self.io {
             NetState::Idle(cnt) => {
                 if timestamp >= self.event_ts {
-                    match V::vts_diff(self.event_ts, timestamp) as u32 {
+                    match timestamp.diff_from(self.event_ts) as u32 {
                         0..=REST_DELAY_THRESHOLD => {
                             // println!("IDLE REST: {} {}", V::vts_diff(self.event_ts, timestamp), cnt);
                             self.event_ts = timestamp;
@@ -312,17 +312,17 @@ impl<V: VideoFrame, S: ZxNetSocket> ZxNet<V, S> {
             }
             NetState::InputStart => { // if this happens, something is wrong, so discard packet and go to idle
                 // println!("INPAK no wait detected!");
-                self.event_ts = V::vts_add_ts(timestamp, INPAK_WAIT_MAX);
+                self.event_ts = timestamp + INPAK_WAIT_MAX;
                 self.io = NetState::Idle(0);
                 self.net_state = false;
             }
             NetState::InputData(byte) => {
                 self.net_state = if timestamp < self.event_ts {
-                    self.event_ts = V::vts_add_ts(timestamp, BIT_DELAY);
+                    self.event_ts = timestamp + BIT_DELAY;
                     self.io = NetState::InputData(byte >> 1);
                     byte & 1 == 1
                 }
-                else if V::vts_diff(self.event_ts, timestamp) <= BROADCAST_DATA_DELAY {
+                else if timestamp.diff_from(self.event_ts) <= BROADCAST_DATA_DELAY {
                     // println!("INPUT DATA BROADCAST?: {}", V::vts_diff(self.event_ts, timestamp));
                     self.event_ts = timestamp;
                     self.io = NetState::InputStart;
@@ -343,13 +343,13 @@ impl<V: VideoFrame, S: ZxNetSocket> ZxNet<V, S> {
         self.net_state // set by whatever Spectrum writes
     }
 
-    pub fn wait_data(&mut self, timestamp: VideoTs) {
+    pub fn wait_data(&mut self, timestamp: VFrameTs<V>) {
         // println!("wait: {}", V::vts_to_tstates(timestamp));
         if let Some(byte) = match (self.io, self.dir_io) { // Spectrum wants a byte
                 (NetState::InputStart, NetDir::Outbound) => Some(1),
                 (NetState::InputStart, NetDir::Inbound) => self.socket.pull_byte(),
                 (NetState::InputData(0), NetDir::Inbound) if timestamp > self.event_ts &&
-                                        timestamp < V::vts_add_ts(self.event_ts, BIT_DELAY) => {
+                                        timestamp < self.event_ts + BIT_DELAY => {
                     // the whole byte has been transerred
                     self.socket.pull_byte()
                 }
@@ -357,33 +357,33 @@ impl<V: VideoFrame, S: ZxNetSocket> ZxNet<V, S> {
             }
         {
             // println!("WAIT -> BYTE [{}] {}", byte, V::vts_diff(self.event_ts, timestamp));
-            self.event_ts = V::vts_add_ts(timestamp, 2*BIT_DELAY);
+            self.event_ts = timestamp + 2*BIT_DELAY;
             self.io = NetState::InputData(byte);
         }
         else {
             // println!("bogus WAIT {}", V::vts_diff(self.event_ts, timestamp));
-            self.event_ts = V::vts_add_ts(timestamp, INPAK_WAIT_MAX);
+            self.event_ts = timestamp + INPAK_WAIT_MAX;
             self.io = NetState::Idle(0);
             self.net_state = false;
         }
     }
 
-    pub fn next_frame(&mut self, _timestamp: VideoTs) {
-        self.event_ts = V::vts_saturating_sub_frame(self.event_ts);
+    pub fn next_frame(&mut self, _timestamp: VFrameTs<V>) {
+        self.event_ts = self.event_ts.saturating_sub_frame();
     }
 
-    fn setup_event_time(&mut self, timestamp: VideoTs, start: Instant) {
+    fn setup_event_time(&mut self, timestamp: VFrameTs<V>, start: Instant) {
         let elapsed = start.elapsed().as_secs_f32();
         let elapsed_ts = (elapsed * CPU_HZ).round() as u32;
         // println!("waited: {} {}", elapsed_ts, elapsed);
-        self.event_ts = V::vts_add_ts(timestamp, elapsed_ts);
+        self.event_ts = timestamp + elapsed_ts;
     }
 }
 
 impl<V, S: Default> Default for ZxNet<V, S> {
     fn default() -> Self {
         let socket = S::default();
-        let event_ts = VideoTs::default();
+        let event_ts = VFrameTs::default();
         let net_state = false;
         let dir_io = NetDir::Inbound;
         let io = NetState::Idle(0);

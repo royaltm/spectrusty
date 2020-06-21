@@ -107,7 +107,7 @@ fn fill_mode_changes(mode_changes: &mut Vec<VideoTsData6>, step: usize, start: u
     let mut color = 0;
     let mut rng = thread_rng();
     for ts in (0..UlaVideoFrame::FRAME_TSTATES_COUNT).skip(start).step_by(step) {
-        let vts = UlaVideoFrame::tstates_to_vts(ts);
+        let vts = VFrameTs::<UlaVideoFrame>::from_tstates(ts);
         let mode = match rng.gen_range(0, 8) {
             0 => (RenderMode::HI_RESOLUTION).bits()|color,
             1 => (RenderMode::HI_RESOLUTION|RenderMode::GRAYSCALE).bits()|color,
@@ -125,9 +125,9 @@ fn fill_palette_changes(palette_changes: &mut Vec<PaletteChange>, step: usize, s
     let mut index = 0;
     let mut rng = thread_rng();
     for ts in (0..UlaVideoFrame::FRAME_TSTATES_COUNT).skip(start).step_by(step) {
-        let vts = UlaVideoFrame::tstates_to_vts(ts);
+        let vts = VFrameTs::<UlaVideoFrame>::from_tstates(ts);
         let color: u8 = rng.gen();
-        palette_changes.push((vts, index, color).into());
+        palette_changes.push((vts.into(), index, color).into());
         index = (index + 1) & 63;
     }
 }
@@ -135,7 +135,7 @@ fn fill_palette_changes(palette_changes: &mut Vec<PaletteChange>, step: usize, s
 fn fill_source_changes(source_changes: &mut Vec<VideoTsData2>, step: usize, start: usize) {
     let mut rng = thread_rng();
     for ts in (0..UlaVideoFrame::FRAME_TSTATES_COUNT).skip(start).step_by(step) {
-        let vts = UlaVideoFrame::tstates_to_vts(ts);
+        let vts = VFrameTs::<UlaVideoFrame>::from_tstates(ts);
         let source: u8 = rng.gen_range(0, 3);
         source_changes.push((vts, source).into());
     }

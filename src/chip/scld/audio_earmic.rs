@@ -13,15 +13,15 @@ use crate::chip::{
 use super::Scld;
 
 #[cfg(feature = "peripherals")]
-impl<A, M, B, X, F> AyAudioFrame<A> for Scld<M, B, X, F>
+impl<A, M, B, X, V> AyAudioFrame<A> for Scld<M, B, X, V>
     where A: Blep,
           M: PagedMemory8k,
-          B: AyAudioVBusDevice,
-          F: VideoFrame
+          B: AyAudioVBusDevice<V>,
+          V: VideoFrame
 {
     #[inline]
-    fn render_ay_audio_frame<V: AmpLevels<A::SampleDelta>>(&mut self, blep: &mut A, chans: [usize; 3]) {
-        self.ula.render_ay_audio_frame::<V>(blep, chans)
+    fn render_ay_audio_frame<L: AmpLevels<A::SampleDelta>>(&mut self, blep: &mut A, chans: [usize; 3]) {
+        self.ula.render_ay_audio_frame::<L>(blep, chans)
     }
 }
 

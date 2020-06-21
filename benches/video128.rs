@@ -117,7 +117,7 @@ fn bench_border_changes_screen_changes_rare(ben: &mut Bencher) {
 fn fill_border_changes(border_changes: &mut Vec<VideoTsData3>, step: usize, start: usize) {
     let mut color = 0;
     for ts in (0..Ula128VidFrame::FRAME_TSTATES_COUNT).skip(start).step_by(step) {
-        let vts = Ula128VidFrame::tstates_to_vts(ts);
+        let vts = VFrameTs::<Ula128VidFrame>::from_tstates(ts);
         border_changes.push((vts, color).into());
         color = (color + 1) & 7;
     }
@@ -126,8 +126,8 @@ fn fill_border_changes(border_changes: &mut Vec<VideoTsData3>, step: usize, star
 fn fill_screen_changes(border_changes: &mut Vec<VideoTs>, step: usize, start: usize) {
     let mut color = 0;
     for ts in (0..Ula128VidFrame::FRAME_TSTATES_COUNT).skip(start).step_by(step) {
-        let vts = Ula128VidFrame::tstates_to_vts(ts);
-        border_changes.push(vts);
+        let vts = VFrameTs::<Ula128VidFrame>::from_tstates(ts);
+        border_changes.push(vts.into());
         color = (color + 1) & 7;
     }
 }

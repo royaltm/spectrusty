@@ -11,7 +11,8 @@ use super::Ula;
 
 impl<M, B, X, V> Io for Ula<M, B, X, V>
     where M: ZxMemory,
-          B: BusDevice<Timestamp=VideoTs>,
+          B: BusDevice,
+          B::Timestamp: From<VideoTs>,
           V: VideoFrame
 {
     type Timestamp = VideoTs;
@@ -39,7 +40,7 @@ impl<M, B, X, V> Io for Ula<M, B, X, V>
             self.ula_write_earmic(flags, ts);
         }
         else {
-            if let Some(ws) = self.bus.write_io(port, data, ts) {
+            if let Some(ws) = self.bus.write_io(port, data, ts.into()) {
                 return (None, NonZeroU16::new(ws))
             }
         }
@@ -49,7 +50,6 @@ impl<M, B, X, V> Io for Ula<M, B, X, V>
 
 impl<M, B, X, V> Memory for Ula<M, B, X, V>
     where M: ZxMemory,
-          B: BusDevice<Timestamp=VideoTs>,
           X: MemoryExtension,
           V: VideoFrame
 {
@@ -93,9 +93,7 @@ impl<M, B, X, V> KeyboardInterface for Ula<M, B, X, V> {
 }
 
 impl<M, B, X, V> Ula<M, B, X, V>
-    where M: ZxMemory,
-          B: BusDevice<Timestamp=VideoTs>,
-          V: VideoFrame
+    where V: VideoFrame
 {
     #[inline(always)]
     pub(crate) fn ula_write_earmic(&mut self, flags: UlaPortFlags, ts: VideoTs) {
@@ -113,8 +111,11 @@ impl<M, B, X, V> Ula<M, B, X, V>
     }
 
     #[inline(always)]
-    pub(crate) fn ula_read_io(&mut self, port: u16, ts: VideoTs) -> Option<(u8, Option<NonZeroU16>)> {
-        let bus_data = self.bus.read_io(port, ts);
+    pub(crate) fn ula_read_io(&mut self, port: u16, ts: VideoTs) -> Option<(u8, Option<NonZeroU16>)>
+        where B: BusDevice,
+              B::Timestamp: From<VideoTs>
+    {
+        let bus_data = self.bus.read_io(port, ts.into());
         if port & 1 == 0 {
             let ula_data = self.ula_io_data(port, ts);
             if let Some((data, ws)) = bus_data {
@@ -128,7 +129,9 @@ impl<M, B, X, V> Ula<M, B, X, V>
     }
 
     #[inline]
-    fn floating_bus(&self, ts: VideoTs) -> u8 {
+    fn floating_bus(&self, ts: VideoTs) -> u8
+        where M: ZxMemory
+    {
         if let Some(addr) = V::floating_bus_screen_address(ts) {
             self.memory.read_screen(0, addr)
         }

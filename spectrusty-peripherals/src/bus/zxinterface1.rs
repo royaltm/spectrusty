@@ -52,8 +52,8 @@ use std::io;
 use serde::{Serialize, Deserialize};
 
 use spectrusty_core::{
-    clock::VideoTs,
-    bus::{BusDevice, NullDevice},
+    clock::VFrameTs,
+    bus::{BusDevice, VFNullDevice},
     video::VideoFrame
 };
 
@@ -78,7 +78,7 @@ impl<V, R, W, D> fmt::Display for ZxInterface1BusDevice<V, R, W, D> {
 #[derive(Default, Debug)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]
-pub struct ZxInterface1BusDevice<V, R, W, N, D=NullDevice<VideoTs>>
+pub struct ZxInterface1BusDevice<V, R, W, N, D=VFNullDevice<V>>
 {
     /// A direct access to the **Microdrives**.
     #[cfg_attr(feature = "snapshot", serde(default))]
@@ -228,9 +228,9 @@ impl<V, R, W, N, D> BusDevice for ZxInterface1BusDevice<V, R, W, N, D>
           R: io::Read + fmt::Debug,
           W: io::Write + fmt::Debug,
           N: ZxNetSocket + fmt::Debug,
-          D: BusDevice<Timestamp=VideoTs>
+          D: BusDevice<Timestamp=VFrameTs<V>>
 {
-    type Timestamp = VideoTs;
+    type Timestamp = VFrameTs<V>;
     type NextDevice = D;
 
     #[inline]

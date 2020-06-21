@@ -41,22 +41,19 @@ impl HostConfig for ZxSpectrum128Config {
 /// A grouping trait of all common control traits for all emulated `Ula` chipsets except audio rendering.
 ///
 /// For audio rendering see [crate::audio::UlaAudioFrame].
-pub trait UlaCommon: UlaControl +
-                     ControlUnit +
-                     MemoryAccess +
-                     Video +
-                     KeyboardInterface +
-                     EarIn +
-                     for<'a> MicOut<'a> {}
+pub trait UlaCommon: UlaControl
+                   + FrameState
+                   + ControlUnit
+                   + MemoryAccess
+                   + Video
+                   + KeyboardInterface
+                   + EarIn
+                   + for<'a> MicOut<'a> {}
 
 /// Additional utility methods for Ula chipsets.
 ///
 /// Usefull for creating snapshots.
 pub trait UlaControl {
-    /// Sets the frame counter to the specified value.
-    fn set_frame_counter(&mut self, fc: u64);
-    /// Sets the T-state counter to the specified value modulo `V::FRAME_TSTATES_COUNT`.
-    fn set_frame_tstate(&mut self, ts: FTs);
     /// Returns the state of the "late timings" mode.
     fn has_late_timings(&self) -> bool;
     /// Sets the "late timings" mode on or off.
@@ -66,23 +63,13 @@ pub trait UlaControl {
     fn set_late_timings(&mut self, late_timings: bool);
 }
 
-/// Methods for chipset implementation enhancing other Ula implementations.
-pub trait UlaWrapper {
-    type Inner;
-    /// Returns a reference to the inner chipset.
-    fn inner_ref(&self) -> &Self::Inner;
-    /// Returns a mutable reference to the inner chipset.
-    fn inner_mut(&mut self) -> &mut Self::Inner;
-    /// Destructs `self` and returns the inner chipset.
-    fn into_inner(self) -> Self::Inner;
-}
-
 /// Additional utility methods for Ula128 chipsets.
 ///
 /// Usefull for creating snapshots.
 pub trait Ula128Control {
     /// Returns the last value sent to the memory port `0x7FFD`.
     fn ula128_mem_port_value(&self) -> Ula128MemFlags;
+    fn set_ula128_mem_port_value(&mut self, value: Ula128MemFlags);
 }
 
 /// Additional utility methods for Ula3 chipsets.
@@ -91,6 +78,7 @@ pub trait Ula128Control {
 pub trait Ula3Control {
     /// Returns the last value sent to the memory port `0x1FFD`.
     fn ula3_ctrl_port_value(&self) -> Ula3CtrlFlags;
+    fn set_ula3_ctrl_port_value(&mut self, value: Ula3CtrlFlags);
 }
 
 /// Additional utility methods for Scld chipsets.
@@ -99,8 +87,10 @@ pub trait Ula3Control {
 pub trait ScldControl {
     /// Returns the last value sent to the memory port `0xFF`.
     fn scld_ctrl_port_value(&self) -> ScldCtrlFlags;
+    fn set_scld_ctrl_port_value(&mut self, value: ScldCtrlFlags);
     /// Returns the last value sent to the memory port `0xF4`.
     fn scld_mmu_port_value(&self) -> u8;
+    fn set_scld_mmu_port_value(&mut self, value: u8);
 }
 
 
@@ -135,21 +125,20 @@ impl<U: HostConfig + Video> HostConfig for UlaPlus<U> {
 }
 
 impl<U> UlaCommon for U
-    where U: UlaControl + ControlUnit + MemoryAccess + Video + KeyboardInterface + EarIn + for<'a> MicOut<'a>
+    where U: UlaControl
+           + FrameState
+           + ControlUnit
+           + MemoryAccess
+           + Video
+           + KeyboardInterface
+           + EarIn
+           + for<'a> MicOut<'a>
 {}
 
 impl<U, I> UlaControl for U
-    where U: UlaWrapper<Inner=I>,
+    where U: InnerAccess<Inner=I>,
           I: UlaControl
 {
-    #[inline]
-    fn set_frame_counter(&mut self, fc: u64) {
-        self.inner_mut().set_frame_counter(fc)
-    }
-    #[inline]
-    fn set_frame_tstate(&mut self, ts: FTs) {
-        self.inner_mut().set_frame_tstate(ts)
-    }
     #[inline]
     fn has_late_timings(&self) -> bool {
         self.inner_ref().has_late_timings()

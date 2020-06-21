@@ -3,7 +3,7 @@ use core::num::NonZeroU16;
 use crate::z80emu::{Io, Memory};
 use crate::bus::{PortAddress};
 use crate::clock::VideoTs;
-use crate::chip::{ControlUnit, UlaPortFlags, scld::io::ScldCtrlPortAddress};
+use crate::chip::{UlaPortFlags, scld::io::ScldCtrlPortAddress};
 use crate::peripherals::{KeyboardInterface, ZXKeyboardMap};
 use crate::memory::ZxMemory;
 use crate::video::{Video, BorderColor};
@@ -24,7 +24,8 @@ impl PortAddress for PlusDataPortAddress {
 }
 
 impl<'a, U> Io for UlaPlus<U>
-    where U: UlaPlusInner<'a> + Io<Timestamp=VideoTs,WrIoBreak = (),RetiBreak = ()>
+    where U: UlaPlusInner<'a>
+           + Io<Timestamp=VideoTs, WrIoBreak = (), RetiBreak = ()>
 {
     type Timestamp = VideoTs;
     type WrIoBreak = ();
@@ -71,7 +72,8 @@ impl<'a, U> Io for UlaPlus<U>
 }
 
 impl<'a, U> Memory for UlaPlus<U>
-    where U: UlaPlusInner<'a> + ControlUnit + Memory<Timestamp=VideoTs>,
+    where U: UlaPlusInner<'a>
+           + Memory<Timestamp=VideoTs>
 {
     type Timestamp = VideoTs;
 

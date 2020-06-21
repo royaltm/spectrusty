@@ -1,9 +1,8 @@
 //! Parallel port device designed for parallel printer but other devices can be also emulated.
 //!
-use core::marker::PhantomData;
 use std::io;
 
-use spectrusty_core::clock::{FTs, VideoTs};
+use spectrusty_core::clock::{FTs, VFrameTs};
 use spectrusty_core::video::VideoFrame;
 
 #[cfg(feature = "snapshot")]
@@ -41,9 +40,7 @@ pub struct ParallelPortWriter<V, W> {
     pub writer: W,
     busy: bool,
     data: u8,
-    last_ts: VideoTs,
-    #[cfg_attr(feature = "snapshot", serde(skip))]
-    _video_frame: PhantomData<V>
+    last_ts: VFrameTs<V>,
 }
 
 /// A parallel port device that does nothing and provides a constant low `BUSY` signal.
@@ -68,7 +65,7 @@ impl<V, W: io::Write> ParallelPortWriter<V, W> {
 }
 
 impl<V: VideoFrame, W: io::Write> ParallelPortDevice for ParallelPortWriter<V, W> {
-    type Timestamp = VideoTs;
+    type Timestamp = VFrameTs<V>;
 
     fn write_data(&mut self, data: u8, timestamp: Self::Timestamp) {
         self.data = data;
@@ -77,9 +74,9 @@ impl<V: VideoFrame, W: io::Write> ParallelPortDevice for ParallelPortWriter<V, W
 
     fn write_strobe(&mut self, strobe: bool, timestamp: Self::Timestamp) -> bool {
         if strobe {}
-        else if V::vts_diff(self.last_ts, timestamp) <  STROBE_TSTATES_MAX {
+        else if timestamp.diff_from(self.last_ts) <  STROBE_TSTATES_MAX {
             self.busy = !self.write_byte_to_writer();
-            self.last_ts = V::vts_min();
+            self.last_ts = VFrameTs::min();
         }
         else {
             // println!("centronics timeout: {} >= {}", V::vts_diff(self.last_ts, timestamp), STROBE_TSTATES_MAX);
@@ -95,7 +92,7 @@ impl<V: VideoFrame, W: io::Write> ParallelPortDevice for ParallelPortWriter<V, W
     }
 
     fn next_frame(&mut self) {
-        self.last_ts = V::vts_saturating_sub_frame(self.last_ts);
+        self.last_ts = self.last_ts.saturating_sub_frame();
     }
 }
 

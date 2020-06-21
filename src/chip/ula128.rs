@@ -15,10 +15,10 @@ use crate::z80emu::{*, host::Result};
 #[cfg(feature = "snapshot")]
 use serde::{Serialize, Deserialize};
 
-use crate::bus::{BusDevice, NullDevice};
-use crate::clock::{VideoTs, FTs, VFrameTsCounter, MemoryContention};
+use crate::bus::{BusDevice, VFNullDevice};
+use crate::clock::{VFrameTs, VideoTs, VFrameTsCounter, MemoryContention};
 use crate::chip::{
-    UlaWrapper, Ula128Control, ControlUnit, MemoryAccess, Ula128MemFlags,
+    InnerAccess, Ula128Control, ControlUnit, MemoryAccess, Ula128MemFlags,
     ula::{
         Ula, UlaControlExt, UlaCpuExt,
         frame_cache::UlaFrameCache
@@ -63,7 +63,7 @@ pub struct TryFromU8MemPage8Error(pub u8);
 #[derive(Clone)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]
-pub struct Ula128<B=NullDevice<VideoTs>, X=NoMemoryExtension> {
+pub struct Ula128<B=VFNullDevice<Ula128VidFrame>, X=NoMemoryExtension> {
     ula: InnerUla<B, X>,
     mem_page3_bank: MemPage8,
     beg_screen_shadow: bool, // shadow screen when a frame began
@@ -161,7 +161,7 @@ macro_rules! impl_ram_page_from {
 
 impl_ram_page_from!(u8, usize);
 
-impl<B, X> UlaWrapper for Ula128<B, X> {
+impl<B, X> InnerAccess for Ula128<B, X> {
     type Inner = InnerUla<B, X>;
 
     fn inner_ref(&self) -> &Self::Inner {
@@ -193,6 +193,10 @@ impl<B, X> Ula128Control for Ula128<B, X> {
             flags.insert(Ula128MemFlags::LOCK_MMU);
         }
         flags
+    }
+
+    fn set_ula128_mem_port_value(&mut self, value: Ula128MemFlags) {
+        self.set_mem_port_value(value, self.ula.current_video_ts());
     }
 }
 
@@ -226,6 +230,19 @@ impl<B, X> Ula128<B, X> {
         }
         false
     }
+
+    fn set_mem_port_value(&mut self, flags: Ula128MemFlags, ts: VideoTs) -> bool {
+        self.mem_locked = flags.is_mmu_locked();
+        let cur_screen_shadow = flags.is_shadow_screen();
+        if self.cur_screen_shadow != cur_screen_shadow {
+            self.cur_screen_shadow = cur_screen_shadow;
+            self.screen_changes.push(ts);
+        }
+        let rom_bank = flags.rom_page_bank();
+        self.ula.memory.map_rom_bank(rom_bank, 0).unwrap();
+        // println!("\nscr: {} pg3: {} ts: {}x{}", self.cur_screen_shadow, mem_page3_bank, ts.vc, ts.hc);
+        self.set_mem_page3_bank(MemPage8::from(flags))
+    }
 }
 
 impl<B, X> MemoryAccess for Ula128<B, X>
@@ -253,7 +270,7 @@ impl<B, X> MemoryAccess for Ula128<B, X>
 }
 
 impl<B, X> ControlUnit for Ula128<B, X>
-    where B: BusDevice<Timestamp=VideoTs>,
+    where B: BusDevice<Timestamp=VFrameTs<Ula128VidFrame>>,
           X: MemoryExtension
 {
     type BusDevice = B;
@@ -269,22 +286,6 @@ impl<B, X> ControlUnit for Ula128<B, X>
     #[inline]
     fn into_bus_device(self) -> Self::BusDevice {
         self.ula.into_bus_device()
-    }
-
-    fn current_frame(&self) -> u64 {
-        self.ula.current_frame()
-    }
-
-    fn frame_tstate(&self) -> (u64, FTs) {
-        self.ula.frame_tstate()
-    }
-
-    fn current_tstate(&self) -> FTs {
-        self.ula.current_tstate()
-    }
-
-    fn is_frame_over(&self) -> bool {
-        self.ula.is_frame_over()
     }
 
     fn reset<C: Cpu>(&mut self, cpu: &mut C, hard: bool) {
@@ -322,7 +323,7 @@ impl<B, X> ControlUnit for Ula128<B, X>
 }
 
 impl<B, X> UlaControlExt for Ula128<B, X>
-    where B: BusDevice<Timestamp=VideoTs>
+    where B: BusDevice<Timestamp=VFrameTs<Ula128VidFrame>>
 {
     fn prepare_next_frame<C: MemoryContention>(
             &mut self,

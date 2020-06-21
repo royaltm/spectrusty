@@ -1,4 +1,4 @@
-use core::fmt;
+use core::fmt::{self, Debug};
 use core::ops::{Deref, DerefMut};
 use core::marker::PhantomData;
 use ::serde::{
@@ -7,31 +7,30 @@ use ::serde::{
     de::{self, Visitor, SeqAccess, MapAccess}
 };
 use super::*;
-use super::super::{NullDevice, BusDevice};
+use super::super::{VFNullDevice, BusDevice};
 
 /// This trait needs to be implemented for [DynamicSerdeBus] to be able to serialize dynamic devices.
 pub trait SerializeDynDevice {
-    /// The type used as dynamic device's [BusDevice::Timestamp].
-    type Timestamp;
     /// This function should serialize the provided dynamic device.
     ///
     /// The serialized form of the `device` depends completely on the implementation of this function,
     /// however it should probably include some device identifier along with the device data.
-    fn serialize_dyn_device<S: Serializer>(
-        device: &Box<dyn NamedBusDevice<Self::Timestamp>>,
+    fn serialize_dyn_device<T: Copy + Debug + 'static, S: Serializer>(
+        device: &Box<dyn NamedBusDevice<T>>,
         serializer: S
     ) -> Result<S::Ok, S::Error>;
 }
 
 /// This trait needs to be implemented for [DynamicSerdeBus] to be able to deserialize dynamic devices.
 pub trait DeserializeDynDevice<'de> {
-    /// The type used as dynamic device's [BusDevice::Timestamp].
-    type Timestamp;
     /// This function should deserialize and return the dynamic device on success.
-    fn deserialize_dyn_device<D: Deserializer<'de>>(
+    fn deserialize_dyn_device<T: Default + Copy + Debug + 'static, D: Deserializer<'de>>(
         deserializer: D
-    ) -> Result<Box<dyn NamedBusDevice<Self::Timestamp>>, D::Error>;
+    ) -> Result<Box<dyn NamedBusDevice<T>>, D::Error>;
 }
+
+/// A terminated [DynamicSerdeBus] pseudo-device with [VFrameTs] timestamps.
+pub type DynamicSerdeVBus<S, V> = DynamicSerdeBus<S, VFNullDevice<V>>;
 
 /// A wrapper for [DynamicBus] that is able to serialize and deserialize together with devices attached to it.
 ///
@@ -40,29 +39,34 @@ pub trait DeserializeDynDevice<'de> {
 ///
 /// Provide a type that implements [SerializeDynDevice] and [DeserializeDynDevice] as struct's generic parameter `S`.
 #[repr(transparent)]
-pub struct DynamicSerdeBus<S, D: BusDevice=NullDevice<VideoTs>>(DynamicBus<D>, PhantomData<S>);
+pub struct DynamicSerdeBus<S, D: BusDevice>(DynamicBus<D>, PhantomData<S>);
 
 impl<SDD, B> Serialize for DynamicSerdeBus<SDD, B>
-    where SDD: SerializeDynDevice<Timestamp=B::Timestamp>,
-          B: BusDevice + Serialize
+    where SDD: SerializeDynDevice,
+          B: BusDevice + Serialize,
+          B::Timestamp: Copy + Debug + 'static
 {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
 
-        struct DevWrap<'a, SDD: SerializeDynDevice>(&'a Box<dyn NamedBusDevice<SDD::Timestamp>>);
+        struct DevWrap<'a, T, SDD: SerializeDynDevice>(
+            &'a Box<dyn NamedBusDevice<T>>, PhantomData<SDD>
+        );
 
-        impl<'a, SDD: SerializeDynDevice> Serialize for DevWrap<'a, SDD> {
+        impl<'a, T: Copy + Debug + 'static, SDD: SerializeDynDevice> Serialize for DevWrap<'a, T, SDD> {
             fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
                 SDD::serialize_dyn_device(self.0, serializer)
             }
         }
 
-        struct SliceDevWrap<'a, SDD: SerializeDynDevice>(&'a [BoxNamedDynDevice<SDD::Timestamp>]);
+        struct SliceDevWrap<'a, T, SDD: SerializeDynDevice>(
+            &'a [BoxNamedDynDevice<T>], PhantomData<SDD>
+        );
 
-        impl<'a, SDD: SerializeDynDevice> Serialize for SliceDevWrap<'a, SDD> {
+        impl<'a, T: Copy + Debug + 'static, SDD: SerializeDynDevice> Serialize for SliceDevWrap<'a, T, SDD> {
             fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
                 let mut seq = serializer.serialize_seq(Some(self.0.len()))?;
                 for device in self.0 {
-                    seq.serialize_element(&DevWrap::<SDD>(device))?;
+                    seq.serialize_element(&DevWrap::<T, SDD>(device, PhantomData))?;
                 }
                 seq.end()
             }
@@ -70,40 +74,45 @@ impl<SDD, B> Serialize for DynamicSerdeBus<SDD, B>
 
         let mut state = serializer.serialize_struct("DynamicBus", 2)?;
         state.serialize_field("bus", &self.0.bus)?;
-        let devices = SliceDevWrap::<SDD>(&self.0.devices);
+        let devices = SliceDevWrap::<B::Timestamp, SDD>(&self.0.devices, PhantomData);
         state.serialize_field("devices", &devices)?;
         state.end()
     }
 }
 
-impl<'de, DDD, B> Deserialize<'de> for DynamicSerdeBus<DDD, B>
-    where DDD: DeserializeDynDevice<'de, Timestamp=B::Timestamp>,
-          B: BusDevice + Deserialize<'de> + Default
+impl<'de, DDD: 'de, B> Deserialize<'de> for DynamicSerdeBus<DDD, B>
+    where DDD: DeserializeDynDevice<'de>,
+          B: BusDevice + Deserialize<'de> + Default,
+          B::Timestamp: Default + Copy + Debug + 'static
 {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
 
-        struct BoxedDevWrap<'de, DDD: DeserializeDynDevice<'de>>(BoxNamedDynDevice<DDD::Timestamp>);
+        struct BoxedDevWrap<'de, T, DDD: DeserializeDynDevice<'de>>(
+            BoxNamedDynDevice<T>, PhantomData<&'de DDD>
+        );
 
-        impl<'de, DDD> Deserialize<'de> for BoxedDevWrap<'de, DDD>
+        impl<'de, T: Default + Copy + Debug + 'static, DDD> Deserialize<'de> for BoxedDevWrap<'de, T, DDD>
             where DDD: DeserializeDynDevice<'de>
         {
             fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-                Ok(BoxedDevWrap(DDD::deserialize_dyn_device(deserializer)?))
+                Ok(BoxedDevWrap(DDD::deserialize_dyn_device(deserializer)?, PhantomData))
             }
         }
 
-        struct DevicesWrap<'de, DDD: DeserializeDynDevice<'de>>(Vec<BoxNamedDynDevice<DDD::Timestamp>>);
+        struct DevicesWrap<'de, T, DDD: DeserializeDynDevice<'de>>(
+            Vec<BoxNamedDynDevice<T>>, PhantomData<&'de DDD>
+        );
 
-        impl<'de, DDD> Deserialize<'de> for DevicesWrap<'de, DDD>
+        impl<'de, T: Default + Copy + Debug + 'static, DDD> Deserialize<'de> for DevicesWrap<'de, T, DDD>
             where DDD: DeserializeDynDevice<'de>
         {
             fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-                struct SeqDevVisitor<DDD>(PhantomData<DDD>);
+                struct SeqDevVisitor<T, DDD>(PhantomData<T>, PhantomData<DDD>);
 
-                impl<'de, DDD> Visitor<'de> for SeqDevVisitor<DDD>
+                impl<'de, T: Default + Copy + Debug + 'static, DDD: 'de> Visitor<'de> for SeqDevVisitor<T, DDD>
                     where DDD: DeserializeDynDevice<'de>
                 {
-                    type Value = DevicesWrap<'de, DDD>;
+                    type Value = DevicesWrap<'de, T, DDD>;
 
                     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
                         formatter.write_str("a sequence of dynamic bus devices")
@@ -114,14 +123,14 @@ impl<'de, DDD, B> Deserialize<'de> for DynamicSerdeBus<DDD, B>
                         if let Some(size) = seq.size_hint() {
                             vec.reserve_exact(size);
                         }
-                        while let Some(BoxedDevWrap::<DDD>(dev)) = seq.next_element()? {
+                        while let Some(BoxedDevWrap::<T, DDD>(dev, ..)) = seq.next_element()? {
                             vec.push(dev);
                         }
-                        Ok(DevicesWrap(vec))
+                        Ok(DevicesWrap(vec, PhantomData))
                     }
                 }
 
-                deserializer.deserialize_seq(SeqDevVisitor::<DDD>(PhantomData))
+                deserializer.deserialize_seq(SeqDevVisitor::<T, DDD>(PhantomData, PhantomData))
             }
         }
 
@@ -131,9 +140,10 @@ impl<'de, DDD, B> Deserialize<'de> for DynamicSerdeBus<DDD, B>
 
         struct DynamicBusVisitor<DDD, B>(PhantomData<DDD>, PhantomData<B>);
 
-        impl<'de, DDD, B> Visitor<'de> for DynamicBusVisitor<DDD, B>
-            where DDD: DeserializeDynDevice<'de, Timestamp=B::Timestamp>,
-                  B: BusDevice + Deserialize<'de> + Default
+        impl<'de, DDD: 'de, B> Visitor<'de> for DynamicBusVisitor<DDD, B>
+            where DDD: DeserializeDynDevice<'de>,
+                  B: BusDevice + Deserialize<'de> + Default,
+                  B::Timestamp: Default + Copy + Debug + 'static
         {
             type Value = DynamicSerdeBus<DDD, B>;
 
@@ -143,8 +153,8 @@ impl<'de, DDD, B> Deserialize<'de> for DynamicSerdeBus<DDD, B>
 
             fn visit_seq<V: SeqAccess<'de>>(self, mut seq: V) -> Result<Self::Value, V::Error> {
                 let bus = seq.next_element()?.unwrap_or_default();
-                let DevicesWrap::<DDD>(devices) = seq.next_element()?
-                                                     .unwrap_or_else(|| DevicesWrap(Vec::new()));
+                let DevicesWrap::<B::Timestamp, DDD>(devices, ..) = seq.next_element()?
+                                                     .unwrap_or_else(|| DevicesWrap(Vec::new(), PhantomData));
                 Ok(DynamicSerdeBus(DynamicBus { devices, bus }, PhantomData))
             }
 
@@ -163,7 +173,7 @@ impl<'de, DDD, B> Deserialize<'de> for DynamicSerdeBus<DDD, B>
                             if !devices.is_empty() {
                                 return Err(de::Error::duplicate_field("devices"));
                             }
-                            devices = map.next_value::<DevicesWrap<DDD>>()?.0;
+                            devices = map.next_value::<DevicesWrap<B::Timestamp, DDD>>()?.0;
                         }
                     }
                 }
@@ -224,7 +234,7 @@ impl<S, D: BusDevice> From<DynamicSerdeBus<S, D>> for DynamicBus<D> {
 
 impl<S, D: BusDevice> BusDevice for DynamicSerdeBus<S, D>
     where D: BusDevice,
-          D::Timestamp: Debug + Copy
+          D::Timestamp: Copy + Debug
 {
     type Timestamp = D::Timestamp;
     type NextDevice = D;

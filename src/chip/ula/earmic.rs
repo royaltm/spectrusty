@@ -9,10 +9,10 @@ use core::marker::PhantomData;
 use core::convert::TryInto;
 use core::num::NonZeroU32;
 
-use crate::clock::{Ts, VideoTs, VideoTsData1, VideoTsData2};
+use crate::clock::{Ts, VFrameTs, VideoTs, VideoTsData1, VideoTsData2};
 
-impl<M, B, X, F> EarIn for Ula<M, B, X, F>
-    where F: VideoFrame
+impl<M, B, X, V> EarIn for Ula<M, B, X, V>
+    where V: VideoFrame
 {
     fn set_ear_in(&mut self, ear_in: bool, delta_fts: u32) {
         if delta_fts == 0 {
@@ -22,10 +22,10 @@ impl<M, B, X, F> EarIn for Ula<M, B, X, F>
             }
         }
         else {
-            let vts: VideoTs = self.ear_in_changes.last()
+            let vts: VFrameTs<V> = self.ear_in_changes.last()
                                            .map(|&ts| ts.into())
-                                           .unwrap_or_else(|| self.tsc);
-            let vts = F::vts_add_ts(vts, delta_fts);
+                                           .unwrap_or_else(|| self.tsc)
+                                 + delta_fts;
             self.ear_in_changes.push((vts, ear_in.into()).into());
         }
     }
@@ -33,7 +33,7 @@ impl<M, B, X, F> EarIn for Ula<M, B, X, F>
     /// It's most optimal to be done after ensure_next_frame is called, but is not necessary.
     ///
     /// # Panics
-    /// Panics if adding the delta would exceed the TsCounter max_value (Ts::max_value() as u32 * F::HTS_COUNT as u32).
+    /// Panics if adding the delta would exceed the TsCounter max_value (Ts::max_value() as u32 * V::HTS_COUNT as u32).
     fn feed_ear_in<I>(&mut self, fts_deltas: I, max_frames_threshold: Option<usize>)
         where I: Iterator<Item=NonZeroU32>
     {
@@ -43,12 +43,12 @@ impl<M, B, X, F> EarIn for Ula<M, B, X, F>
                                             (self.tsc, self.prev_ear_in.into())
                                        );
         let max_vc = max_frames_threshold
-                       .and_then(|mf| mf.checked_mul(F::VSL_COUNT as usize))
+                       .and_then(|mf| mf.checked_mul(V::VSL_COUNT as usize))
                        .and_then(|mvc| mvc.checked_add(1))
                        .and_then(|mvc| mvc.try_into().ok())
-                       .unwrap_or(Ts::max_value() - F::VSL_COUNT - Ts::max_value()%F::VSL_COUNT + 1);
+                       .unwrap_or(Ts::max_value() - V::VSL_COUNT - Ts::max_value()%V::VSL_COUNT + 1);
         for dlt in fts_deltas {
-            vts = F::vts_add_ts(vts, dlt.get());
+            vts += dlt.get();
             ear_in ^= 1;
             self.ear_in_changes.push((vts, ear_in).into());
             if vts.vc >= max_vc {
@@ -114,9 +114,9 @@ impl<'a, I, V> Iterator for MicPulseIter<I, V>
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             if let Some(&vtsd) = self.iter.next() {
-                let (vts, data):(VideoTs, u8) = vtsd.into();
+                let (vts, data):(VFrameTs<V>, u8) = vtsd.into();
                 if !(EarMic::from_bits_truncate(self.last_data ^ data) & EarMic::MIC).is_empty() {
-                    let ts = V::vts_to_tstates(vts);
+                    let ts = vts.into_tstates();
                     let maybe_delta = ts.checked_sub(self.last_pulse_ts);
 
                     self.last_pulse_ts = ts;
@@ -144,30 +144,29 @@ impl<'a, I, V> Iterator for MicPulseIter<I, V>
     }
 }
 
-impl<M, B, X, F> Ula<M, B, X, F>
-    where F: VideoFrame
+impl<M, B, X, V> Ula<M, B, X, V>
+    where V: VideoFrame
 {
     pub(super) fn cleanup_earmic_frame_data(&mut self) {
         // FIXME! (but how?)
         self.prev_earmic_ts = match self.earmic_out_changes.last() {
             Some(&vtsd) => {
-                let vts = VideoTs::from(vtsd);
-                F::vts_to_tstates(vts)
+                VFrameTs::<V>::from(vtsd).into_tstates()
             }
             None => self.prev_earmic_ts
-        }.saturating_sub(F::FRAME_TSTATES_COUNT);
+        }.saturating_sub(V::FRAME_TSTATES_COUNT);
         self.earmic_out_changes.clear();
         self.prev_earmic_data = self.last_earmic_data;
-        self.prev_ear_in = self.read_ear_in(self.tsc);
+        self.prev_ear_in = self.read_ear_in(self.tsc.into());
         {
             let index = match self.ear_in_changes.get(self.ear_in_last_index) {
-                Some(&tscd) if VideoTs::from(tscd) <= self.tsc => self.ear_in_last_index + 1,
+                Some(&tscd) if VFrameTs::from(tscd) <= self.tsc => self.ear_in_last_index + 1,
                 _ => self.ear_in_last_index
             };
             let num_elems = self.ear_in_changes.len() - index;
             self.ear_in_changes.copy_within(index.., 0);
             for p in self.ear_in_changes[0..num_elems].iter_mut() {
-                p.vc -= F::VSL_COUNT;
+                p.vc -= V::VSL_COUNT;
             }
             self.ear_in_changes.truncate(num_elems);
         }

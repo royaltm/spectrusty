@@ -10,8 +10,7 @@ use core::ops::{Deref, DerefMut};
 use serde::{Serialize, Deserialize};
 
 use spectrusty_core::{
-    bus::{BusDevice, NullDevice, PortAddress},
-    clock::VideoTs
+    bus::{BusDevice, VFNullDevice, PortAddress}
 };
 
 use super::ay::PassByAyAudioBusDevice;
@@ -22,32 +21,32 @@ pub use crate::joystick::{
 };
 
 /// A convenient Kempston Joystick [BusDevice] type.
-pub type KempstonJoystick<D=NullDevice<VideoTs>> = JoystickBusDevice<
-                                                            KempstonJoyPortAddress,
-                                                            KempstonJoystickDevice,
-                                                            D>;
+pub type KempstonJoystick<D> = JoystickBusDevice<
+                                                KempstonJoyPortAddress,
+                                                KempstonJoystickDevice,
+                                                D>;
 /// A convenient Fuller Joystick [BusDevice] type.
-pub type FullerJoystick<D=NullDevice<VideoTs>> = JoystickBusDevice<
-                                                            FullerJoyPortAddress,
-                                                            FullerJoystickDevice,
-                                                            D>;
+pub type FullerJoystick<D> = JoystickBusDevice<
+                                                FullerJoyPortAddress,
+                                                FullerJoystickDevice,
+                                                D>;
 /// A convenient pair of Left and Right Joystick [BusDevice] type.
-pub type SinclairJoystick<D=NullDevice<VideoTs>> = SinclairLeftJoystick<SinclairRightJoystick<D>>;
+pub type SinclairJoystick<D> = SinclairLeftJoystick<SinclairRightJoystick<D>>;
 /// A convenient Right (Player 1) Sinclair Joystick [BusDevice] type.
-pub type SinclairRightJoystick<D=NullDevice<VideoTs>> = JoystickBusDevice<
-                                                            SinclairRightJoyPortAddress,
-                                                            SinclairJoystickDevice<SinclairJoyRightMap>,
-                                                            D>;
+pub type SinclairRightJoystick<D> = JoystickBusDevice<
+                                                    SinclairRightJoyPortAddress,
+                                                    SinclairJoystickDevice<SinclairJoyRightMap>,
+                                                    D>;
 /// A convenient Left (Player 2) Sinclair Joystick [BusDevice] type.
-pub type SinclairLeftJoystick<D=NullDevice<VideoTs>> = JoystickBusDevice<
-                                                            SinclairLeftJoyPortAddress,
-                                                            SinclairJoystickDevice<SinclairJoyLeftMap>,
-                                                            D>;
+pub type SinclairLeftJoystick<D> = JoystickBusDevice<
+                                                    SinclairLeftJoyPortAddress,
+                                                    SinclairJoystickDevice<SinclairJoyLeftMap>,
+                                                    D>;
 /// A convenient Cursor Joystick [BusDevice] type.
-pub type CursorJoystick<D=NullDevice<VideoTs>> = JoystickBusDevice<
-                                                            CursorJoyPortAddress,
-                                                            CursorJoystickDevice,
-                                                            D>;
+pub type CursorJoystick<D> = JoystickBusDevice<
+                                                CursorJoyPortAddress,
+                                                CursorJoystickDevice,
+                                                D>;
 macro_rules! joystick_names {
     ($($ty:ty: $name:expr),*) => { $(
         impl<D> fmt::Display for $ty {
@@ -69,7 +68,7 @@ joystick_names! {
 /// A joystick controller, providing a [BusDevice] implementation that can be used with [joystick devices][JoystickDevice].
 #[derive(Clone, Default, Debug)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
-pub struct JoystickBusDevice<P, J, D=NullDevice<VideoTs>>
+pub struct JoystickBusDevice<P, J, D>
 {
     /// A [JoystickDevice] implementation, which may also implement [JoystickInterface] trait
     /// for providing user input.
@@ -184,12 +183,15 @@ impl<P, J, D> BusDevice for JoystickBusDevice<P, J, D>
     }
 }
 
+/// A terminated [MultiJoystickBusDevice] with [VFrameTs] timestamps.
+pub type MultiJoystickVBusDevice<V> = MultiJoystickBusDevice<VFNullDevice<V>>;
+
 /// A selectable joystick controller, providing a [BusDevice] implementation.
 ///
 /// This controller allows changing the implementation of joystick device at run time.
 #[derive(Clone, Copy, Default, Debug)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
-pub struct MultiJoystickBusDevice<D=NullDevice<VideoTs>> {
+pub struct MultiJoystickBusDevice<D> {
     #[cfg_attr(feature = "snapshot", serde(default))]
     pub joystick: JoystickSelect,
     #[cfg_attr(feature = "snapshot", serde(default))]

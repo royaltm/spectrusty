@@ -66,14 +66,14 @@ mod screen;
 use crate::z80emu::{*, host::Result};
 use crate::bus::BusDevice;
 use crate::clock::{
-    VideoTs, FTs, VFrameTsCounter, MemoryContention,
+    VFrameTs, VideoTs, VFrameTsCounter, MemoryContention,
     VideoTsData2, VideoTsData6
 };
 use crate::chip::{
     ControlUnit, MemoryAccess,
     UlaPortFlags, ScldCtrlFlags, UlaPlusRegFlags, ColorMode, Ula128MemFlags, Ula3CtrlFlags,
     Ula128Control, Ula3Control,
-    UlaWrapper,
+    InnerAccess,
     scld::frame_cache::SourceMode,
     ula::{
         UlaControlExt, UlaCpuExt,
@@ -213,7 +213,7 @@ impl<U> fmt::Debug for UlaPlus<U>
     }
 }
 
-impl<U> UlaWrapper for UlaPlus<U>
+impl<U> InnerAccess for UlaPlus<U>
     where U: Video
 {
     type Inner = U;
@@ -237,6 +237,10 @@ impl<U> Ula128Control for UlaPlus<U>
     fn ula128_mem_port_value(&self) -> Ula128MemFlags {
         self.inner_ref().ula128_mem_port_value()
     }
+
+    fn set_ula128_mem_port_value(&mut self, value: Ula128MemFlags) {
+        self.inner_mut().set_ula128_mem_port_value(value)
+    }
 }
 
 impl<U> Ula3Control for UlaPlus<U>
@@ -244,6 +248,10 @@ impl<U> Ula3Control for UlaPlus<U>
 {
     fn ula3_ctrl_port_value(&self) -> Ula3CtrlFlags {
         self.inner_ref().ula3_ctrl_port_value()
+    }
+
+    fn set_ula3_ctrl_port_value(&mut self, value: Ula3CtrlFlags) {
+        self.inner_mut().set_ula3_ctrl_port_value(value)
     }
 }
 
@@ -430,7 +438,7 @@ impl<U, B, X> ControlUnit for UlaPlus<U>
              + MemoryAccess<MemoryExt=X>
              + Memory<Timestamp=VideoTs>
              + Io<Timestamp=VideoTs, WrIoBreak=(), RetiBreak=()>,
-          B: BusDevice<Timestamp=VideoTs>,
+          B: BusDevice<Timestamp=VFrameTs<U::VideoFrame>>,
           X: MemoryExtension
 {
     type BusDevice = U::BusDevice;
@@ -446,22 +454,6 @@ impl<U, B, X> ControlUnit for UlaPlus<U>
     #[inline]
     fn into_bus_device(self) -> Self::BusDevice {
         self.ula.into_bus_device()
-    }
-
-    fn current_frame(&self) -> u64 {
-        self.ula.current_frame()
-    }
-
-    fn frame_tstate(&self) -> (u64, FTs) {
-        self.ula.frame_tstate()
-    }
-
-    fn current_tstate(&self) -> FTs {
-        self.ula.current_tstate()
-    }
-
-    fn is_frame_over(&self) -> bool {
-        self.ula.is_frame_over()
     }
 
     fn reset<C: Cpu>(&mut self, cpu: &mut C, hard: bool) {

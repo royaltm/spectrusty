@@ -3,7 +3,7 @@ use core::convert::TryFrom;
 
 use bitflags::bitflags;
 
-use crate::clock::{Ts, VideoTs, VideoTsData2};
+use crate::clock::{Ts, VFrameTs, VideoTsData2};
 use crate::chip::{
     ScldCtrlFlags, UlaPlusRegFlags,
     ula::{
@@ -69,7 +69,7 @@ pub struct ScldFrameProducer<'a, V, I> {
     line: usize,
     source: SourceMode,
     next_source: SourceMode,
-    next_change_at: VideoTs,
+    next_change_at: VFrameTs<V>,
     source_changes: I,
     line_iter: UlaFrameLineIter<'a>
 }
@@ -184,7 +184,7 @@ impl<'a, V, I> ScldFrameProducer<'a, V, I>
         let (next_change_at, next_source) = source_changes.next()
                     .map(|tsm| vtm_next::<V>(tsm, line as Ts))
                     .unwrap_or_else(||
-                        ( V::vts_max(), source )
+                        ( VFrameTs::max(), source )
                     );
         let mut prod = ScldFrameProducer {
             frame_ref: ScldFrameRef::new(screen0, frame_cache0, screen1, frame_cache1),
@@ -283,7 +283,7 @@ impl<'a, V, I> Iterator for ScldFrameProducer<'a, V, I>
                     self.next_source = next_source;
                 }
                 else {
-                    self.next_change_at = V::vts_max();
+                    self.next_change_at = VFrameTs::max();
                     break;
                 }
             }
@@ -299,8 +299,8 @@ impl<'a, V, I> Iterator for ScldFrameProducer<'a, V, I>
 }
 
 #[inline(always)]
-fn vtm_next<V: VideoFrame>(vtm: VideoTsData2, line: Ts) -> (VideoTs, SourceMode) {
-    let (mut vts, data) = vtm.into();
+fn vtm_next<V: VideoFrame>(vtm: VideoTsData2, line: Ts) -> (VFrameTs<V>, SourceMode) {
+    let (mut vts, data): (VFrameTs<V>, u8) = vtm.into();
     vts.vc -= V::VSL_PIXELS.start + line;
     (vts, SourceMode::from_bits_truncate(data))
 }

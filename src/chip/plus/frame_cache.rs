@@ -1,4 +1,4 @@
-use crate::clock::{Ts, VideoTs, VideoTsData2};
+use crate::clock::{Ts, VFrameTs, VideoTs, VideoTsData2};
 use crate::video::{
     VideoFrame,
     frame_cache::PlusVidFrameDataIterator
@@ -17,7 +17,7 @@ pub struct PlusFrameProducer<'a, V, IM, IS> {
     scld_frame_prod: ScldFrameProducer<'a, V, IM>,
     shadow_frame: ScldFrameRef<'a, V>,
     screen_changes: IS,
-    swap_at: VideoTs,
+    swap_at: VFrameTs<V>,
 }
 
 impl<'a, V, IM, IS> PlusVidFrameDataIterator for PlusFrameProducer<'a, V, IM, IS>
@@ -53,7 +53,7 @@ impl<'a, V, IM, IS> PlusFrameProducer<'a, V, IM, IS>
     {
         let swap_at = screen_changes.next()
                       .map(|ts| vc_to_line::<V>(ts, 0))
-                      .unwrap_or_else(V::vts_max);
+                      .unwrap_or_else(VFrameTs::<V>::max);
         let mut scld_frame_prod = ScldFrameProducer::new(
             source,
             screen0, frame_cache0,
@@ -93,7 +93,7 @@ impl<'a, V, IM, IS> Iterator for PlusFrameProducer<'a, V, IM, IS>
                 self.swap_frames();
                 self.swap_at = self.screen_changes.next()
                             .map(|ts| vc_to_line::<V>(ts, self.scld_frame_prod.line() as Ts))
-                            .unwrap_or_else(V::vts_max)
+                            .unwrap_or_else(VFrameTs::<V>::max)
             }
             else {
                 break;

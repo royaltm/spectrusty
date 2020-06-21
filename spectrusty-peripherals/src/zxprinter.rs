@@ -92,7 +92,7 @@ pub struct ZxPrinterDevice<V, S> {
     motor: bool,
     ready: bool,
     cursor: u8,
-    ready_ts: VideoTs,
+    ready_ts: VFrameTs<V>,
     line: [u8;32],
     #[cfg_attr(feature = "snapshot", serde(skip))]
     _video_frame: PhantomData<V>
@@ -118,7 +118,7 @@ impl<V, S: Default> Default for ZxPrinterDevice<V, S> {
             motor: false,
             ready: false,
             cursor: 0,
-            ready_ts: VideoTs::default(),
+            ready_ts: VFrameTs::default(),
             line: [0u8;32],
             _video_frame: PhantomData
         }
@@ -142,7 +142,7 @@ impl<V, S> DerefMut for ZxPrinterDevice<V, S> {
 impl<V: VideoFrame, S: Spooler> ZxPrinterDevice<V, S> {
     /// This method should be called after each emulated frame.
     pub fn next_frame(&mut self) {
-        self.ready_ts = V::vts_saturating_sub_frame(self.ready_ts);
+        self.ready_ts = self.ready_ts.saturating_sub_frame();
     }
     /// This method should be called when device is being reset.
     pub fn reset(&mut self) {
@@ -154,7 +154,7 @@ impl<V: VideoFrame, S: Spooler> ZxPrinterDevice<V, S> {
         self.cursor = 0;
     }
     /// This method should be called when a `CPU` writes to the **ZX Printer** port.
-    pub fn write_control(&mut self, data: u8, timestamp: VideoTs) {
+    pub fn write_control(&mut self, data: u8, timestamp: VFrameTs<V>) {
         if data & MOTOR_MASK == 0 { // start 
             self.start(data, timestamp);
         }
@@ -163,7 +163,7 @@ impl<V: VideoFrame, S: Spooler> ZxPrinterDevice<V, S> {
         }
     }
     /// This method should be called when a `CPU` reads from the **ZX Printer** port.
-    pub fn read_status(&mut self, timestamp: VideoTs) -> u8 {
+    pub fn read_status(&mut self, timestamp: VFrameTs<V>) -> u8 {
         if self.motor {
             if self.ready || self.update_ready(timestamp) {
                 if self.cursor == 0 {
@@ -182,7 +182,7 @@ impl<V: VideoFrame, S: Spooler> ZxPrinterDevice<V, S> {
         }
     }
 
-    fn update_ready(&mut self, timestamp: VideoTs) -> bool {
+    fn update_ready(&mut self, timestamp: VFrameTs<V>) -> bool {
         if timestamp > self.ready_ts {
             self.ready = true;
             return true;
@@ -212,15 +212,15 @@ impl<V: VideoFrame, S: Spooler> ZxPrinterDevice<V, S> {
     }
 
     #[inline]
-    fn set_delay(&mut self, timestamp: VideoTs, data: u8) {
-        let mut delay = self.bit_delay.into();
+    fn set_delay(&mut self, timestamp: VFrameTs<V>, data: u8) {
+        let mut delay: u32 = self.bit_delay.into();
         if data & SLOW_MASK == SLOW_MASK {
             delay *= 2;
         }
-        self.ready_ts = V::vts_add_ts(timestamp, delay);
+        self.ready_ts = timestamp + delay;
     }
 
-    fn start(&mut self, data: u8, timestamp: VideoTs) {
+    fn start(&mut self, data: u8, timestamp: VFrameTs<V>) {
         if self.motor {
             if self.ready {
                 self.write_bit(data & STYLUS_MASK == STYLUS_MASK);

@@ -13,8 +13,7 @@ mod serde;
 #[cfg(feature = "snapshot")]
 pub use self::serde::*;
 
-use crate::clock::VideoTs;
-use super::{BusDevice, NullDevice};
+use super::{BusDevice, VFNullDevice, NullDevice};
 
 /// A trait for dynamic bus devices, which currently includes methods from [Display] and [BusDevice].
 /// Devices implementing this trait can be used with a [DynamicBus].
@@ -31,6 +30,9 @@ pub type NamedDynDevice<T> = dyn NamedBusDevice<T>;
 /// This is a type of items stored by [DynamicBus].
 pub type BoxNamedDynDevice<T> = Box<dyn NamedBusDevice<T>>;
 
+/// A terminated [DynamicBus] pseudo-device with [VFrameTs] timestamps.
+pub type DynamicVBus<V> = DynamicBus<VFNullDevice<V>>;
+
 /// A pseudo bus device that allows for adding and removing devices of different types at run time.
 ///
 /// The penalty is that the access to the devices must be done using a virtual call dispatch.
@@ -38,13 +40,13 @@ pub type BoxNamedDynDevice<T> = Box<dyn NamedBusDevice<T>>;
 /// with this device attached).
 ///
 /// `DynamicBus` implements [BusDevice] so obviously it's possible to attach a statically
-/// dispatched next [BusDevice] to it. By default it is [NullDevice<VideoTs>][NullDevice].
+/// dispatched next [BusDevice] to it.
 ///
 /// Currently only types implementing [BusDevice] directly terminated with [NullDevice] can be
 /// appended as dynamically dispatched objects.
 #[derive(Default, Debug)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
-pub struct DynamicBus<D: BusDevice=NullDevice<VideoTs>> {
+pub struct DynamicBus<D: BusDevice> {
     #[cfg_attr(feature = "snapshot", serde(default))]
     bus: D,
     #[cfg_attr(feature = "snapshot", serde(skip))]

@@ -218,8 +218,8 @@ fn boot_spectrum<U, R: Read>(rom: R, stop_pc: u16, nframes: u64, init_fts: FTs, 
 
 #[test]
 fn test_boot() {
-    boot_spectrum::<Ula<Memory16k>, _>(ROM48, KEYBOARD_INPUT, 47, 16, CPU_BOOT_16K, 16104);
-    boot_spectrum::<Ula<Memory48k>, _>(ROM48, KEYBOARD_INPUT, 86, 9, CPU_BOOT_48K, 40249);
+    boot_spectrum::<UlaPAL<Memory16k>, _>(ROM48, KEYBOARD_INPUT, 47, 16, CPU_BOOT_16K, 16104);
+    boot_spectrum::<UlaPAL<Memory48k>, _>(ROM48, KEYBOARD_INPUT, 86, 9, CPU_BOOT_48K, 40249);
     let rom128 = ROM128_0.chain(ROM128_1);
     boot_spectrum::<Ula128, _>(rom128, MAIN_WAIT_KEY_128, 66, 0, CPU_BOOT_128K, 37904);
     let rom_plus3 = ROM_PLUS3_0.chain(ROM_PLUS3_1).chain(ROM_PLUS3_2).chain(ROM_PLUS3_3);

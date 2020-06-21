@@ -14,11 +14,11 @@ use core::fmt;
 use serde::{Serialize, Deserialize};
 
 use crate::z80emu::{*, host::Result};
-use crate::bus::{BusDevice, NullDevice};
-use crate::clock::{VideoTs, FTs, VFrameTsCounter, MemoryContention};
+use crate::bus::{BusDevice, VFNullDevice};
+use crate::clock::{VFrameTs, VideoTs, VFrameTsCounter, MemoryContention};
 use crate::chip::{
     Ula128Control, Ula3Control, Ula128MemFlags, Ula3CtrlFlags, Ula3Paging,
-    UlaWrapper, EarIn, ReadEarMode, ControlUnit, MemoryAccess,
+    InnerAccess, EarIn, ReadEarMode, ControlUnit, MemoryAccess,
     ula::{
         Ula, UlaControlExt, UlaCpuExt,
         frame_cache::UlaFrameCache
@@ -61,7 +61,7 @@ pub struct TryFromU8MemPage4Error(pub u8);
 #[derive(Clone)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]
-pub struct Ula3<B=NullDevice<VideoTs>, X=NoMemoryExtension> {
+pub struct Ula3<B=VFNullDevice<Ula3VidFrame>, X=NoMemoryExtension> {
     ula: InnerUla<B, X>,
     mem_special_paging: Option<Ula3Paging>,
     mem_page3_bank: MemPage8, // only in normal paging mode
@@ -151,7 +151,7 @@ macro_rules! impl_enum_from {
 
 impl_enum_from!{MemPage4: u8, MemPage4: usize}
 
-impl<B, X> UlaWrapper for Ula3<B, X> {
+impl<B, X> InnerAccess for Ula3<B, X> {
     type Inner = InnerUla<B, X>;
 
     fn inner_ref(&self) -> &Self::Inner {
@@ -183,6 +183,10 @@ impl<B, X> Ula128Control for Ula3<B, X> {
         }
         flags
     }
+
+    fn set_ula128_mem_port_value(&mut self, value: Ula128MemFlags) {
+        self.set_mem1_port_value(value, self.ula.current_video_ts());
+    }
 }
 
 impl<B, X> Ula3Control for Ula3<B, X> {
@@ -194,6 +198,10 @@ impl<B, X> Ula3Control for Ula3<B, X> {
             Ula3CtrlFlags::with_rom_page_bank_hi(Ula3CtrlFlags::empty(),
                 self.rom_bank.into())
         }
+    }
+
+    fn set_ula3_ctrl_port_value(&mut self, value: Ula3CtrlFlags) {
+        self.set_mem2_port_value(value);
     }
 }
 
@@ -292,6 +300,29 @@ impl<B, X> Ula3<B, X> {
         }
         contention_changed
     }
+    // Returns `true` if the memory contention has changed.
+    fn set_mem1_port_value(&mut self, flags: Ula128MemFlags, ts: VideoTs) -> bool {
+        self.mem_locked = flags.is_mmu_locked();
+        let cur_screen_shadow = flags.is_shadow_screen();
+        if self.cur_screen_shadow != cur_screen_shadow {
+            self.cur_screen_shadow = cur_screen_shadow;
+            self.screen_changes.push(ts);
+        }
+        let rom_lo = flags.intersects(Ula128MemFlags::ROM_BANK);
+        let page3_bank = MemPage8::from(flags);
+        // println!("\nscr: {} pg3: {} ts: {}x{}", self.cur_screen_shadow, mem_page3_bank, ts.vc, ts.hc);
+        self.set_mem_page3_bank_and_rom_lo(page3_bank, rom_lo)
+    }
+    // Returns `true` if the memory contention has changed.
+    fn set_mem2_port_value(&mut self, flags: Ula3CtrlFlags) -> bool {
+        if let Some(paging) = flags.special_paging() {
+            self.set_mem_special_paging(paging)
+        }
+        else {
+            let rom_hi = flags.intersects(Ula3CtrlFlags::ROM_BANK_HI);
+            self.set_rom_hi_no_special_paging(rom_hi)
+        }
+    }
 }
 
 impl<B, X> MemoryAccess for Ula3<B, X>
@@ -319,7 +350,7 @@ impl<B, X> MemoryAccess for Ula3<B, X>
 }
 
 impl<B, X> ControlUnit for Ula3<B, X>
-    where B: BusDevice<Timestamp=VideoTs>,
+    where B: BusDevice<Timestamp=VFrameTs<Ula3VidFrame>>,
           X: MemoryExtension
 {
     type BusDevice = B;
@@ -335,22 +366,6 @@ impl<B, X> ControlUnit for Ula3<B, X>
     #[inline]
     fn into_bus_device(self) -> Self::BusDevice {
         self.ula.into_bus_device()
-    }
-
-    fn current_frame(&self) -> u64 {
-        self.ula.current_frame()
-    }
-
-    fn frame_tstate(&self) -> (u64, FTs) {
-        self.ula.frame_tstate()
-    }
-
-    fn current_tstate(&self) -> FTs {
-        self.ula.current_tstate()
-    }
-
-    fn is_frame_over(&self) -> bool {
-        self.ula.is_frame_over()
     }
 
     fn reset<C: Cpu>(&mut self, cpu: &mut C, hard: bool) {
@@ -390,7 +405,7 @@ impl<B, X> ControlUnit for Ula3<B, X>
 }
 
 impl<B, X> UlaControlExt for Ula3<B, X>
-    where B: BusDevice<Timestamp=VideoTs>
+    where B: BusDevice<Timestamp=VFrameTs<Ula3VidFrame>>
 {
     fn prepare_next_frame<C: MemoryContention>(
             &mut self,

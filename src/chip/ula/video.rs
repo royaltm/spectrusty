@@ -103,7 +103,7 @@ impl<M: ZxMemory, D, X, V: VideoFrame> Video for Ula<M, D, X, V> {
 
     fn set_border_color(&mut self, border: BorderColor) {
         if self.last_border != border {
-            self.border_out_changes.push((self.tsc, border.bits()).into());
+            self.border_out_changes.push((self.tsc.ts, border.bits()).into());
             self.last_border = border;
         }
     }
@@ -119,15 +119,19 @@ impl<M: ZxMemory, D, X, V: VideoFrame> Video for Ula<M, D, X, V> {
     }
 
     fn current_video_ts(&self) -> VideoTs {
-        self.tsc
+        self.tsc.into()
     }
 
     fn current_video_clock(&self) -> VFrameTsCounter<V, UlaMemoryContention> {
-        VFrameTsCounter::from_video_ts(self.tsc, UlaMemoryContention)
+        VFrameTsCounter::from_video_ts(self.tsc.ts, UlaMemoryContention)
     }
 
     fn set_video_ts(&mut self, vts: VideoTs) {
-        self.tsc = vts;
+        *self.tsc = vts;
+    }
+
+    fn flash_state(&self) -> bool {
+        self.frames.0 & 16 != 0
     }
 }
 
@@ -175,8 +179,10 @@ impl<M: ZxMemory, B, X, V> Ula<M, B, X, V> {
             &mut self,
             border_size: BorderSize
         ) -> Renderer<UlaFrameProducer<'_, V>, std::vec::Drain<'_, VideoTsData3>>
+        where V: VideoFrame
     {
         let border = self.border.into();
+        let invert_flash = self.flash_state();
         let screen = self.memory.screen_ref(0).unwrap();
         // print!("render: {} {:?}", screen_bank, screen.as_ptr());
         Renderer {
@@ -184,19 +190,21 @@ impl<M: ZxMemory, B, X, V> Ula<M, B, X, V> {
             border,
             border_size,
             border_changes: self.border_out_changes.drain(..),
-            invert_flash: self.frames.0 & 16 != 0
+            invert_flash
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::clock::VFrameTs;
     use super::*;
     type TestVideoFrame = UlaVideoFrame;
+    type TestVFTs = VFrameTs<UlaVideoFrame>;
 
     #[test]
     fn test_contention() {
-        let vts0 = VideoTs::new(0, 0);
+        let vts0 = TestVFTs::new(0, 0);
         let tstates = [(14335, 14341),
                        (14336, 14341),
                        (14337, 14341),
@@ -207,16 +215,16 @@ mod tests {
                        (14342, 14342)];
         for offset in (0..16).map(|x| x * 8i32) {
             for (testing, target) in tstates.iter().copied() {
-                let mut vts = TestVideoFrame::vts_add_ts(vts0, testing + offset as u32);
+                let mut vts = vts0 + testing + offset as u32;
                 vts.hc = TestVideoFrame::contention(vts.hc);
-                assert_eq!(TestVideoFrame::normalize_vts(vts),
-                           TestVideoFrame::tstates_to_vts(target + offset));
+                assert_eq!(vts.normalized(),
+                           TestVFTs::from_tstates(target + offset));
             }
         }
         let refts = tstates[0].0 as i32;
         for ts in (refts - 96..refts)
             .chain(refts + 128..refts+TestVideoFrame::HTS_COUNT as i32) {
-            let vts = TestVideoFrame::tstates_to_vts(ts);
+            let vts = TestVFTs::from_tstates(ts);
             assert_eq!(TestVideoFrame::contention(vts.hc), vts.hc);
         }
     }
@@ -233,18 +241,18 @@ mod tests {
                      ((  0, 224),   224, ( 1,   224), false, false, (  1,   0)),
                      ((624,-223),139553, ( 2, 69665), true,  false, (623,   1))];
         for ((vc, hc), fts, (nfr, nfts), eof, is_norm, (nvc, nhc)) in items.iter().copied() {
-            let vts = VideoTs::new(vc, hc);
-            let nvts = VideoTs::new(nvc, nhc);
+            let vts = TestVFTs::new(vc, hc);
+            let nvts = TestVFTs::new(nvc, nhc);
             assert_eq!(TestVideoFrame::vc_hc_to_tstates(vc, hc), fts);
-            assert_eq!(TestVideoFrame::vts_to_tstates(vts), fts);
-            assert_eq!(TestVideoFrame::tstates_to_vts(fts), nvts);
-            assert_eq!(TestVideoFrame::vts_to_norm_tstates(1, vts), (nfr, nfts));
-            assert_eq!(TestVideoFrame::is_vts_eof(vts), eof);
-            assert_eq!(TestVideoFrame::is_normalized_vts(vts), is_norm);
-            assert_eq!(TestVideoFrame::normalize_vts(vts), nvts);
+            assert_eq!(vts.into_tstates(), fts);
+            assert_eq!(TestVFTs::from_tstates(fts), nvts);
+            assert_eq!(vts.into_frame_tstates(1), (nfr, nfts));
+            assert_eq!(vts.is_eof(), eof);
+            assert_eq!(vts.is_normalized(), is_norm);
+            assert_eq!(vts.normalized(), nvts);
         }
-        assert_eq!(TestVideoFrame::vts_max(), VideoTs::new(i16::max_value(), 154));
-        assert_eq!(TestVideoFrame::vts_min(), VideoTs::new(i16::min_value(), -69));
+        assert_eq!(TestVFTs::max(), TestVFTs::new(i16::max_value(), 154));
+        assert_eq!(TestVFTs::min(), TestVFTs::new(i16::min_value(), -69));
         let items = [((  0,   0),     0, (  0,   0)),
                      ((  0,   0),     1, (  0,   1)),
                      (( -1, 154),     1, (  0, -69)),
@@ -254,11 +262,11 @@ mod tests {
                      ((  1,  -1), 69888, (313,  -1)),
                      ((  2, 224), 69888, (315,   0))];
         for ((vc0, hc0), delta, (vc1, hc1)) in items.iter().copied() {
-            let vts0 = VideoTs::new(vc0, hc0);
-            let vts1 = VideoTs::new(vc1, hc1);
-            assert_eq!(TestVideoFrame::vts_add_ts(vts0, delta), vts1);
-            assert_eq!(TestVideoFrame::vts_diff(vts0, vts1), delta as i32);
-            assert_eq!(TestVideoFrame::vts_diff(vts1, vts0), -(delta as i32));
+            let vts0 = TestVFTs::new(vc0, hc0);
+            let vts1 = TestVFTs::new(vc1, hc1);
+            assert_eq!(vts0 + delta, vts1);
+            assert_eq!(vts1.diff_from(vts0), delta as i32);
+            assert_eq!(vts0.diff_from(vts1), -(delta as i32));
         }
         let items = [((   312,      0), (     0,      0)),
                      ((   312,    -69), (     0,    -69)),
@@ -267,9 +275,9 @@ mod tests {
                      ((-32767, -32768), (-32768, -32768)),
                      ((-32768, -32768), (-32768, -32768))];
         for ((vc0, hc0), (vc1, hc1)) in items.iter().copied() {
-            let vts0 = VideoTs::new(vc0, hc0);
-            let vts1 = VideoTs::new(vc1, hc1);
-            assert_eq!(TestVideoFrame::vts_saturating_sub_frame(vts0), vts1);
+            let vts0 = TestVFTs::new(vc0, hc0);
+            let vts1 = TestVFTs::new(vc1, hc1);
+            assert_eq!(vts0.saturating_sub_frame(), vts1);
         }
         let items = [((     0,      0), (     0,      0), (     0,      0), (     0,      0)),
                      ((     1,      1), (     1,      1), (     0,      0), (     2,      2)),
@@ -280,13 +288,13 @@ mod tests {
                      (( 32767,    154), (     1,      1), ( 32766,    153), ( 32767,    154)),
                      (( 32767,    154), ( 32767,    154), (     0,      0), ( 32767,    154))];
         for ((vc0, hc0), (vc1, hc1), (svc, shc), (avc, ahc)) in items.iter().copied() {
-            let vts0 = VideoTs::new(vc0, hc0);
-            let vts1 = VideoTs::new(vc1, hc1);
-            let subvts = VideoTs::new(svc, shc);
-            let addvts = VideoTs::new(avc, ahc);
-            assert_eq!(TestVideoFrame::vts_saturating_sub_vts_normalized(vts0, vts1), subvts);
-            assert_eq!(TestVideoFrame::vts_saturating_add_vts_normalized(vts0, vts1), addvts);
-            assert_eq!(TestVideoFrame::vts_saturating_add_vts_normalized(vts1, vts0), addvts);
+            let vts0 = TestVFTs::new(vc0, hc0);
+            let vts1 = TestVFTs::new(vc1, hc1);
+            let subvts = TestVFTs::new(svc, shc);
+            let addvts = TestVFTs::new(avc, ahc);
+            assert_eq!(vts0.saturating_sub(vts1), subvts);
+            assert_eq!(vts0.saturating_add(vts1), addvts);
+            assert_eq!(vts1.saturating_add(vts0), addvts);
         }
     }
 }

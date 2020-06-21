@@ -7,7 +7,7 @@ use crate::clock::VideoTs;
 use crate::peripherals::{KeyboardInterface, ZXKeyboardMap};
 use crate::memory::{ZxMemory, MemoryExtension};
 use crate::video::VideoFrame;
-use super::{Ula128, Ula128VidFrame, MemPage8};
+use super::{Ula128, Ula128VidFrame};
 
 #[derive(Clone, Copy, Default, Debug)]
 struct Ula128MemPortAddress;
@@ -17,7 +17,8 @@ impl PortAddress for Ula128MemPortAddress {
 }
 
 impl<B, X> Io for Ula128<B, X>
-    where B: BusDevice<Timestamp=VideoTs>
+    where B: BusDevice,
+          B::Timestamp: From<VideoTs>
 {
     type Timestamp = VideoTs;
     type WrIoBreak = ();
@@ -58,7 +59,7 @@ impl<B, X> Io for Ula128<B, X>
 }
 
 impl<B, X> Memory for Ula128<B, X>
-    where B: BusDevice<Timestamp=VideoTs>, X: MemoryExtension
+    where X: MemoryExtension
 {
     type Timestamp = VideoTs;
 
@@ -106,20 +107,7 @@ impl<B, X> Ula128<B, X> {
     fn write_mem_port(&mut self, data: u8, ts: VideoTs) -> bool {
         if !self.mem_locked {
             let flags = Ula128MemFlags::from_bits_truncate(data);
-            if flags.is_mmu_locked() {
-                self.mem_locked = true;
-            }
-
-            let cur_screen_shadow = flags.is_shadow_screen();
-            if self.cur_screen_shadow != cur_screen_shadow {
-                self.cur_screen_shadow = cur_screen_shadow;
-                self.screen_changes.push(ts);
-            }
-            let rom_bank = flags.rom_page_bank();
-            self.ula.memory.map_rom_bank(rom_bank, 0).unwrap();
-            let page3_bank = MemPage8::from(flags);
-            // println!("\nscr: {} pg3: {} ts: {}x{}", self.cur_screen_shadow, mem_page3_bank, ts.vc, ts.hc);
-            return self.set_mem_page3_bank(page3_bank)
+            return self.set_mem_port_value(flags, ts)
         }
         false
     }

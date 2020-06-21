@@ -6,7 +6,7 @@ use serde::{Serialize, Deserialize};
 use rand::{Rng, SeedableRng};
 use rand::rngs::SmallRng;
 
-use spectrusty_core::{clock::VideoTs, video::VideoFrame};
+use spectrusty_core::{clock::{FTs, VFrameTs}, video::VideoFrame};
 use super::{SerialPortDevice, DataState, ControlState};
 
 bitflags! {
@@ -124,7 +124,7 @@ pub struct SerialKeypad<V> {
     next_row: u8,
     output_bits: u8,
     keypad_io: KeypadIoStatus,
-    keypad_event_ts: VideoTs,
+    keypad_event_ts: VFrameTs<V>,
     #[cfg_attr(feature = "snapshot", serde(skip, default = "SmallRng::from_entropy"))]
     rng: SmallRng,
     #[cfg_attr(feature = "snapshot", serde(skip))]
@@ -162,7 +162,7 @@ impl<V: VideoFrame> Default for SerialKeypad<V> {
         let next_row = 0;
         let output_bits = 0;
         let rng = SmallRng::from_entropy();
-        let keypad_event_ts = V::vts_add_ts(VideoTs::default(), RESET_MAX_INTERVAL);
+        let keypad_event_ts = VFrameTs::default() + RESET_MAX_INTERVAL;
         let keypad_io = KeypadIoStatus::Reset;
         SerialKeypad {
             keys, keys_changed, next_row, output_bits,
@@ -172,7 +172,7 @@ impl<V: VideoFrame> Default for SerialKeypad<V> {
 }
 
 impl<V: VideoFrame> SerialPortDevice for SerialKeypad<V> {
-    type Timestamp = VideoTs;
+    type Timestamp = VFrameTs<V>;
     #[inline(always)]
     fn write_data(&mut self, _rxd: DataState, _timestamp: Self::Timestamp) -> ControlState {
         ControlState::Inactive
@@ -193,11 +193,11 @@ impl<V: VideoFrame> SerialPortDevice for SerialKeypad<V> {
     fn next_frame(&mut self, timestamp: Self::Timestamp) {
         if self.keypad_io != KeypadIoStatus::Reset {
             // timeout everything other than reset state
-            if V::vts_diff(self.keypad_event_ts, timestamp) > RESET_MIN_INTERVAL as i32 {
+            if timestamp.diff_from(self.keypad_event_ts) > RESET_MIN_INTERVAL as FTs {
                 self.reset_status(timestamp);
             }
         }
-        self.keypad_event_ts = V::vts_saturating_sub_frame(self.keypad_event_ts);
+        self.keypad_event_ts = self.keypad_event_ts.saturating_sub_frame();
     }
 }
 
@@ -215,9 +215,9 @@ impl<V: VideoFrame> SerialKeypad<V> {
     }
 
     #[inline]
-    fn gen_range_ts(&mut self, ts: VideoTs, lo: u32, hi: u32) -> VideoTs {
+    fn gen_range_ts(&mut self, ts: VFrameTs<V>, lo: u32, hi: u32) -> VFrameTs<V> {
         let delta = self.rng.gen_range(lo, hi);
-        V::vts_add_ts(ts, delta)
+        ts + delta
     }
 
     #[inline]
@@ -255,13 +255,13 @@ impl<V: VideoFrame> SerialKeypad<V> {
         }
     }
 
-    fn reset_status(&mut self, timestamp: VideoTs) {
+    fn reset_status(&mut self, timestamp: VFrameTs<V>) {
         self.keypad_io = KeypadIoStatus::Reset;
         self.keypad_event_ts = self.gen_range_ts(timestamp, RESET_MIN_INTERVAL, RESET_MAX_INTERVAL);
         // println!("reset status {}", V::vts_to_tstates(self.keypad_event_ts) - V::vts_to_tstates(timestamp));
     }
 
-    fn read_state(&mut self, timestamp: VideoTs) -> DataState {
+    fn read_state(&mut self, timestamp: VFrameTs<V>) -> DataState {
         match self.keypad_io {
             KeypadIoStatus::Reset|
             KeypadIoStatus::Waiting => {
@@ -291,7 +291,7 @@ impl<V: VideoFrame> SerialKeypad<V> {
         }
     }
 
-    fn update_state(&mut self, cts: ControlState, timestamp: VideoTs) {
+    fn update_state(&mut self, cts: ControlState, timestamp: VFrameTs<V>) {
         match self.keypad_io {
             KeypadIoStatus::Reset => {
                 if timestamp >= self.keypad_event_ts {
@@ -321,7 +321,7 @@ impl<V: VideoFrame> SerialKeypad<V> {
             KeypadIoStatus::SyncCorrect => {
                 assert!(cts.is_active(), "CTS must have been inactive before");
                 if timestamp >= self.keypad_event_ts && // GO
-                   timestamp < V::vts_add_ts(self.keypad_event_ts, SET_GO_TIMEOUT) { // timeout 0.6 ms
+                   timestamp < self.keypad_event_ts + SET_GO_TIMEOUT { // timeout 0.6 ms
                     // println!("correct -> waiting {}", V::vts_to_tstates(timestamp) - V::vts_to_tstates(self.keypad_event_ts));
                     self.keypad_event_ts = self.gen_range_ts(timestamp, WAITING_MIN_INTERVAL, WAITING_MAX_INTERVAL);
                     self.keypad_io = KeypadIoStatus::Waiting;
@@ -343,7 +343,7 @@ impl<V: VideoFrame> SerialKeypad<V> {
             KeypadIoStatus::Ready => {
                 assert!(cts.is_active(), "CTS must have been inactive before");
                 if timestamp >= self.keypad_event_ts && // START
-                   timestamp < V::vts_add_ts(self.keypad_event_ts, READY_START_TIMEOUT) { // timeout 0.2 ms
+                   timestamp < self.keypad_event_ts + READY_START_TIMEOUT { // timeout 0.2 ms
                     // println!("ready -> data {}", V::vts_to_tstates(timestamp) - V::vts_to_tstates(self.keypad_event_ts));
                     self.keypad_event_ts = timestamp; // for debug only
                     self.keypad_io = KeypadIoStatus::Data;
@@ -359,7 +359,7 @@ impl<V: VideoFrame> SerialKeypad<V> {
                 assert!(cts.is_inactive(), "CTS must have been active before");
                 // cts went high (STOP), stop transmitting STOPPED (immediate)
                 // println!("data -> stop {}", V::vts_to_tstates(timestamp) - V::vts_to_tstates(self.keypad_event_ts));
-                self.keypad_event_ts = V::vts_add_ts(timestamp, STOP_STAND_EASY_TIMEOUT); // timeout 1.3 ms
+                self.keypad_event_ts = timestamp + STOP_STAND_EASY_TIMEOUT; // timeout 1.3 ms
                 self.keypad_io = KeypadIoStatus::Stopped;
                 // println!("{:06b}", self.output_bits);
                 self.next_output_bit();

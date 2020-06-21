@@ -16,12 +16,12 @@ const NO_DEBUG: Option<CpuDebugFn> = None;
 
 #[bench]
 fn bench_boot_spectrum16(ben: &mut Bencher) {
-    boot_spectrum::<Ula<Memory16k>, Z80NMOS>(ben, 47, 16104, 16);
+    boot_spectrum::<UlaPAL<Memory16k>, Z80NMOS>(ben, 47, 16104, 16);
 }
 
 #[bench]
 fn bench_boot_spectrum48(ben: &mut Bencher) {
-    boot_spectrum::<Ula<Memory48k>, Z80NMOS>(ben, 86, 40249, 9);
+    boot_spectrum::<UlaPAL<Memory48k>, Z80NMOS>(ben, 86, 40249, 9);
 }
 
 fn boot_spectrum<U, C: Cpu>(ben: &mut Bencher, boot_frms: u64, boot_ts: i32, init_ts: i32)

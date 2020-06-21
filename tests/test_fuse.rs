@@ -116,7 +116,7 @@ impl TestCase {
                 // execute_with_limit exits immediately when limit has been reached
                 let mut vtsc = tsc.vtsc;
                 vtsc += 1;
-                ts_limit = *vtsc;
+                ts_limit = **vtsc;
                 continue;
             }
             if tsc >= self.tsc {
@@ -440,7 +440,7 @@ impl Clock for TestCounter {
     }
 
     fn as_timestamp(&self) -> VideoTs {
-        *self.vtsc
+        self.vtsc.as_timestamp()
     }
 
     fn add_wait_states(&mut self, _bus: u16, _wait_states: NonZeroU16) {
@@ -454,7 +454,7 @@ impl Clock for TestCounter {
     fn add_mreq(&mut self, address: u16) -> VideoTs {
         match next_event() {
             Some(ev) => {
-                assert_eq!(ev, Event(*self.vtsc, EventType::MemContend(address)));
+                assert_eq!(ev, Event(self.vtsc.into(), EventType::MemContend(address)));
             }
             None => {
                 assert!(false, "unexpected memory contention (MREQ)");
@@ -470,7 +470,7 @@ impl Clock for TestCounter {
         for _ in 0..add_ts.get() {
             match next_event() {
                 Some(ev) => {
-                    assert_eq!(ev, Event(*vtsc, EventType::MemContend(address)));
+                    assert_eq!(ev, Event(vtsc.into(), EventType::MemContend(address)));
                 }
                 None => {
                     assert!(false, "unexpected memory contention (NO MREQ)");
@@ -485,7 +485,7 @@ impl Clock for TestCounter {
     fn add_m1(&mut self, address: u16) -> VideoTs {
         match next_event() {
             Some(ev) => {
-                assert_eq!(ev, Event(*self.vtsc, EventType::MemContend(address)));
+                assert_eq!(ev, Event(self.vtsc.into(), EventType::MemContend(address)));
             }
             None => {
                 assert!(false, "unexpected memory contention (M1)");
@@ -498,7 +498,7 @@ impl Clock for TestCounter {
         // The port contention (PC) in Fuse is hard-coded in its Z80 emulation. In z80emu the contention
         // is delegated to Clock methods which depend on the VideoFrame and MemoryContention traits
         // and Clock::add_io is being always invoked only once before the IO::read_io (PR) or IO::write_io (PW).
-        let VideoTs { vc, mut hc } = *self.vtsc;
+        let VideoTs { vc, mut hc } = self.vtsc.into();
         // Collect the contention event timestamps from the ula_io_contention macro which is used internally
         // by the Clock::add_io implementation for VFrameTsCounter.
         let mut contentions_vts = Vec::with_capacity(4);

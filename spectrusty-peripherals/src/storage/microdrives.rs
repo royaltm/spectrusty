@@ -12,7 +12,7 @@ use std::vec;
 use ::serde::{Serialize, Deserialize};
 use bitvec::prelude::*;
 
-use spectrusty_core::{clock::{FTs, VideoTs}, video::VideoFrame};
+use spectrusty_core::{clock::{FTs, VFrameTs}, video::VideoFrame};
 
 /// The maximum additional T-states the Interface 1 will halt Z80 during IN/OUT with DATA port.
 ///
@@ -123,7 +123,7 @@ pub struct ZXMicrodrives<V> {
     erase: bool,
     comms_clk: bool,
     motor_on_drive: Option<NonZeroU8>,
-    last_ts: VideoTs,
+    last_ts: VFrameTs<V>,
     #[cfg_attr(feature = "snapshot", serde(skip))]
     _video_frame: PhantomData<V>
 }
@@ -696,14 +696,14 @@ impl<V> ZXMicrodrives<V> {
 }
 
 impl<V: VideoFrame> ZXMicrodrives<V> {
-    fn vts_diff_update(&mut self, timestamp: VideoTs) -> u32 {
-        let delta_ts = V::vts_diff(self.last_ts, timestamp);
+    fn vts_diff_update(&mut self, timestamp: VFrameTs<V>) -> u32 {
+        let delta_ts = timestamp.diff_from(self.last_ts);
         self.last_ts = timestamp;
         debug_assert!(delta_ts >= 0);
         delta_ts as u32
     }
 
-    pub(crate) fn reset(&mut self, timestamp: VideoTs) {
+    pub(crate) fn reset(&mut self, timestamp: VFrameTs<V>) {
         let delta_ts = self.vts_diff_update(timestamp);
         self.stop_motor(delta_ts);
         self.write = false;
@@ -712,7 +712,7 @@ impl<V: VideoFrame> ZXMicrodrives<V> {
     }
 
     /// This method should be called after each emulated frame.
-    pub(crate) fn next_frame(&mut self, timestamp: VideoTs) {
+    pub(crate) fn next_frame(&mut self, timestamp: VFrameTs<V>) {
         let delta_ts = self.vts_diff_update(timestamp);
         let (erase, write) = (self.erase, self.write);
         if let Some(cartridge) = self.current_drive() {
@@ -723,11 +723,10 @@ impl<V: VideoFrame> ZXMicrodrives<V> {
                 cartridge.forward(delta_ts);
             }
         }
-        self.last_ts = V::vts_saturating_sub_frame(self.last_ts);
+        self.last_ts = self.last_ts.saturating_sub_frame();
     }
 
-
-    pub(crate) fn read_state(&mut self, timestamp: VideoTs) -> CartridgeState {
+    pub(crate) fn read_state(&mut self, timestamp: VFrameTs<V>) -> CartridgeState {
         let delta_ts = self.vts_diff_update(timestamp);
         let erase = self.erase;
         if let Some(cartridge) = self.current_drive() {
@@ -746,7 +745,7 @@ impl<V: VideoFrame> ZXMicrodrives<V> {
     // NOTE: comms_out is just a data
     pub(crate) fn write_control(
             &mut self,
-            timestamp: VideoTs,
+            timestamp: VFrameTs<V>,
             erase: bool,
             write: bool,
             comms_clk: bool,
@@ -797,7 +796,7 @@ impl<V: VideoFrame> ZXMicrodrives<V> {
         self.write = write;
     }
 
-    pub(crate) fn write_data(&mut self, data: u8, timestamp: VideoTs) -> u16 {
+    pub(crate) fn write_data(&mut self, data: u8, timestamp: VFrameTs<V>) -> u16 {
         let delta_ts = self.vts_diff_update(timestamp);
         if self.write && self.erase { // what happens when write is on and erase off?
             if let Some(cartridge) = self.current_drive() {
@@ -807,7 +806,7 @@ impl<V: VideoFrame> ZXMicrodrives<V> {
         0
     }
 
-    pub(crate) fn read_data(&mut self, timestamp: VideoTs) -> (u8, Option<NonZeroU16>) {
+    pub(crate) fn read_data(&mut self, timestamp: VFrameTs<V>) -> (u8, Option<NonZeroU16>) {
         let delta_ts = self.vts_diff_update(timestamp);
         if self.erase {
             if let Some(cartridge) = self.current_drive() {
@@ -851,48 +850,48 @@ mod tests {
         assert_eq!(drive.erase, false);
         assert_eq!(drive.comms_clk, false);
         assert_eq!(drive.motor_on_drive, None);
-        assert_eq!(drive.read_data(VideoTs::new(0, 10)), (!0, NonZeroU16::new(65535)));
-        assert_eq!(drive.last_ts, VideoTs::new(0, 10));
-        assert_eq!(drive.write_data(0xAA, VideoTs::new(0, 11)), 0);
-        assert_eq!(drive.last_ts, VideoTs::new(0, 11));
-        assert_eq!(drive.read_state(VideoTs::new(0, 20)), CartridgeState{ gap: false, syn: false, write_protect: false});
-        assert_eq!(drive.last_ts, VideoTs::new(0, 20));
-        drive.write_control(VideoTs::new(0, 30), true, false, true, true);
+        assert_eq!(drive.read_data(VFrameTs::new(0, 10)), (!0, NonZeroU16::new(65535)));
+        assert_eq!(drive.last_ts, VFrameTs::new(0, 10));
+        assert_eq!(drive.write_data(0xAA, VFrameTs::new(0, 11)), 0);
+        assert_eq!(drive.last_ts, VFrameTs::new(0, 11));
+        assert_eq!(drive.read_state(VFrameTs::new(0, 20)), CartridgeState{ gap: false, syn: false, write_protect: false});
+        assert_eq!(drive.last_ts, VFrameTs::new(0, 20));
+        drive.write_control(VFrameTs::new(0, 30), true, false, true, true);
         assert_eq!(drive.write, false);
         assert_eq!(drive.erase, true);
         assert_eq!(drive.comms_clk, true);
-        assert_eq!(drive.last_ts, VideoTs::new(0, 30));
+        assert_eq!(drive.last_ts, VFrameTs::new(0, 30));
         assert_eq!(drive.motor_on_drive, NonZeroU8::new(1));
-        drive.write_control(VideoTs::new(0, 40), true, false, false, false);
+        drive.write_control(VFrameTs::new(0, 40), true, false, false, false);
         assert_eq!(drive.write, false);
         assert_eq!(drive.erase, true);
         assert_eq!(drive.comms_clk, false);
-        assert_eq!(drive.last_ts, VideoTs::new(0, 40));
+        assert_eq!(drive.last_ts, VFrameTs::new(0, 40));
         assert_eq!(drive.motor_on_drive, NonZeroU8::new(1));
         assert_eq!(drive.replace_cartridge(1, MicroCartridge::new(5)).is_none(), true);
-        drive.write_control(VideoTs::new(0, 40), true, false, true, false);
+        drive.write_control(VFrameTs::new(0, 40), true, false, true, false);
         // will write header block
-        drive.write_control(VideoTs::new(0, 50), true, true, false, false);
+        drive.write_control(VFrameTs::new(0, 50), true, true, false, false);
         assert_eq!(drive.write, true);
         assert_eq!(drive.erase, true);
         assert_eq!(drive.comms_clk, false);
-        assert_eq!(drive.last_ts, VideoTs::new(0, 50));
+        assert_eq!(drive.last_ts, VFrameTs::new(0, 50));
         assert_eq!(drive.motor_on_drive, NonZeroU8::new(2));
-        assert_eq!(drive.read_state(VideoTs::new(0, 60)), CartridgeState { gap: false, syn: false, write_protect: false});
+        assert_eq!(drive.read_state(VFrameTs::new(0, 60)), CartridgeState { gap: false, syn: false, write_protect: false});
         let mut utsc = UlaTsCounter::new(1, 0, UlaMemoryContention);
         for _ in 0..10 {
             let delay = drive.write_data(0, utsc.into());
-            println!("delay 0x00: {} {:?}", delay, utsc.tsc);
+            println!("delay 0x00: {} {:?}", delay, utsc.vts.ts);
             utsc += delay as u32 + 21 + 16;
         }
         for _ in 0..2 {
             let delay = drive.write_data(!0, utsc.into());
-            println!("delay 0xff: {} {:?}", delay, utsc.tsc);
+            println!("delay 0xff: {} {:?}", delay, utsc.vts.ts);
             utsc += delay as u32 + 11 + 13;
         }
         for i in 1..19 {
             let delay = drive.write_data(i, utsc.into());
-            println!("delay: 0x{:02x} {} {:?}", i, delay, utsc.tsc);
+            println!("delay: 0x{:02x} {} {:?}", i, delay, utsc.vts.ts);
             utsc += delay as u32 + 21 + 16;
         }
         let cartridge = drive.current_drive().unwrap();
@@ -930,12 +929,12 @@ mod tests {
         utsc += 48;
         for _ in 0..10 {
             let delay = drive.write_data(0, utsc.into());
-            println!("delay 0x00: {} {:?}", delay, utsc.tsc);
+            println!("delay 0x00: {} {:?}", delay, utsc.vts.ts);
             utsc += delay as u32 + 11 + 13;
         }
         for _ in 0..2 {
             let delay = drive.write_data(!0, utsc.into());
-            println!("delay 0xff: {} {:?}", delay, utsc.tsc);
+            println!("delay 0xff: {} {:?}", delay, utsc.vts.ts);
             utsc += delay as u32 + 19;
         }
         for i in 1..630u16 { // format block
@@ -944,7 +943,7 @@ mod tests {
                 utsc.wrap_frame();
             }
             let delay = drive.write_data(!(i as u8), utsc.into());
-            println!("delay: 0x{:02x} {} {:?}", i, delay, utsc.tsc);
+            println!("delay: 0x{:02x} {} {:?}", i, delay, utsc.vts.ts);
             utsc += delay as u32 + 11 + 13;
         }
         let cartridge = drive.current_drive().unwrap();
@@ -1067,12 +1066,12 @@ mod tests {
         utsc += 47;
         for _ in 0..10 {
             let delay = drive.write_data(0, utsc.into());
-            println!("delay 0x00: {} {:?}", delay, utsc.tsc);
+            println!("delay 0x00: {} {:?}", delay, utsc.vts.ts);
             utsc += delay as u32 + 21;
         }
         for _ in 0..2 {
             let delay = drive.write_data(!0, utsc.into());
-            println!("delay 0xff: {} {:?}", delay, utsc.tsc);
+            println!("delay 0xff: {} {:?}", delay, utsc.vts.ts);
             utsc += delay as u32 + 21;
         }
         for i in 0..531u16 { // format block
@@ -1081,7 +1080,7 @@ mod tests {
                 utsc.wrap_frame();
             }
             let delay = drive.write_data(0xA5^(i as u8), utsc.into());
-            println!("delay: 0x{:02x} {} {:?}", i, delay, utsc.tsc);
+            println!("delay: 0x{:02x} {} {:?}", i, delay, utsc.vts.ts);
             utsc += delay as u32 + 21 + 16;
         }
         let cartridge = drive.current_drive().unwrap();

@@ -8,8 +8,7 @@ use core::ops::{Deref, DerefMut};
 use serde::{Serialize, Deserialize};
 
 use spectrusty_core::{
-    bus::{BusDevice, NullDevice, PortAddress},
-    clock::VideoTs
+    bus::{BusDevice, PortAddress}
 };
 
 use super::ay::PassByAyAudioBusDevice;
@@ -20,10 +19,10 @@ pub use crate::mouse::{
 };
 
 /// A convenient Kempston Mouse [BusDevice] type.
-pub type KempstonMouse<D=NullDevice<VideoTs>> = MouseBusDevice<
-                                                            KempstonMousePortAddress,
-                                                            KempstonMouseDevice,
-                                                            D>;
+pub type KempstonMouse<D> = MouseBusDevice<
+                                            KempstonMousePortAddress,
+                                            KempstonMouseDevice,
+                                            D>;
 
 impl<D> fmt::Display for KempstonMouse<D> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -33,7 +32,7 @@ impl<D> fmt::Display for KempstonMouse<D> {
 /// A mouse controller, providing a [BusDevice] implementation that can be used with [mouse devices][MouseDevice].
 #[derive(Clone, Default, Debug)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
-pub struct MouseBusDevice<P, M, D=NullDevice<VideoTs>> {
+pub struct MouseBusDevice<P, M, D> {
     /// A [MouseDevice] implementation, which may also implement [MouseInterface] trait
     /// for providing user input.
     #[cfg_attr(feature = "snapshot", serde(default))]

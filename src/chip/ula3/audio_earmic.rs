@@ -6,12 +6,12 @@ use crate::peripherals::ay::audio::AyAudioFrame;
 use crate::peripherals::bus::ay::AyAudioVBusDevice;
 
 use crate::chip::{EarIn, MicOut, ReadEarMode};
-use super::{Ula3, InnerUla};
+use super::{Ula3, InnerUla, Ula3VidFrame};
 
 #[cfg(feature = "peripherals")]
 impl<A, B, X> AyAudioFrame<A> for Ula3<B, X>
     where A: Blep,
-          B: AyAudioVBusDevice
+          B: AyAudioVBusDevice<Ula3VidFrame>
 {
     #[inline]
     fn render_ay_audio_frame<V: AmpLevels<A::SampleDelta>>(&mut self, blep: &mut A, chans: [usize; 3]) {

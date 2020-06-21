@@ -10,7 +10,7 @@ use super::super::plus::UlaPlusInner;
 
 impl<'a, M, B, X, V> UlaPlusInner<'a> for Ula<M, B, X, V>
     where M: ZxMemory,
-          B: BusDevice<Timestamp=VideoTs>,
+          B: BusDevice,
           X: MemoryExtension,
           V: VideoFrame
 {

@@ -39,7 +39,7 @@ impl<M, B, X, V> ScreenDataProvider for Scld<M, B, X, V>
             }
             _ => return false
         }
-        self.change_ctrl_flag(flags, self.ula.current_video_ts());
+        self.set_ctrl_flags_value(flags, self.ula.current_video_ts());
         true
     }
 

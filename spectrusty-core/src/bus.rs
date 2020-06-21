@@ -10,7 +10,7 @@ use serde::{Serialize, Deserialize};
 
 mod dynbus;
 
-use crate::clock::VideoTs;
+use crate::clock::VFrameTs;
 
 pub use dynbus::*;
 
@@ -172,6 +172,8 @@ pub trait PortAddress: Debug {
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 pub struct NullDevice<T>(PhantomData<T>);
 
+pub type VFNullDevice<V> = NullDevice<VFrameTs<V>>;
+
 impl<T: Debug> BusDevice for NullDevice<T> {
     type Timestamp = T;
     type NextDevice = Self;
@@ -218,7 +220,7 @@ impl<T> fmt::Display for NullDevice<T> {
 #[derive(Clone, Default, Debug)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]
-pub struct OptionalBusDevice<D, N=NullDevice<VideoTs>> {
+pub struct OptionalBusDevice<D, N> {
     /// The device that can be "plugged in".
     #[cfg_attr(feature = "snapshot", serde(default))]
     pub device: Option<D>,

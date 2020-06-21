@@ -55,7 +55,7 @@ fn execute_next_frame_no_halt_emu<U, C>(ula: &mut U, cpu: &mut C, mut halt_limit
     }
     assert_eq!(cpu.is_halt(), true);
     assert_eq!(halt_limit, 0);
-    while tsc.tsc.hc < -(M1_CYCLE_TS as Ts) {
+    while tsc.hc < -(M1_CYCLE_TS as Ts) {
         match cpu.execute_next::<_,_,CpuDebugFn>(ula, &mut tsc, None) {
             Ok(()) => (),
             Err(_) => unreachable!()
@@ -97,8 +97,8 @@ fn ula_contended_all_tstates<U>()
 #[test]
 #[ignore]
 fn test_contened_halt() {
-    println!("\nUla");
-    ula_contended_all_tstates::<Ula<Memory64k>>();
+    println!("\nUlaPAL");
+    ula_contended_all_tstates::<UlaPAL<Memory64k>>();
     println!("UlaNTSC");
     ula_contended_all_tstates::<UlaNTSC<Memory64k>>();
     println!("Ula128");
@@ -166,6 +166,6 @@ fn ula_halt_irq_tstates<U>(late_timings: bool, hc_stop: i16)
 
 #[test]
 fn test_ula_halt_irq() {
-    ula_halt_irq_tstates::<Ula<Memory64k>>(false, 28);
-    ula_halt_irq_tstates::<Ula<Memory64k>>(true, 27);
+    ula_halt_irq_tstates::<UlaPAL<Memory64k>>(false, 28);
+    ula_halt_irq_tstates::<UlaPAL<Memory64k>>(true, 27);
 }

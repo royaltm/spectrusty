@@ -8,14 +8,10 @@ use crate::video::{
         pixel_address_coords, color_address_coords
     }
 };
-use crate::chip::ControlUnit;
-use super::frame_cache::{
-    PlusFrameProducer
-};
-use super::{UlaPlus, UlaPlusInner};
+use super::{UlaPlus, UlaPlusInner, frame_cache::PlusFrameProducer};
 
 impl<U> Video for UlaPlus<U>
-    where U: for<'a> UlaPlusInner<'a> + ControlUnit
+    where U: for<'a> UlaPlusInner<'a>
 {
     const PIXEL_DENSITY: u32 = 2;
 
@@ -57,10 +53,14 @@ impl<U> Video for UlaPlus<U>
     fn set_video_ts(&mut self, vts: VideoTs) {
         self.ula.set_video_ts(vts);
     }
+
+    fn flash_state(&self) -> bool {
+        self.ula.flash_state()
+    }
 }
 
 impl<'a, U> UlaPlus<U>
-    where U: UlaPlusInner<'a> + ControlUnit
+    where U: UlaPlusInner<'a>
 {
     #[inline]
     pub(super) fn update_frame_cache(&mut self, addr: u16, ts: VideoTs) {
@@ -131,7 +131,7 @@ impl<'a, U> UlaPlus<U>
                 Drain<'a, VideoTsData6>,
                 Drain<'a, PaletteChange>>
     {
-        let invert_flash = self.ula.current_frame() & 16 != 0;
+        let invert_flash = self.ula.flash_state();
         let render_mode = self.beg_render_mode;
         let source_mode = self.beg_source_mode;
         let swap_screens = source_mode.is_shadow_bank() ^ self.ula.beg_screen_shadow();

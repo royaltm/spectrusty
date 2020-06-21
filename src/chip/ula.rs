@@ -22,16 +22,17 @@ use crate::z80emu::{*, host::Result};
 #[cfg(feature = "snapshot")]
 use serde::{Serialize, Deserialize};
 
-use crate::bus::{BusDevice, NullDevice};
+use crate::bus::{BusDevice, VFNullDevice};
 use crate::chip::{
-    UlaControl, ControlUnit, MemoryAccess, EarMic, ReadEarMode
+    UlaControl, FrameState, ControlUnit, MemoryAccess, EarMic, ReadEarMode
 };
 use crate::video::{BorderColor, VideoFrame};
 use crate::memory::{ZxMemory, MemoryExtension, NoMemoryExtension};
 use crate::peripherals::ZXKeyboardMap;
 use crate::clock::{
-    VideoTs, FTs, VFrameTsCounter, MemoryContention,
-    VideoTsData1, VideoTsData2, VideoTsData3};
+    FTs, VFrameTs, VFrameTsCounter, MemoryContention,
+    VideoTsData1, VideoTsData2, VideoTsData3
+};
 use frame_cache::UlaFrameCache;
 
 pub use cpuext::*;
@@ -39,7 +40,9 @@ pub use video::UlaVideoFrame;
 pub use video_ntsc::UlaNTSCVidFrame;
 
 /// ZX Spectrum NTSC 16k/48k ULA.
-pub type UlaNTSC<M, B=NullDevice<VideoTs>, X=NoMemoryExtension> = Ula<M, B, X, UlaNTSCVidFrame>;
+pub type UlaNTSC<M, B=VFNullDevice<UlaNTSCVidFrame>, X=NoMemoryExtension> = Ula<M, B, X, UlaNTSCVidFrame>;
+/// ZX Spectrum PAL 16k/48k ULA.
+pub type UlaPAL<M, B=VFNullDevice<UlaVideoFrame>, X=NoMemoryExtension> = Ula<M, B, X, UlaVideoFrame>;
 
 /// A struct implementing [MemoryContention] for addresses in the range: [0x4000, 0x7FFF] being contended.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
@@ -49,9 +52,9 @@ pub struct UlaMemoryContention;
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]
 #[derive(Clone)]
-pub struct Ula<M, B=NullDevice<VideoTs>, X=NoMemoryExtension, V=UlaVideoFrame> {
+pub struct Ula<M, B, X, V> {
     pub(super) frames: Wrapping<u64>, // frame counter
-    pub(super) tsc: VideoTs, // current T-state timestamp
+    pub(super) tsc: VFrameTs<V>, // current T-state timestamp
     pub(super) memory: M,
     pub(super) bus: B,
     pub(super) memext: X,
@@ -87,17 +90,35 @@ impl MemoryContention for UlaMemoryContention {
     }
 }
 
-impl<M, B, X, V: VideoFrame> UlaControl for Ula<M, B, X, V> {
+impl<M, B, X, V: VideoFrame> FrameState for Ula<M, B, X, V> {
+    fn current_frame(&self) -> u64 {
+        self.frames.0
+    }
+
     fn set_frame_counter(&mut self, fc: u64) {
         self.frames = Wrapping(fc);
     }
 
+    fn frame_tstate(&self) -> (u64, FTs) {
+        self.tsc.into_frame_tstates(self.frames.0)
+    }
+
+    fn current_tstate(&self) -> FTs {
+        self.tsc.into_tstates()
+    }
+
     fn set_frame_tstate(&mut self, ts: FTs) {
         let ts = ts.rem_euclid(V::FRAME_TSTATES_COUNT);
-        let tsc = V::tstates_to_vts(ts);
+        let tsc = VFrameTs::from_tstates(ts);
         self.tsc = tsc
     }
 
+    fn is_frame_over(&self) -> bool {
+        self.tsc.is_eof()
+    }
+}
+
+impl<M, B, X, V: VideoFrame> UlaControl for Ula<M, B, X, V> {
     fn has_late_timings(&self) -> bool {
         self.late_timings
     }
@@ -115,7 +136,7 @@ where M: Default,
     fn default() -> Self {
         Ula {
             frames: Wrapping(0),   // frame counter
-            tsc: VideoTs::default(),
+            tsc: VFrameTs::default(),
             memory: M::default(),
             bus: B::default(),
             memext: X::default(),
@@ -142,7 +163,10 @@ where M: Default,
 }
 
 impl<M, B, X, V> fmt::Debug for Ula<M, B, X, V>
-    where M: ZxMemory, B: BusDevice, X: MemoryExtension
+    where M: ZxMemory,
+          B: BusDevice,
+          X: MemoryExtension,
+          V: VideoFrame
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Ula")
@@ -194,7 +218,7 @@ impl<M, B, X, V> MemoryAccess for Ula<M, B, X, V>
 
 impl<M, B, X, V> ControlUnit for Ula<M, B, X, V>
     where M: ZxMemory,
-          B: BusDevice<Timestamp=VideoTs>,
+          B: BusDevice<Timestamp=VFrameTs<V>>,
           X: MemoryExtension,
           V: VideoFrame
 {
@@ -212,22 +236,6 @@ impl<M, B, X, V> ControlUnit for Ula<M, B, X, V>
         self.bus
     }
 
-    fn current_frame(&self) -> u64 {
-        self.frames.0
-    }
-
-    fn frame_tstate(&self) -> (u64, FTs) {
-        V::vts_to_norm_tstates(self.frames.0, self.tsc)
-    }
-
-    fn current_tstate(&self) -> FTs {
-        V::vts_to_tstates(self.tsc)
-    }
-
-    fn is_frame_over(&self) -> bool {
-        V::is_vts_eof(self.tsc)
-    }
-
     fn reset<C: Cpu>(&mut self, cpu: &mut C, hard: bool) {
         if hard {
             cpu.reset();
@@ -236,7 +244,7 @@ impl<M, B, X, V> ControlUnit for Ula<M, B, X, V>
         }
         else {
             const DEBUG: Option<CpuDebugFn> = None;
-            let mut vtsc: VFrameTsCounter<V, _> = VFrameTsCounter::from_video_ts(VideoTs::default(), UlaMemoryContention);
+            let mut vtsc = VFrameTsCounter::from_vframe_ts(VFrameTs::<V>::default(), UlaMemoryContention);
             let _ = cpu.execute_instruction(self, &mut vtsc, DEBUG, opconsts::RST_00H_OPCODE);
         }
     }
@@ -265,7 +273,7 @@ impl<M, B, X, V> ControlUnit for Ula<M, B, X, V>
 
 impl<M, B, X, V> UlaControlExt for Ula<M, B, X, V>
     where M: ZxMemory,
-          B: BusDevice<Timestamp=VideoTs>,
+          B: BusDevice<Timestamp=VFrameTs<V>>,
           V: VideoFrame
 {
     fn prepare_next_frame<C: MemoryContention>(
@@ -273,7 +281,7 @@ impl<M, B, X, V> UlaControlExt for Ula<M, B, X, V>
             mut vtsc: VFrameTsCounter<V, C>
         ) -> VFrameTsCounter<V, C>
     {
-        self.bus.next_frame(vtsc.as_timestamp());
+        self.bus.next_frame(vtsc.into());
         self.frames += Wrapping(1);
         self.cleanup_video_frame_data();
         self.cleanup_earmic_frame_data();
@@ -288,7 +296,7 @@ mod tests {
     use crate::memory::Memory64k;
     use crate::video::Video;
     use super::*;
-    type TestUla = Ula::<Memory64k>;
+    type TestUla = UlaPAL::<Memory64k>;
 
     #[test]
     fn test_ula() {

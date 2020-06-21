@@ -62,7 +62,7 @@ fn bench_border_rare(ben: &mut Bencher) {
 fn fill_border_changes(border_changes: &mut Vec<VideoTsData3>, step: usize, start: usize) {
     let mut color = 0;
     for ts in (0..UlaVideoFrame::FRAME_TSTATES_COUNT).skip(start).step_by(step) {
-        let vts = UlaVideoFrame::tstates_to_vts(ts);
+        let vts = VFrameTs::<UlaVideoFrame>::from_tstates(ts);
         border_changes.push((vts, color).into());
         color = (color + 1) & 7;
     }

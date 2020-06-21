@@ -7,7 +7,7 @@ use serde::{Serialize, Deserialize};
 #[allow(unused_imports)]
 use log::{error, warn, info, debug, trace};
 
-use spectrusty_core::{clock::VideoTs, video::VideoFrame};
+use spectrusty_core::{clock::VFrameTs, video::VideoFrame};
 use super::{SerialPortDevice, DataState, ControlState};
 
 const CPU_HZ: u32 = 3_500_000;
@@ -51,10 +51,10 @@ pub struct Rs232Io<V, R, W> {
     // bit_interval: u32, // CPU_HZ / BAUDS
     read_io: ReadStatus,
     read_max_delay: u32,
-    read_event_ts: VideoTs,
+    read_event_ts: VFrameTs<V>,
     write_io: WriteStatus,
     write_max_delay: u32,
-    write_event_ts: VideoTs,
+    write_event_ts: VFrameTs<V>,
     #[cfg_attr(feature = "snapshot", serde(skip))]
     _video_frame: PhantomData<V>
 }
@@ -93,7 +93,7 @@ impl<V, R: Default, W: Default> Default for Rs232Io<V, R, W> {
 }
 
 impl<V: VideoFrame, R: Read, W: Write> SerialPortDevice for Rs232Io<V, R, W> {
-    type Timestamp = VideoTs;
+    type Timestamp = VFrameTs<V>;
     #[inline]
     fn write_data(&mut self, rxd: DataState, timestamp: Self::Timestamp) -> ControlState {
         self.process_write(rxd, timestamp)
@@ -112,8 +112,8 @@ impl<V: VideoFrame, R: Read, W: Write> SerialPortDevice for Rs232Io<V, R, W> {
     }
     #[inline]
     fn next_frame(&mut self, _timestamp: Self::Timestamp) {
-        self.read_event_ts = V::vts_saturating_sub_frame(self.read_event_ts);
-        self.write_event_ts = V::vts_saturating_sub_frame(self.write_event_ts);
+        self.read_event_ts = self.read_event_ts.saturating_sub_frame();
+        self.write_event_ts = self.write_event_ts.saturating_sub_frame();
     }
 }
 
@@ -193,7 +193,7 @@ impl<V: VideoFrame, R: Read, W: Write> Rs232Io<V, R, W> {
         }
     }
 
-    fn process_update_cts(&mut self, cts: ControlState, _timestamp: VideoTs) {
+    fn process_update_cts(&mut self, cts: ControlState, _timestamp: VFrameTs<V>) {
         if cts.is_inactive() {
             // debug!("CTS inactive {:?}", timestamp);
             self.read_io = ReadStatus::NotReady;
@@ -205,20 +205,20 @@ impl<V: VideoFrame, R: Read, W: Write> Rs232Io<V, R, W> {
         }
     }
 
-    fn process_read(&mut self, timestamp: VideoTs) -> DataState { // -> txd
+    fn process_read(&mut self, timestamp: VFrameTs<V>) -> DataState { // -> txd
         match self.read_io {
             ReadStatus::NotReady => DataState::Mark,
             ReadStatus::StartBit(byte) => {
-                self.read_event_ts = V::vts_add_ts(timestamp, MIN_STOP_BIT_DELAY);
+                self.read_event_ts = timestamp + MIN_STOP_BIT_DELAY;
                 self.read_io = ReadStatus::Synchronize(byte);
                 DataState::Space
             }
             ReadStatus::Synchronize(byte) => {
                 if timestamp >= self.read_event_ts {
-                    let delay_fts = V::vts_diff(self.read_event_ts, timestamp) as u32;
+                    let delay_fts = timestamp.diff_from(self.read_event_ts) as u32;
                     if delay_fts < MAX_STOP_BIT_DELAY * 3 / 2 {
                         self.read_max_delay = delay_fts + MIN_STOP_BIT_DELAY;
-                        self.read_event_ts = V::vts_add_ts(timestamp, self.read_max_delay);
+                        self.read_event_ts = timestamp + self.read_max_delay;
                         self.read_io = ReadStatus::SendingData(0x80 | (byte >> 1));
                         let bit = byte & 1 == 1;
                         bit.into()
@@ -236,7 +236,7 @@ impl<V: VideoFrame, R: Read, W: Write> Rs232Io<V, R, W> {
                 if timestamp < self.read_event_ts {
                     let bit = byte & 1 == 1;
                     let byte = byte >> 1;
-                    self.read_event_ts = V::vts_add_ts(timestamp, self.read_max_delay);
+                    self.read_event_ts = timestamp + self.read_max_delay;
                     if byte != 0 {
                         self.read_io = ReadStatus::SendingData(byte);
                         return bit.into()
@@ -249,13 +249,13 @@ impl<V: VideoFrame, R: Read, W: Write> Rs232Io<V, R, W> {
     }
 
     #[inline]
-    fn write_failed(&mut self, timestamp: VideoTs) -> ControlState {
+    fn write_failed(&mut self, timestamp: VFrameTs<V>) -> ControlState {
         self.write_io = WriteStatus::Idle(ControlState::Inactive);
-        self.write_event_ts = V::vts_add_ts(timestamp, ERROR_GRACE_DELAY);
+        self.write_event_ts = timestamp + ERROR_GRACE_DELAY;
         ControlState::Inactive
     }
 
-    fn process_poll(&mut self, timestamp: VideoTs) -> ControlState {
+    fn process_poll(&mut self, timestamp: VFrameTs<V>) -> ControlState {
         match self.write_io {
             WriteStatus::Idle(dtr) => {
                 if timestamp >= self.write_event_ts {
@@ -278,14 +278,14 @@ impl<V: VideoFrame, R: Read, W: Write> Rs232Io<V, R, W> {
         }
     }
 
-    fn process_write(&mut self, rxd: DataState, timestamp: VideoTs) -> ControlState { // -> dtr
+    fn process_write(&mut self, rxd: DataState, timestamp: VFrameTs<V>) -> ControlState { // -> dtr
         // println!("rxd: {:?} {:?}", rxd, V::vts_diff(self.read_event_ts, timestamp));
         self.read_event_ts = timestamp;
         match self.write_io {
             WriteStatus::Idle(dtr) => {
                 if timestamp >= self.write_event_ts {
                     if rxd.is_space() { // START
-                        self.write_event_ts = V::vts_add_ts(timestamp, MIN_STOP_BIT_DELAY);
+                        self.write_event_ts = timestamp + MIN_STOP_BIT_DELAY;
                         self.write_io = WriteStatus::StartBit;
                     }
                     ControlState::Active
@@ -296,11 +296,11 @@ impl<V: VideoFrame, R: Read, W: Write> Rs232Io<V, R, W> {
             }
             WriteStatus::StartBit => {
                 if timestamp >= self.write_event_ts {
-                    let delta_fts = V::vts_diff(self.write_event_ts, timestamp) as u32;
+                    let delta_fts = timestamp.diff_from(self.write_event_ts) as u32;
                     if delta_fts < MAX_STOP_BIT_DELAY {
                         let bit: u8 = rxd.into();
                         self.write_max_delay = (delta_fts + MIN_STOP_BIT_DELAY) * 3 / 2;
-                        self.write_event_ts = V::vts_add_ts(timestamp, self.write_max_delay);
+                        self.write_event_ts = timestamp + self.write_max_delay;
                         // println!("bauds: {} {}", self.baud_rate(), (delta_fts + MIN_STOP_BIT_DELAY));
                         self.write_io = WriteStatus::ReceivingData((bit|0x80).rotate_right(1));
                         return ControlState::Active
@@ -312,7 +312,7 @@ impl<V: VideoFrame, R: Read, W: Write> Rs232Io<V, R, W> {
                 if timestamp < self.write_event_ts {
                     let bit: u8 = rxd.into();
                     let next_bits = (prev_bits & !1 | bit).rotate_right(1);
-                    self.write_event_ts = V::vts_add_ts(timestamp, self.write_max_delay);
+                    self.write_event_ts = timestamp + self.write_max_delay;
                     if prev_bits & 1 == 1 {
                         self.write_io = WriteStatus::StopBits(next_bits);
                     }
@@ -328,8 +328,7 @@ impl<V: VideoFrame, R: Read, W: Write> Rs232Io<V, R, W> {
             WriteStatus::StopBits(data) => {
                 if rxd.is_mark() && timestamp < self.write_event_ts {
                     if self.write_byte_to_writer(data) {
-                        self.write_event_ts = V::vts_add_ts(timestamp,
-                                              self.write_max_delay * 4 / 3 + STOP_BIT_GRACE_DELAY);
+                        self.write_event_ts = timestamp + self.write_max_delay * 4 / 3 + STOP_BIT_GRACE_DELAY;
                         self.write_io = WriteStatus::Idle(ControlState::Active);
                         ControlState::Active
                     }

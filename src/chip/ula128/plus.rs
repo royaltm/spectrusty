@@ -9,7 +9,7 @@ use super::Ula128;
 use super::super::plus::UlaPlusInner;
 
 impl<'a, B, X> UlaPlusInner<'a> for Ula128<B, X>
-    where B: BusDevice<Timestamp=VideoTs>,
+    where B: BusDevice,
           X: MemoryExtension
 {
     type ScreenSwapIter = Drain<'a, VideoTs>;

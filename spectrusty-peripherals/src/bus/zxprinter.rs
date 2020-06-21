@@ -8,17 +8,17 @@ use core::ops::{Deref, DerefMut};
 use serde::{Serialize, Deserialize};
 
 use spectrusty_core::{
-    bus::{BusDevice, NullDevice, PortAddress},
-    clock::VideoTs,
+    bus::{BusDevice, VFNullDevice, PortAddress},
+    clock::VFrameTs,
     video::VideoFrame
 };
 use super::ay::PassByAyAudioBusDevice;
 
 pub use crate::zxprinter::*;
 
-pub type ZxPrinter<V, S, D=NullDevice<VideoTs>> = ZxPrinterBusDevice<ZxPrinterPortAddress, V, S, D>;
-pub type Alphacom32<V, S, D=NullDevice<VideoTs>> = ZxPrinterBusDevice<Alphacom32PortAddress, V, S, D>;
-pub type TS2040<V, S, D=NullDevice<VideoTs>> = ZxPrinterBusDevice<TS2040PortAddress, V, S, D>;
+pub type ZxPrinter<V, S, D=VFNullDevice<V>> = ZxPrinterBusDevice<ZxPrinterPortAddress, V, S, D>;
+pub type Alphacom32<V, S, D=VFNullDevice<V>> = ZxPrinterBusDevice<Alphacom32PortAddress, V, S, D>;
+pub type TS2040<V, S, D=VFNullDevice<V>> = ZxPrinterBusDevice<TS2040PortAddress, V, S, D>;
 
 macro_rules! printer_names {
     ($($ty:ty: $name:expr),*) => { $(
@@ -39,7 +39,7 @@ printer_names! {
 /// Connects the [ZxPrinterDevice] emulator as a [BusDevice].
 #[derive(Clone, Default, Debug)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
-pub struct ZxPrinterBusDevice<P, V, S, D=NullDevice<VideoTs>>
+pub struct ZxPrinterBusDevice<P, V, S, D=VFNullDevice<V>>
 {
     /// Provides a direct access to the [ZxPrinterDevice].
     #[cfg_attr(feature = "snapshot", serde(default))]
@@ -89,10 +89,10 @@ impl<P, V, S, D> PassByAyAudioBusDevice for ZxPrinterBusDevice<P, V, S, D> {}
 impl<P, V, S, D> BusDevice for ZxPrinterBusDevice<P, V, S, D>
     where P: PortAddress,
           V: VideoFrame,
-          D: BusDevice<Timestamp=VideoTs>,
+          D: BusDevice<Timestamp=VFrameTs<V>>,
           S: Spooler
 {
-    type Timestamp = VideoTs;
+    type Timestamp = VFrameTs<V>;
     type NextDevice = D;
 
     #[inline]

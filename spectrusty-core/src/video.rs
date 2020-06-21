@@ -2,7 +2,7 @@
 pub mod pixel;
 
 use core::str::FromStr;
-use core::convert::{TryInto, TryFrom};
+use core::convert::TryFrom;
 use core::fmt::{self, Debug};
 use core::ops::{BitAnd, BitOr, Shl, Shr, Range};
 
@@ -136,6 +136,8 @@ pub trait Video {
     fn set_video_ts(&mut self, vts: VideoTs);
     /// Returns the current value of the video T-state clock.
     fn current_video_clock(&self) -> VFrameTsCounter<Self::VideoFrame, Self::Contention>;
+    /// Returns the temporary video flash attribute state.
+    fn flash_state(&self) -> bool;
 }
 /// A collection of static methods and constants raleted to video parameters.
 /// ```text
@@ -272,146 +274,6 @@ pub trait VideoFrame: Copy + Debug {
     #[inline]
     fn vc_hc_to_tstates(vc: Ts, hc: Ts) -> FTs {
         vc as FTs * Self::HTS_COUNT as FTs + hc as FTs
-    }
-    /// Converts a video timestamp to the frame T-state count without any normalization.
-    #[inline(always)]
-    fn vts_to_tstates(VideoTs { vc, hc }: VideoTs) -> FTs {
-        Self::vc_hc_to_tstates(vc, hc)
-    }
-    /// Converts a frame T-state count to a video timestamp.
-    ///
-    /// # Panics
-    /// Panics when the given `ts` overflows the capacity of [VideoTs].
-    #[inline]
-    fn tstates_to_vts(ts: FTs) -> VideoTs {
-        let hts_count: FTs = Self::HTS_COUNT as FTs;
-        let mut vc = (ts / hts_count).try_into().expect("video ts overflow");
-        let mut hc = (ts % hts_count).try_into().unwrap();
-        if hc >= Self::HTS_RANGE.end {
-            hc -= Self::HTS_COUNT;
-            vc += 1;
-        }
-        else if hc < Self::HTS_RANGE.start {
-            hc += Self::HTS_COUNT;
-            vc -= 1;
-        }
-        VideoTs { vc, hc }
-    }
-    /// Converts a video timestamp and a frame counter to a normalized frame counter and
-    /// a frame T-state count.
-    ///
-    /// The count value returned will be always between: `[0, [VideoFrame::FRAME_TSTATES_COUNT])`.
-    #[inline]
-    fn vts_to_norm_tstates(frames: u64, vts: VideoTs) -> (u64, FTs) {
-        let ts = Self::vts_to_tstates(vts);
-        let frmdlt = ts / Self::FRAME_TSTATES_COUNT;
-        let ufrmdlt = if ts < 0 { frmdlt - 1 } else { frmdlt } as u64;
-        let frames = frames.wrapping_add(ufrmdlt);
-        let ts = ts.rem_euclid(Self::FRAME_TSTATES_COUNT);
-        (frames, ts)
-    }
-    /// Returns the largest value that can be represented by a `VideoTs`
-    /// with normalized horizontal counter.
-    #[inline]
-    fn vts_max() -> VideoTs {
-        VideoTs { vc: Ts::max_value(), hc: Self::HTS_RANGE.end - 1 }
-    }
-    /// Returns the smallest value that can be represented by a `VideoTs`
-    /// with a normalized horizontal counter.
-    #[inline]
-    fn vts_min() -> VideoTs {
-        VideoTs { vc: Ts::min_value(), hc: Self::HTS_RANGE.start }
-    }
-    /// Returns `true` if a video timestamp is at or past the last video scan line.
-    #[inline]
-    fn is_vts_eof(VideoTs { vc, .. }: VideoTs) -> bool {
-        vc >= Self::VSL_COUNT
-    }
-    /// Returns `true` if a video timestamp is normalized.
-    #[inline]
-    fn is_normalized_vts(VideoTs { hc, .. }: VideoTs) -> bool {
-        Self::HTS_RANGE.contains(&hc)
-    }
-    /// Returns a video timestamp with a horizontal counter within the allowed range and a scan line
-    /// counter adjusted accordingly.
-    ///
-    /// # Panics
-    /// Panics when normalizing leads to an overflow of the capacity of [VideoTs].
-    #[inline]
-    fn normalize_vts(VideoTs { mut vc, mut hc }: VideoTs) -> VideoTs {
-        if hc < Self::HTS_RANGE.start || hc >= Self::HTS_RANGE.end {
-            let fhc: FTs = hc as FTs - if hc < 0 {
-                Self::HTS_RANGE.end
-            }
-            else {
-                Self::HTS_RANGE.start
-            } as FTs;
-            vc = vc.checked_add((fhc / Self::HTS_COUNT as FTs) as Ts).expect("video ts overflow");
-            hc = fhc.rem_euclid(Self::HTS_COUNT as FTs) as Ts + Self::HTS_RANGE.start;
-        }
-        VideoTs { vc, hc }
-    }
-    /// Returns a video timestamp with a horizontal counter within the allowed range and a scan line
-    /// counter adjusted accordingly. Saturates at [VideoFrame::vts_min] or [VideoFrame::vts_max].
-    #[inline]
-    fn saturating_normalize_vts(VideoTs { mut vc, mut hc }: VideoTs) -> VideoTs {
-        if hc < Self::HTS_RANGE.start || hc >= Self::HTS_RANGE.end {
-            let fhc: FTs = hc as FTs - if hc < 0 {
-                Self::HTS_RANGE.end
-            }
-            else {
-                Self::HTS_RANGE.start
-            } as FTs;
-            let dvc = (fhc / Self::HTS_COUNT as FTs) as Ts;
-            if let Some(vc1) = vc.checked_add(dvc) {
-                vc = vc1;
-                hc = fhc.rem_euclid(Self::HTS_COUNT as FTs) as Ts + Self::HTS_RANGE.start;
-            }
-            else {
-                return if dvc < 0 { Self::vts_min() } else { Self::vts_max() };
-            }
-        }
-        VideoTs { vc, hc }
-    }
-    /// Returns a normalized video timestamp after adding a `delta` T-state count.
-    ///
-    /// # Panics
-    /// Panics when normalized timestamp after addition leads to an overflow of the capacity of [VideoTs].
-    #[inline]
-    fn vts_add_ts(VideoTs { vc, hc }: VideoTs, delta: u32) -> VideoTs {
-        let dvc = (delta / Self::HTS_COUNT as u32).try_into().expect("delta too large");
-        let dhc = (delta % Self::HTS_COUNT as u32) as Ts;
-        let vc = vc.checked_add(dvc).expect("delta too large");
-        Self::normalize_vts(VideoTs::new(vc, hc + dhc))
-    }
-    /// Returns the difference between `vts_to` and `vts_from` video timestamps in T-states.
-    #[inline]
-    fn vts_diff(vts_from: VideoTs, vts_to: VideoTs) -> FTs {
-        (vts_to.vc as FTs - vts_from.vc as FTs) * Self::HTS_COUNT as FTs +
-        (vts_to.hc as FTs - vts_from.hc as FTs)
-    }
-    /// Returns a video timestamp after subtracting the total number of frame video scanlines
-    /// from the scan line counter.
-    #[inline]
-    fn vts_saturating_sub_frame(VideoTs { vc, hc }: VideoTs) -> VideoTs {
-        let vc = vc.saturating_sub(Self::VSL_COUNT);
-        VideoTs { vc, hc }
-    }
-    /// Returns a normalized video timestamp after subtracting an `other_vts` from it.
-    ///
-    /// Saturates at [VideoFrame::vts_min] or [VideoFrame::vts_max].
-    fn vts_saturating_sub_vts_normalized(VideoTs { vc, hc }: VideoTs, other_vts: VideoTs) -> VideoTs {
-        let vc = vc.saturating_sub(other_vts.vc);
-        let hc = hc - other_vts.hc;
-        Self::saturating_normalize_vts(VideoTs { vc, hc })
-    }
-    /// Returns a normalized video timestamp after adding an `other_vts` to it.
-    ///
-    /// Saturates at [VideoFrame::vts_min] or [VideoFrame::vts_max].
-    fn vts_saturating_add_vts_normalized(VideoTs { vc, hc }: VideoTs, other_vts: VideoTs) -> VideoTs {
-        let vc = vc.saturating_add(other_vts.vc);
-        let hc = hc + other_vts.hc;
-        Self::saturating_normalize_vts(VideoTs { vc, hc })
     }
 }
 

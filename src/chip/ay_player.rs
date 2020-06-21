@@ -17,7 +17,7 @@ use crate::clock::{FTs, FTsData2};
 use crate::memory::{ZxMemory, Memory64k};
 use crate::bus::{BusDevice, NullDevice};
 use crate::chip::{
-    ControlUnit, ZxSpectrum128Config, HostConfig,
+    FrameState, ControlUnit, ZxSpectrum128Config, HostConfig,
     nanos_from_frame_tc_cpu_hz
 };
 
@@ -96,23 +96,13 @@ impl<P, A, L> EarMicOutAudioFrame<A> for AyPlayer<P>
     }
 }
 
-impl<P: AyPortDecode> ControlUnit for AyPlayer<P> {
-    type BusDevice = NullDevice<FTs>;
-
-    fn bus_device_mut(&mut self) -> &mut Self::BusDevice {
-        &mut self.bus
-    }
-
-    fn bus_device_ref(&self) -> &Self::BusDevice {
-        &self.bus
-    }
-
-    fn into_bus_device(self) -> Self::BusDevice {
-        self.bus
-    }
-
+impl<P: AyPortDecode> FrameState for AyPlayer<P> {
     fn current_frame(&self) -> u64 {
         self.frames.0
+    }
+
+    fn set_frame_counter(&mut self, fc: u64) {
+        self.frames = Wrapping(fc);
     }
 
     fn frame_tstate(&self) -> (u64, FTs) {
@@ -134,8 +124,28 @@ impl<P: AyPortDecode> ControlUnit for AyPlayer<P> {
         self.tsc.as_timestamp()
     }
 
+    fn set_frame_tstate(&mut self, ts: FTs) {
+        *self.tsc = Wrapping(ts);
+    }
+
     fn is_frame_over(&self) -> bool {
         self.tsc.as_timestamp() >= self.frame_tstates
+    }
+}
+
+impl<P: AyPortDecode> ControlUnit for AyPlayer<P> {
+    type BusDevice = NullDevice<FTs>;
+
+    fn bus_device_mut(&mut self) -> &mut Self::BusDevice {
+        &mut self.bus
+    }
+
+    fn bus_device_ref(&self) -> &Self::BusDevice {
+        &self.bus
+    }
+
+    fn into_bus_device(self) -> Self::BusDevice {
+        self.bus
     }
 
     fn reset<C: Cpu>(&mut self, cpu: &mut C, hard: bool) {

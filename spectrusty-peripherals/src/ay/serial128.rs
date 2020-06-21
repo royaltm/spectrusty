@@ -3,7 +3,6 @@ use core::fmt::Debug;
 #[cfg(feature = "snapshot")]
 use serde::{Serialize, Deserialize};
 
-use spectrusty_core::clock::VideoTs;
 use crate::serial::{SerialPortDevice, DataState, ControlState};
 
 use super::AyIoPort;
@@ -133,10 +132,11 @@ impl Serial128Io {
 }
 
 impl<S1, S2> AyIoPort for SerialPorts128<S1, S2>
-    where S1: Debug + SerialPortDevice<Timestamp=VideoTs>,
-          S2: Debug + SerialPortDevice<Timestamp=VideoTs>
+    where S1: Debug + SerialPortDevice,
+          S2: Debug + SerialPortDevice<Timestamp=S1::Timestamp>,
+          S1::Timestamp: Copy
 {
-    type Timestamp = VideoTs;
+    type Timestamp = S1::Timestamp;
 
     #[inline]
     fn ay_io_reset(&mut self, _timestamp: Self::Timestamp) {}

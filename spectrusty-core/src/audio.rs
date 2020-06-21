@@ -4,7 +4,7 @@ mod sample;
 use core::ops::{Deref, DerefMut};
 use core::marker::PhantomData;
 
-use crate::clock::VideoTs;
+use crate::clock::{VFrameTs, VideoTs};
 use crate::video::VideoFrame;
 pub use sample::{
     AudioSample,
@@ -342,7 +342,7 @@ impl<B> Blep for BlepStereo<B>
 /// digital levels, sorted by time encoded in [VideoTs] time stamps.
 pub fn render_audio_frame_vts<VF,VL,L,A,T>(
             prev_state: u8,
-            end_ts: Option<VideoTs>,
+            end_ts: Option<VFrameTs<VF>>,
             changes: &[T],
             blep: &mut A, channel: usize
         )
@@ -355,14 +355,15 @@ pub fn render_audio_frame_vts<VF,VL,L,A,T>(
     let mut last_vol = VL::amp_level(prev_state.into());
     for &tsd in changes.iter() {
         let (ts, state) = tsd.into();
+        let vts: VFrameTs<_> = ts.into();
         if let Some(end_ts) = end_ts {
-            if ts >= end_ts { // TODO >= or >
+            if vts >= end_ts { // TODO >= or >
                 break
             }
         }
         let next_vol = VL::amp_level(state.into());
         if let Some(delta) = last_vol.sample_delta(next_vol) {
-            let timestamp = VF::vts_to_tstates(ts);
+            let timestamp = vts.into_tstates();
             blep.add_step(channel, timestamp, delta);
             last_vol = next_vol;
         }

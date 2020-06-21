@@ -13,7 +13,7 @@ use serde::{Serialize, Deserialize};
 pub mod audio;
 pub mod serial128;
 
-use spectrusty_core::{clock::{FTs, VideoTs}, video::VideoFrame};
+use spectrusty_core::{clock::{FTs, VFrameTs}, video::VideoFrame};
 
 /// An enumeration of AY-3-8910 registers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -386,8 +386,8 @@ impl AyRegChange {
         AyRegChange { time, reg, val }
     }
     /// Creates a new `AyRegChange` from the given arguments, converting a provided `timestamp` first.
-    pub fn new_from_vts<V: VideoFrame>(timestamp: VideoTs, reg: AyRegister, val: u8) -> Self {
-        let time = V::vts_to_tstates(timestamp);
+    pub fn new_from_vts<V: VideoFrame>(timestamp: VFrameTs<V>, reg: AyRegister, val: u8) -> Self {
+        let time = timestamp.into_tstates();
         Self::new(time, reg, val)
     }
 }
@@ -423,9 +423,9 @@ impl AyRegVecRecorder<FTs> {
     }
 }
 
-impl AyRegVecRecorder<VideoTs> {
+impl<V: VideoFrame> AyRegVecRecorder<VFrameTs<V>> {
     /// Constructs a draining iterator of [AyRegChange] items from an inner [Vec].
-    pub fn drain_ay_reg_changes<'a, V: VideoFrame>(&'a mut self) -> impl Iterator<Item=AyRegChange> + 'a {
+    pub fn drain_ay_reg_changes<'a>(&'a mut self) -> impl Iterator<Item=AyRegChange> + 'a {
         self.0.drain(..).map(|(timestamp,reg,val)| AyRegChange::new_from_vts::<V>(timestamp,reg,val))
     }
 }

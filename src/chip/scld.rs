@@ -22,22 +22,22 @@ In case of Tx2068 the 24k ROM should be loaded to rom banks: `[ROM_BANKS_MAX - 1
 */
 use crate::z80emu::{*, host::Result};
 use crate::clock::{
-    FTs, VideoTs,
+    VFrameTs, VideoTs,
     VideoTsData2, VideoTsData6,
     VFrameTsCounter, MemoryContention
 };
-use crate::bus::{BusDevice, NullDevice};
+use crate::bus::{BusDevice};
 use crate::chip::{
     ScldControl, ScldCtrlFlags,
-    UlaWrapper, EarIn, ReadEarMode, ControlUnit, MemoryAccess,
+    InnerAccess, EarIn, ReadEarMode, ControlUnit, MemoryAccess,
     ula::{
-        Ula, UlaVideoFrame,
+        Ula,
         UlaControlExt, UlaCpuExt,
         frame_cache::UlaFrameCache
     }
 };
 use crate::memory::{
-    PagedMemory8k, MemoryExtension, NoMemoryExtension,
+    PagedMemory8k, MemoryExtension
 };
 use crate::video::{Video, VideoFrame, BorderColor, RenderMode};
 
@@ -61,10 +61,7 @@ use frame_cache::SourceMode;
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]
 #[derive(Clone)]
-pub struct Scld<M: PagedMemory8k,
-                B=NullDevice<VideoTs>,
-                X=NoMemoryExtension,
-                V=UlaVideoFrame>
+pub struct Scld<M: PagedMemory8k, B, X, V>
 {
     #[cfg_attr(feature = "snapshot", serde(bound(
         deserialize = "Ula<M, B, X, V>: Deserialize<'de>"
@@ -104,7 +101,8 @@ impl<M, B, X, V> Default for Scld<M, B, X, V>
 impl<M, B, X, V> core::fmt::Debug for Scld<M, B, X, V>
     where M: PagedMemory8k,
           B: BusDevice,
-          X: MemoryExtension
+          X: MemoryExtension,
+          V: VideoFrame
 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("Scld")
@@ -119,7 +117,7 @@ impl<M, B, X, V> core::fmt::Debug for Scld<M, B, X, V>
     }
 }
 
-impl<M, B, X, V> UlaWrapper for Scld<M, B, X, V>
+impl<M, B, X, V> InnerAccess for Scld<M, B, X, V>
     where M: PagedMemory8k
 {
     type Inner = Ula<M, B, X, V>;
@@ -137,13 +135,24 @@ impl<M, B, X, V> UlaWrapper for Scld<M, B, X, V>
     }
 }
 
-impl<M: PagedMemory8k, B, X, V> ScldControl for Scld<M, B, X, V> {
+impl<M, B, X, V> ScldControl for Scld<M, B, X, V>
+    where M: PagedMemory8k,
+          V: VideoFrame
+{
     fn scld_ctrl_port_value(&self) -> ScldCtrlFlags {
         self.cur_ctrl_flags
     }
 
+    fn set_scld_ctrl_port_value(&mut self, value: ScldCtrlFlags) {
+        self.set_ctrl_flags_value(value, self.current_video_ts())
+    }
+
     fn scld_mmu_port_value(&self) -> u8 {
         self.mem_paged
+    }
+
+    fn set_scld_mmu_port_value(&mut self, value: u8) {
+        self.set_mmu_flags_value(value)
     }
 }
 
@@ -177,7 +186,7 @@ impl<M, B, X, V> Scld<M, B, X, V>
         RenderMode::with_color(flags, color)
     }
 
-    fn change_ctrl_flag(&mut self, flags: ScldCtrlFlags, ts: VideoTs) {
+    fn set_ctrl_flags_value(&mut self, flags: ScldCtrlFlags, ts: VideoTs) {
         let diff_flags = self.cur_ctrl_flags ^ flags;
         // mmu
         if self.mem_paged != 0 && diff_flags.is_map_ex_rom() {
@@ -217,7 +226,7 @@ impl<M, B, X, V> Scld<M, B, X, V>
         self.cur_ctrl_flags = flags;
     }
 
-    fn change_mem_paged(&mut self, paged: u8) {
+    fn set_mmu_flags_value(&mut self, paged: u8) {
         let diff_pages = self.mem_paged ^ paged;
         if diff_pages == 0 {
             return;
@@ -273,10 +282,9 @@ impl<M, B, X, V> MemoryAccess for Scld<M, B, X, V>
 
 impl<M, B, X, V> ControlUnit for Scld<M, B, X, V>
     where M: PagedMemory8k,
-          B: BusDevice<Timestamp=VideoTs>,
+          B: BusDevice<Timestamp=VFrameTs<V>>,
           X: MemoryExtension,
-          V: VideoFrame,
-          Ula<M, B, X, V>: ControlUnit<BusDevice=B>
+          V: VideoFrame
 {
     type BusDevice = B;
 
@@ -293,27 +301,11 @@ impl<M, B, X, V> ControlUnit for Scld<M, B, X, V>
         self.ula.into_bus_device()
     }
 
-    fn current_frame(&self) -> u64 {
-        self.ula.current_frame()
-    }
-
-    fn frame_tstate(&self) -> (u64, FTs) {
-        self.ula.frame_tstate()
-    }
-
-    fn current_tstate(&self) -> FTs {
-        self.ula.current_tstate()
-    }
-
-    fn is_frame_over(&self) -> bool {
-        self.ula.is_frame_over()
-    }
-
     fn reset<C: Cpu>(&mut self, cpu: &mut C, hard: bool) {
         self.ula.reset(cpu, hard);
         if hard {
             self.mem_paged = 0;
-            self.change_ctrl_flag(ScldCtrlFlags::empty(), self.current_video_ts());
+            self.set_ctrl_flags_value(ScldCtrlFlags::empty(), self.current_video_ts());
         }
     }
 
@@ -341,7 +333,7 @@ impl<M, B, X, V> ControlUnit for Scld<M, B, X, V>
 
 impl<M, B, X, V> UlaControlExt for Scld<M, B, X, V>
     where M: PagedMemory8k,
-          B: BusDevice<Timestamp=VideoTs>,
+          B: BusDevice<Timestamp=VFrameTs<V>>,
           V: VideoFrame
 {
     fn prepare_next_frame<C: MemoryContention>(
