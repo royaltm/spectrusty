@@ -1,12 +1,11 @@
 //! *ZX Net* coders for the ZX Interface 1.
 use core::mem;
-use core::marker::PhantomData;
 use std::time::{Instant};
 
 #[allow(unused_imports)]
 use log::{error, warn, info, debug, trace};
 
-use spectrusty_core::{clock::VFrameTs, video::VideoFrame};
+use spectrusty_core::clock::FrameTimestamp;
 pub use super::zxnet_udp::*;
 
 const CPU_HZ: f32 = 3_500_000.0;
@@ -43,14 +42,13 @@ pub trait ZxNetSocket {
 ///
 /// An implementation of [ZxNetSocket] should be provided as its `S` type parameter.
 #[derive(Debug)]
-pub struct ZxNet<V, S> {
+pub struct ZxNet<T, S> {
     /// A direct access to the underlying [ZxNetSocket] implementation.
     pub socket: S,
-    event_ts: VFrameTs<V>,
+    event_ts: T,
     dir_io: NetDir,
     io: NetState,
-    net_state: bool,
-    _video_frame: PhantomData<V>
+    net_state: bool
 }
 
 /// A helper struct for reading ZX-NET header information.
@@ -124,8 +122,8 @@ enum NetState {
 // https://scratchpad.fandom.com/wiki/ZX_Net
 // scout: 1 x x x x x x x 0 
 //(2.5ms) 1 [ 0 x x x x x x x x 1 * bytes ] 0
-impl<V: VideoFrame, S: ZxNetSocket> ZxNet<V, S> {
-    pub fn send_state(&mut self, net: bool, timestamp: VFrameTs<V>) {
+impl<T: FrameTimestamp, S: ZxNetSocket> ZxNet<T, S> {
+    pub fn send_state(&mut self, net: bool, timestamp: T) {
         match self.io {
             NetState::Idle(..) => {
                 // println!("set scout: {} {} {}", net, V::vts_diff(self.event_ts, timestamp), V::vts_to_tstates(timestamp));
@@ -250,7 +248,7 @@ impl<V: VideoFrame, S: ZxNetSocket> ZxNet<V, S> {
         }
     }
 
-    pub fn poll_state(&mut self, timestamp: VFrameTs<V>) -> bool {
+    pub fn poll_state(&mut self, timestamp: T) -> bool {
         match self.io {
             NetState::Idle(cnt) => {
                 if timestamp >= self.event_ts {
@@ -343,7 +341,7 @@ impl<V: VideoFrame, S: ZxNetSocket> ZxNet<V, S> {
         self.net_state // set by whatever Spectrum writes
     }
 
-    pub fn wait_data(&mut self, timestamp: VFrameTs<V>) {
+    pub fn wait_data(&mut self, timestamp: T) {
         // println!("wait: {}", V::vts_to_tstates(timestamp));
         if let Some(byte) = match (self.io, self.dir_io) { // Spectrum wants a byte
                 (NetState::InputStart, NetDir::Outbound) => Some(1),
@@ -368,11 +366,11 @@ impl<V: VideoFrame, S: ZxNetSocket> ZxNet<V, S> {
         }
     }
 
-    pub fn next_frame(&mut self, _timestamp: VFrameTs<V>) {
+    pub fn next_frame(&mut self, _timestamp: T) {
         self.event_ts = self.event_ts.saturating_sub_frame();
     }
 
-    fn setup_event_time(&mut self, timestamp: VFrameTs<V>, start: Instant) {
+    fn setup_event_time(&mut self, timestamp: T, start: Instant) {
         let elapsed = start.elapsed().as_secs_f32();
         let elapsed_ts = (elapsed * CPU_HZ).round() as u32;
         // println!("waited: {} {}", elapsed_ts, elapsed);
@@ -380,13 +378,13 @@ impl<V: VideoFrame, S: ZxNetSocket> ZxNet<V, S> {
     }
 }
 
-impl<V, S: Default> Default for ZxNet<V, S> {
+impl<T: Default, S: Default> Default for ZxNet<T, S> {
     fn default() -> Self {
         let socket = S::default();
-        let event_ts = VFrameTs::default();
+        let event_ts = T::default();
         let net_state = false;
         let dir_io = NetDir::Inbound;
         let io = NetState::Idle(0);
-        ZxNet { socket, event_ts, net_state, dir_io, io, _video_frame: PhantomData }
+        ZxNet { socket, event_ts, net_state, dir_io, io }
     }
 }

@@ -140,7 +140,7 @@ impl<B, X> Ula3<B, X> {
 
 #[cfg(test)]
 mod tests {
-    use crate::clock::VFrameTs;
+    use crate::clock::{FrameTimestamp, VFrameTs};
     use super::*;
     type TestVideoFrame = Ula3VidFrame;
     type TestVFTs = VFrameTs<Ula3VidFrame>;
@@ -194,8 +194,8 @@ mod tests {
             assert_eq!(vts.is_normalized(), is_norm);
             assert_eq!(vts.normalized(), nvts);
         }
-        assert_eq!(TestVFTs::max(), TestVFTs::new(i16::max_value(), 154));
-        assert_eq!(TestVFTs::min(), TestVFTs::new(i16::min_value(), -73));
+        assert_eq!(TestVFTs::max_value(), TestVFTs::new(i16::max_value(), 154));
+        assert_eq!(TestVFTs::min_value(), TestVFTs::new(i16::min_value(), -73));
 
         let items = [((  0,   0),     0, (  0,   0)),
                      ((  0,   0),     1, (  0,   1)),

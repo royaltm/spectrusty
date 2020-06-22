@@ -30,7 +30,7 @@ use crate::video::{BorderColor, VideoFrame};
 use crate::memory::{ZxMemory, MemoryExtension, NoMemoryExtension};
 use crate::peripherals::ZXKeyboardMap;
 use crate::clock::{
-    FTs, VFrameTs, VFrameTsCounter, MemoryContention,
+    FrameTimestamp, FTs, VFrameTs, VFrameTsCounter, MemoryContention,
     VideoTsData1, VideoTsData2, VideoTsData3
 };
 use frame_cache::UlaFrameCache;

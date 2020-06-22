@@ -10,7 +10,8 @@ use crate::z80emu::{
 use crate::bus::BusDevice;
 use crate::chip::{MemoryAccess, ControlUnit};
 use crate::clock::{
-    HALT_VC_THRESHOLD, VideoTs, VFrameTs, Ts, VFrameTsCounter, MemoryContention
+    HALT_VC_THRESHOLD,
+    FrameTimestamp, VideoTs, VFrameTs, Ts, VFrameTsCounter, MemoryContention
 };
 use crate::memory::MemoryExtension;
 use crate::video::{Video, VideoFrame};

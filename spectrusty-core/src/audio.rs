@@ -4,7 +4,7 @@ mod sample;
 use core::ops::{Deref, DerefMut};
 use core::marker::PhantomData;
 
-use crate::clock::{VFrameTs, VideoTs};
+use crate::clock::{FrameTimestamp, VFrameTs, VideoTs};
 use crate::video::VideoFrame;
 pub use sample::{
     AudioSample,

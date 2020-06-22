@@ -1,4 +1,4 @@
-use crate::clock::{Ts, VFrameTs, VideoTs};
+use crate::clock::{FrameTimestamp, Ts, VFrameTs, VideoTs};
 use crate::video::{
     VideoFrame,
     frame_cache::VideoFrameDataIterator
@@ -51,7 +51,7 @@ impl<'a, V, I> Ula128FrameProducer<'a, V, I>
     {
         let swap_at = screen_changes.next()
                       .map(|ts| vc_to_line::<V>(ts, 0))
-                      .unwrap_or_else(VFrameTs::<V>::max);
+                      .unwrap_or_else(VFrameTs::max_value);
         let mut ula_frame_prod = UlaFrameProducer::new(screen0, frame_cache0);
         let mut shadow_frame = UlaFrameRef::new(screen1, frame_cache1);
         if swap_screens {
@@ -83,7 +83,7 @@ impl<'a, V, I> Iterator for Ula128FrameProducer<'a, V, I>
                 self.swap_frames();
                 self.swap_at = self.screen_changes.next()
                             .map(|ts| vc_to_line::<V>(ts, self.ula_frame_prod.line() as Ts))
-                            .unwrap_or_else(VFrameTs::<V>::max)
+                            .unwrap_or_else(VFrameTs::max_value)
             }
             else {
                 break;

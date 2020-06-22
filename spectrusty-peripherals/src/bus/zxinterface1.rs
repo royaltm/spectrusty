@@ -52,9 +52,8 @@ use std::io;
 use serde::{Serialize, Deserialize};
 
 use spectrusty_core::{
-    clock::VFrameTs,
-    bus::{BusDevice, VFNullDevice},
-    video::VideoFrame
+    clock::FrameTimestamp,
+    bus::BusDevice
 };
 
 use super::ay::PassByAyAudioBusDevice;
@@ -65,7 +64,7 @@ pub use crate::{
     network::zxnet::*
 };
 
-impl<V, R, W, D> fmt::Display for ZxInterface1BusDevice<V, R, W, D> {
+impl<R, W, N, D: BusDevice> fmt::Display for ZxInterface1BusDevice<R, W, N, D> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("ZX Interface I")
     }
@@ -77,18 +76,30 @@ impl<V, R, W, D> fmt::Display for ZxInterface1BusDevice<V, R, W, D> {
 /// [ZxNetSocket] implmentation is needed as `N` for the underlying [ZxNet].
 #[derive(Default, Debug)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "snapshot", serde(bound(deserialize = "
+    R: Deserialize<'de> + Default,
+    W: Deserialize<'de> + Default,
+    N: Deserialize<'de> + Default,
+    D: Deserialize<'de> + Default,
+    D::Timestamp: Deserialize<'de> + Default",
+serialize = "
+    R: Serialize,
+    W: Serialize,
+    N: Serialize,
+    D: Serialize,
+    D::Timestamp: Serialize")))]
 #[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]
-pub struct ZxInterface1BusDevice<V, R, W, N, D=VFNullDevice<V>>
+pub struct ZxInterface1BusDevice<R, W, N, D: BusDevice>
 {
     /// A direct access to the **Microdrives**.
     #[cfg_attr(feature = "snapshot", serde(default))]
-    pub microdrives: ZXMicrodrives<V>,
+    pub microdrives: ZXMicrodrives<D::Timestamp>,
     /// A direct access to the **RS-232** implementation.
     #[cfg_attr(feature = "snapshot", serde(default))]
-    pub serial: Rs232Io<V, R, W>,
+    pub serial: Rs232Io<D::Timestamp, R, W>,
     /// A direct access to the **ZX NET** implementation.
     #[cfg_attr(feature = "snapshot", serde(skip))]
-    pub network: ZxNet<V, N>,
+    pub network: ZxNet<D::Timestamp, N>,
     sernet: If1SerNetIo,
     ctrl_in: If1ControlIn,
     ctrl_out: If1ControlOut,
@@ -220,17 +231,16 @@ const IF1_SERN_BITS: u16 = 0b0000_0000_0001_0000;
 const IF1_CTRL_BITS: u16 = 0b0000_0000_0000_1000;
 const IF1_DATA_BITS: u16 = 0b0000_0000_0000_0000;
 
+impl<R, W, N, D: BusDevice> PassByAyAudioBusDevice for ZxInterface1BusDevice<R, W, N, D> {}
 
-impl<V, R, W, N, D> PassByAyAudioBusDevice for ZxInterface1BusDevice<V, R, W, N, D> {}
-
-impl<V, R, W, N, D> BusDevice for ZxInterface1BusDevice<V, R, W, N, D>
-    where V: VideoFrame,
-          R: io::Read + fmt::Debug,
+impl<R, W, N, D> BusDevice for ZxInterface1BusDevice<R, W, N, D>
+    where R: io::Read + fmt::Debug,
           W: io::Write + fmt::Debug,
           N: ZxNetSocket + fmt::Debug,
-          D: BusDevice<Timestamp=VFrameTs<V>>
+          D: BusDevice,
+          D::Timestamp: FrameTimestamp
 {
-    type Timestamp = VFrameTs<V>;
+    type Timestamp = D::Timestamp;
     type NextDevice = D;
 
     #[inline]

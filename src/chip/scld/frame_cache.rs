@@ -3,7 +3,7 @@ use core::convert::TryFrom;
 
 use bitflags::bitflags;
 
-use crate::clock::{Ts, VFrameTs, VideoTsData2};
+use crate::clock::{FrameTimestamp, Ts, VFrameTs, VideoTsData2};
 use crate::chip::{
     ScldCtrlFlags, UlaPlusRegFlags,
     ula::{
@@ -184,7 +184,7 @@ impl<'a, V, I> ScldFrameProducer<'a, V, I>
         let (next_change_at, next_source) = source_changes.next()
                     .map(|tsm| vtm_next::<V>(tsm, line as Ts))
                     .unwrap_or_else(||
-                        ( VFrameTs::max(), source )
+                        ( VFrameTs::max_value(), source )
                     );
         let mut prod = ScldFrameProducer {
             frame_ref: ScldFrameRef::new(screen0, frame_cache0, screen1, frame_cache1),
@@ -283,7 +283,7 @@ impl<'a, V, I> Iterator for ScldFrameProducer<'a, V, I>
                     self.next_source = next_source;
                 }
                 else {
-                    self.next_change_at = VFrameTs::max();
+                    self.next_change_at = VFrameTs::max_value();
                     break;
                 }
             }

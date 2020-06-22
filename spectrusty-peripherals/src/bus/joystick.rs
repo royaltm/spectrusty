@@ -10,7 +10,7 @@ use core::ops::{Deref, DerefMut};
 use serde::{Serialize, Deserialize};
 
 use spectrusty_core::{
-    bus::{BusDevice, VFNullDevice, PortAddress}
+    bus::{BusDevice, PortAddress}
 };
 
 use super::ay::PassByAyAudioBusDevice;
@@ -182,9 +182,6 @@ impl<P, J, D> BusDevice for JoystickBusDevice<P, J, D>
         self.bus.write_io(port, data, timestamp)
     }
 }
-
-/// A terminated [MultiJoystickBusDevice] with [VFrameTs] timestamps.
-pub type MultiJoystickVBusDevice<V> = MultiJoystickBusDevice<VFNullDevice<V>>;
 
 /// A selectable joystick controller, providing a [BusDevice] implementation.
 ///

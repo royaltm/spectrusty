@@ -10,11 +10,10 @@ pub mod serial128;
 use spectrusty_core::{
     audio::{Blep, AmpLevels},
     bus::{
-        BusDevice, VFNullDevice,
+        BusDevice, NullDevice,
         OptionalBusDevice, DynamicBus, DynamicSerdeBus, NamedBusDevice
     },
-    clock::{VFrameTs, FTs},
-    video::VideoFrame
+    clock::FTs
 };
 
 pub use crate::ay::{
@@ -23,7 +22,7 @@ pub use crate::ay::{
     AyPortDecode, Ay128kPortDecode, AyFullerBoxPortDecode
 };
 
-/// Implement this empty trait for [BusDevice] so methods from [AyAudioVBusDevice]
+/// Implement this empty trait for [BusDevice] so methods from [AyAudioBusDevice]
 /// will get auto implemented to pass method call to next devices.
 pub trait PassByAyAudioBusDevice {}
 
@@ -58,9 +57,18 @@ impl<D: BusDevice> fmt::Display for Ay3_891xFullerBox<D> {
 ///
 /// [AyAudioFrame]: crate::ay::audio::AyAudioFrame
 /// [ControlUnit]: spectrusty_core::chip::ControlUnit
-pub trait AyAudioVBusDevice<V: VideoFrame> {
-    fn render_ay_audio_vts<L: AmpLevels<B::SampleDelta>,
-                           B: Blep>(&mut self, blep: &mut B, end_ts: VFrameTs<V>, chans: [usize; 3]);
+pub trait AyAudioBusDevice: BusDevice {
+    /// Renders square-wave pulses via [Blep] interface.
+    ///
+    /// Provide [AmpLevels] that can handle `level` values from 0 to 15 (4-bits).
+    /// `channels` - target [Blep] audio channels for `[A, B, C]` AY-3-8910 channels.
+    fn render_ay_audio<L: AmpLevels<B::SampleDelta>, B: Blep>(
+            &mut self,
+            blep: &mut B,
+            end_ts: <Self as BusDevice>::Timestamp,
+            frame_tstates: FTs,
+            chans: [usize; 3]
+        );
 }
 
 /// `AY-3-8910/8912/8913` programmable sound generator as a [BusDevice].
@@ -81,113 +89,117 @@ pub struct Ay3_891xBusDevice<P, A, B, D: BusDevice> {
         _port_decode: PhantomData<P>
 }
 
-impl<V, D, N> AyAudioVBusDevice<V> for D
-    where V: VideoFrame,
-          D: BusDevice<Timestamp=VFrameTs<V>, NextDevice=N> + PassByAyAudioBusDevice,
-          N: BusDevice<Timestamp=VFrameTs<V>> + AyAudioVBusDevice<V>
+impl<D, N> AyAudioBusDevice for D
+    where D::Timestamp: Into<FTs>,
+          D: BusDevice<NextDevice=N> + PassByAyAudioBusDevice,
+          N: BusDevice<Timestamp=D::Timestamp> + AyAudioBusDevice
 {
-    #[inline(always)]
-    fn render_ay_audio_vts<S, E>(&mut self, blep: &mut E, end_ts: VFrameTs<V>, chans: [usize; 3])
-        where S: AmpLevels<E::SampleDelta>,
-              E: Blep
+    fn render_ay_audio<L, B>(&mut self, blep: &mut B, end_ts: D::Timestamp, frame_tstates: FTs, chans: [usize; 3])
+        where B: Blep,
+              L: AmpLevels<B::SampleDelta>
     {
-        self.next_device_mut().render_ay_audio_vts::<S, E>(blep, end_ts, chans)
+        self.next_device_mut().render_ay_audio::<L, B>(blep, end_ts, frame_tstates, chans)
     }
 }
 
-impl<V, D, N> AyAudioVBusDevice<V> for OptionalBusDevice<D, N>
-    where V: VideoFrame,
-          D: AyAudioVBusDevice<V>,
-          N: AyAudioVBusDevice<V>
+impl<D, N> AyAudioBusDevice for OptionalBusDevice<D, N>
+    where <D as BusDevice>::Timestamp: Into<FTs> + Copy,
+          D: AyAudioBusDevice + BusDevice,
+          N: AyAudioBusDevice + BusDevice<Timestamp=D::Timestamp>
 {
     /// # Note
     /// If a device is being attached to an optional device the call will be forwarded to
     /// both: an optional device and to the next bus device.
     #[inline(always)]
-    fn render_ay_audio_vts<S, E>(&mut self, blep: &mut E, end_ts: VFrameTs<V>, chans: [usize; 3])
-        where S: AmpLevels<E::SampleDelta>,              
-              E: Blep
+    fn render_ay_audio<L, B>(&mut self, blep: &mut B, end_ts: D::Timestamp, frame_tstates: FTs, chans: [usize; 3])
+        where B: Blep,
+              L: AmpLevels<B::SampleDelta>
     {
         if let Some(ref mut device) = self.device {
-            device.render_ay_audio_vts::<S, E>(blep, end_ts, chans)
+            device.render_ay_audio::<L, B>(blep, end_ts, frame_tstates, chans)
         }
-        self.next_device.render_ay_audio_vts::<S, E>(blep, end_ts, chans)
+        self.next_device.render_ay_audio::<L, B>(blep, end_ts, frame_tstates, chans)
     }
 }
 
-impl<V: 'static + VideoFrame> AyAudioVBusDevice<V> for dyn NamedBusDevice<VFrameTs<V>> {
+impl<T> AyAudioBusDevice for dyn NamedBusDevice<T>
+    where T: Into<FTs> + Copy + fmt::Debug + 'static
+{
     /// # Note
     /// Because we need to guess the concrete type of the dynamic `BusDevice` we can currently handle
     /// only the most common cases: [Ay3_891xMelodik] and [Ay3_891xFullerBox]. If you use a customized
     /// [Ay3_891xBusDevice] for a dynamic `BusDevice` you need to render audio directly on the device
     /// downcasted to your custom type.
     #[inline]
-    fn render_ay_audio_vts<S, E>(&mut self, blep: &mut E, end_ts: VFrameTs<V>, chans: [usize; 3])
-        where S: AmpLevels<E::SampleDelta>,
-              E: Blep
+    fn render_ay_audio<L, B>(&mut self, blep: &mut B, end_ts: T, frame_tstates: FTs, chans: [usize; 3])
+        where L: AmpLevels<B::SampleDelta>,
+              B: Blep
     {
-        if let Some(ay_dev) = self.downcast_mut::<Ay3_891xMelodik<VFNullDevice<V>>>() {
-            ay_dev.render_ay_audio_vts::<S, V, E>(blep, end_ts, chans)
+        if let Some(ay_dev) = self.downcast_mut::<Ay3_891xMelodik<NullDevice<T>>>() {
+            ay_dev.render_ay_audio::<L, B>(blep, end_ts, frame_tstates, chans)
         }
-        else if let Some(ay_dev) = self.downcast_mut::<Ay3_891xFullerBox<VFNullDevice<V>>>() {
-            ay_dev.render_ay_audio_vts::<S, V, E>(blep, end_ts, chans)
+        else if let Some(ay_dev) = self.downcast_mut::<Ay3_891xFullerBox<NullDevice<T>>>() {
+            ay_dev.render_ay_audio::<L, B>(blep, end_ts, frame_tstates, chans)
         }
     }
 }
 
-impl<V: 'static, D> AyAudioVBusDevice<V> for DynamicBus<D>
-    where V: VideoFrame,
-          D: AyAudioVBusDevice<V> + BusDevice<Timestamp=VFrameTs<V>>
+impl<D> AyAudioBusDevice for DynamicBus<D>
+    where <D as BusDevice>::Timestamp: Into<FTs> + Copy + fmt::Debug + 'static,
+          D: AyAudioBusDevice + BusDevice
 {
     /// # Note
     /// This implementation forwards a call to any recognizable [Ay3_891xBusDevice] device in a
     /// dynamic daisy-chain as well as to an upstream device.
     #[inline]
-    fn render_ay_audio_vts<S, E>(&mut self, blep: &mut E, end_ts: VFrameTs<V>, chans: [usize; 3])
-        where S: AmpLevels<E::SampleDelta>,
-              E: Blep
+    fn render_ay_audio<L, B>(&mut self, blep: &mut B, end_ts: D::Timestamp, frame_tstates: FTs, chans: [usize; 3])
+        where B: Blep,
+              L: AmpLevels<B::SampleDelta>
     {
         for dev in self.into_iter() {
-            dev.render_ay_audio_vts::<S, E>(blep, end_ts, chans)
+            dev.render_ay_audio::<L, B>(blep, end_ts, frame_tstates, chans)
         }
-        self.next_device_mut().render_ay_audio_vts::<S, E>(blep, end_ts, chans)
+        self.next_device_mut().render_ay_audio::<L, B>(blep, end_ts, frame_tstates, chans)
     }
 }
 
-impl<V: 'static, SD, D> AyAudioVBusDevice<V> for DynamicSerdeBus<SD, D>
-    where V: VideoFrame,
-          D: AyAudioVBusDevice<V> + BusDevice<Timestamp=VFrameTs<V>>
+impl<SD, D> AyAudioBusDevice for DynamicSerdeBus<SD, D>
+    where <D as BusDevice>::Timestamp: Into<FTs> + Copy + fmt::Debug + 'static,
+          D: AyAudioBusDevice + BusDevice
 {
     /// # Note
     /// This implementation forwards a call to any recognizable [Ay3_891xBusDevice] device in a
     /// dynamic daisy-chain as well as to an upstream device.
     #[inline]
-    fn render_ay_audio_vts<S, E>(&mut self, blep: &mut E, end_ts: VFrameTs<V>, chans: [usize; 3])
-        where S: AmpLevels<E::SampleDelta>,
-              E: Blep
+    fn render_ay_audio<L, B>(&mut self, blep: &mut B, end_ts: D::Timestamp, frame_tstates: FTs, chans: [usize; 3])
+        where B: Blep,
+              L: AmpLevels<B::SampleDelta>
     {
-        (&mut **self).render_ay_audio_vts::<S, E>(blep, end_ts, chans)
+        (&mut **self).render_ay_audio::<L, B>(blep, end_ts, frame_tstates, chans)
     }
 }
 
-impl<V, P, A, B, D> AyAudioVBusDevice<V> for Ay3_891xBusDevice<P, A, B, D>
-    where V: VideoFrame,
-          D: BusDevice<Timestamp=VFrameTs<V>>
+impl<P, A, B, D> AyAudioBusDevice for Ay3_891xBusDevice<P, A, B, D>
+    where <Self as BusDevice>::Timestamp: Into<FTs>,
+          Self: BusDevice<Timestamp=D::Timestamp>,
+          D: BusDevice
 {
     #[inline(always)]
-    fn render_ay_audio_vts<S, E>(&mut self, blep: &mut E, end_ts: VFrameTs<V>, chans: [usize; 3])
-        where S: AmpLevels<E::SampleDelta>,
-              E: Blep
+    fn render_ay_audio<L, E>(&mut self, blep: &mut E, end_ts: <Self as BusDevice>::Timestamp, frame_tstates: FTs, chans: [usize; 3])
+        where E: Blep,
+              L: AmpLevels<E::SampleDelta>
     {
-        self.render_ay_audio_vts::<S, V, E>(blep, end_ts, chans);
+        let end_ts = end_ts.into();
+        let changes = self.ay_io.recorder.drain_ay_reg_changes();
+        self.ay_sound.render_audio::<L,_,_>(changes, blep, end_ts, frame_tstates, chans)
     }
 }
 
-impl<V: VideoFrame> AyAudioVBusDevice<V> for VFNullDevice<V> {
+impl<T: Into<FTs> + fmt::Debug> AyAudioBusDevice for NullDevice<T> {
     #[inline(always)]
-    fn render_ay_audio_vts<S, E>(&mut self, _blep: &mut E, _end_ts: VFrameTs<V>, _chans: [usize; 3])
-        where S: AmpLevels<E::SampleDelta>,
-              E: Blep
+    fn render_ay_audio<L, B>(&mut self, _blep: &mut B, _end_ts: T, _frame_tstates: FTs, _chans: [usize; 3])
+        where L: AmpLevels<B::SampleDelta>,
+              B: Blep
     {}
 }
 
@@ -254,50 +266,4 @@ impl<P, A, B, D> BusDevice for Ay3_891xBusDevice<P, A, B, D>
         self.ay_io.next_frame(timestamp);
         self.bus.next_frame(timestamp)
     }
-}
-
-impl<P, A, B, D: BusDevice> Ay3_891xBusDevice<P, A, B, D> {
-    /// Renders square-wave pulses via [Blep] interface.
-    ///
-    /// Provide [AmpLevels] that can handle `level` values from 0 to 15 (4-bits).
-    /// `channels` - target [Blep] audio channels for `[A, B, C]` AY-3-8910 channels.
-    pub fn render_ay_audio_vts<S, V, E>(
-            &mut self,
-            blep: &mut E,
-            end_ts: VFrameTs<V>,
-            chans: [usize; 3]
-        )
-        where D: BusDevice<Timestamp=VFrameTs<V>>,
-              S: AmpLevels<E::SampleDelta>,
-              V: VideoFrame,
-              E: Blep
-    {
-        let end_ts = end_ts.into_tstates();
-        let changes = self.ay_io.recorder.drain_ay_reg_changes();
-        self.ay_sound.render_audio::<S,_,_>(changes, blep, end_ts, V::FRAME_TSTATES_COUNT, chans)
-    }
-
-}
-
-impl<P, A, B, D> Ay3_891xBusDevice<P, A, B, D>
-    where D: BusDevice<Timestamp=FTs>
-{
-    /// Renders square-wave pulses via [Blep] interface.
-    ///
-    /// Provide [AmpLevels] that can handle `level` values from 0 to 15 (4-bits).
-    /// `channels` - target [Blep] audio channels for `[A, B, C]` AY-3-8910 channels.
-    pub fn render_ay_audio<S, E>(
-            &mut self,
-            blep: &mut E,
-            end_ts: FTs,
-            frame_tstates: FTs,
-            chans: [usize; 3]
-        )
-        where S: AmpLevels<E::SampleDelta>,
-              E: Blep
-    {
-        let changes = self.ay_io.recorder.drain_ay_reg_changes();
-        self.ay_sound.render_audio::<S,_,_>(changes, blep, end_ts, frame_tstates, chans)
-    }
-
 }

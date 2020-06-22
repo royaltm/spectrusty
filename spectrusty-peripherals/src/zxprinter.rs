@@ -16,13 +16,12 @@
 //!
 //! Also see: [Printers](https://www.worldofspectrum.org/faq/reference/peripherals.htm#Printers).
 use core::fmt::Debug;
-use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
 
 #[cfg(feature = "snapshot")]
 use serde::{Serialize, Deserialize};
 
-use spectrusty_core::{clock::*, video::VideoFrame};
+use spectrusty_core::clock::*;
 
 /// A number of printed dots in each line.
 pub const DOTS_PER_LINE: u32 = 256;
@@ -76,14 +75,13 @@ pub struct DebugSpooler;
 /// * bit 1 - a value of 1 slows the printer motor, a value of 0 sets a normal motor speed.
 ///
 /// An implementation of a [Spooler] trait is required as generic `S` to complete this type.
-/// Also an implementaion of a [VideoFrame] is required as `V` for timestamp calculations.
 ///
 /// There's also a dedicated [bus device][crate::bus::zxprinter::ZxPrinterBusDevice]
 /// implementation to be used solely with the `ZxPrinterDevice`.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "snapshot", serde(rename_all="camelCase"))]
-pub struct ZxPrinterDevice<V, S> {
+pub struct ZxPrinterDevice<T, S> {
     /// An instance of the [Spooler] trait implementation type.
     #[cfg_attr(feature = "snapshot", serde(skip))]
     pub spooler: S,
@@ -92,10 +90,8 @@ pub struct ZxPrinterDevice<V, S> {
     motor: bool,
     ready: bool,
     cursor: u8,
-    ready_ts: VFrameTs<V>,
-    line: [u8;32],
-    #[cfg_attr(feature = "snapshot", serde(skip))]
-    _video_frame: PhantomData<V>
+    ready_ts: T,
+    line: [u8;32]
 }
 
 const STATUS_OFF: u8       = 0b0011_1110;
@@ -110,7 +106,7 @@ const SLOW_MASK: u8   = 0b0000_0010;
 // the approximate speed of Alphacom 32
 const BIT_DELAY: u16 = 855;
 
-impl<V, S: Default> Default for ZxPrinterDevice<V, S> {
+impl<T: Default, S: Default> Default for ZxPrinterDevice<T, S> {
     fn default() -> Self {
         ZxPrinterDevice {
             spooler: S::default(),
@@ -118,28 +114,27 @@ impl<V, S: Default> Default for ZxPrinterDevice<V, S> {
             motor: false,
             ready: false,
             cursor: 0,
-            ready_ts: VFrameTs::default(),
-            line: [0u8;32],
-            _video_frame: PhantomData
+            ready_ts: T::default(),
+            line: [0u8;32]
         }
     }
 }
 
-impl<V, S> Deref for ZxPrinterDevice<V, S> {
+impl<T, S> Deref for ZxPrinterDevice<T, S> {
     type Target = S;
     fn deref(&self) -> &Self::Target {
         &self.spooler
     }
 }
 
-impl<V, S> DerefMut for ZxPrinterDevice<V, S> {
+impl<T, S> DerefMut for ZxPrinterDevice<T, S> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.spooler
     }
 }
 
 // 2 lines / sec
-impl<V: VideoFrame, S: Spooler> ZxPrinterDevice<V, S> {
+impl<T: FrameTimestamp, S: Spooler> ZxPrinterDevice<T, S> {
     /// This method should be called after each emulated frame.
     pub fn next_frame(&mut self) {
         self.ready_ts = self.ready_ts.saturating_sub_frame();
@@ -154,7 +149,7 @@ impl<V: VideoFrame, S: Spooler> ZxPrinterDevice<V, S> {
         self.cursor = 0;
     }
     /// This method should be called when a `CPU` writes to the **ZX Printer** port.
-    pub fn write_control(&mut self, data: u8, timestamp: VFrameTs<V>) {
+    pub fn write_control(&mut self, data: u8, timestamp: T) {
         if data & MOTOR_MASK == 0 { // start 
             self.start(data, timestamp);
         }
@@ -163,7 +158,7 @@ impl<V: VideoFrame, S: Spooler> ZxPrinterDevice<V, S> {
         }
     }
     /// This method should be called when a `CPU` reads from the **ZX Printer** port.
-    pub fn read_status(&mut self, timestamp: VFrameTs<V>) -> u8 {
+    pub fn read_status(&mut self, timestamp: T) -> u8 {
         if self.motor {
             if self.ready || self.update_ready(timestamp) {
                 if self.cursor == 0 {
@@ -182,7 +177,7 @@ impl<V: VideoFrame, S: Spooler> ZxPrinterDevice<V, S> {
         }
     }
 
-    fn update_ready(&mut self, timestamp: VFrameTs<V>) -> bool {
+    fn update_ready(&mut self, timestamp: T) -> bool {
         if timestamp > self.ready_ts {
             self.ready = true;
             return true;
@@ -212,7 +207,7 @@ impl<V: VideoFrame, S: Spooler> ZxPrinterDevice<V, S> {
     }
 
     #[inline]
-    fn set_delay(&mut self, timestamp: VFrameTs<V>, data: u8) {
+    fn set_delay(&mut self, timestamp: T, data: u8) {
         let mut delay: u32 = self.bit_delay.into();
         if data & SLOW_MASK == SLOW_MASK {
             delay *= 2;
@@ -220,7 +215,7 @@ impl<V: VideoFrame, S: Spooler> ZxPrinterDevice<V, S> {
         self.ready_ts = timestamp + delay;
     }
 
-    fn start(&mut self, data: u8, timestamp: VFrameTs<V>) {
+    fn start(&mut self, data: u8, timestamp: T) {
         if self.motor {
             if self.ready {
                 self.write_bit(data & STYLUS_MASK == STYLUS_MASK);

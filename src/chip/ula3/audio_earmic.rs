@@ -3,28 +3,29 @@ use crate::audio::*;
 #[cfg(feature = "peripherals")]
 use crate::peripherals::ay::audio::AyAudioFrame;
 #[cfg(feature = "peripherals")]
-use crate::peripherals::bus::ay::AyAudioVBusDevice;
-
+use crate::peripherals::bus::ay::AyAudioBusDevice;
+use crate::clock::VFrameTs;
+use crate::bus::BusDevice;
 use crate::chip::{EarIn, MicOut, ReadEarMode};
 use super::{Ula3, InnerUla, Ula3VidFrame};
 
 #[cfg(feature = "peripherals")]
-impl<A, B, X> AyAudioFrame<A> for Ula3<B, X>
-    where A: Blep,
-          B: AyAudioVBusDevice<Ula3VidFrame>
+impl<B, D, X> AyAudioFrame<B> for Ula3<D, X>
+    where B: Blep,
+          D: AyAudioBusDevice + BusDevice<Timestamp=VFrameTs<Ula3VidFrame>>
 {
     #[inline]
-    fn render_ay_audio_frame<V: AmpLevels<A::SampleDelta>>(&mut self, blep: &mut A, chans: [usize; 3]) {
-        self.ula.render_ay_audio_frame::<V>(blep, chans)
+    fn render_ay_audio_frame<L: AmpLevels<B::SampleDelta>>(&mut self, blep: &mut B, chans: [usize; 3]) {
+        self.ula.render_ay_audio_frame::<L>(blep, chans)
     }
 }
 
-impl<A, B, X> AudioFrame<A> for Ula3<B, X>
-    where A: Blep,
-          InnerUla<B, X>: AudioFrame<A>
+impl<B, D, X> AudioFrame<B> for Ula3<D, X>
+    where B: Blep,
+          InnerUla<D, X>: AudioFrame<B>
 {
     #[inline]
-    fn ensure_audio_frame_time(&self, blep: &mut A, sample_rate: u32, cpu_hz: f64) {
+    fn ensure_audio_frame_time(&self, blep: &mut B, sample_rate: u32, cpu_hz: f64) {
         self.ula.ensure_audio_frame_time(blep, sample_rate, cpu_hz)
     }
 
@@ -34,25 +35,25 @@ impl<A, B, X> AudioFrame<A> for Ula3<B, X>
     }
 }
 
-impl<A, B, X> EarMicOutAudioFrame<A> for Ula3<B, X>
-    where A: Blep
+impl<B, D, X> EarMicOutAudioFrame<B> for Ula3<D, X>
+    where B: Blep
 {
     #[inline(always)]
-    fn render_earmic_out_audio_frame<V: AmpLevels<A::SampleDelta>>(&self, blep: &mut A, channel: usize) {
-        self.ula.render_earmic_out_audio_frame::<V>(blep, channel)
+    fn render_earmic_out_audio_frame<L: AmpLevels<B::SampleDelta>>(&self, blep: &mut B, channel: usize) {
+        self.ula.render_earmic_out_audio_frame::<L>(blep, channel)
     }
 }
 
-impl<A, B, X> EarInAudioFrame<A> for Ula3<B, X>
-    where A: Blep
+impl<B, D, X> EarInAudioFrame<B> for Ula3<D, X>
+    where B: Blep
 {
     #[inline(always)]
-    fn render_ear_in_audio_frame<V: AmpLevels<A::SampleDelta>>(&self, blep: &mut A, channel: usize) {
-        self.ula.render_ear_in_audio_frame::<V>(blep, channel)
+    fn render_ear_in_audio_frame<L: AmpLevels<B::SampleDelta>>(&self, blep: &mut B, channel: usize) {
+        self.ula.render_ear_in_audio_frame::<L>(blep, channel)
     }
 }
 
-impl<B, X> EarIn for Ula3<B, X> {
+impl<D, X> EarIn for Ula3<D, X> {
     fn set_ear_in(&mut self, ear_in: bool, delta_fts: u32) {
         self.ula.set_ear_in(ear_in, delta_fts)
     }
@@ -80,8 +81,8 @@ impl<B, X> EarIn for Ula3<B, X> {
     }
 }
 
-impl<'a, B: 'a, X: 'a> MicOut<'a> for Ula3<B, X> {
-    type PulseIter = <InnerUla<B, X> as MicOut<'a>>::PulseIter;
+impl<'a, D: 'a, X: 'a> MicOut<'a> for Ula3<D, X> {
+    type PulseIter = <InnerUla<D, X> as MicOut<'a>>::PulseIter;
     fn mic_out_pulse_iter(&'a self) -> Self::PulseIter {
         self.ula.mic_out_pulse_iter()
     }

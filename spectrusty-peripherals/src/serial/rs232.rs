@@ -1,4 +1,3 @@
-use core::marker::PhantomData;
 use core::slice;
 use std::io::{Read, Write, ErrorKind};
 
@@ -7,7 +6,7 @@ use serde::{Serialize, Deserialize};
 #[allow(unused_imports)]
 use log::{error, warn, info, debug, trace};
 
-use spectrusty_core::{clock::VFrameTs, video::VideoFrame};
+use spectrusty_core::clock::FrameTimestamp;
 use super::{SerialPortDevice, DataState, ControlState};
 
 const CPU_HZ: u32 = 3_500_000;
@@ -29,7 +28,7 @@ const CPU_HZ: u32 = 3_500_000;
 /// Both `reader` and `writer` need to be implemented by the user and its types should be provided as
 /// generics `R` and `W` accordingly.
 ///
-/// An implementaion of [VideoFrame] is required to be provided as `V` for timestamp calculations.
+/// An implementaion of [FrameTimestamp] is required to be provided as `T` for timestamp calculations.
 ///
 /// The baud rate is not needed to be set up, as it is being auto-detected.
 ///
@@ -41,7 +40,7 @@ const CPU_HZ: u32 = 3_500_000;
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]
-pub struct Rs232Io<V, R, W> {
+pub struct Rs232Io<T, R, W> {
     /// A reader providing data received by Spectrum.
     #[cfg_attr(feature = "snapshot", serde(default))]
     pub reader: R,
@@ -51,12 +50,10 @@ pub struct Rs232Io<V, R, W> {
     // bit_interval: u32, // CPU_HZ / BAUDS
     read_io: ReadStatus,
     read_max_delay: u32,
-    read_event_ts: VFrameTs<V>,
+    read_event_ts: T,
     write_io: WriteStatus,
     write_max_delay: u32,
-    write_event_ts: VFrameTs<V>,
-    #[cfg_attr(feature = "snapshot", serde(skip))]
-    _video_frame: PhantomData<V>
+    write_event_ts: T
 }
 
 /// Spectrum's *BAUD RATES*.
@@ -70,7 +67,7 @@ const MAX_STOP_BIT_DELAY: u32 = CPU_HZ / 49;
 const STOP_BIT_GRACE_DELAY: u32 = 50;
 const ERROR_GRACE_DELAY: u32 = MAX_STOP_BIT_DELAY * 11;
 
-impl<V, R: Default, W: Default> Default for Rs232Io<V, R, W> {
+impl<T: Default, R: Default, W: Default> Default for Rs232Io<T, R, W> {
     fn default() -> Self {
         let reader = R::default();
         let writer = W::default();
@@ -87,13 +84,13 @@ impl<V, R: Default, W: Default> Default for Rs232Io<V, R, W> {
             read_event_ts,
             write_io,
             write_max_delay,
-            write_event_ts,
-            _video_frame: PhantomData }
+            write_event_ts
+        }
     }
 }
 
-impl<V: VideoFrame, R: Read, W: Write> SerialPortDevice for Rs232Io<V, R, W> {
-    type Timestamp = VFrameTs<V>;
+impl<T: FrameTimestamp, R: Read, W: Write> SerialPortDevice for Rs232Io<T, R, W> {
+    type Timestamp = T;
     #[inline]
     fn write_data(&mut self, rxd: DataState, timestamp: Self::Timestamp) -> ControlState {
         self.process_write(rxd, timestamp)
@@ -136,7 +133,7 @@ enum ReadStatus {
     SendingData(u8),
 }
 
-impl<V: VideoFrame, R: Read, W: Write> Rs232Io<V, R, W> {
+impl<T: FrameTimestamp, R: Read, W: Write> Rs232Io<T, R, W> {
     /// Returns the detected *BAUD RATE* of the current or the last transmission.
     ///
     /// If there was no transmission since the start of the emulator, returns the default.
@@ -193,7 +190,7 @@ impl<V: VideoFrame, R: Read, W: Write> Rs232Io<V, R, W> {
         }
     }
 
-    fn process_update_cts(&mut self, cts: ControlState, _timestamp: VFrameTs<V>) {
+    fn process_update_cts(&mut self, cts: ControlState, _timestamp: T) {
         if cts.is_inactive() {
             // debug!("CTS inactive {:?}", timestamp);
             self.read_io = ReadStatus::NotReady;
@@ -205,7 +202,7 @@ impl<V: VideoFrame, R: Read, W: Write> Rs232Io<V, R, W> {
         }
     }
 
-    fn process_read(&mut self, timestamp: VFrameTs<V>) -> DataState { // -> txd
+    fn process_read(&mut self, timestamp: T) -> DataState { // -> txd
         match self.read_io {
             ReadStatus::NotReady => DataState::Mark,
             ReadStatus::StartBit(byte) => {
@@ -249,13 +246,13 @@ impl<V: VideoFrame, R: Read, W: Write> Rs232Io<V, R, W> {
     }
 
     #[inline]
-    fn write_failed(&mut self, timestamp: VFrameTs<V>) -> ControlState {
+    fn write_failed(&mut self, timestamp: T) -> ControlState {
         self.write_io = WriteStatus::Idle(ControlState::Inactive);
         self.write_event_ts = timestamp + ERROR_GRACE_DELAY;
         ControlState::Inactive
     }
 
-    fn process_poll(&mut self, timestamp: VFrameTs<V>) -> ControlState {
+    fn process_poll(&mut self, timestamp: T) -> ControlState {
         match self.write_io {
             WriteStatus::Idle(dtr) => {
                 if timestamp >= self.write_event_ts {
@@ -278,7 +275,7 @@ impl<V: VideoFrame, R: Read, W: Write> Rs232Io<V, R, W> {
         }
     }
 
-    fn process_write(&mut self, rxd: DataState, timestamp: VFrameTs<V>) -> ControlState { // -> dtr
+    fn process_write(&mut self, rxd: DataState, timestamp: T) -> ControlState { // -> dtr
         // println!("rxd: {:?} {:?}", rxd, V::vts_diff(self.read_event_ts, timestamp));
         self.read_event_ts = timestamp;
         match self.write_io {

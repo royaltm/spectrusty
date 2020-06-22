@@ -1,6 +1,5 @@
 //! ZX Microdrives for the ZX Interface 1.
 use core::ops::{Index, IndexMut};
-use core::marker::PhantomData;
 use core::num::{NonZeroU8, NonZeroU16};
 use core::fmt;
 use core::iter::{Enumerate, FilterMap, Zip, IntoIterator};
@@ -12,7 +11,7 @@ use std::vec;
 use ::serde::{Serialize, Deserialize};
 use bitvec::prelude::*;
 
-use spectrusty_core::{clock::{FTs, VFrameTs}, video::VideoFrame};
+use spectrusty_core::clock::{FTs, FrameTimestamp};
 
 /// The maximum additional T-states the Interface 1 will halt Z80 during IN/OUT with DATA port.
 ///
@@ -117,15 +116,13 @@ pub struct MicroCartridge {
 #[derive(Clone, Default, Debug)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]
-pub struct ZXMicrodrives<V> {
+pub struct ZXMicrodrives<T> {
     drives: [Option<MicroCartridge>;MAX_DRIVES],
     write: bool,
     erase: bool,
     comms_clk: bool,
     motor_on_drive: Option<NonZeroU8>,
-    last_ts: VFrameTs<V>,
-    #[cfg_attr(feature = "snapshot", serde(skip))]
-    _video_frame: PhantomData<V>
+    last_ts: T
 }
 
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
@@ -614,7 +611,7 @@ impl MicroCartridge {
     }
 }
 
-impl<V> ZXMicrodrives<V> {
+impl<T> ZXMicrodrives<T> {
     /// Inserts a `cartridge` into the `drive_index` optionally returning a cartridge
     /// that was previously in the same drive.
     ///
@@ -695,15 +692,15 @@ impl<V> ZXMicrodrives<V> {
     }
 }
 
-impl<V: VideoFrame> ZXMicrodrives<V> {
-    fn vts_diff_update(&mut self, timestamp: VFrameTs<V>) -> u32 {
+impl<T: FrameTimestamp> ZXMicrodrives<T> {
+    fn vts_diff_update(&mut self, timestamp: T) -> u32 {
         let delta_ts = timestamp.diff_from(self.last_ts);
         self.last_ts = timestamp;
         debug_assert!(delta_ts >= 0);
         delta_ts as u32
     }
 
-    pub(crate) fn reset(&mut self, timestamp: VFrameTs<V>) {
+    pub(crate) fn reset(&mut self, timestamp: T) {
         let delta_ts = self.vts_diff_update(timestamp);
         self.stop_motor(delta_ts);
         self.write = false;
@@ -712,7 +709,7 @@ impl<V: VideoFrame> ZXMicrodrives<V> {
     }
 
     /// This method should be called after each emulated frame.
-    pub(crate) fn next_frame(&mut self, timestamp: VFrameTs<V>) {
+    pub(crate) fn next_frame(&mut self, timestamp: T) {
         let delta_ts = self.vts_diff_update(timestamp);
         let (erase, write) = (self.erase, self.write);
         if let Some(cartridge) = self.current_drive() {
@@ -726,7 +723,7 @@ impl<V: VideoFrame> ZXMicrodrives<V> {
         self.last_ts = self.last_ts.saturating_sub_frame();
     }
 
-    pub(crate) fn read_state(&mut self, timestamp: VFrameTs<V>) -> CartridgeState {
+    pub(crate) fn read_state(&mut self, timestamp: T) -> CartridgeState {
         let delta_ts = self.vts_diff_update(timestamp);
         let erase = self.erase;
         if let Some(cartridge) = self.current_drive() {
@@ -745,7 +742,7 @@ impl<V: VideoFrame> ZXMicrodrives<V> {
     // NOTE: comms_out is just a data
     pub(crate) fn write_control(
             &mut self,
-            timestamp: VFrameTs<V>,
+            timestamp: T,
             erase: bool,
             write: bool,
             comms_clk: bool,
@@ -796,7 +793,7 @@ impl<V: VideoFrame> ZXMicrodrives<V> {
         self.write = write;
     }
 
-    pub(crate) fn write_data(&mut self, data: u8, timestamp: VFrameTs<V>) -> u16 {
+    pub(crate) fn write_data(&mut self, data: u8, timestamp: T) -> u16 {
         let delta_ts = self.vts_diff_update(timestamp);
         if self.write && self.erase { // what happens when write is on and erase off?
             if let Some(cartridge) = self.current_drive() {
@@ -806,7 +803,7 @@ impl<V: VideoFrame> ZXMicrodrives<V> {
         0
     }
 
-    pub(crate) fn read_data(&mut self, timestamp: VFrameTs<V>) -> (u8, Option<NonZeroU16>) {
+    pub(crate) fn read_data(&mut self, timestamp: T) -> (u8, Option<NonZeroU16>) {
         let delta_ts = self.vts_diff_update(timestamp);
         if self.erase {
             if let Some(cartridge) = self.current_drive() {
@@ -838,14 +835,15 @@ impl<V: VideoFrame> ZXMicrodrives<V> {
 
 #[cfg(test)]
 mod tests {
-    use spectrusty::clock::VFrameTsCounter;
+    use spectrusty::clock::{VFrameTs, FrameTimestamp, VFrameTsCounter};
     use spectrusty::chip::ula::{UlaVideoFrame, UlaMemoryContention};
     use super::*;
     type UlaTsCounter = VFrameTsCounter<UlaVideoFrame, UlaMemoryContention>;
+    type TestMicrodrives = ZXMicrodrives<VFrameTs<UlaVideoFrame>>;
 
     #[test]
     fn microdrives_works() {
-        let mut drive: ZXMicrodrives<UlaVideoFrame> = Default::default();
+        let mut drive: TestMicrodrives = Default::default();
         assert_eq!(drive.write, false);
         assert_eq!(drive.erase, false);
         assert_eq!(drive.comms_clk, false);
@@ -974,7 +972,7 @@ mod tests {
             assert_eq!(*valid, false);
         }
 
-        fn find_gap_sync(mut utsc: UlaTsCounter, drive: &mut ZXMicrodrives<UlaVideoFrame>) -> UlaTsCounter {
+        fn find_gap_sync(mut utsc: UlaTsCounter, drive: &mut TestMicrodrives) -> UlaTsCounter {
             let mut counter = 0;
             while !drive.read_state(utsc.into()).gap {
                 counter += 1;

@@ -13,7 +13,8 @@ use super::ay::PassByAyAudioBusDevice;
 
 pub use crate::parallel::*;
 
-pub type Plus3CentronicsWriterBusDevice<V, D, W> = Plus3CentronicsBusDevice<ParallelPortWriter<V, W>, D>;
+pub type Plus3CentronicsWriterBusDevice<D, W> = Plus3CentronicsBusDevice<ParallelPortWriter<
+                                                                            <D as BusDevice>::Timestamp, W>, D>;
 
 impl<P, D> fmt::Display for Plus3CentronicsBusDevice<P, D> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

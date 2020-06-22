@@ -1,12 +1,10 @@
-use core::marker::PhantomData;
-
 #[cfg(feature = "snapshot")]
 use serde::{Serialize, Deserialize};
 
 use rand::{Rng, SeedableRng};
 use rand::rngs::SmallRng;
 
-use spectrusty_core::{clock::{FTs, VFrameTs}, video::VideoFrame};
+use spectrusty_core::{clock::{FTs, FrameTimestamp}};
 use super::{SerialPortDevice, DataState, ControlState};
 
 bitflags! {
@@ -118,17 +116,15 @@ use intervals::*;
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]
-pub struct SerialKeypad<V> {
+pub struct SerialKeypad<T> {
     keys: KeypadKeys,
     keys_changed: u32,
     next_row: u8,
     output_bits: u8,
     keypad_io: KeypadIoStatus,
-    keypad_event_ts: VFrameTs<V>,
+    keypad_event_ts: T,
     #[cfg_attr(feature = "snapshot", serde(skip, default = "SmallRng::from_entropy"))]
     rng: SmallRng,
-    #[cfg_attr(feature = "snapshot", serde(skip))]
-    _video_frame: PhantomData<V>
 }
 
 // status = 0 and a stop bit
@@ -155,24 +151,24 @@ enum KeypadIoStatus {
     Stopped,
 }
 
-impl<V: VideoFrame> Default for SerialKeypad<V> {
+impl<T: Default + FrameTimestamp> Default for SerialKeypad<T> {
     fn default() -> Self {
         let keys = KeypadKeys::default();
         let keys_changed = 0;
         let next_row = 0;
         let output_bits = 0;
         let rng = SmallRng::from_entropy();
-        let keypad_event_ts = VFrameTs::default() + RESET_MAX_INTERVAL;
+        let keypad_event_ts = T::default() + RESET_MAX_INTERVAL;
         let keypad_io = KeypadIoStatus::Reset;
         SerialKeypad {
             keys, keys_changed, next_row, output_bits,
             keypad_event_ts, rng, keypad_io,
-            _video_frame: PhantomData }
+        }
     }
 }
 
-impl<V: VideoFrame> SerialPortDevice for SerialKeypad<V> {
-    type Timestamp = VFrameTs<V>;
+impl<T: FrameTimestamp> SerialPortDevice for SerialKeypad<T> {
+    type Timestamp = T;
     #[inline(always)]
     fn write_data(&mut self, _rxd: DataState, _timestamp: Self::Timestamp) -> ControlState {
         ControlState::Inactive
@@ -201,7 +197,7 @@ impl<V: VideoFrame> SerialPortDevice for SerialKeypad<V> {
     }
 }
 
-impl<V: VideoFrame> SerialKeypad<V> {
+impl<T: FrameTimestamp> SerialKeypad<T> {
     /// Reads the current state of the keypad.
     #[inline]
     pub fn get_key_state(&self) -> KeypadKeys {
@@ -215,7 +211,7 @@ impl<V: VideoFrame> SerialKeypad<V> {
     }
 
     #[inline]
-    fn gen_range_ts(&mut self, ts: VFrameTs<V>, lo: u32, hi: u32) -> VFrameTs<V> {
+    fn gen_range_ts(&mut self, ts: T, lo: u32, hi: u32) -> T {
         let delta = self.rng.gen_range(lo, hi);
         ts + delta
     }
@@ -255,13 +251,13 @@ impl<V: VideoFrame> SerialKeypad<V> {
         }
     }
 
-    fn reset_status(&mut self, timestamp: VFrameTs<V>) {
+    fn reset_status(&mut self, timestamp: T) {
         self.keypad_io = KeypadIoStatus::Reset;
         self.keypad_event_ts = self.gen_range_ts(timestamp, RESET_MIN_INTERVAL, RESET_MAX_INTERVAL);
         // println!("reset status {}", V::vts_to_tstates(self.keypad_event_ts) - V::vts_to_tstates(timestamp));
     }
 
-    fn read_state(&mut self, timestamp: VFrameTs<V>) -> DataState {
+    fn read_state(&mut self, timestamp: T) -> DataState {
         match self.keypad_io {
             KeypadIoStatus::Reset|
             KeypadIoStatus::Waiting => {
@@ -291,7 +287,7 @@ impl<V: VideoFrame> SerialKeypad<V> {
         }
     }
 
-    fn update_state(&mut self, cts: ControlState, timestamp: VFrameTs<V>) {
+    fn update_state(&mut self, cts: ControlState, timestamp: T) {
         match self.keypad_io {
             KeypadIoStatus::Reset => {
                 if timestamp >= self.keypad_event_ts {

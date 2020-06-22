@@ -3,20 +3,21 @@ use crate::audio::*;
 #[cfg(feature = "peripherals")]
 use crate::peripherals::ay::audio::AyAudioFrame;
 #[cfg(feature = "peripherals")]
-use crate::peripherals::bus::ay::AyAudioVBusDevice;
-
+use crate::peripherals::bus::ay::AyAudioBusDevice;
+use crate::clock::{VFrameTs, FrameTimestamp};
+use crate::bus::BusDevice;
 use crate::video::VideoFrame;
 use super::Ula;
 
 #[cfg(feature = "peripherals")]
-impl<A, M, D, X, V> AyAudioFrame<A> for Ula<M, D, X, V>
-    where A: Blep,
-          D: AyAudioVBusDevice<V>,
+impl<B, M, D, X, V> AyAudioFrame<B> for Ula<M, D, X, V>
+    where B: Blep,
+          D: AyAudioBusDevice + BusDevice<Timestamp=VFrameTs<V>>,
           V: VideoFrame
 {
     #[inline]
-    fn render_ay_audio_frame<L: AmpLevels<A::SampleDelta>>(&mut self, blep: &mut A, chans: [usize; 3]) {
-        self.bus.render_ay_audio_vts::<L, A>(blep, self.tsc, chans)
+    fn render_ay_audio_frame<L: AmpLevels<B::SampleDelta>>(&mut self, blep: &mut B, chans: [usize; 3]) {
+        self.bus.render_ay_audio::<L, B>(blep, self.tsc, V::FRAME_TSTATES_COUNT, chans)
     }
 }
 

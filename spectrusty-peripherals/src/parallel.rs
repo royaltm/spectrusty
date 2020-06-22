@@ -2,8 +2,7 @@
 //!
 use std::io;
 
-use spectrusty_core::clock::{FTs, VFrameTs};
-use spectrusty_core::video::VideoFrame;
+use spectrusty_core::clock::{FrameTimestamp, FTs};
 
 #[cfg(feature = "snapshot")]
 use serde::{Serialize, Deserialize};
@@ -36,11 +35,11 @@ pub trait ParallelPortDevice {
 #[derive(Default, Clone, Debug)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]
-pub struct ParallelPortWriter<V, W> {
+pub struct ParallelPortWriter<T, W> {
     pub writer: W,
     busy: bool,
     data: u8,
-    last_ts: VFrameTs<V>,
+    last_ts: T,
 }
 
 /// A parallel port device that does nothing and provides a constant low `BUSY` signal.
@@ -64,8 +63,8 @@ impl<V, W: io::Write> ParallelPortWriter<V, W> {
     }
 }
 
-impl<V: VideoFrame, W: io::Write> ParallelPortDevice for ParallelPortWriter<V, W> {
-    type Timestamp = VFrameTs<V>;
+impl<T: FrameTimestamp, W: io::Write> ParallelPortDevice for ParallelPortWriter<T, W> {
+    type Timestamp = T;
 
     fn write_data(&mut self, data: u8, timestamp: Self::Timestamp) {
         self.data = data;
@@ -76,7 +75,7 @@ impl<V: VideoFrame, W: io::Write> ParallelPortDevice for ParallelPortWriter<V, W
         if strobe {}
         else if timestamp.diff_from(self.last_ts) <  STROBE_TSTATES_MAX {
             self.busy = !self.write_byte_to_writer();
-            self.last_ts = VFrameTs::min();
+            self.last_ts = T::min_value();
         }
         else {
             // println!("centronics timeout: {} >= {}", V::vts_diff(self.last_ts, timestamp), STROBE_TSTATES_MAX);

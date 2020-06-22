@@ -3,20 +3,22 @@ use crate::audio::*;
 #[cfg(feature = "peripherals")]
 use crate::peripherals::ay::audio::AyAudioFrame;
 #[cfg(feature = "peripherals")]
-use crate::peripherals::bus::ay::AyAudioVBusDevice;
-use crate::video::VideoFrame;
+use crate::peripherals::bus::ay::AyAudioBusDevice;
+use crate::bus::BusDevice;
+use crate::clock::VFrameTs;
 use crate::memory::PagedMemory8k;
 use crate::chip::{
     EarIn, MicOut, ReadEarMode,
     ula::Ula
 };
+use crate::video::VideoFrame;
 use super::Scld;
 
 #[cfg(feature = "peripherals")]
 impl<A, M, B, X, V> AyAudioFrame<A> for Scld<M, B, X, V>
     where A: Blep,
           M: PagedMemory8k,
-          B: AyAudioVBusDevice<V>,
+          B: AyAudioBusDevice + BusDevice<Timestamp=VFrameTs<V>>,
           V: VideoFrame
 {
     #[inline]
