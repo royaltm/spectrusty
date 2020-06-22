@@ -421,11 +421,51 @@ impl<B, X> UlaControlExt for Ula3<B, X>
 
 #[cfg(test)]
 mod tests {
+    use core::iter;
     use crate::video::{Video, VideoFrame};
     use super::*;
 
     #[test]
     fn test_ula3() {
         assert_eq!(<Ula3 as Video>::VideoFrame::FRAME_TSTATES_COUNT, 70908);
+        let mut ula: Ula3 = Default::default();
+        for bank in 0..8 {
+            let flags = Ula128MemFlags::with_last_ram_page_bank(Ula128MemFlags::empty(), bank);
+            ula.set_ula128_mem_port_value(flags);
+            let clock = ula.current_video_clock();
+            for addr in 0x4000..0x8000 {
+                assert_eq!(clock.is_contended_address(addr), true);
+            }
+            for addr in (0x0000..0x4000).chain(0x8000..0xC000) {
+                assert_eq!(clock.is_contended_address(addr), false);
+            }
+            for addr in 0xC000..=0xFFFF {
+                assert_eq!(clock.is_contended_address(addr), bank >= 4);
+            }
+        }
+        let flags = Ula3CtrlFlags::with_special_paging(Ula3CtrlFlags::empty(), Ula3Paging::Banks0123);
+        ula.set_ula3_ctrl_port_value(flags);
+        let clock = ula.current_video_clock();
+        for addr in 0x0000..=0xFFFF {
+            assert_eq!(clock.is_contended_address(addr), false);
+        }
+        let flags = Ula3CtrlFlags::with_special_paging(Ula3CtrlFlags::empty(), Ula3Paging::Banks4567);
+        ula.set_ula3_ctrl_port_value(flags);
+        let clock = ula.current_video_clock();
+        for addr in 0x0000..=0xFFFF {
+            assert_eq!(clock.is_contended_address(addr), true);
+        }
+        for paging in iter::once(Ula3Paging::Banks4563).chain(
+                      iter::once(Ula3Paging::Banks4763)) {
+            let flags = Ula3CtrlFlags::with_special_paging(Ula3CtrlFlags::empty(), paging);
+            ula.set_ula3_ctrl_port_value(flags);
+            let clock = ula.current_video_clock();
+            for addr in 0x0000..0xC000 {
+                assert_eq!(clock.is_contended_address(addr), true);
+            }
+            for addr in 0xC000..=0xFFFF {
+                assert_eq!(clock.is_contended_address(addr), false);
+            }
+        }
     }
 }

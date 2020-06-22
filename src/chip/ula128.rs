@@ -346,5 +346,20 @@ mod tests {
     #[test]
     fn test_ula128() {
         assert_eq!(<Ula128 as Video>::VideoFrame::FRAME_TSTATES_COUNT, 70908);
+        let mut ula: Ula128 = Default::default();
+        for bank in 0..8 {
+            let flags = Ula128MemFlags::with_last_ram_page_bank(Ula128MemFlags::empty(), bank);
+            ula.set_ula128_mem_port_value(flags);
+            let clock = ula.current_video_clock();
+            for addr in 0x4000..0x8000 {
+                assert_eq!(clock.is_contended_address(addr), true);
+            }
+            for addr in (0x0000..0x4000).chain(0x8000..0xC000) {
+                assert_eq!(clock.is_contended_address(addr), false);
+            }
+            for addr in 0xC000..=0xFFFF {
+                assert_eq!(clock.is_contended_address(addr), bank & 1 == 1);
+            }
+        }
     }
 }

@@ -301,5 +301,13 @@ mod tests {
     #[test]
     fn test_ula() {
         assert_eq!(<TestUla as Video>::VideoFrame::FRAME_TSTATES_COUNT, 69888);
+        let ula = TestUla::default();
+        let clock = ula.current_video_clock();
+        for addr in 0x4000..0x8000 {
+            assert_eq!(clock.is_contended_address(addr), true);
+        }
+        for addr in (0x0000..0x4000).chain(0x8000..=0xFFFF) {
+            assert_eq!(clock.is_contended_address(addr), false);
+        }
     }
 }
