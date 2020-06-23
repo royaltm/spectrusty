@@ -6,8 +6,8 @@ use ::serde::{
     ser::{SerializeStruct, SerializeSeq},
     de::{self, Visitor, SeqAccess, MapAccess}
 };
-use super::*;
 use crate::clock::FrameTimestamp;
+use super::*;
 use super::super::{VFNullDevice, BusDevice};
 
 /// This trait needs to be implemented for [DynamicSerdeBus] to be able to serialize dynamic devices.
@@ -32,7 +32,7 @@ pub trait DeserializeDynDevice<'de> {
     ) -> Result<Box<dyn NamedBusDevice<T>>, D::Error>;
 }
 
-/// A terminated [DynamicSerdeBus] pseudo-device with [VFrameTs] timestamps.
+/// A terminated [DynamicSerdeBus] pseudo-device with [VFrameTs<V>][VFrameTs] timestamps.
 pub type DynamicSerdeVBus<S, V> = DynamicSerdeBus<S, VFNullDevice<V>>;
 
 /// A wrapper for [DynamicBus] that is able to serialize and deserialize together with devices attached to it.
@@ -51,21 +51,25 @@ impl<SDD, B> Serialize for DynamicSerdeBus<SDD, B>
 {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
 
-        struct DevWrap<'a, T, SDD: SerializeDynDevice>(
+        struct DevWrap<'a, T, SDD>(
             &'a Box<dyn NamedBusDevice<T>>, PhantomData<SDD>
         );
 
-        impl<'a, T: FrameTimestamp + Serialize + 'static, SDD: SerializeDynDevice> Serialize for DevWrap<'a, T, SDD> {
+        impl<'a, T, SDD> Serialize for DevWrap<'a, T, SDD>
+            where T: FrameTimestamp + Serialize + 'static,
+                  SDD: SerializeDynDevice
+        {
             fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
                 SDD::serialize_dyn_device(self.0, serializer)
             }
         }
 
-        struct SliceDevWrap<'a, T, SDD: SerializeDynDevice>(
-            &'a [BoxNamedDynDevice<T>], PhantomData<SDD>
-        );
+        struct SliceDevWrap<'a, T, SDD>(&'a [BoxNamedDynDevice<T>], PhantomData<SDD>);
 
-        impl<'a, T: FrameTimestamp + Serialize + 'static, SDD: SerializeDynDevice> Serialize for SliceDevWrap<'a, T, SDD> {
+        impl<'a, T, SDD> Serialize for SliceDevWrap<'a, T, SDD>
+            where T: FrameTimestamp + Serialize + 'static,
+                  SDD: SerializeDynDevice
+        {
             fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
                 let mut seq = serializer.serialize_seq(Some(self.0.len()))?;
                 for device in self.0 {
@@ -83,37 +87,41 @@ impl<SDD, B> Serialize for DynamicSerdeBus<SDD, B>
     }
 }
 
-impl<'de, DDD: 'de, B> Deserialize<'de> for DynamicSerdeBus<DDD, B>
-    where DDD: DeserializeDynDevice<'de>,
+impl<'de, DDD, B> Deserialize<'de> for DynamicSerdeBus<DDD, B>
+    where DDD: DeserializeDynDevice<'de> + 'de,
           B: BusDevice + Deserialize<'de> + Default,
           B::Timestamp: Default + FrameTimestamp + Deserialize<'de> + 'static
 {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
 
-        struct BoxedDevWrap<'de, T, DDD: DeserializeDynDevice<'de>>(
+        struct BoxedDevWrap<'de, T, DDD>(
             BoxNamedDynDevice<T>, PhantomData<&'de DDD>
         );
 
-        impl<'de, T: Default + FrameTimestamp + Deserialize<'de> + 'static, DDD> Deserialize<'de> for BoxedDevWrap<'de, T, DDD>
-            where DDD: DeserializeDynDevice<'de>
+        impl<'de, T, DDD> Deserialize<'de> for BoxedDevWrap<'de, T, DDD>
+            where T: Default + FrameTimestamp + Deserialize<'de> + 'static,
+                  DDD: DeserializeDynDevice<'de>
         {
             fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
                 Ok(BoxedDevWrap(DDD::deserialize_dyn_device(deserializer)?, PhantomData))
             }
         }
 
-        struct DevicesWrap<'de, T, DDD: DeserializeDynDevice<'de>>(
+        struct DevicesWrap<'de, T, DDD>(
             Vec<BoxNamedDynDevice<T>>, PhantomData<&'de DDD>
         );
 
-        impl<'de, T: Default + FrameTimestamp + Deserialize<'de> + 'static, DDD> Deserialize<'de> for DevicesWrap<'de, T, DDD>
-            where DDD: DeserializeDynDevice<'de>
+        impl<'de, T, DDD> Deserialize<'de> for DevicesWrap<'de, T, DDD>
+            where T: Default + FrameTimestamp + Deserialize<'de> + 'static,
+                  DDD: DeserializeDynDevice<'de>
         {
             fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+
                 struct SeqDevVisitor<T, DDD>(PhantomData<T>, PhantomData<DDD>);
 
-                impl<'de, T: Default + FrameTimestamp + Deserialize<'de> + 'static, DDD: 'de> Visitor<'de> for SeqDevVisitor<T, DDD>
-                    where DDD: DeserializeDynDevice<'de>
+                impl<'de, T, DDD> Visitor<'de> for SeqDevVisitor<T, DDD>
+                    where T: Default + FrameTimestamp + Deserialize<'de> + 'static,
+                          DDD: DeserializeDynDevice<'de> + 'de
                 {
                     type Value = DevicesWrap<'de, T, DDD>;
 
@@ -143,8 +151,8 @@ impl<'de, DDD: 'de, B> Deserialize<'de> for DynamicSerdeBus<DDD, B>
 
         struct DynamicBusVisitor<DDD, B>(PhantomData<DDD>, PhantomData<B>);
 
-        impl<'de, DDD: 'de, B> Visitor<'de> for DynamicBusVisitor<DDD, B>
-            where DDD: DeserializeDynDevice<'de>,
+        impl<'de, DDD, B> Visitor<'de> for DynamicBusVisitor<DDD, B>
+            where DDD: DeserializeDynDevice<'de> + 'de,
                   B: BusDevice + Deserialize<'de> + Default,
                   B::Timestamp: Default + FrameTimestamp + Deserialize<'de> + 'static
         {
@@ -157,7 +165,7 @@ impl<'de, DDD: 'de, B> Deserialize<'de> for DynamicSerdeBus<DDD, B>
             fn visit_seq<V: SeqAccess<'de>>(self, mut seq: V) -> Result<Self::Value, V::Error> {
                 let bus = seq.next_element()?.unwrap_or_default();
                 let DevicesWrap::<B::Timestamp, DDD>(devices, ..) = seq.next_element()?
-                                                     .unwrap_or_else(|| DevicesWrap(Vec::new(), PhantomData));
+                                .unwrap_or_else(|| DevicesWrap(Vec::new(), PhantomData));
                 Ok(DynamicSerdeBus(DynamicBus { devices, bus }, PhantomData))
             }
 

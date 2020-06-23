@@ -30,7 +30,7 @@ pub type NamedDynDevice<T> = dyn NamedBusDevice<T>;
 /// This is a type of items stored by [DynamicBus].
 pub type BoxNamedDynDevice<T> = Box<dyn NamedBusDevice<T>>;
 
-/// A terminated [DynamicBus] pseudo-device with [VFrameTs] timestamps.
+/// A terminated [DynamicBus] pseudo-device with [VFrameTs<V>][VFrameTs] timestamps.
 pub type DynamicVBus<V> = DynamicBus<VFNullDevice<V>>;
 
 /// A pseudo bus device that allows for adding and removing devices of different types at run time.
