@@ -21,45 +21,33 @@ use spectrusty::audio::{
 };
 use spectrusty::z80emu::{Z80Any, Cpu};
 use spectrusty::audio::{UlaAudioFrame, host::sdl2::AudioHandle};
-use spectrusty::clock::{FTs, VideoTs};
+
 use spectrusty::chip::{
-    ThreadSyncTimer, UlaCommon, ReadEarMode, HostConfig, MemoryAccess,
-    ula::Ula,
-    scld::Scld,
+    ThreadSyncTimer, UlaCommon, HostConfig, MemoryAccess,
 };
-use spectrusty::memory::{ZxMemory, MemoryExtension, NoMemoryExtension, PagedMemory8k};
+
 use spectrusty::bus::{
-    BusDevice, BoxNamedDynDevice, NullDevice,
-    ay::{Ay3_891xMelodik, Ay3_891xFullerBox, AyIoPort, serial128::{SerialPorts128, Rs232Io}},
     zxinterface1::{
-        ZxInterface1BusDevice, ZxNetUdpSyncSocket, MicroCartridge
-    },
-    zxprinter::Alphacom32
+        MicroCartridge
+    }
 };
 use spectrusty::formats::{
-    snapshot::SnapshotResult,
-    z80::{load_z80, save_z80v1, save_z80v2, save_z80v3},
-    sna::{load_sna, save_sna},
     tap::{TapChunkRead, TapReadInfoIter, TapChunkInfo},
     mdr::MicroCartridgeExt,
     scr::{LoadScr, ScreenDataProvider}
 };
 use spectrusty::peripherals::{
     mouse::MouseButtons,
-    serial::SerialPortDevice,
     memory::ZxInterface1MemExt
 };
 use spectrusty::video::{
-    BorderSize, VideoFrame, Video
+    VideoFrame, Video
 };
 use zxspectrum_common::{
-    DynamicDevices, JoystickAccess, DeviceAccess,
+    JoystickAccess, DeviceAccess,
     ModelRequest,
     MouseAccess,
-    TapState, PluggableJoystickDynamicBus,
-    Ula3Ay, Plus128, Ula128AyKeypad,
-    UlaPlusMode,
-    spectrum_model_dispatch
+    UlaPlusMode
 };
 use spectrusty_utils::{
     keyboard::sdl2::{
@@ -68,8 +56,7 @@ use spectrusty_utils::{
         update_keypad_keys_with_modifier
     },
     tap::Tap,
-    printer::{DotMatrixGfx},
-    io::{Empty, Sink}
+    printer::{DotMatrixGfx}
 };
 
 mod nonblocking;
@@ -100,8 +87,6 @@ pub type ZxSpectrumModel<C=Z80Any, X=ZxInterface1MemExt> = zxspectrum_common::Zx
 //                             io::Cursor<Vec<u8>>>;//,
                             // Empty,
                             // Sink>;
-const AUDIO_CHANNELS: u32 = 2;
-
 type Sample = f32;
 type BlepDelta = f32;
 type Audio = AudioHandle<Sample>;
@@ -136,7 +121,8 @@ impl<C: Cpu, U> ZxSpectrumEmu<C, U> {
         // };
         // let writer = Some(hound::WavWriter::create("spectrum.wav", spec).unwrap());
         let audio = Audio::create(sdl_context, U::frame_duration_nanos(), latency)?;
-        let mut bandlim = BlepAmpFilter::build(0.5)(BlepStereo::build(0.86)(BandLimited::new(2)));
+        println!("{:?}", audio.channels);
+        let mut bandlim = BlepAmpFilter::build(0.5)(BlepStereo::build(0.86)(BandLimited::new(audio.channels.into())));
         spectrum.ula.ensure_audio_frame_time(&mut bandlim, audio.sample_rate, U::effective_cpu_rate(1.0));
         let time_sync = ThreadSyncTimer::new(U::frame_duration_nanos());
         audio.play();
@@ -248,7 +234,7 @@ impl<C: Cpu, U> ZxSpectrumEmu<C, U> {
         }
     }
 
-    pub fn handle_keypress_event(&mut self, key: Keycode, mut modifier: Modifier, pressed: bool)
+    pub fn handle_keypress_event(&mut self, key: Keycode, modifier: Modifier, pressed: bool)
         where U: UlaCommon + DeviceAccess,
               ZxSpectrum<C, U>: JoystickAccess
     {
@@ -377,7 +363,7 @@ impl<C: Cpu, U> ZxSpectrumEmu<C, U> {
         }
     }
 
-    pub fn load_scr<R: io::Read + io::Seek>(&mut self, mut scr_data: R) -> io::Result<()>
+    pub fn load_scr<R: io::Read + io::Seek>(&mut self, scr_data: R) -> io::Result<()>
         where U: ScreenDataProvider
     {
         self.spectrum.ula.load_scr(scr_data)
@@ -386,8 +372,8 @@ impl<C: Cpu, U> ZxSpectrumEmu<C, U> {
     pub fn save_screen(&self) -> io::Result<String>
         where U: ScreenDataProvider
     {
-        let mut name = format!("screen_{}.scr", Utc::now().format("%Y-%m-%d_%H%M%S%.f"));
-        let mut file = std::fs::File::create(&name)?;
+        let name = format!("screen_{}.scr", Utc::now().format("%Y-%m-%d_%H%M%S%.f"));
+        let file = std::fs::File::create(&name)?;
         self.spectrum.ula.save_scr(file)?;
         Ok(name)
     }
@@ -497,10 +483,10 @@ impl<C: Cpu, U> ZxSpectrumEmu<C, U> {
         if self.spectrum.ula.is_ulaplus_enabled() {
             info.write_str(" ULAplus")?;
         }
-        if let Some(spooler) = self.spectrum.ula.plus3centronics_spooler_ref() {
+        if self.spectrum.ula.plus3centronics_spooler_ref().is_some() {
             info.write_str("\n\t+ Centronics Printer")?;
         }
-        if let Some(spooler) = self.spectrum.ula.ay128rs232_spooler_ref() {
+        if self.spectrum.ula.ay128rs232_spooler_ref().is_some() {
             info.write_str("\n\t+ 128k RS232 Printer")?;
         }
         if let Some(name) = self.spectrum.current_joystick() {

@@ -10,10 +10,9 @@ use spectrusty::bus::{
     BusDevice, NullDevice,
     zxprinter::Alphacom32
 };
-use spectrusty::clock::{FrameTimestamp, VFrameTs};
+use spectrusty::clock::{VFrameTs};
 use spectrusty::chip::{
-    ControlUnit,
-    ula::{Ula, UlaVideoFrame},
+    ula::Ula,
     scld::Scld,
     ula128::Ula128VidFrame,
     ula3::Ula3VidFrame,
@@ -22,7 +21,6 @@ use spectrusty::memory::PagedMemory8k;
 use spectrusty::video::Video;
 use zxspectrum_common::{
     DynamicDevices, DeviceAccess,
-    PluggableJoystickDynamicBus,
     Ula3Ay, Plus128, Ula128AyKeypad
 };
 use spectrusty_utils::printer::{EpsonPrinterGfx, ImageSpooler};

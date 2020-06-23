@@ -6,19 +6,13 @@ use serde::{
     de::{self, Visitor, SeqAccess},
     ser
 };
+
 use spectrusty::clock::FrameTimestamp;
-use spectrusty::chip::{
-    ula::{UlaVideoFrame, UlaNTSCVidFrame},
-    ula128::Ula128VidFrame,
-    ula3::Ula3VidFrame
-};
 use spectrusty::bus::{
     NullDevice, NamedBusDevice, SerializeDynDevice, DeserializeDynDevice, 
     ay,
     mouse,
 };
-use spectrusty::video::VideoFrame;
-
 use super::{ZxInterface1, ZxPrinter};
 
 pub type Ay3_891xMelodik<T> = ay::Ay3_891xMelodik<NullDevice<T>>;

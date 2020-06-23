@@ -1,12 +1,12 @@
 // #![windows_subsystem = "windows"] // it is "console" by default
-#![allow(unused_assignments)]
-#![allow(unused_imports)]
-#![allow(dead_code)]
-#![allow(unused_variables)]
-#![allow(unused_mut)]
+// #![allow(unused_assignments)]
+// #![allow(unused_imports)]
+// #![allow(dead_code)]
+// #![allow(unused_variables)]
+// #![allow(unused_mut)]
 
 use core::convert::TryInto;
-use core::fmt::{self, Write};
+use core::fmt;
 use std::fs::{File, OpenOptions};
 use std::str::FromStr;
 
@@ -23,31 +23,27 @@ use sdl2::{Sdl,
            video::{WindowPos, FullscreenType, Window, WindowContext}};
 use chrono::prelude::*;
 
-use spectrusty::z80emu::{Z80Any, Z80NMOS, Z80CMOS, Cpu, z80::{self, Z80BM1}};
+use spectrusty::z80emu::{Z80Any, Cpu};
 use spectrusty::audio::UlaAudioFrame;
 use spectrusty::clock::VFrameTs;
-use spectrusty::chip::{MemoryAccess, ThreadSyncTimer, ReadEarMode, UlaCommon, HostConfig};
-use spectrusty::memory::NoMemoryExtension;
+use spectrusty::chip::{MemoryAccess, UlaCommon, HostConfig};
+
 use spectrusty::peripherals::memory::ZxInterface1MemExt;
 use spectrusty::bus::{
-    BusDevice, BoxNamedDynDevice, //NullDevice,
     ay::{Ay3_891xMelodik, Ay3_891xFullerBox},
     mouse::KempstonMouse,
-    zxinterface1::{ZxNet, MicroCartridge}
+    zxinterface1::{MicroCartridge}
 };
 use spectrusty::formats::{
-    snapshot::SnapshotResult,
-    z80::{load_z80, save_z80v1, save_z80v2, save_z80v3},
-    sna::{load_sna, save_sna},
-    tap::{TapChunkRead, TapReadInfoIter},
     mdr::MicroCartridgeExt,
     scr::ScreenDataProvider
 };
-use spectrusty::video::{PixelBuffer, Palette, BorderSize, Video, pixel};
+use spectrusty::video::{BorderSize, pixel};
 use zxspectrum_common::{
-    DeviceAccess, DynamicDevices,
-    JoystickAccess, MouseAccess, ModelRequest,
-    UlaPlusMode, TapState, PluggableJoystickDynamicBus,
+    ModelRequest,
+    DynamicDevices,
+    JoystickAccess,
+    UlaPlusMode,
     VideoControl,
     spectrum_model_dispatch
 };
@@ -147,7 +143,7 @@ fn select_model(matches: clap::ArgMatches) -> Result<()> {
         }
     }
 
-    let mut model: ZxSpectrumModel = ZxSpectrumModel::new(mreq);
+    let model: ZxSpectrumModel = ZxSpectrumModel::new(mreq);
     spectrum_model_dispatch!(model(spec) => config_and_run(mreq, spec, matches))
 }
 
@@ -167,7 +163,7 @@ fn config_and_run<U: 'static>(
 {
     let sdl_context = sdl2::init()?;
 
-    let mut latency = matches.value_of("audio").map(usize::from_str).transpose()?
+    let latency = matches.value_of("audio").map(usize::from_str).transpose()?
                              .unwrap_or(REQUESTED_AUDIO_LATENCY);
 
     let cpu = matches.value_of("cpu").unwrap_or("nmos");
@@ -297,7 +293,7 @@ fn run<C, U: 'static>(
 
     // sdl_context.mouse().show_cursor(false);
 
-    let timer_subsystem = sdl_context.timer()?;
+    // let timer_subsystem = sdl_context.timer()?;
 
     let mut event_pump = sdl_context.event_pump()?;
 
@@ -449,22 +445,22 @@ fn run<C, U: 'static>(
                         update_info = true;
                     }
                 }
-                Event::KeyDown { keycode: Some(Keycode::End), keymod, repeat: false, ..} => {
+                Event::KeyDown { keycode: Some(Keycode::End), repeat: false, ..} => {
                     if let Some(..) = zx.spectrum.state.tape.rewind_nth_chunk(u32::max_value())? {
                         update_info = true;
                     }
                 }
-                Event::KeyDown { keycode: Some(Keycode::Home), keymod, repeat: false, ..} => {
+                Event::KeyDown { keycode: Some(Keycode::Home), repeat: false, ..} => {
                     if let Some(..) = zx.spectrum.state.tape.rewind_nth_chunk(1)? {
                         update_info = true;
                     }
                 }
-                Event::KeyDown { keycode: Some(Keycode::PageUp), keymod, repeat: false, ..} => {
+                Event::KeyDown { keycode: Some(Keycode::PageUp), repeat: false, ..} => {
                     if let Some(..) = zx.spectrum.state.tape.rewind_prev_chunk()? {
                         update_info = true;
                     }
                 }
-                Event::KeyDown { keycode: Some(Keycode::PageDown), keymod, repeat: false, ..} => {
+                Event::KeyDown { keycode: Some(Keycode::PageDown), repeat: false, ..} => {
                     if let Some(..) = zx.spectrum.state.tape.forward_chunk()? {
                         update_info = true;
                     }
@@ -615,7 +611,7 @@ fn run<C, U: 'static>(
         }
         if let Some(mdr) = mdrive.take_cartridge(0) {
             if mdr.count_sectors_in_use() != 0 {
-                let mut name = format!("microdrive_{}.mdr", Utc::now().format("%Y-%m-%d_%H%M%S%.f"));
+                let name = format!("microdrive_{}.mdr", Utc::now().format("%Y-%m-%d_%H%M%S%.f"));
                 let mut file = std::fs::File::create(&name)?;
                 mdr.write_mdr(&mut file)?;
                 info!("Saved a microdrive: {}", name);
