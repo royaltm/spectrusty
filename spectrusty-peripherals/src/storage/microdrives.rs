@@ -98,7 +98,7 @@ pub struct Sector {
 /// This struct represents an emulated Microdrive tape cartridge.
 ///
 /// It consist of up to [MAX_SECTORS] [Sector]s. Instances of this struct can be "inserted" into one
-/// of 8 [ZXMicrodrives]'s emulator drives.
+/// of 8 [ZxMicrodrives]'s emulator drives.
 #[derive(Clone)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]
@@ -116,7 +116,7 @@ pub struct MicroCartridge {
 #[derive(Clone, Default, Debug)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]
-pub struct ZXMicrodrives<T> {
+pub struct ZxMicrodrives<T> {
     drives: [Option<MicroCartridge>;MAX_DRIVES],
     write: bool,
     erase: bool,
@@ -611,7 +611,7 @@ impl MicroCartridge {
     }
 }
 
-impl<T> ZXMicrodrives<T> {
+impl<T> ZxMicrodrives<T> {
     /// Inserts a `cartridge` into the `drive_index` optionally returning a cartridge
     /// that was previously in the same drive.
     ///
@@ -692,7 +692,7 @@ impl<T> ZXMicrodrives<T> {
     }
 }
 
-impl<T: FrameTimestamp> ZXMicrodrives<T> {
+impl<T: FrameTimestamp> ZxMicrodrives<T> {
     fn vts_diff_update(&mut self, timestamp: T) -> u32 {
         let delta_ts = timestamp.diff_from(self.last_ts);
         self.last_ts = timestamp;
@@ -839,7 +839,7 @@ mod tests {
     use spectrusty::chip::ula::{UlaVideoFrame, UlaMemoryContention};
     use super::*;
     type UlaTsCounter = VFrameTsCounter<UlaVideoFrame, UlaMemoryContention>;
-    type TestMicrodrives = ZXMicrodrives<VFrameTs<UlaVideoFrame>>;
+    type TestMicrodrives = ZxMicrodrives<VFrameTs<UlaVideoFrame>>;
 
     #[test]
     fn microdrives_works() {

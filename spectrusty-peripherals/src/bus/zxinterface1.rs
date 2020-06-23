@@ -79,13 +79,12 @@ impl<R, W, N, D: BusDevice> fmt::Display for ZxInterface1BusDevice<R, W, N, D> {
 #[cfg_attr(feature = "snapshot", serde(bound(deserialize = "
     R: Deserialize<'de> + Default,
     W: Deserialize<'de> + Default,
-    N: Deserialize<'de> + Default,
+    N: Default,
     D: Deserialize<'de> + Default,
     D::Timestamp: Deserialize<'de> + Default",
 serialize = "
     R: Serialize,
     W: Serialize,
-    N: Serialize,
     D: Serialize,
     D::Timestamp: Serialize")))]
 #[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]
@@ -93,7 +92,7 @@ pub struct ZxInterface1BusDevice<R, W, N, D: BusDevice>
 {
     /// A direct access to the **Microdrives**.
     #[cfg_attr(feature = "snapshot", serde(default))]
-    pub microdrives: ZXMicrodrives<D::Timestamp>,
+    pub microdrives: ZxMicrodrives<D::Timestamp>,
     /// A direct access to the **RS-232** implementation.
     #[cfg_attr(feature = "snapshot", serde(default))]
     pub serial: Rs232Io<D::Timestamp, R, W>,
