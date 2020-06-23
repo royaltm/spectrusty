@@ -1,2 +1,9 @@
 *.png
 *.svg
+*.exe
+*.dll
+*.tap
+*.mdr
+*.json
+*.json.gz
+*.wav

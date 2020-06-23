@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="description" content="ZX Spectrum - Spectrusty demo example">
+    <meta name="keywords" content="ZX Spectrum, Spectrusty, Rust, WebAssembly">
+    <meta name="author" content="Rafał Michalski">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css" integrity="sha384-9aIt2nRpC12Uk9gS9baDl411NQApFmC26EwAOH8WgZl5MYYxFfc+NcPb1dKGj7Sk" crossorigin="anonymous">
+    <link rel="stylesheet" href="spectrum.css">
+    <script type="text/javascript" src="utils.js"></script>
+    <title>ZX Spectrum - Spectrusty example</title>
+  </head>
+  <body>
+    <div id="menu-hover"></div>
+    <div class="emulator show-panel" id="main-container">
+      <div class="control-panel" id="controls">
+        <h4 id="menu-title" class="menu-title">&nbsp;&#x3008;&#x3008;&#x3008;&nbsp; S&nbsp;P&nbsp;E&nbsp;C&nbsp;T&nbsp;<span style="color:darkred;">R&nbsp;U&nbsp;S&nbsp;T&nbsp;Y</span> &nbsp;&#x3008;&#x3008;&#x3008;&nbsp;</h4>
+        <div class="container">
+          <div class="row align-items-center">
+            <div class="col">
+              <label for="sound-gain">Sound gain:</label>
+              <input type="range" class="custom-range" min="0" max="100" value="100" id="sound-gain"/>
+            </div>
+            <div class="col-auto">
+              <input type="button" class="btn btn-secondary" id="pause-resume" value="Pause" />
+            </div>
+          </div>
+          <div class="row align-items-start">
+            <div class="col-auto">
+              <label for="models" title="Changing models is a hot-swap function, does not reset the machine">Select model:</label>
+              <select class="form-control form-control-sm" id="models">
+                <option>ZX Spectrum 16k</option>
+                <option>ZX Spectrum 48k</option>
+                <option>ZX Spectrum NTSC</option>
+                <option>ZX Spectrum 128k</option>
+                <option>ZX Spectrum +2</option>
+                <option>ZX Spectrum +2A</option>
+                <option>Timex TC2048</option>
+                <option value="ZX Spectrum +2B">+2B (ULAplus)</option>
+              </select>
+            </div>
+            <div class="col">
+              <label for="borders">De-interlace:</label>
+              <select class="form-control form-control-sm" id="interlace">
+                <option selected>Disabled</option>
+                <option>Odd 1st</option>
+                <option>Even 1st</option>
+              </select>
+            </div>
+            <div class="col">
+              <label for="borders">Border size:</label>
+              <select class="form-control form-control-sm" id="borders">
+                <option value="full" selected>Full</option>
+                <option value="large">Large</option>
+                <option value="medium">Medium</option>
+                <option value="small">Small</option>
+                <option value="tiny">Tiny</option>
+                <option value="minimal">Minimal</option>
+                <option value="none">None</option>
+              </select>
+            </div>
+            <div class="col-auto">
+              <label for="joysticks" title="Move the stick with arrow keys and fire with right [CTRL]">🕹 Joystick</label>
+              <select class="form-control form-control-sm" id="joysticks">
+                <option selected>None</option>
+                <option>Kempston</option>
+                <option>Fuller</option>
+                <option>Sinclair Right</option>
+                <option>Sinclair Left</option>
+                <option>Cursor</option>
+              </select>
+            </div>
+          </div>
+          <div class="row align-items-end mt-2">
+            <div class="col">
+              <div class="btn-group">
+                <button class="btn btn-danger btn-sm dropdown-toggle" type="button" id="reset-menu-button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                  Reset
+                </button>
+                <div class="dropdown-menu" aria-labelledby="reset-menu-button">
+                  <a class="dropdown-item" href="#" id="reset-soft" title="Invokes the RST 00 instruction on the CPU">Soft reset</a>
+                  <a class="dropdown-item" href="#" id="reset-hard" title="Sends a RESET signal to CPU and all of the attached devices">Hard reset</a>
+                  <a class="dropdown-item" href="#" id="reset-power" title="Initiates from random state">Power cycle</a>
+                </div>
+              </div>
+              <div class="btn-group">
+                <button class="btn btn-warning btn-sm dropdown-toggle" type="button" id="nmi-menu-button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                  NMI
+                </button>
+                <div class="dropdown-menu" aria-labelledby="nmi-menu-button">
+                  <a class="dropdown-item" href="#" id="trigger-nmi">Trigger non-maskable interrupt</a>
+                </div>
+                <!-- <input class="btn btn-warning btn-sm" id="trigger-nmi" type="button" value="Trigger NMI"/> -->
+              </div>
+            </div>
+            <div class="col-auto">
+              <div class="btn-group">
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="save-snapshot">Save snapshot</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm dropdown-toggle dropdown-toggle-split" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                  <span class="sr-only">Toggle Dropdown</span>
+                </button>
+                <div class="dropdown-menu">
+                  <a class="dropdown-item" href="#" id="save-z80v3">Save .Z80 ver. 3</a>
+                  <a class="dropdown-item" href="#" id="save-z80v2">Save .Z80 ver. 2</a>
+                  <a class="dropdown-item" href="#" id="save-z80v1">Save .Z80 ver. 1</a>
+                  <div class="dropdown-divider"></div>
+                  <a class="dropdown-item" href="#" id="save-sna">Save .SNA</a>
+                </div>
+              </div>
+            </div>
+            <div class="col-auto">
+              <div class="custom-control custom-checkbox">
+                <input type="checkbox" class="custom-control-input" id="turbo">
+                <label class="custom-control-label" for="turbo">🏎️ TURBO</label>
+              </div>
+            </div>
+          </div>
+          <div class="row">
+            <div class="col">
+              <div class="form-group">
+                <label for="tap-chunks">Tape:</label>
+                <input type="text" class="form-control form-control-sm" id="tape-name" placeholder="TAP file name" readonly>
+                <progress id="tape-progress" max="1" value="0">Tape</progress>
+                <select class="form-control form-control-sm" id="tap-chunks" size="5"></select>
+                <div class="custom-file form-control-sm">
+                  <input type="file" class="custom-file-input"  id="files" multiple accept=".tap,.scr,.sna,.z80,.json"/>
+                  <label class="custom-file-label" for="files">Add .TAP/.SCR/.SNA/.Z80/.JSON files from disk</label>
+                  <small class="form-text text-muted">
+                    If you don't have any Spectrum files, you can check out <a href="https://www.worldofspectrum.org/archive.html" target="_blank">this archive</a>.
+                  </small>
+                </div>
+                <div class="form-row align-items-start">
+                  <div class="col-auto">
+                    <input class="btn btn-primary" id="tap-play" type="button" value="Play"/>
+                  </div>
+                  <div class="col-auto">
+                    <input class="btn btn-warning" id="tap-record" type="button" value="Record"/>
+                  </div>
+                  <div class="col-auto">
+                    <input class="btn btn-success" id="tap-download" type="button" value="Download"/>
+                  </div>
+                  <div class="col">
+                    <input class="btn btn-danger float-right" id="tap-eject" type="button" value="Eject"/>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="row align-items-start mb-2">
+            <div class="col">
+              <div class="custom-control custom-checkbox">
+                <input type="checkbox" class="custom-control-input" id="fast-tape">
+                <label class="custom-control-label" title="enables TURBO mode when the tape is being accessed and turns it off when loading or saving ends" for="fast-tape">⚡ auto accelerate LOAD and SAVE</label>
+              </div>
+            </div>
+            <div class="col-auto">
+              <div class="custom-control custom-checkbox">
+                <input type="checkbox" class="custom-control-input" id="audible-tape">
+                <label class="custom-control-label" for="audible-tape">🔊 audible tape</label>
+              </div>
+            </div>
+          </div>
+          <div class="row align-items-center">
+            <div class="col-auto">
+              <div class="input-group md-3">
+                <div class="input-group-prepend">
+                  <button class="btn btn-secondary" type="button" id="speed-reset">Original</button>
+                </div>
+                <input type="text" class="form-control" size="3" value="x1.0" id="speed-current" readonly placeholder="" title="Emulation speed rate"/>
+              </div>
+            </div>
+            <div class="col">
+              <input type="range" class="custom-range form-control-sm" min="-400" max="400" value="0" id="speed-control"/>
+            </div>
+          </div>
+          <div class="form-group row align-items-center">
+            <div class="col">
+              <div class="form-row">
+                <div class="col-auto">
+                  <div class="custom-control custom-checkbox">
+                    <input type="checkbox" class="custom-control-input" id="ay-melodik" name="Melodik">
+                    <label class="custom-control-label" for="ay-melodik" title="For Spectrum 16k/48k models">Melodik AY</label>
+                  </div>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="col-auto">
+                  <div class="custom-control custom-checkbox">
+                    <input type="checkbox" class="custom-control-input" id="ay-fuller-box" name="Fuller Box">
+                    <label class="custom-control-label" for="ay-fuller-box">Fuller Box AY</label>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col">
+              <label for="ay-amps" title="The digital level (0-15) to sample amplitude conversion function">AY D→A amps:</label>
+              <select class="form-control form-control-sm" id="ay-amps">
+                <option value="Spec" selected>Datasheet</option>
+                <option value="Fuse">Fuse</option>
+              </select>
+            </div>
+            <div class="col">
+              <label for="ay-channels" title="Left Center Right">AY channels:</label>
+              <select class="form-control form-control-sm" id="ay-channels">
+                <option>ABC</option>
+                <option selected>ACB</option>
+                <option>BAC</option>
+                <option>BCA</option>
+                <option>CAB</option>
+                <option>CBA</option>
+                <option>mono</option>
+             </select>
+            </div>
+          </div>
+          <div class="form-group row">
+            <label for="keyboard-issue" class="col-sm-2 col-form-label form-control-sm">Keyboard:</label>
+            <div class="col-auto">
+              <select class="form-control form-control-sm" id="keyboard-issue">
+                <option>Issue 3</option>
+                <option>Issue 2</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+      <canvas class="monitor" id="main-screen"></canvas>
+    </div>
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js" integrity="sha384-DfXdz2htPH0lsSSs5nCTpuj/zy4C+OGpamoFVy38MVBnE+IbbVYUew+OrCXaRkfj" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js" integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo" crossorigin="anonymous"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.min.js" integrity="sha384-OgVRvuATP1z7JjHLkuOU7Xw704+h835Lr+6QL9UvYjZE3Ipu6Tp75j7Bh/kR0JKI" crossorigin="anonymous"></script>
+  </body>
+</html>

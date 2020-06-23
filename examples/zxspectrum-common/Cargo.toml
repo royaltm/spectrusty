@@ -1,0 +1,29 @@
+[package]
+name = "zxspectrum-common"
+version = "0.1.0"
+authors = ["Rafal Michalski <royaltm75@gmail.com>"]
+edition = "2018"
+workspace = "../.."
+publish = false
+
+[dependencies]
+log = "0.4"
+fnv = "1.0"
+
+[dependencies.rand]
+version = "0.7"
+default-features = false
+
+[dependencies.serde]
+version = "1.0"
+default-features = true
+features = ["derive"]
+
+[dependencies.spectrusty]
+version = "*"
+features = ["audio", "snapshot"]
+path = "../.."
+
+[dependencies.spectrusty-utils]
+version = "*"
+path = "../../spectrusty-utils"
