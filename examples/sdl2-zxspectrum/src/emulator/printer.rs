@@ -1,25 +1,28 @@
-use core::fmt::{Write};
+use core::fmt::{self, Write};
 use core::slice;
-use std::io::{self};
+use std::io;
 
 use serde::{Serialize, Deserialize};
 use arrayvec::ArrayString;
 
 use spectrusty::z80emu::Cpu;
-use spectrusty::chip::{
-    ula::Ula,
-    scld::Scld,
-};
-use spectrusty::memory::PagedMemory8k;
 use spectrusty::bus::{
-    BusDevice,
+    BusDevice, NullDevice,
     zxprinter::Alphacom32
 };
-use spectrusty::video::{
-    Video
+use spectrusty::clock::{FrameTimestamp, VFrameTs};
+use spectrusty::chip::{
+    ControlUnit,
+    ula::{Ula, UlaVideoFrame},
+    scld::Scld,
+    ula128::Ula128VidFrame,
+    ula3::Ula3VidFrame,
 };
+use spectrusty::memory::PagedMemory8k;
+use spectrusty::video::Video;
 use zxspectrum_common::{
     DynamicDevices, DeviceAccess,
+    PluggableJoystickDynamicBus,
     Ula3Ay, Plus128, Ula128AyKeypad
 };
 use spectrusty_utils::printer::{EpsonPrinterGfx, ImageSpooler};
@@ -27,7 +30,7 @@ use spectrusty_utils::printer::{EpsonPrinterGfx, ImageSpooler};
 use super::ZxSpectrum;
 use super::interface1::ZxInterface1Access;
 
-pub type ZxPrinter<V> = Alphacom32<V, ImageSpooler>;
+pub type ZxPrinter<T> = Alphacom32<ImageSpooler, NullDevice<T>>;
 /// The printer connected to various serial and parallel ports.
 ///
 /// It passes to stdout any printer data but intercept EPSON graphic lines and buffers them internally.
@@ -91,9 +94,10 @@ impl io::Write for EpsonGfxFilteredStdoutWriter {
 
 // Spooler access to different static bus devices
 macro_rules! impl_spooler_access_ula128 {
-    ($ula:ident) => {
+    ($ula:ident<$vidfrm:ty>) => {
         impl<D, X, R> SpoolerAccess for $ula<D, X, R, EpsonGfxFilteredStdoutWriter>
-            where D: BusDevice,
+            where R: io::Read + fmt::Debug,
+                  D: BusDevice<Timestamp=VFrameTs<$vidfrm>>,
                   Self: DeviceAccess<CommWr=EpsonGfxFilteredStdoutWriter>
         {
             fn plus3centronics_spooler_ref(&self) -> Option<&EpsonPrinterGfx> {
@@ -115,9 +119,9 @@ macro_rules! impl_spooler_access_ula128 {
     };
 }
 
-impl_spooler_access_ula128!(Ula128AyKeypad);
-impl_spooler_access_ula128!(Ula3Ay);
-impl_spooler_access_ula128!(Plus128);
+impl_spooler_access_ula128!(Ula128AyKeypad<Ula128VidFrame>);
+impl_spooler_access_ula128!(Ula3Ay<Ula3VidFrame>);
+impl_spooler_access_ula128!(Plus128<Ula3VidFrame>);
 
 impl<M, D, X, V> SpoolerAccess for Ula<M, D, X, V> where Self: DeviceAccess {}
 
@@ -126,7 +130,7 @@ impl<M: PagedMemory8k, D, X, V> SpoolerAccess for Scld<M, D, X, V>
 
 // Spooler access to dynamic devices
 impl<C: Cpu, U: Video + 'static> DynSpoolerAccess for ZxSpectrum<C, U>
-    where ZxSpectrum<C, U>: DynamicDevices + ZxInterface1Access<U>,
+    where ZxSpectrum<C, U>: DynamicDevices<U::VideoFrame> + ZxInterface1Access<U>,
 {
     fn if1rs232_spooler_ref(&self) -> Option<&EpsonPrinterGfx> {
         self.zxif1_serial_ref().map(|s| &s.writer.interceptor)
@@ -137,10 +141,10 @@ impl<C: Cpu, U: Video + 'static> DynSpoolerAccess for ZxSpectrum<C, U>
     }
 
     fn zxprinter_spooler_ref(&self) -> Option<&ImageSpooler> {
-        self.device_ref::<ZxPrinter<U::VideoFrame>>().map(|p| &p.spooler)
+        self.device_ref::<ZxPrinter<VFrameTs<U::VideoFrame>>>().map(|p| &p.spooler)
     }
 
     fn zxprinter_spooler_mut(&mut self) -> Option<&mut ImageSpooler> {
-        self.device_mut::<ZxPrinter<U::VideoFrame>>().map(|p| &mut p.spooler)
+        self.device_mut::<ZxPrinter<VFrameTs<U::VideoFrame>>>().map(|p| &mut p.spooler)
     }
 }

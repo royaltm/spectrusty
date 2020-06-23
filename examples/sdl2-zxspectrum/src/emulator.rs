@@ -32,7 +32,7 @@ use spectrusty::bus::{
     BusDevice, BoxNamedDynDevice, NullDevice,
     ay::{Ay3_891xMelodik, Ay3_891xFullerBox, AyIoPort, serial128::{SerialPorts128, Rs232Io}},
     zxinterface1::{
-        ZxInterface1BusDevice, ZxNetUdpSyncSocket, MicroCartridge, ZXMicrodrives
+        ZxInterface1BusDevice, ZxNetUdpSyncSocket, MicroCartridge
     },
     zxprinter::Alphacom32
 };
@@ -87,7 +87,7 @@ pub type Result<T> = core::result::Result<T, Box<dyn std::error::Error>>;
 pub type ZxSpectrum<C, U> = zxspectrum_common::ZxSpectrum<C, U, fs::File>;
 pub type ZxSpectrumModel<C=Z80Any, X=ZxInterface1MemExt> = zxspectrum_common::ZxSpectrumModel<
                                         C,
-                                        PluggableJoystickDynamicBus<serde::SerdeDynDevice>,
+                                        serde::SerdeDynDevice,
                                         X,
                                         fs::File,
                                         NonBlockingStdinReader,

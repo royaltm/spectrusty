@@ -25,7 +25,7 @@ use chrono::prelude::*;
 
 use spectrusty::z80emu::{Z80Any, Z80NMOS, Z80CMOS, Cpu, z80::{self, Z80BM1}};
 use spectrusty::audio::UlaAudioFrame;
-use spectrusty::clock::VideoTs;
+use spectrusty::clock::VFrameTs;
 use spectrusty::chip::{MemoryAccess, ThreadSyncTimer, ReadEarMode, UlaCommon, HostConfig};
 use spectrusty::memory::NoMemoryExtension;
 use spectrusty::peripherals::memory::ZxInterface1MemExt;
@@ -157,13 +157,12 @@ fn config_and_run<U: 'static>(
         matches: clap::ArgMatches,
     ) -> Result<()>
     where U: HostConfig
-             + UlaCommon
-             + UlaAudioFrame<BandLim>
-             + SpoolerAccess
-             + ScreenDataProvider
-             + UlaPlusMode
-             + MemoryAccess<MemoryExt = ZxInterface1MemExt>,
-          U::VideoFrame: Default,
+           + UlaCommon
+           + UlaAudioFrame<BandLim>
+           + SpoolerAccess
+           + ScreenDataProvider
+           + UlaPlusMode
+           + MemoryAccess<MemoryExt = ZxInterface1MemExt>,
           ZxSpectrum<Z80Any, U>: serde::Serialize + JoystickAccess
 {
     let sdl_context = sdl2::init()?;
@@ -190,7 +189,7 @@ fn config_and_run<U: 'static>(
     if let Some(rom_path) = matches.value_of("interface1") {
         let rom_file = File::open(rom_path)?;
         spec.ula.memory_ext_mut().load_if1_rom(rom_file)?;
-        spec.attach_device(ZxInterface1::<U::VideoFrame>::default());
+        spec.attach_device(ZxInterface1::<VFrameTs<U::VideoFrame>>::default());
         info!("Interface 1 installed");
         let network = spec.zxif1_network_mut().unwrap();
         if let Some(bind) = matches.value_of("zxnet_bind") {
@@ -212,7 +211,7 @@ fn config_and_run<U: 'static>(
     }
 
     if matches.is_present("printer") {
-        spec.attach_device(ZxPrinter::<U::VideoFrame>::default());
+        spec.attach_device(ZxPrinter::<VFrameTs<U::VideoFrame>>::default());
         info!("ZX Printer installed");
     }
 
@@ -254,10 +253,10 @@ fn run<C, U: 'static>(
     ) -> Result<()>
     where C: Cpu + fmt::Display,
           U: UlaCommon
-             + UlaAudioFrame<BandLim>
-             + SpoolerAccess
-             + ScreenDataProvider
-             + UlaPlusMode,
+           + UlaAudioFrame<BandLim>
+           + SpoolerAccess
+           + ScreenDataProvider
+           + UlaPlusMode,
           ZxSpectrum<C, U>: serde::Serialize + JoystickAccess
 {
     // SDL2 related code follows
