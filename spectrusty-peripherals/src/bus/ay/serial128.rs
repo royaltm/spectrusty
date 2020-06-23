@@ -12,7 +12,7 @@ use super::Ay3_891xBusDevice;
 pub type Ay3_8912Keypad<V, D> = Ay3_891xBusDevice<
                                                 Ay128kPortDecode,
                                                 SerialPorts128<
-                                                    SerialKeypad<V>,
+                                                    SerialKeypad<VFrameTs<V>>,
                                                     NullSerialPort<VFrameTs<V>>
                                                 >,
                                                 AyIoNullPort<VFrameTs<V>>, D>;
@@ -23,7 +23,7 @@ pub type Ay3_8912Rs232<V, D, R, W> = Ay3_891xBusDevice<
                                                 Ay128kPortDecode,
                                                 SerialPorts128<
                                                     NullSerialPort<VFrameTs<V>>,
-                                                    Rs232Io<V, R, W>
+                                                    Rs232Io<VFrameTs<V>, R, W>
                                                 >,
                                                 AyIoNullPort<VFrameTs<V>>, D>;
 
@@ -32,8 +32,8 @@ pub type Ay3_8912Rs232<V, D, R, W> = Ay3_891xBusDevice<
 pub type Ay3_8912KeypadRs232<V, D, R, W> = Ay3_891xBusDevice<
                                                 Ay128kPortDecode,
                                                 SerialPorts128<
-                                                    SerialKeypad<V>,
-                                                    Rs232Io<V, R, W>
+                                                    SerialKeypad<VFrameTs<V>>,
+                                                    Rs232Io<VFrameTs<V>, R, W>
                                                 >,
                                                 AyIoNullPort<VFrameTs<V>>, D>;
 
