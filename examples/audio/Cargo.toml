@@ -8,7 +8,7 @@ publish = false
 
 [dependencies]
 # spectrusty_audio = { path = "spectrusty_audio", version = "0.1" }
-cpal = { git = "https://github.com/RustAudio/cpal.git" }
+cpal = "0.12"
 hound = "3.4.0"
 log = "0.4"
 simple_logger = "1.6.0"

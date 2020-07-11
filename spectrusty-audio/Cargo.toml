@@ -19,6 +19,5 @@ version = "0.34"
 optional = true
 
 [dependencies.cpal]
-# version = "0.12"
-git = "https://github.com/RustAudio/cpal.git"
+version = "0.12"
 optional = true
