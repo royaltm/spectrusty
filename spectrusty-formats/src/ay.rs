@@ -1,11 +1,10 @@
 //! **AY** file format parser and player initializer. See: [ProjectAY](https://www.worldofspectrum.org/projectay/).
-#![allow(unused_imports)]
 use core::fmt::{self, Write};
-use core::num::NonZeroI16;
+use core::num::NonZeroU16;
 use core::ops::Deref;
 use core::convert::{TryFrom, AsRef};
 use core::ptr::NonNull;
-use core::marker::{PhantomPinned, PhantomData};
+use core::marker::PhantomPinned;
 use std::borrow::Cow;
 use std::pin::Pin;
 use std::io;
@@ -14,12 +13,11 @@ use std::io;
 use log::{error, warn, info, debug, trace};
 
 use memchr::memchr;
-use nom::bytes::complete::{tag, take_till, take_while};
-use nom::character::is_alphabetic;
+use nom::bytes::complete::tag;
 use nom::combinator::{iterator, map};
 use nom::error::{ErrorKind, context, ParseError};
 use nom::multi::many1;
-use nom::number::complete::{be_i16, be_u16, be_u8};
+use nom::number::complete::{be_u16, be_u8};
 use nom::sequence::tuple;
 use nom::{Offset, IResult, Err};
 
@@ -379,9 +377,10 @@ fn c_string<'a, E: ParseError<&'a [u8]>>()
 }
 
 fn parse_at<'a, T: 'a, E: ParseError<&'a[u8]>, F>(
-        offset: usize, f: F
+        offset: usize,
+        f: F
     ) -> impl FnOnce(&'a[u8]) -> Result<T, Err<E>>
-where F: FnOnce(&'a[u8])->Result<T, Err<E>>
+    where F: FnOnce(&'a[u8])->Result<T, Err<E>>
 {
     move |input| {
         input.get(offset..).ok_or_else(|| Err::Failure(
@@ -393,7 +392,7 @@ where F: FnOnce(&'a[u8])->Result<T, Err<E>>
 fn fail_err<I: Clone, O, E: ParseError<I>, F>(
         f: F
     ) -> impl Fn(I) -> IResult<I, O, E> 
-where F: Fn(I) -> IResult<I, O, E>
+    where F: Fn(I) -> IResult<I, O, E>
 {
     move |input: I| {
         f(input).map_err(|e| e.into_failure())
@@ -447,8 +446,10 @@ fn parse_ay_raw<'a, E: Clone + ParseError<&'a [u8]>>(
 
     let maybe_offs_to = |inp| {
         let offset = isize::try_from(raw.offset(inp)).unwrap();
-        let (inp, offs) = map(be_i16, NonZeroI16::new)(inp)?;
-        let res = offs.map(|offs| usize::try_from(offset + offs.get() as isize).unwrap());
+        let (inp, offs) = map(be_u16, NonZeroU16::new)(inp)?;
+        let res = offs.map(|offs| {
+            usize::try_from(offset + offs.get() as isize).unwrap()
+        });
         Ok((inp, res))
     };
 
@@ -659,22 +660,25 @@ impl IoErrorExt for io::Error {
 /*
 Kudos to Sergey Bulba.
 
+There is but one bug in Bulba's specification, all offsets are U16 not I16.
+E.g. ProjectAY/Spectrum/Demos/SMC1.AY
+
 struct AYFileHeader {
     // file_id:          [u8;4], // b"ZXAY"
     // type_id:          [u8;4], // b"EMUL"
     file_version:     u8,
     player_version:   u8,
-    special_player_offs:  AYOffset, // i16
-    author_offs:          AYOffset, // i16
-    misc_offs:            AYOffset, // i16
+    special_player_offs:  AYOffset, // u16
+    author_offs:          AYOffset, // u16
+    misc_offs:            AYOffset, // u16
     num_of_songs:     u8,
     first_song:       u8,
-    songs_info_offs:  AYOffset<[Song]>, // i16
+    songs_info_offs:  AYOffset<[Song]>, // u16
 }
 
 struct Song {
-    song_name_offs:        AYOffset, // i16
-    song_data_offs:        AYOffset<[SongInfo]>, // i16
+    song_name_offs:        AYOffset, // u16
+    song_data_offs:        AYOffset<[SongInfo]>, // u16
 }
 
 struct SongInfo {
@@ -686,8 +690,8 @@ struct SongInfo {
     fade_duration: AYWord, // u16
     hi_reg: u8,
     lo_reg: u8,
-    points_offs:    AYOffset<Pointers>, // i16,
-    addresses_offs: AYOffset<[AYWord]>, // i16, // SongData
+    points_offs:    AYOffset<Pointers>, // u16,
+    addresses_offs: AYOffset<[AYWord]>, // u16, // SongData
 }
 
 struct Pointers {
