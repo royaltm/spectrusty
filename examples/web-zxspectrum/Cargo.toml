@@ -6,6 +6,9 @@ edition = "2018"
 workspace = "../.."
 publish = false
 
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ["-Oz", "--enable-mutable-globals"]
+
 [lib]
 crate-type = ["cdylib", "rlib"]
 
