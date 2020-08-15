@@ -1,10 +1,5 @@
-#![allow(unused_imports)]
-use core::mem;
-use core::ops::Range;
-use core::cell::RefCell;
-use std::rc::Rc;
 use std::collections::VecDeque;
-use wasm_bindgen::{JsCast, prelude::*};
+use wasm_bindgen::prelude::*;
 use js_sys::Promise;
 use web_sys::{
     AudioBuffer,
@@ -12,31 +7,30 @@ use web_sys::{
     AudioContextState,
     GainNode,
 };
-use wasm_bindgen_futures::JsFuture;
 use spectrusty::audio::{
     BlepAmpFilter, BlepStereo, AudioSample,
     synth::BandLimited
 };
 
-use super::log_f64;
-
 const AUDIO_CHANNELS: u32 = 2;
+// The maximum number of audio buffers in use.
+const QUEUE_MAX_LEN: usize = 8;
+// The minimum sound start delay.
+//
+// Serves as a synchronization margin between audio and emulated frames.
 const SOUND_START_MIN_DELAY: f64 = 0.01;
+// The maximum sound start delay.
+//
+// If the audio frame would be scheduled to play with a longer delay than this constant,
+// rendering audio frame will be skipped. This prevents audio to desynchronize with the emulation.
 const SOUND_START_MAX_DELAY: f64 = 0.1;
 
-type EndClosure = Closure<dyn FnMut()>;
-
-type AudioQueue = VecDeque<AudioQueueItem>;
+type AudioQueue = VecDeque<AudioBuffer>;
 
 pub type BandLim = BlepAmpFilter<BlepStereo<BandLimited<f32>>>;
 
 pub fn create_blep() -> BandLim {
     BlepAmpFilter::build(0.5)(BlepStereo::build(0.86)(BandLimited::new(2)))
-}
-
-struct AudioQueueItem {
-    audio_buffer: AudioBuffer,
-    end_closure: Rc<RefCell<Option<EndClosure>>>,
 }
 
 pub struct AudioStream {
@@ -57,20 +51,24 @@ impl Drop for AudioStream {
 }
 
 impl AudioStream {
+    /// Provide the maximum duration (in seconds) of a single audio frame.
+    ///
+    /// Any values between `0.02` and `1.0` are being accepted, otherwise returns an error.
     pub fn new(max_buffer_duration: f32) -> Result<Self, JsValue> {
         if max_buffer_duration < 0.02 || max_buffer_duration > 1.0 {
             Err("requested buffer duration should be between 0.02 and 1.0")?;
         }
+
         let ctx = AudioContext::new()?;
         let sample_rate = ctx.sample_rate();
         let buffer_length = (sample_rate * max_buffer_duration).trunc() as u32;
+
         console_log!("sample_rate: {} buffer_length: {}", sample_rate, buffer_length);
 
         let mut audio_queue = AudioQueue::new();
         let audio_buffer = ctx.create_buffer(AUDIO_CHANNELS, buffer_length, sample_rate)?;
-        let end_closure = Rc::new(RefCell::new(None));
         let buffer_duration = audio_buffer.duration();
-        audio_queue.push_back(AudioQueueItem { audio_buffer, end_closure });
+        audio_queue.push_back(audio_buffer);
 
         let gain = ctx.create_gain()?;
         gain.gain().set_value(1.0);
@@ -91,51 +89,43 @@ impl AudioStream {
     pub fn sample_rate(&self) -> u32 {
         self.sample_rate as u32
     }
-
+    /// Plays the next audio frame from the given `BandLim` and prepares it for the next frame.
+    ///
+    /// The duration of the rendered audio frame must not exceed the value given to [AudioStream::new],
+    /// otherwise an error is being returned.
     pub fn play_next_audio_frame(&mut self, bandlim: &mut BandLim) -> Result<(), JsValue> {
         let nsamples = self.render_audio_frame(bandlim);
+        let duration = nsamples as f64 / self.sample_rate as f64;
+        if duration > self.buffer_duration {
+            Err("frame duration exceeds the maximum buffer duration")?;
+        }
 
-        if self.audio_queue.front().unwrap().end_closure.borrow().is_some() {
+        let current_time = self.ctx.current_time();
+        let time = self.started_at.max(current_time + SOUND_START_MIN_DELAY);
+        if time > current_time + SOUND_START_MAX_DELAY {
+            return Ok(());
+        }
+
+        if self.audio_queue.len() < QUEUE_MAX_LEN {
             let audio_buffer = self.ctx.create_buffer(AUDIO_CHANNELS, self.buffer_length, self.sample_rate)?;
-            let end_closure = Rc::new(RefCell::new(None));
-            self.audio_queue.push_back(AudioQueueItem { audio_buffer, end_closure });
+            self.audio_queue.push_back(audio_buffer);
         }
         else {
             self.audio_queue.rotate_left(1);
         }
-        let audio_item = self.audio_queue.back_mut().unwrap();
+
+        let audio_buffer = self.audio_queue.back().unwrap();
 
         for (buffer, channel) in self.buffers.iter_mut().zip(0..AUDIO_CHANNELS as i32) {
             assert_eq!(nsamples, buffer.len());
-            audio_item.audio_buffer.copy_to_channel(buffer, channel)?;
+            audio_buffer.copy_to_channel(buffer, channel)?;
         }
-
-        let weakref = Rc::downgrade(&audio_item.end_closure);
-        let closure = Closure::once(move || {
-            if let Some(rc) = weakref.upgrade() {
-                *rc.borrow_mut() = None;
-            }
-        });
 
         let source = self.ctx.create_buffer_source()?;
-        source.set_onended(Some( closure.as_ref().unchecked_ref() ));
-        *audio_item.end_closure.borrow_mut() = Some(closure);
-
-        let duration = nsamples as f64 / self.sample_rate as f64;
-        if duration > self.buffer_duration {
-            Err("frame duration exceeds the maximum")?;
-        }
-        source.set_buffer(Some(&audio_item.audio_buffer));
+        source.set_buffer(Some(&audio_buffer));
         source.connect_with_audio_node(&self.gain)?;
-        let current_time = self.ctx.current_time();
-        let time = self.started_at.max(current_time + SOUND_START_MIN_DELAY);
-        if time > current_time + SOUND_START_MAX_DELAY {
-            *audio_item.end_closure.borrow_mut() = None;
-        }
-        else {
-            source.start_with_when_and_grain_offset_and_grain_duration(time, 0.0, duration)?;
-            self.started_at = time + duration;
-        }
+        source.start_with_when_and_grain_offset_and_grain_duration(time, 0.0, duration)?;
+        self.started_at = time + duration;
         Ok(())
     }
 
