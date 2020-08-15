@@ -1,4 +1,4 @@
-name := 'web_ay'
+name := 'web_spectrusty'
 target_dir := '../../target/wasm32-unknown-unknown/release/'
 node_env := env_var_or_default('NODE_ENV', "production")
 
@@ -36,7 +36,7 @@ gzip:
 
 # prepare a distribution tar file
 pack:
-    tar -cvjf {{name}}.tar.bz2 dist
+    tar -cvjf {{name}}.tar.bz2 -C dist .
 
 # create distribution files and pack them
 dist: webpack gzip pack
