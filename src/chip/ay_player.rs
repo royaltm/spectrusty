@@ -12,7 +12,7 @@ use crate::z80emu::{
 use serde::{Serialize, Deserialize};
 
 use crate::audio::*;
-use crate::peripherals::ay::{audio::*, Ay3_8913Io, AyPortDecode};
+use crate::peripherals::ay::{audio::*, Ay3_8913Io, AyPortDecode, AyRegRecorder};
 use crate::clock::{FTs, FTsData2};
 use crate::memory::{ZxMemory, Memory64k};
 use crate::bus::{BusDevice, NullDevice};
@@ -60,15 +60,14 @@ impl<P> Default for AyPlayer<P> {
     }
 }
 
-impl<P, A: Blep> AudioFrame<A> for AyPlayer<P>
-{
+impl<P, A: Blep> AudioFrame<A> for AyPlayer<P> {
     fn ensure_audio_frame_time(&self, blep: &mut A, sample_rate: u32, cpu_hz: f64) {
         blep.ensure_frame_time(sample_rate, cpu_hz, self.frame_tstates, MARGIN_TSTATES)
     }
 
     fn get_audio_frame_end_time(&self) -> FTs {
         let ts = self.tsc.as_timestamp();
-        assert!(ts >= self.frame_tstates, "AyPlayer::get_audio_frame_end_time:: frame execution didn't finish yet");
+        assert!(ts >= self.frame_tstates, "AyPlayer::get_audio_frame_end_time:: frame execution didn't finish yet: {} < {}", ts, self.frame_tstates);
         ts
     }
 }
@@ -206,10 +205,13 @@ impl<P: AyPortDecode> ControlUnit for AyPlayer<P> {
     }
 }
 
-impl<P: AyPortDecode> AyPlayer<P>
-{
+impl<P: AyPortDecode> AyPlayer<P> {
     pub fn cpu_clock_rate(&self) -> u32 {
         self.cpu_rate
+    }
+
+    pub fn frame_cycle_count(&self) -> FTs {
+        self.frame_tstates
     }
 
     pub fn frame_duration_nanos(&self) -> u32 {
@@ -246,9 +248,29 @@ impl<P: AyPortDecode> AyPlayer<P>
         self.cpu_rate = H::CPU_HZ;
         self.frame_tstates = H::FRAME_TSTATES;
     }
+    /// Changes the cpu clock frequency and a duration of frames.
+    pub fn set_config(&mut self, cpu_rate: u32, frame_tstates: FTs) {
+        assert!(frame_tstates > 0 && frame_tstates as u32 <= cpu_rate);
+        self.ensure_next_frame();
+        self.cpu_rate = cpu_rate;
+        self.frame_tstates = frame_tstates;
+    }
     /// Resets the frames counter.
     pub fn reset_frames(&mut self) {
         self.frames.0 = 0;
+    }
+    /// Writes data directly into the AY registers, recording changes and advancing the clock counter.
+    ///
+    /// Sets the clock counter to `timestamp`.
+    ///
+    /// # Panics
+    /// `timestamp` must be larger than or equal to the current clock counter value.
+    pub fn write_ay(&mut self, timestamp: FTs, reg: u8, val: u8) {
+        assert!(timestamp >= self.tsc.as_timestamp());
+        *self.tsc = Wrapping(timestamp);
+        let reg = reg.into();
+        self.ay_io.set(reg, val);
+        self.ay_io.recorder.record_ay_reg_change(reg, val, timestamp);
     }
 }
 
