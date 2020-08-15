@@ -1,4 +1,5 @@
 //! The emulation of the AY-3-8910/8912/8913 sound generator.
+use core::num::NonZeroU16;
 use core::marker::PhantomData;
 
 #[cfg(feature = "snapshot")]
@@ -132,7 +133,7 @@ pub struct Ay3_891xAudio {
 /// A type for AY-3-891x amplitude level register values.
 #[derive(Default, Clone, Copy, Debug)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
-struct AmpLevel(pub u8);
+struct AmpLevel(u8);
 
 impl AmpLevel {
     #[inline]
@@ -148,7 +149,7 @@ impl AmpLevel {
 /// A type for AY-3-891x mixer controller register values.
 #[derive(Default, Clone, Copy, Debug)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
-struct Mixer(pub u8);
+struct Mixer(u8);
 
 impl Mixer {
     #[inline]
@@ -195,7 +196,7 @@ impl Default for EnvelopeControl {
 
 impl EnvelopeControl {
     #[inline]
-    pub fn set_shape(&mut self, shape: u8) {
+    fn set_shape(&mut self, shape: u8) {
         self.tick = 0;
         self.cycle = shape & !ENV_CYCLE_MASK;
         self.level = if shape & ENV_SHAPE_ATTACK_MASK != 0 {
@@ -206,16 +207,16 @@ impl EnvelopeControl {
         }
     }
     #[inline]
-    pub fn set_period_fine(&mut self, perlo: u8) {
+    fn set_period_fine(&mut self, perlo: u8) {
         self.set_period(self.period & 0xFF00 | perlo as u16)
     }
 
     #[inline]
-    pub fn set_period_coarse(&mut self, perhi: u8) {
+    fn set_period_coarse(&mut self, perhi: u8) {
         self.set_period(u16::from_le_bytes([self.period as u8, perhi]))
     }
     #[inline]
-    pub fn set_period(&mut self, mut period: u16) {
+    fn set_period(&mut self, mut period: u16) {
         if period == 0 { period = 1 }
         self.period = period;
         if self.tick >= period {
@@ -223,7 +224,15 @@ impl EnvelopeControl {
         }
     }
     #[inline]
-    pub fn update_level(&mut self) -> u8 {
+    fn get_level(&self) -> u8 {
+        self.level & ENV_LEVEL_MASK
+    }
+    #[inline]
+    fn get_shape(&self) -> u8 {
+        self.cycle & !ENV_CYCLE_MASK
+    }
+    #[inline]
+    fn update_level(&mut self) -> u8 {
         let EnvelopeControl { period, mut tick, mut level, .. } = *self;
         if tick >= period {
             tick -= period;
@@ -284,7 +293,7 @@ impl Default for NoiseControl {
 
 impl NoiseControl {
     #[inline]
-    pub fn set_period(&mut self, mut period: u8) {
+    fn set_period(&mut self, mut period: u8) {
         period &= NOISE_PERIOD_MASK;
         if period == 0 { period = 1 }
         self.period = period;
@@ -294,7 +303,7 @@ impl NoiseControl {
     }
 
     #[inline]
-    pub fn update_is_low(&mut self) -> bool {
+    fn update_is_low(&mut self) -> bool {
         let NoiseControl { mut rng, period, mut tick, mut low } = *self;
         if tick >= period {
             tick -= period;
@@ -326,17 +335,17 @@ struct ToneControl {
 
 impl ToneControl {
     #[inline]
-    pub fn set_period_fine(&mut self, perlo: u8) {
+    fn set_period_fine(&mut self, perlo: u8) {
         self.set_period(self.period & 0xFF00 | perlo as u16)
     }
 
     #[inline]
-    pub fn set_period_coarse(&mut self, perhi: u8) {
+    fn set_period_coarse(&mut self, perhi: u8) {
         self.set_period(u16::from_le_bytes([self.period as u8, perhi]))
     }
 
     #[inline]
-    pub fn set_period(&mut self, mut period: u16) {
+    fn set_period(&mut self, mut period: u16) {
         period &= TONE_PERIOD_MASK;
         if period == 0 { period = 1 }
         self.period = period;
@@ -346,7 +355,7 @@ impl ToneControl {
     }
 
     #[inline]
-    pub fn update_is_low(&mut self) -> bool {
+    fn update_is_low(&mut self) -> bool {
         let ToneControl { period, mut tick, mut low } = *self;
         if period < TONE_GEN_MIN_THRESHOLD {
             low = false;
@@ -369,8 +378,8 @@ struct Ticker {
 }
 
 impl Ticker {
-    pub const CLOCK_INCREASE: FTs = HOST_CLOCK_RATIO * INTERNAL_CLOCK_DIVISOR;
-    pub fn new(current: FTs, end_ts: FTs) -> Self {
+    const CLOCK_INCREASE: FTs = HOST_CLOCK_RATIO * INTERNAL_CLOCK_DIVISOR;
+    fn new(current: FTs, end_ts: FTs) -> Self {
         Ticker { current, end_ts }
     }
 }
@@ -395,17 +404,30 @@ impl Ay3_891xAudio {
     pub fn reset(&mut self) {
         *self = Default::default()
     }
-    /// Converts a frequency given in Hz to AY-3-891x tone period value.
+    /// Converts a tone frequency given in Hz to a closest 16-bit tone period register value.
     ///
-    /// `clock_hz` AY-3-891x clock frequency in Hz. Usually it's CPU_HZ / 2.
+    /// `clock_hz` AY-3-891x clock frequency in Hz. In ZX Spectrum it equals to CPU_HZ / 2.
+    /// Amstrad CPC has PSG clocked at 1 MHz. Atari ST at 2 MHz.
+    ///
+    /// Returns `None` if the result can't be properly represented by 16 bit unsigned integer or if
+    /// the result is `0`.
     #[allow(clippy::float_cmp)]
-    pub fn freq_to_tone_period(clock_hz: f32, hz: f32) -> u16 {
-        let ftp = (clock_hz / (16.0 * hz)).round();
+    pub fn freq_to_tone_period(clock_hz: f32, hz: f32) -> Option<NonZeroU16> {
+        let ftp = (clock_hz / (INTERNAL_CLOCK_DIVISOR as f32 * hz)).round();
         let utp = ftp as u16;
         if utp as f32 != ftp {
-            panic!("tone period out of 16-bit unsigned integer range: {}", ftp);
+            None
         }
-        utp
+        else {
+            NonZeroU16::new(utp)
+        }
+    }
+    /// Converts a 16-bit tone period register value to a tone frequency in Hz.
+    ///
+    /// `clock_hz` AY-3-891x clock frequency in Hz. In ZX Spectrum it equals to CPU_HZ / 2.
+    /// Amstrad CPC has PSG clocked at 1 MHz. Atari ST at 2 MHz.
+    pub fn tone_period_to_freq(clock_hz: f32, tp: u16) -> f32 {
+        clock_hz / (tp as f32 * INTERNAL_CLOCK_DIVISOR as f32)
     }
     /// Creates an iterator of tone periods for the AY-3-891x chip.
     ///
@@ -414,6 +436,9 @@ impl Ay3_891xAudio {
     /// `note_freqs` An array of tone frequencies (in Hz) in the 5th octave (0-based: 4).
     ///  To generate frequencies you may want to use audio::music::equal_tempered_scale_note_freqs.
     /// `clock_hz` The AY-3-891x clock frequency in Hz. Usually it's CPU_HZ / 2.
+    ///
+    /// # Panics
+    /// Panics if any period can't be expressed by 16 bit unsigned integer.
     pub fn tone_periods<I>(
                 clock_hz: f32,
                 min_octave: i32,
@@ -425,11 +450,9 @@ impl Ay3_891xAudio {
         (min_octave..=max_octave).flat_map(move |octave| {
           note_freqs.clone().into_iter().map(move |hz| {
             let hz = hz * (2.0f32).powi(octave - 4);
-            let tp = Self::freq_to_tone_period(clock_hz, hz);
-            if !(1..=4095).contains(&tp) {
-                panic!("tone period out of range: {} ({} Hz)", tp, hz)
-            }
-            tp
+            Self::freq_to_tone_period(clock_hz, hz)
+                 .expect("frequency out of range")
+                 .get()
           })
         })
     }
@@ -551,6 +574,74 @@ impl Ay3_891xAudio {
             _ => ()
         }
     }
+    /// Returns the current tone periods of each channel.
+    ///
+    /// The period is in the range: [1, 4095].
+    #[inline]
+    pub fn get_tone_periods(&self) -> [u16;3] {
+        let mut periods = [0;3];
+        for (tone, tgt) in self.tone_control.iter().zip(periods.iter_mut()) {
+            *tgt = tone.period;
+        }
+        periods
+    }
+    /// Returns the current amplitude level of each channel.
+    ///
+    /// If the channel volume register's evelope bit is set, it returns the current envelope
+    /// level for that channel.
+    ///
+    /// The levels are in the range: [0, 15].
+    #[inline]
+    pub fn get_amp_levels(&self) -> [u8;3] {
+        let mut amps = [0;3];
+        for (level, tgt) in self.amp_levels.iter().zip(amps.iter_mut()) {
+            *tgt = if level.is_env_control() {
+                self.env_control.get_level()
+            }
+            else {
+                level.0
+            };
+        }
+        amps
+    }
+    /// Returns the current noise pitch.
+    ///
+    /// The pitch is in the range: [0, 31].
+    #[inline]
+    pub fn get_noise_pitch(&self) -> u8 {
+        self.noise_control.period
+    }
+    /// Returns the current value of the mixer register.
+    ///
+    /// ```text
+    /// t - tone bit: 0 tone enabled, 1 disabled
+    /// n - noise bit: 0 noise enabled, 1 disabled
+    ///
+    /// b7 b6 b5 b4 b3 b2 b1 b0 bit
+    /// -  -  n  n  n  t  t  t  value
+    /// -  -  C  B  A  C  B  A  channel
+    /// ```
+    #[inline]
+    pub fn get_mixer(&self) -> u8 {
+        self.mixer.0
+    }
+    /// Returns the current level of the envelope generator.
+    #[inline]
+    pub fn get_envelope_level(&self) -> u8 {
+        self.env_control.get_level()
+    }
+    /// Returns the envelope shape.
+    #[inline]
+    pub fn get_envelope_shape(&self) -> u8 {
+        self.env_control.get_shape()
+    }
+    /// Returns the envelope period.
+    ///
+    /// The period is in the range: [1, 65535].
+    #[inline]
+    pub fn get_envelope_period(&self) -> u16 {
+        self.env_control.period
+    }
 }
 
 #[cfg(test)]
@@ -562,8 +653,10 @@ mod tests {
         use spectrusty_audio::music::*;
         let clock_hz = 3_546_900.0/2.0f32;
         let mut notes: Vec<u16> = Vec::new();
-        assert_eq!(252, Ay3_891xAudio::freq_to_tone_period(clock_hz, 440.0));
-        assert_eq!(5, Ay3_891xAudio::freq_to_tone_period(clock_hz, 24000.0));
+        assert_eq!(252, Ay3_891xAudio::freq_to_tone_period(clock_hz, 440.0).unwrap().get());
+        assert_eq!(5, Ay3_891xAudio::freq_to_tone_period(clock_hz, 24000.0).unwrap().get());
+        assert_eq!(439.84375, Ay3_891xAudio::tone_period_to_freq(clock_hz, 252));
+        assert_eq!(22168.125, Ay3_891xAudio::tone_period_to_freq(clock_hz, 5));
         notes.extend(Ay3_891xAudio::tone_periods(clock_hz, 0, 7, equal_tempered_scale_note_freqs(440.0, 0, 12)));
         assert_eq!(
             vec![4031, 3804, 3591, 3389, 3199, 3020, 2850, 2690, 2539, 2397, 2262, 2135,

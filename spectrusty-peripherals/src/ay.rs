@@ -300,7 +300,7 @@ where A: AyIoPort<Timestamp=T>,
     /// This method is being used to interface the host controller I/O operation.
     #[inline]
     pub fn select_port_write(&mut self, data: u8) {
-        self.selected_reg = AyRegister::from(data & 0x0F)
+        self.selected_reg = AyRegister::from(data)
     }
     /// Writes data to a previously selected register and records a change
     /// in the attached recorder unless a write is performed to one of the I/O ports.
