@@ -40,16 +40,11 @@ use self::serde::{SerdeDynDevice, DeviceType, recreate_model_dynamic_devices};
 #[wasm_bindgen]
 extern "C" {
     type Object;
-
     #[wasm_bindgen(constructor)]
     fn new() -> Object;
-
     #[wasm_bindgen(method, indexing_setter)]
     fn set(this: &Object, key: &JsValue, value: &JsValue);
-}
 
-#[wasm_bindgen]
-extern "C" {
     fn alert(s: &str);
     #[wasm_bindgen(js_namespace = console)]
     fn log(s: &str);
