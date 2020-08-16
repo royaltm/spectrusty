@@ -8,7 +8,7 @@ use core::str::FromStr;
 use std::io::{Cursor, Write, Seek, SeekFrom};
 
 use wasm_bindgen::{Clamped, prelude::*};
-use js_sys::{Array, Promise, Uint8Array};
+use js_sys::{Array, Promise, Uint8Array, Int32Array};
 
 use web_sys::{
     KeyboardEvent,
@@ -72,10 +72,17 @@ pub struct ZxSpectrumEmu {
 
 #[wasm_bindgen]
 impl ZxSpectrumEmu {
+    /// Creates an instance of `ZxSpectrumEmu`.
+    ///
+    /// Provide the maximum duration (in seconds) of a single audio frame and the initial `model` name.
+    ///
+    /// # Errors
+    /// Any duration values between `0.02` and `1.0` are being accepted, otherwise returns an error.
+    /// Another error is returned if the provided `model` string is not recognized.
     #[wasm_bindgen(constructor)]
-    pub fn new(audio_buffer_duration: f32, model: &str) -> Result<ZxSpectrumEmu> {
+    pub fn new(audio_buffer_max_duration: f32, model: &str) -> Result<ZxSpectrumEmu> {
         let mut bandlim = create_blep();
-        let audio_stream = AudioStream::new(audio_buffer_duration)?;
+        let audio_stream = AudioStream::new(audio_buffer_max_duration)?;
         let model_request = ModelRequest::from_str(model)?;
         let model = ZxSpectrumModel::new(model_request);
         model.ensure_audio_frame_time(&mut bandlim, audio_stream.sample_rate());
@@ -90,11 +97,15 @@ impl ZxSpectrumEmu {
         let (w, h) = self.spectrum_control_ref().target_size_pixels();
         Box::new([w, h])
     }
-    /// Returns `true` if emulator's state changes (tape stopped or turbo started/ended).
-    /// Returns `false` if emulator's state didn't change but at least one frame was run at this iteration.
-    /// Returns `undefined` if no frame was run at this iteration.
+    /// Runs emulator frames. Renders and plays audio frames if applicable.
     ///
-    /// `time` should be provided from `requestAnimationFrame` callback or `performance.now()`.
+    /// Returns:
+    /// * `true` if emulator's state has changed (the tape has stopped or turbo state has changed).
+    /// * `false` if emulator's state hasn't change but at least one frame was run at this iteration.
+    /// * `undefined` if no frame was run at this iteration.
+    ///
+    /// The `time` argument should be provided from callback argument of `window.requestAnimationFrame` or 
+    /// from `performance.now()`.
     #[wasm_bindgen(js_name = runFramesWithAudio)]
     pub fn run_frames_with_audio(&mut self, time: f64) -> Result<Option<bool>> {
         let mut state_changed = false;
@@ -127,10 +138,10 @@ impl ZxSpectrumEmu {
         }
         Ok(Some(state_changed))
     }
-    /// Returns an ImageData with pixels rendered from the last frame's data.
+    /// Returns an `ImageData` object on success with pixels rendered from the last run frame's video data.
     ///
     /// # NOTE
-    /// The returned image's `data` property points to wasm memory. In order to use the image in an
+    /// The returned image's `data` property points to `wasm` memory. In order to use the image in an
     /// asynchronous context you need to copy its data first.
     #[wasm_bindgen(js_name = renderVideo)]
     pub fn render_video(&mut self) -> Result<ImageData> {
@@ -139,7 +150,7 @@ impl ZxSpectrumEmu {
         let (width, height) = model.render_video_frame(pixel_data);
         ImageData::new_with_u8_clamped_array_and_sh(Clamped(pixel_data), width, height)
     }
-
+    /// Updates emulator input from `KeyboardEvent` and `pressed` boolean.
     #[wasm_bindgen(js_name = updateStateFromKeyEvent)]
     pub fn update_state_from_key_event(&mut self, event: &KeyboardEvent, pressed: bool) {
         event.prevent_default();
@@ -150,7 +161,10 @@ impl ZxSpectrumEmu {
         self.spectrum_control_mut().
             process_keyboard_event(&key, pressed, shift_down, ctrl_down, num_lock);
     }
-
+    /// Hot swaps the emulated Spectrum model to the `model` name given.
+    ///
+    /// # Errors
+    /// An error is returned if the provided `model` string is not recognized.
     #[wasm_bindgen(js_name = selectModel)]
     pub fn select_model(&mut self, model: &str) -> Result<()> {
         let model_request = ModelRequest::from_str(model)?;
@@ -158,17 +172,23 @@ impl ZxSpectrumEmu {
         self.update_on_frame_duration_changed();
         Ok(())
     }
-
+    /// Returns the currently emulated Spectrum model as a `String`.
     #[wasm_bindgen(getter)]
     pub fn model(&mut self) -> String {
         ModelRequest::from(&self.model).to_string()
     }
-
+    /// Resets the emulated Spectrum model.
+    ///
+    /// The `hard` argument should be:
+    /// * `false` for soft reset.
+    /// * `true` for hard reset.
     #[wasm_bindgen]
     pub fn reset(&mut self, hard: bool) {
         self.spectrum_control_mut().reset(hard)
     }
-
+    /// Emulates the power off/on cycle of the emulated Spectrum model.
+    ///
+    /// This method re-initializes peripheral devices state and randomizes memory content.
     #[wasm_bindgen(js_name = powerCycle)]
     pub fn power_cycle(&mut self) -> Result<()> {
         let mut model = ZxSpectrumModel::new((&self.model).into());
@@ -178,102 +198,137 @@ impl ZxSpectrumEmu {
         self.model.set_emulator_state(state);
         Ok(())
     }
-
+    /// Initializes NMI trigger. The NMI will be triggered at the earliest possible moment
+    /// during the next frame run.
     #[wasm_bindgen(js_name = triggerNmi)]
     pub fn trigger_nmi(&mut self) {
         self.spectrum_control_mut().trigger_nmi()
     }
-
+    /// Changes next rendered frame's border size from the given border size name.
+    ///
+    /// # Errors
+    /// An error is returned if the given border size name is not recognized.
     #[wasm_bindgen(js_name = selectBorderSize)]
     pub fn select_border_size(&mut self, border_size: &str) -> Result<()> {
         self.model.emulator_state_mut().border_size = BorderSize::from_str(border_size)
                                                             .js_err()?;
         Ok(())
     }
-
+    /// Returns the current border size name as a `String`.
     #[wasm_bindgen(getter = borderSize)]
     pub fn border_size(&self) -> String {
         self.model.emulator_state_ref().border_size.to_string()
     }
-
+    /// Sets the (de)interlace mode for the next rendered frame.
+    ///
+    /// The `value` argument should be:
+    /// * `0` to disable de-interlacing.
+    /// * `1` for enabling de-interlacing with the odd frame lines being rendered above even frame lines.
+    /// * `2` for enabling de-interlacing with the even frame lines being rendered above odd frame lines.
+    ///
+    /// # Errors
+    /// An error is returned if the given `value` is not one of the above.
     #[wasm_bindgen(setter)]
     pub fn set_interlace(&mut self, value: u8) -> Result<()> {
         self.model.emulator_state_mut().interlace = value.try_into().js_err()?;
         Ok(())
     }
-
+    /// Returns the (de)interlace mode.
     #[wasm_bindgen(getter)]
     pub fn interlace(&self) -> u8 {
         self.model.emulator_state_ref().interlace.into()
     }
-    /// Sets the CPU rate factor, between 0.2 and 5.0.
+    /// Sets the CPU rate factor.
+    ///
+    /// `1.0` is the natural emulation speed.
+    ///
+    /// The `rate` will be capped between `0.2` and `5.0`.
     #[wasm_bindgen(js_name = setCpuRateFactor)]
     pub fn set_cpu_rate_factor(&mut self, rate: f32) {
         let rate = rate.max(0.2).min(5.0);
         self.model.emulator_state_mut().clock_rate_factor = rate;
         self.update_on_frame_duration_changed();
     }
-
+    /// Returns the current CPU rate factor.
     #[wasm_bindgen(getter = cpuRateFactor)]
     pub fn cpu_rate_factor(&self) -> f32 {
         self.model.emulator_state_ref().clock_rate_factor
     }
-
-    #[wasm_bindgen(getter)]
-    pub fn turbo(&mut self) -> bool {
-        self.model.emulator_state_ref().turbo
-    }
-
+    /// Sets turbo mode.
+    ///
+    /// When turbo mode is enabled frames are run as fast as possible and audio is not being played.
     #[wasm_bindgen(setter)]
     pub fn set_turbo(&mut self, is_turbo: bool) {
         self.model.emulator_state_mut().turbo = is_turbo;
     }
-    /// Sets the gain for this oscillator, between 0 and 100.
+    /// Returns the state of the turbo mode.
     #[wasm_bindgen(getter)]
-    pub fn gain(&self) -> u32 {
-        (self.audio_stream.gain() * 100.0) as u32
+    pub fn turbo(&mut self) -> bool {
+        self.model.emulator_state_ref().turbo
     }
-    /// Sets the gain for this oscillator, between 0 and 100.
+    /// Sets the volume percent gain for audio playback.
+    ///
+    /// Provided values above 100 are being capped.
     #[wasm_bindgen(setter)]
     pub fn set_gain(&self, gain: u32) {
         self.audio_stream.set_gain(gain as f32 / 100.0);
     }
-
-    #[wasm_bindgen(getter = audibleTape)]
-    pub fn audible_tape(&self) -> bool {
-        self.model.emulator_state_ref().audible_tape
+    /// Returns the volume percent gain for audio playback.
+    #[wasm_bindgen(getter)]
+    pub fn gain(&self) -> u32 {
+        (self.audio_stream.gain() * 100.0) as u32
     }
-
+    /// Sets the state of the audible tape flag.
+    ///
+    /// If audible tape flag is enabled, the tape playback and recording sound will be played.
     #[wasm_bindgen(setter = audibleTape)]
     pub fn set_audible_tape(&mut self, is_audible: bool) {
         self.model.emulator_state_mut().audible_tape = is_audible;
     }
-
-    #[wasm_bindgen(getter = fastTape)]
-    pub fn fast_tape(&self) -> bool {
-        self.model.emulator_state_ref().flash_tape
+    /// Returns the state of the audible tape flag.
+    #[wasm_bindgen(getter = audibleTape)]
+    pub fn audible_tape(&self) -> bool {
+        self.model.emulator_state_ref().audible_tape
     }
-
+    /// Sets the state of the auto-play and accelerate tape flag.
     #[wasm_bindgen(setter = fastTape)]
     pub fn set_fast_tape(&mut self, is_fast: bool) {
         self.model.emulator_state_mut().flash_tape = is_fast;
     }
-
+    /// Returns the state of the auto-play and accelerate tape flag.
+    #[wasm_bindgen(getter = fastTape)]
+    pub fn fast_tape(&self) -> bool {
+        self.model.emulator_state_ref().flash_tape
+    }
+    /// Pauses audio playback by suspending audio context.
+    ///
+    /// Returns a [Promise] which resolves when playback has been paused or is rejected
+    /// when the audio context is already closed.
     #[wasm_bindgen(js_name = pauseAudio)]
     pub fn pause_audio(&self) -> Result<Promise> {
         self.audio_stream.pause()
     }
-
+    /// Resumes audio playback by resuming audio context.
+    ///
+    /// Returns a [Promise] which resolves when playback has been resumed or is rejected
+    /// when the audio context is already closed.
     #[wasm_bindgen(js_name = resumeAudio)]
     pub fn resume_audio(&self) -> Result<Promise> {
         self.audio_stream.resume()
     }
-
+    /// Attempts to load a `.SCR` file into the video memory setting the appropriate video mode on success.
+    ///
+    /// # Errors
+    /// Returns an error if the file format was not recognized or if the current Spectrum model does not support
+    /// required screen mode.
     #[wasm_bindgen(js_name = showScr)]
     pub fn show_scr(&mut self, scr_data: Vec<u8>) -> Result<()> {
         self.spectrum_control_mut().load_scr(scr_data.as_slice()).js_err()
     }
-
+    /// Attempts to load a `.SNA` snapshot file.
+    ///
+    /// # Errors
+    /// Returns an error if the file format is wrong or malformed.
     #[wasm_bindgen(js_name = loadSna)]
     pub fn load_sna(&mut self, sna_data: Vec<u8>) -> Result<()> {
         load_sna(Cursor::new(sna_data), self).js_err()?;
@@ -282,14 +337,20 @@ impl ZxSpectrumEmu {
         // self.model.lock_48k_mode();
         Ok(())
     }
-
+    /// Attempts to load a `.Z80` snapshot file.
+    ///
+    /// # Errors
+    /// Returns an error if the file format is wrong or malformed.
     #[wasm_bindgen(js_name = loadZ80)]
     pub fn load_z80(&mut self, z80_data: Vec<u8>) -> Result<()> {
         load_z80(&z80_data[..], self).js_err()?;
         self.update_on_frame_duration_changed();
         Ok(())
     }
-
+    /// Returns an array with information about the content of the inserted TAPE.
+    ///
+    /// Each array item represents a TAPE chunk as an object with properties `info`
+    /// as a string and `size` as a number of bytes in a chunk.
     #[wasm_bindgen(js_name = tapeInfo)]
     pub fn tape_info(&mut self) -> Result<Array> {
         let array = js_sys::Array::new();
@@ -312,12 +373,12 @@ impl ZxSpectrumEmu {
         }
         Ok(array)
     }
-
+    /// Ejects the inserted TAPE if any.
     #[wasm_bindgen(js_name = ejectTape)]
     pub fn eject_tape(&mut self) {
         self.model.emulator_state_mut().tape.eject();
     }
-
+    /// Appends the provided TAPE data to the already inserted TAPE.
     #[wasm_bindgen(js_name = appendTape)]
     pub fn append_tape(&mut self, tape_data: Vec<u8>) -> Result<Array> {
         let tape = &mut self.model.emulator_state_mut().tape;
@@ -354,7 +415,7 @@ impl ZxSpectrumEmu {
             return res;
         }
     }
-
+    /// Inserts a new TAPE, replacing the previous TAPE if any.
     #[wasm_bindgen(js_name = insertTape)]
     pub fn insert_tape(&mut self, tape_data: Vec<u8>) -> Result<Array> {
         let new_tap = Cursor::new(tape_data);
@@ -369,7 +430,9 @@ impl ZxSpectrumEmu {
         }
         res
     }
-    /// Returns content of the inserted TAPE.
+    /// Returns the content of the inserted TAPE in a `.TAP` binary format.
+    ///
+    /// Returns `undefined` if no TAPE was inserted.
     #[wasm_bindgen(js_name = tapeData)]
     pub fn tape_data(&mut self) -> Option<Uint8Array> {
         self.model.emulator_state_mut().tape.try_reader_mut().unwrap()
@@ -377,7 +440,10 @@ impl ZxSpectrumEmu {
             Uint8Array::from(&**reader.get_ref().get_ref().get_ref())
         })
     }
-    /// Returns a **SNA** file data on success.
+    /// Returns a snapshot data of the emulated Spectrum in a '.SNA' format on success.
+    ///
+    /// # Errors
+    /// Returns an error if the snapshot could not be created in this format.
     #[wasm_bindgen(js_name = saveSNA)]
     pub fn save_sna(&mut self) -> Result<Vec<u8>> {
         self.model.ensure_cpu_is_safe_for_snapshot();
@@ -386,7 +452,12 @@ impl ZxSpectrumEmu {
         report_result(result);
         Ok(buf)
     }
-    /// Returns a **Z80** file data on success.
+    /// Returns a snapshot data of the emulated Spectrum in a '.Z80' format on success.
+    ///
+    /// Provide format version as: `1`, `2` or `3`.
+    ///
+    /// # Errors
+    /// Returns an error if the snapshot could not be created in this format.
     #[wasm_bindgen(js_name = saveZ80)]
     pub fn save_z80(&mut self, ver: u32) -> Result<Vec<u8>> {
         self.model.ensure_cpu_is_safe_for_snapshot();
@@ -400,12 +471,15 @@ impl ZxSpectrumEmu {
         report_result(result);
         Ok(buf)
     }
-    /// Serializes ZX Spectrum to JSON.
+    /// Serializes the current state of the emulated Spectrum model to a JSON string.
     #[wasm_bindgen(js_name = toJSON)]
     pub fn to_json(&self) -> Result<String> {
         serde_json::to_string(&self.model).js_err()
     }
-    /// Deserializes ZX Spectrum from JSON.
+    /// Attempts to deserialize a Spectrum model with the serialized state from a JSON string.
+    ///
+    /// # Errors
+    /// Returns an error if the JSON format is mangled or incomplete.
     #[wasm_bindgen(js_name = parseJSON)]
     pub fn parse_json(&mut self, json: &str) -> Result<()> {
         self.model = serde_json::from_str(json).js_err()?;
@@ -413,24 +487,33 @@ impl ZxSpectrumEmu {
         self.update_on_frame_duration_changed();
         Ok(())
     }
-    /// Returns [chunk_index, bytes_left]
+    /// Returns the current TAPE head position as a tuple of `[chunk_index, bytes_left]`.
+    ///
+    /// * `chunk_index` being an index of the TAPE chunk, starting from 0.
+    /// * `bytes_left` being a number of bytes between the current head position and the chunk's end.
+    ///
+    /// If no TAPE has been inserted returns `[-1, 0]`.
     #[wasm_bindgen(js_name = tapeProgress)]
-    pub fn tape_progress(&self) -> Box<[i32]> {
+    pub fn tape_progress(&self) -> Int32Array {
         if let Some(reader) = self.model.emulator_state_ref().tape.reader_ref() {
             let chunk_index = reader.chunk_no() as i32 - 1;
             let chunk_limit = reader.chunk_limit() as i32 + 1;
-            return Box::new([chunk_index, chunk_limit])
+            return Int32Array::from([chunk_index, chunk_limit].as_ref())
         }
-        Box::new([-1, 0])
+        Int32Array::from([-1, 0].as_ref())
     }
-
+    /// Moves the TAPE head position to the beginning of the indicated chunk.
     #[wasm_bindgen(js_name = selectTapeChunk)]
     pub fn select_tape_chunk(&mut self, chunk_index: u32) -> Result<()> {
         self.model.emulator_state_mut().tape.rewind_nth_chunk(chunk_index + 1)
             .js_err()?;
         Ok(())
     }
-
+    /// Returns the current status of the TAPE player/recorder.
+    ///
+    /// * `0` - the TAPE is idle or absent.
+    /// * `1` - the TAPE is being played.
+    /// * `2` - the TAPE is being recorded.
     #[wasm_bindgen(js_name = tapeStatus)]
     pub fn tape_status(&mut self) -> u32 {
         match self.model.emulator_state_ref().tape.tap_state() {
@@ -439,7 +522,9 @@ impl ZxSpectrumEmu {
             TapState::Recording => 2,
         }
     }
-
+    /// Starts or stops TAPE playback depending on its previous state.
+    ///
+    /// Returns the TAPE status on success. See [ZxSpectrumEmu::tape_status].
     #[wasm_bindgen(js_name = togglePlayTape)]
     pub fn toggle_play_tape(&mut self) -> Result<u32> {
         let tape = &mut self.model.emulator_state_mut().tape;
@@ -451,7 +536,9 @@ impl ZxSpectrumEmu {
         }
         Ok(self.tape_status())
     }
-
+    /// Starts or stops TAPE recording depending on its previous state.
+    ///
+    /// Returns the TAPE status on success. See [ZxSpectrumEmu::tape_status].
     #[wasm_bindgen(js_name = toggleRecordTape)]
     pub fn toggle_record_tape(&mut self) -> Result<u32> {
         let tape = &mut self.model.emulator_state_mut().tape;
@@ -468,34 +555,48 @@ impl ZxSpectrumEmu {
         }
         Ok(self.tape_status())
     }
-
-    #[wasm_bindgen(getter = ayAmps)]
-    pub fn ay_amps(&self) -> String {
-        self.model.emulator_state_ref().ay_amps.to_string()
-    }
-
+    /// Sets the `AY-3-891x` PSG digital level to amplitude conversion scheme.
+    ///
+    /// # Errors
+    /// `amps` can be either "Spec" or "Fuse". Otherwise an error is returned.
     #[wasm_bindgen(setter = ayAmps)]
     pub fn set_ay_amps(&mut self, amps: &str) -> Result<()> {
         self.model.emulator_state_mut().ay_amps = amps.parse()?;
         Ok(())
     }
-
-    #[wasm_bindgen(getter = ayChannels)]
-    pub fn ay_channels(&self) -> String {
-        self.model.emulator_state_ref().ay_channels.to_string()
+    /// Returns the current `AY-3-891x` PSG digital level to amplitude conversion scheme.
+    #[wasm_bindgen(getter = ayAmps)]
+    pub fn ay_amps(&self) -> String {
+        self.model.emulator_state_ref().ay_amps.to_string()
     }
-
+    /// Sets the `AY-3-891x` PSG channel mixing scheme.
+    ///
+    /// # Errors
+    /// `channels` can be either a permutation of "ABC" characters or "mono". Otherwise an error is returned.
     #[wasm_bindgen(setter = ayChannels)]
     pub fn set_ay_channels(&mut self, channels: &str) -> Result<()> {
         self.model.emulator_state_mut().ay_channels = channels.parse()?;
         Ok(())
     }
-
+    /// Returns the current `AY-3-891x` PSG channel mixing scheme.
+    #[wasm_bindgen(getter = ayChannels)]
+    pub fn ay_channels(&self) -> String {
+        self.model.emulator_state_ref().ay_channels.to_string()
+    }
+    /// Selects the emulated joystick.
+    ///
+    /// `joy` can be one of:
+    /// * `-1` for no joystick.
+    /// * `0` for Kempston.
+    /// * `1` for Fuller.
+    /// * `2` for Sinclair Right.
+    /// * `3` for Sinclair Left.
+    /// * `4` for Cursor.
     #[wasm_bindgen(js_name = selectJoystick)]
     pub fn select_joystick(&mut self, joy: usize) {
         self.model.select_joystick(joy);
     }
-
+    /// Returns the selected joystick name or "None".
     #[wasm_bindgen(getter)]
     pub fn joystick(&self) -> String {
         let name = self.model.current_joystick().unwrap_or("None");
@@ -507,35 +608,38 @@ impl ZxSpectrumEmu {
             name.to_string()
         }
     }
-
+    /// Attempts to attach a device to the dynamic bus.
     #[wasm_bindgen(js_name = attachDevice)]
     pub fn attach_device(&mut self, device_name: &str) -> Result<bool> {
         device_name.parse().map(|dt: DeviceType|
             dt.attach_device_to_model(&mut self.model)
         ).js_err()
     }
-
+    /// Attempts to detach a device from the dynamic bus.
     #[wasm_bindgen(js_name = detachDevice)]
     pub fn detach_device(&mut self, device_name: &str) -> Result<()> {
         device_name.parse().map(|dt: DeviceType|
             dt.detach_device_from_model(&mut self.model)
         ).js_err()
     }
-
+    /// Returns `true` if an indicated device is present in the dynamic bus. Otherwise returns `false`.
     #[wasm_bindgen(js_name = hasDevice)]
     pub fn has_device(&self, device_name: &str) -> Result<bool> {
         device_name.parse().map(|dt: DeviceType|
             dt.has_device_in_model(&self.model)
         ).js_err()
     }
-
+    /// Sets the emulated keyboard issue.
+    ///
+    /// # Errors
+    /// The `mode` should be "Issue 2" or "Issue 3". Otherwise an error is returned.
     #[wasm_bindgen(setter = keyboardIssue)]
     pub fn set_keyboard_issue(&mut self, mode: &str) -> Result<()> {
         let mode = ReadEarMode::from_str(mode).js_err()?;
         self.spectrum_control_mut().set_read_ear_mode(mode);
         Ok(())
     }
-
+    /// Returns the emulated keyboard issue.
     #[wasm_bindgen(getter = keyboardIssue)]
     pub fn keyboard_issue(&mut self) -> String {
         self.spectrum_control_mut().read_ear_mode().to_string()

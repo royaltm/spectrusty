@@ -8,40 +8,52 @@ use web_sys::{
     GainNode,
 };
 use spectrusty::audio::{
-    BlepAmpFilter, BlepStereo, AudioSample,
+    BlepAmpFilter, BlepStereo,
     synth::BandLimited
 };
+use crate::utils::Result;
 
 const AUDIO_CHANNELS: u32 = 2;
-// The maximum number of audio buffers in use.
+/// The maximum number of audio buffers in use.
 const QUEUE_MAX_LEN: usize = 8;
-// The minimum sound start delay.
-//
-// Serves as a synchronization margin between audio and emulated frames.
+/// The minimum sound start delay.
+///
+/// Serves as a synchronization margin between audio and emulated frames.
 const SOUND_START_MIN_DELAY: f64 = 0.01;
-// The maximum sound start delay.
-//
-// If the audio frame would be scheduled to play with a longer delay than this constant,
-// rendering audio frame will be skipped. This prevents audio to desynchronize with the emulation.
+/// The maximum sound start delay.
+///
+/// If the audio frame would be scheduled to play with a longer delay than this constant,
+/// rendering audio frame will be skipped. This prevents audio lag.
 const SOUND_START_MAX_DELAY: f64 = 0.1;
 
 type AudioQueue = VecDeque<AudioBuffer>;
 
+/// The type used for the `Blep` implementation.
 pub type BandLim = BlepAmpFilter<BlepStereo<BandLimited<f32>>>;
 
+/// `Blep` factory.
 pub fn create_blep() -> BandLim {
     BlepAmpFilter::build(0.5)(BlepStereo::build(0.86)(BandLimited::new(2)))
 }
 
+/// This type implements audio playback via Web Audio API.
 pub struct AudioStream {
+    /// Intermediary audio buffers.
     buffers: [Vec<f32>;AUDIO_CHANNELS as usize],
+    /// Web AudioBuffer queue.
     audio_queue: AudioQueue,
+    /// Cached AudioContext's sample rate.
     sample_rate: f32,
+    /// The number of samples of the [AudioBuffer]s added to the [AudioQueue].
     buffer_length: u32,
+    /// The maximum duration of a single audio frame in seconds.
     buffer_duration: f64,
+    /// The audio context used for audio playback.
     ctx: AudioContext,
+    /// The gain node to control audio volume.
     gain: GainNode,
-    started_at: f64
+    /// The next frame's playback should start at this timestamp or later.
+    next_at: f64
 }
 
 impl Drop for AudioStream {
@@ -51,10 +63,12 @@ impl Drop for AudioStream {
 }
 
 impl AudioStream {
+    /// Creates an instance of `AudioStream`.
+    ///
     /// Provide the maximum duration (in seconds) of a single audio frame.
     ///
     /// Any values between `0.02` and `1.0` are being accepted, otherwise returns an error.
-    pub fn new(max_buffer_duration: f32) -> Result<Self, JsValue> {
+    pub fn new(max_buffer_duration: f32) -> Result<Self> {
         if max_buffer_duration < 0.02 || max_buffer_duration > 1.0 {
             Err("requested buffer duration should be between 0.02 and 1.0")?;
         }
@@ -82,18 +96,25 @@ impl AudioStream {
             buffers: Default::default(),
             sample_rate,
             gain,
-            started_at: 0.0
+            next_at: 0.0
         })
     }
-
+    /// Returns the sample rate of the audio playback.
     pub fn sample_rate(&self) -> u32 {
         self.sample_rate as u32
     }
-    /// Plays the next audio frame from the given `BandLim` and prepares it for the next frame.
+    /// Renders the next audio frame and schedules it to be played from the given `BandLim`.
+    ///
+    /// Prepares the `BandLim` for the next frame.
+    ///
+    /// # Errors
     ///
     /// The duration of the rendered audio frame must not exceed the value given to [AudioStream::new],
     /// otherwise an error is being returned.
-    pub fn play_next_audio_frame(&mut self, bandlim: &mut BandLim) -> Result<(), JsValue> {
+    ///
+    /// # Panics
+    /// The `bandlim` should be in a finalized state, otherwise this function will panic.
+    pub fn play_next_audio_frame(&mut self, bandlim: &mut BandLim) -> Result<()> {
         let nsamples = self.render_audio_frame(bandlim);
         let duration = nsamples as f64 / self.sample_rate as f64;
         if duration > self.buffer_duration {
@@ -101,7 +122,7 @@ impl AudioStream {
         }
 
         let current_time = self.ctx.current_time();
-        let time = self.started_at.max(current_time + SOUND_START_MIN_DELAY);
+        let time = self.next_at.max(current_time + SOUND_START_MIN_DELAY);
         if time > current_time + SOUND_START_MAX_DELAY {
             return Ok(());
         }
@@ -125,53 +146,53 @@ impl AudioStream {
         source.set_buffer(Some(&audio_buffer));
         source.connect_with_audio_node(&self.gain)?;
         source.start_with_when_and_grain_offset_and_grain_duration(time, 0.0, duration)?;
-        self.started_at = time + duration;
+        self.next_at = time + duration;
         Ok(())
     }
 
     fn render_audio_frame(&mut self, bandlim: &mut BandLim) -> usize {
         let mut nsamples = 0;
         for (channel, target) in self.buffers.iter_mut().enumerate() {
-            let sample_iter = bandlim.sum_iter(channel);
+            let sample_iter = bandlim.sum_iter::<f32>(channel);
             nsamples = sample_iter.len();
-            target.resize(nsamples, f32::silence());
-            for (sample, dst) in sample_iter.zip(target.iter_mut()) {
-                *dst = sample;
-            }
+            target.clear();
+            target.extend(sample_iter);
         }
         bandlim.next_frame();
         nsamples
     }
-    /// Sets the gain for this oscillator, between 0.0 and 1.0.
+    /// Returns the volume gain for audio playback.
     pub fn gain(&self) -> f32 {
         self.gain.gain().value()
     }
-    /// Sets the gain for this oscillator, between 0.0 and 1.0.
+    /// Sets the volume gain for audio playback.
+    ///
+    /// Provided values are being capped between 0.0 and 1.0.
     pub fn set_gain(&self, gain: f32) {
         self.gain.gain().set_value(gain.min(1.0).max(0.0));
     }
-
-    pub fn pause(&self) -> Result<Promise, JsValue> {
+    /// Pauses audio playback by suspending audio context.
+    ///
+    /// Returns a [Promise] which resolves when playback has been paused or is rejected
+    /// when the audio context is already closed.
+    pub fn pause(&self) -> Result<Promise> {
         let ctx = &self.ctx;
         match ctx.state() {
-            AudioContextState::Suspended => {}
-            AudioContextState::Running => {
-                return ctx.suspend()
-            }
-            _ => Err("Audio context closed")?
+            AudioContextState::Running => ctx.suspend(),
+            AudioContextState::Suspended => Ok(Promise::resolve(&JsValue::UNDEFINED)),
+            _ => Ok(Promise::reject(&JsValue::from_str("Audio context closed")))
         }
-        Ok(Promise::resolve(&JsValue::UNDEFINED))
     }
-
-    pub fn resume(&self) -> Result<Promise, JsValue> {
+    /// Resumes audio playback by resuming audio context.
+    ///
+    /// Returns a [Promise] which resolves when playback has been resumed or is rejected
+    /// when the audio context is already closed.
+    pub fn resume(&self) -> Result<Promise> {
         let ctx = &self.ctx;
         match ctx.state() {
-            AudioContextState::Suspended => {
-                return ctx.resume()
-            }
-            AudioContextState::Running => {}
-            _ => Err("Audio context closed")?
+            AudioContextState::Suspended => ctx.resume(),
+            AudioContextState::Running => Ok(Promise::resolve(&JsValue::UNDEFINED)),
+            _ => Ok(Promise::reject(&JsValue::from_str("Audio context closed")))
         }
-        Ok(Promise::resolve(&JsValue::UNDEFINED))
     }
 }
