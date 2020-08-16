@@ -1,9 +1,9 @@
-//! Performs tests of the CPU instructions and contention emulation using tests from the [Fuse]
+//! Performs tests of CPU instructions and contention emulation using tests from the [Fuse]
 //! ZX Spectrum emulator.
 //!
 //! To run these tests, "tests.in" and "tests.expected" source files are needed to be present in the
 //! "tests/fuse" directory.
-//! This program attempts to download them before running all the tests if the files are not present.
+//! This program attempts to download them before running the tests if the files are not present.
 //!
 //! [Fuse]: https://sourceforge.net/projects/fuse-emulator/
 use core::num::{NonZeroU8, NonZeroU16};
