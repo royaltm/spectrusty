@@ -27,6 +27,7 @@ impl<T, E> JsErr for core::result::Result<T, E>
 }
 
 #[wasm_bindgen(js_name = setPanicHook)]
+/// Call it once the wasm module has been loaded to register a panic hook.
 pub fn set_panic_hook() {
     // When the `console_error_panic_hook` feature is enabled, we can call the
     // `set_panic_hook` function at least once during initialization, and then
@@ -38,8 +39,12 @@ pub fn set_panic_hook() {
     console_error_panic_hook::set_once();
 }
 
-#[wasm_bindgen]
+// relative to wasm-pack --out-dir, `pkg` by default.
+#[wasm_bindgen(raw_module = "../src/js/utils")]
 extern "C" {
-  #[wasm_bindgen(js_namespace = Spectrusty)]
     pub fn now() -> f64;
 }
+
+// pub fn now() -> f64 {
+//     web_sys::window().unwrap().performance().unwrap().now()
+// }

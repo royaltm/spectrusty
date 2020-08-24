@@ -346,7 +346,12 @@ impl<C: Cpu, U, F> ZxSpectrum<C, U, F>
         Ok((sum, state_changed))
     }
     #[cfg(target_arch = "wasm32")]
-    pub fn run_frames_accelerated<FN: Fn() -> f64>(&mut self, time_sync: &mut AnimationFrameSyncTimer, timer: FN) -> Result<(FTs, bool)> {
+    pub fn run_frames_accelerated<FN: Fn() -> f64>(
+            &mut self,
+            time_sync: &mut AnimationFrameSyncTimer,
+            timer: FN
+        ) -> Result<(FTs, bool)>
+    {
         let mut sum: FTs = 0;
         let mut state_changed = false;
         while time_sync.check_frame_elapsed(timer()).is_none() {
@@ -359,6 +364,35 @@ impl<C: Cpu, U, F> ZxSpectrum<C, U, F>
                 }
             }
         }
+        Ok((sum, state_changed))
+    }
+    /// Runs frames inserting a keymap each frame from the keymap iterator.
+    pub fn run_with_auto_type<'a, I: IntoIterator<Item=&'a (ZXKeyboardMap, u32)>>(
+            &mut self,
+            pretype_frames: u32,
+            keypresses: I
+        ) -> Result<(FTs, bool)>
+    {
+        let mut sum: FTs = 0;
+        let mut state_changed = false;
+        let mut runner = |keymap| -> Result<()> {
+            self.ula.set_key_state(keymap);
+            let (cycles, schg) = self.run_frame()?;
+            sum += cycles;
+            if schg {
+                state_changed = true;
+            }
+            Ok(())
+        };
+        for _ in 0..pretype_frames {
+            runner(ZXKeyboardMap::empty())?;
+        }
+        for &(keymap, repeat) in keypresses.into_iter() {
+            for _ in 0..repeat {
+                runner(keymap)?;
+            }
+        }
+        runner(ZXKeyboardMap::empty())?;
         Ok((sum, state_changed))
     }
     /// Adds pulse steps to the `blep` and returns the number of samples ready to be produced.

@@ -83,7 +83,7 @@ impl ZxSpectrumEmu {
     pub fn new(audio_buffer_max_duration: f32, model: &str) -> Result<ZxSpectrumEmu> {
         let mut bandlim = create_blep();
         let audio_stream = AudioStream::new(audio_buffer_max_duration)?;
-        let model_request = ModelRequest::from_str(model)?;
+        let model_request = ModelRequest::from_str(model).unwrap_or(ModelRequest::SpectrumPlus2B);
         let model = ZxSpectrumModel::new(model_request);
         model.ensure_audio_frame_time(&mut bandlim, audio_stream.sample_rate());
         let animation_sync = AnimationFrameSyncTimer::new(utils::now(), model.effective_frame_duration_nanos());
@@ -203,6 +203,12 @@ impl ZxSpectrumEmu {
     #[wasm_bindgen(js_name = triggerNmi)]
     pub fn trigger_nmi(&mut self) {
         self.spectrum_control_mut().trigger_nmi()
+    }
+    /// Resets the current model and initializes loading from the tape.
+    #[wasm_bindgen(js_name = resetAndLoad)]
+    pub fn reset_and_load(&mut self) -> Result<bool> {
+        let (_, state_changed) = self.model.reset_and_load().js_err()?;
+        Ok(state_changed)
     }
     /// Changes next rendered frame's border size from the given border size name.
     ///

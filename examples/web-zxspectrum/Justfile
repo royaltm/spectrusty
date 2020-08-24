@@ -30,7 +30,7 @@ distclean: clean
 
 # gzip all files in dist for distribution
 gzip:
-    for file in dist/*.{css,js,html,wasm,svg}; do \
+    for file in dist/*.{css,js,html,wasm,svg} dist/*/*.{tap,json,z80,sna}; do \
       gzip -9 -c "$file" >"$file".gz && touch -r "$file" "$file".gz; \
     done
 

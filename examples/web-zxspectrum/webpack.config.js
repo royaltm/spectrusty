@@ -1,4 +1,5 @@
-const prod = process.env.NODE_ENV === 'production'
+const prod = process.env.NODE_ENV === 'production';
+// const PUBLIC_PATH = process.env.PUBLIC_PATH || '/spectrusty/javascripts/';
 const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const webpack = require('webpack');
@@ -7,14 +8,14 @@ const CopyWebpackPlugin = require('copy-webpack-plugin');
 
 module.exports = {
     context: path.join(__dirname, '.'),
-    entry: './index.js',
+    entry: './src/js/index.js',
     output: {
         path: path.resolve(__dirname, 'dist'),
         filename: 'index.js',
     },
     plugins: [
         new HtmlWebpackPlugin({
-            template: 'index.html'
+            template: './src/index.html'
         }),
         new WasmPackPlugin({
             crateDirectory: path.resolve(__dirname, "."),
@@ -27,7 +28,7 @@ module.exports = {
             // Optional array of absolute paths to directories, changes to which
             // will trigger the build.
             watchDirectories: [
-              path.resolve(__dirname, "../zxspectrum_common/src")
+              path.resolve(__dirname, "../zxspectrum-common/src")
             ],
             
             // The same as the `--out-dir` option for `wasm-pack`
@@ -63,3 +64,25 @@ module.exports = {
     ],
     mode: prod ? 'production' : 'development'
 };
+// {
+//     context: path.join(__dirname, '.'),
+//     entry: './src/js/spectrusty.js',
+//     output: {
+//         path: path.resolve(__dirname, 'dist'),
+//         publicPath: PUBLIC_PATH,
+//         filename: 'spectrusty.js',
+//         libraryTarget: "umd",
+//         // libraryExport: "Spectrusty",
+//         library: "Spectrusty"
+//     },
+//     plugins: [
+//         new WasmPackPlugin({
+//             crateDirectory: path.resolve(__dirname, "."),
+//             extraArgs: prod ? "--no-typescript -- --no-default-features"
+//                             : "--no-typescript",
+//             forceMode: "production",
+//         }),
+//     ],
+//     mode: prod ? 'production' : 'development'
+// }
+// ];

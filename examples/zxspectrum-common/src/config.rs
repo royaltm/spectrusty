@@ -66,8 +66,8 @@ impl FromStr for AyAmpSelect {
 
     fn from_str(channels: &str) -> Result<Self, Self::Err> {
         match channels {
-            "Spec"  => Ok(AyAmpSelect::Spec),
-            "Fuse"  => Ok(AyAmpSelect::Fuse),
+            "Spec"|"spec" => Ok(AyAmpSelect::Spec),
+            "Fuse"|"fuse" => Ok(AyAmpSelect::Fuse),
             _ => Err("Unrecognized AY-3-891x D/A amplitude conversion")
         }
     }

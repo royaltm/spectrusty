@@ -1,44 +1,44 @@
-import('./pkg').then(rust_module => {
+import { $id, UserInterface, cpuFactor, cpuSlider, dowloader, setupDevice, loadRemote, checkBrowserCapacity } from './utils';
+import { UrlParameters } from './urlparams';
+checkBrowserCapacity();
+
+import('../../pkg').then(rust_module => {
   // for debugging purposes
   rust_module.setPanicHook();
 
-  function $id(el) {
-    return document.getElementById(el);
-  }
-
-  const spectrum = new rust_module.ZxSpectrumEmu(0.11, "ZX Spectrum +2B"),
-        canvas = $id("main-screen"),
+  const urlparams     = new UrlParameters(),
+        spectrum      = new rust_module.ZxSpectrumEmu(0.11, urlparams.options.model || '+2B'),
+        canvas        = $id("main-screen"),
         mainContainer = $id("main-container"),
-        controls = $id("controls"),
-        tapeName = $id("tape-name"),
-        tapChunks = $id("tap-chunks"),
-        tapeProgress = $id("tape-progress"),
-        tapPlay = $id("tap-play"),
-        tapRecord = $id("tap-record"),
-        fileBrowser = $id("files"),
-        speedControl = $id("speed-control"),
-        speedCurrent = $id("speed-current");
+        controls      = $id("controls"),
+        tapeName      = $id("tape-name"),
+        tapChunks     = $id("tap-chunks"),
+        tapeProgress  = $id("tape-progress"),
+        tapPlay       = $id("tap-play"),
+        tapRecord     = $id("tap-record"),
+        pauseButton   = $id("pause-resume"),
+        fileBrowser   = $id("files"),
+        speedControl  = $id("speed-control"),
+        speedCurrent  = $id("speed-current"),
+        downloadFile  = dowloader();
 
   var paused = false,
       renderedImage = new ImageData(1, 1);
 
-  Spectrusty
+  const spectrusty = new UserInterface();
+  spectrusty.onchange = (id) => {
+    if (urlparams.updateFrom(spectrum, id)) {
+      urlparams.updateLocation();
+    }
+  };
+  spectrusty
   // auto show/hide control panel 
-  .bind("main-screen", "click", hidePanel
-  ).bind("menu-title", "click", hidePanel
-  ).bind("menu-hover", "mouseover", showPanel
+  .bind("main-screen", "click", hidePanel)
+  .bind("menu-title", "click", hidePanel)
+  .bind("menu-hover", "mouseover", showPanel)
   // other controls
-  ).bind("pause-resume", "click", (ev) => {
-    const element = ev.target;
-    paused = (element.value == "Pause");
-    element.disabled = true;
-    (paused ? spectrum.pauseAudio() : spectrum.resumeAudio())
-    .then(() => {
-      element.value = paused ? "Resume" : "Pause";
-      element.disabled = false;
-    })
-  }
-  ).bind("turbo",
+  .bind("pause-resume", "click", togglePause)
+  .bind("turbo",
     (ev) => spectrum.turbo = ev.target.checked,
     (el) => el.checked = spectrum.turbo
   ).bind("sound-gain", "input",
@@ -47,7 +47,7 @@ import('./pkg').then(rust_module => {
   ).bind("models",
     (ev) => {
       spectrum.selectModel(ev.target.value);
-      Spectrusty.update();
+      spectrusty.update();
     },
     (el) => el.value = spectrum.model
   ).bind("borders",
@@ -59,23 +59,26 @@ import('./pkg').then(rust_module => {
   ).bind("joysticks",
     (ev) => spectrum.selectJoystick(ev.target.selectedIndex - 1),
     (el) => el.value = spectrum.joystick
-  ).bind("reset-hard", "click", (ev) => spectrum.reset(true)
-  ).bind("reset-soft", "click", (ev) => spectrum.reset(false)
-  ).bind("reset-power", "click", (ev) => spectrum.powerCycle()
-  ).bind("trigger-nmi", "click", (ev) => spectrum.triggerNmi()
-  ).bind("ay-fuller-box", attachDevice, hasDevice
-  ).bind("ay-melodik", attachDevice, hasDevice
-  ).bind("audible-tape",
+  ).bind("reset-hard", "click", (ev) => spectrum.reset(true))
+  .bind("reset-soft", "click", (ev) => spectrum.reset(false))
+  .bind("reset-power", "click", (ev) => spectrum.powerCycle())
+  .bind("trigger-nmi", "click", (ev) => spectrum.triggerNmi())
+  .bind("ay-fuller-box", attachDevice, hasDevice)
+  .bind("ay-melodik", attachDevice, hasDevice)
+  .bind("audible-tape",
     (ev) => spectrum.audibleTape = ev.target.checked,
     (el) => el.checked = spectrum.audibleTape
   ).bind("fast-tape",
     (ev) => spectrum.fastTape = ev.target.checked,
     (el) => el.checked = spectrum.fastTape
-  ).bind("files", "input", (ev) => loadFile(ev.target.files)
-  ).bind("tap-play", "click", (ev) => updateTapeButtons(spectrum.togglePlayTape())
-  ).bind("tap-record", "click", (ev) => updateTapeButtons(spectrum.toggleRecordTape())
-  ).bind("tap-download", "click", (ev) => downloadTapFile()
-  ).bind("tap-chunks", "input",
+  ).bind("files", "input", (ev) => {
+    loadFile(ev.target.files);
+    ev.target.value = '';
+  })
+  .bind("tap-play", "click", (ev) => updateTapeButtons(spectrum.togglePlayTape()))
+  .bind("tap-record", "click", (ev) => updateTapeButtons(spectrum.toggleRecordTape()))
+  .bind("tap-download", "click", (ev) => downloadTapFile())
+  .bind("tap-chunks", "input",
     (ev) => {
       spectrum.selectTapeChunk(ev.target.selectedIndex);
       updateTapeProgress();
@@ -89,15 +92,15 @@ import('./pkg').then(rust_module => {
     fileBrowser.value = tapeName.value = "";
     populateTapeInfo(spectrum.tapeInfo());
     updateTapeButtons(spectrum.tapeStatus());
-  }
-  ).bind("ay-amps",
+  })
+  .bind("ay-amps",
     (ev) => spectrum.ayAmps = ev.target.value,
     (el) => el.value = spectrum.ayAmps
   ).bind("ay-channels",
     (ev) => spectrum.ayChannels = ev.target.value,
     (el) => el.value = spectrum.ayChannels
-  ).bind("speed-reset", "click", resetSpeed
-  ).bind("speed-control", "input",
+  ).bind("speed-reset", "click", resetSpeed)
+  .bind("speed-control", "input",
     (ev) => setSpeed(ev.target.value),
     (el) => {
       var factor = spectrum.cpuRateFactor;
@@ -110,20 +113,48 @@ import('./pkg').then(rust_module => {
       el.value = spectrum.keyboardIssue;
       el.disabled = !el.value;
     }
-  ).bind("save-z80v3", "click", (ev) => downloadZ80Snap(3)
-  ).bind("save-z80v2", "click", (ev) => downloadZ80Snap(2)
-  ).bind("save-z80v1", "click", (ev) => downloadZ80Snap(1)
-  ).bind("save-sna", "click", (ev) => downloadSNASnap()
-  ).bind("save-snapshot", "click", (ev) => downloadJSONSnap());
+  ).bind("save-z80v3", "click", (ev) => downloadZ80Snap(3))
+  .bind("save-z80v2", "click", (ev) => downloadZ80Snap(2))
+  .bind("save-z80v1", "click", (ev) => downloadZ80Snap(1))
+  .bind("save-sna", "click", (ev) => downloadSNASnap())
+  .bind("save-snapshot", "click", (ev) => downloadJSONSnap());
 
+  document.addEventListener("keydown", (ev) => {
+    if (ev.repeat) {
+      return;
+    }
+
+    switch (ev.code) {
+      case "Pause":
+        togglePause();
+        break;
+      case "Escape":
+        togglePanel();
+        break;
+      default: spectrum.updateStateFromKeyEvent(ev, true)
+    }
+  }, false);
+
+  document.addEventListener("keyup",
+    (ev) => spectrum.updateStateFromKeyEvent(ev, false)
+  , false);
+
+  window.addEventListener("hashchange", (_ev) => {
+    if (urlparams.hashChanged()) {
+      loadFromUrlParams(false);
+    }
+  }, false);
+
+  // initialize
   tapeName.value = "";
   // const ctx = canvas.getContext('bitmaprenderer');
   const ctx = canvas.getContext('2d', {alpha: false, desynchronized: true});
   ctx.imageSmoothingEnabled = false;
-  document.addEventListener("keydown", (ev) => spectrum.updateStateFromKeyEvent(ev, true), false);
-  document.addEventListener("keyup", (ev) => spectrum.updateStateFromKeyEvent(ev, false), false);
 
-  run(true);
+  loadFromUrlParams(true).then(loaded => {
+    if (!loaded) showPanel();
+    run(true);
+  });
 
   function showPanel() {
     mainContainer.classList.add("show-panel")
@@ -131,6 +162,20 @@ import('./pkg').then(rust_module => {
 
   function hidePanel() {
     mainContainer.classList.remove("show-panel")
+  }
+
+  function togglePanel() {
+    mainContainer.classList.toggle("show-panel")
+  }
+
+  function togglePause() {
+    paused = (pauseButton.value == "Pause");
+    pauseButton.disabled = true;
+    (paused ? spectrum.pauseAudio() : spectrum.resumeAudio())
+    .then(() => {
+      pauseButton.value = paused ? "Resume" : "Pause";
+      pauseButton.disabled = false;
+    })
   }
 
   function render(time) {
@@ -141,10 +186,17 @@ import('./pkg').then(rust_module => {
     }
     else {
       let {width, height, data} = spectrum.renderVideo();
+
       if (width !== renderedImage.width || height !== renderedImage.height) {
-        updatedPixelSize(width, height)
+        let [cw, ch] = spectrum.canvasSize;
+        // console.log("screen: %s x %s -> %s x %s", width, height, cw, ch);
+        canvas.width = cw;
+        canvas.height = ch;
+        renderedImage = new ImageData(width, height);
       }
+
       renderedImage.data.set(data); // need to copy data first from wasm memory to asynchronously read it
+
       return createImageBitmap(renderedImage)
         //, {resizeWidth: canvas.width, resizeHeight: canvas.height, resizeQuality: "pixelated"})
       .then(bitmap => {
@@ -166,7 +218,7 @@ import('./pkg').then(rust_module => {
 
   function run(changed) {
     if (changed) {
-      Spectrusty.update();
+      spectrusty.update();
     }
 
     if (mainContainer.classList.contains("show-panel") && tapRecord.disabled) {
@@ -181,31 +233,8 @@ import('./pkg').then(rust_module => {
     }
   }
 
-  function updatedPixelSize(width, height) {
-    let [cw, ch] = spectrum.canvasSize;
-    console.log("screen: %s x %s -> %s x %s", width, height, cw, ch);
-    canvas.width = cw;
-    canvas.height = ch;
-    renderedImage = new ImageData(width, height);
-  }
-
-  function cpuFactor(x) {
-    return (x >= 0) ? 1 + x/100
-                    : 1 / (1 - x/100)
-  }
-
-  function cpuSlider(y) {
-    return (y >= 1) ? (y - 1)*100
-                    : (1 - 1 / y)*100
-  }
-
   function attachDevice(ev) {
-    if (ev.target.checked) {
-      spectrum.attachDevice(ev.target.name)
-    }
-    else {
-      spectrum.detachDevice(ev.target.name)
-    }
+    setupDevice(spectrum, ev.target.name, ev.target.checked);
   }
 
   function hasDevice(checkbox) {
@@ -254,7 +283,8 @@ import('./pkg').then(rust_module => {
           switch(ext) {
             case '.tap':
               tapeName.value = name;
-              populateTapeInfo(n == 0 ? spectrum.insertTape(data) : spectrum.appendTape(data));
+              populateTapeInfo(n == 0 ? spectrum.insertTape(data)
+                                      : spectrum.appendTape(data));
               setTimeout(() => loadFile(files, n + 1), 0);
               break;
             case '.scr':
@@ -278,7 +308,8 @@ import('./pkg').then(rust_module => {
         } catch(e) {
           alert(e);
         }
-        Spectrusty.update();
+        spectrusty.update();
+        urlparams.updateAll(spectrum);
       };
       if (ext === '.json') {
         reader.readAsText(file);
@@ -287,6 +318,77 @@ import('./pkg').then(rust_module => {
         reader.readAsArrayBuffer(file);
       }
     }
+  }
+
+  function loadRemoteTape(uri) {
+    return (uri ? loadRemote(uri, false)
+    .then(data => {
+      populateTapeInfo(spectrum.insertTape(data))
+    })
+    :
+    Promise.resolve().then(() => {
+      spectrum.ejectTape();
+      populateTapeInfo(spectrum.tapeInfo());
+    }))
+    .then(() => {
+      fileBrowser.value = tapeName.value = "";
+      updateTapeButtons(spectrum.tapeStatus());
+    })
+    .catch(err => alert(err))
+  }
+
+  function loadRemoteSnap(uri, type) {
+    return loadRemote(uri, type === 'json')
+    .then(data => {
+      switch(type) {
+        case 'sna':
+          spectrum.loadSna(data);
+          break;
+        case 'z80':
+          spectrum.loadZ80(data);
+          break;
+        case 'json':
+          spectrum.parseJSON(data);
+          break;
+        default:
+          return;
+      }
+      tapeName.value = "";
+      urlparams.mergeAll(spectrum);
+    })
+    .catch(err => alert(err))
+  }
+
+  function loadFromUrlParams(autoload) {
+    var loaded = false;
+    var promise = Promise.resolve(false);
+    if (urlparams.modifiedSnap()) {
+      let snap = urlparams.snap;
+      if (snap) {
+        autoload = false;
+        promise = loadRemoteSnap(snap.url, snap.type).then(() => true);
+      }
+    }
+    if (urlparams.modifiedTap()) {
+      let tap = urlparams.tap;
+      promise = promise.then(loaded => loadRemoteTape(tap)
+        .then(() => {
+          if (tap && autoload) {
+            spectrum.resetAndLoad();
+            return true;
+          }
+          else {
+            return loaded;
+          }
+        })
+      );
+    }
+    return promise.then(loaded => {
+      urlparams.applyTo(spectrum);
+      spectrusty.update();
+      return loaded;
+    })
+    .catch(e => alert(e));
   }
 
   function populateTapeInfo(infoList) {
@@ -321,8 +423,8 @@ import('./pkg').then(rust_module => {
   }
 
   function resetSpeed() {
-    speedControl.value = 0;
     setSpeed(0);
+    spectrusty.update();
   }
 
   function setSpeed(value) {
@@ -350,19 +452,6 @@ import('./pkg').then(rust_module => {
   function downloadZ80Snap(ver) {
     var data = spectrum.saveZ80(ver);
     downloadFile(data, "octet/stream", "spectrusty.z80");
-  }
-
-  const saver = document.createElement("a");
-  document.body.appendChild(saver);
-  saver.style = "display: none";
-
-  function downloadFile(data, mime, name) {
-    var blob = new Blob([data], {type: mime})
-    var url = URL.createObjectURL(blob);
-    saver.href = url;
-    saver.download = name;
-    saver.click();
-    URL.revokeObjectURL(url);
   }
 })
 .catch(console.error);

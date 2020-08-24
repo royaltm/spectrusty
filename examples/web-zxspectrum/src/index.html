@@ -8,12 +8,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css" integrity="sha384-9aIt2nRpC12Uk9gS9baDl411NQApFmC26EwAOH8WgZl5MYYxFfc+NcPb1dKGj7Sk" crossorigin="anonymous">
     <link rel="stylesheet" href="spectrum.css">
-    <script type="text/javascript" src="utils.js"></script>
     <title>ZX Spectrum - Spectrusty example</title>
   </head>
   <body>
     <div id="menu-hover"></div>
-    <div class="emulator show-panel" id="main-container">
+    <div id="alert" class="alert alert-danger" role="alert">
+      <strong>Required web technology not detected!</strong>
+      <p>SPECTRUSTY WEB-UI DEMO in order to be working requires some cutting-edge technology to be enabled in <strong>your browser</strong>.</p>
+      <p>We have detected that <data id="alert-feature" itemprop="failedFeature">some feature</data> is not available in your browser.</p>
+      <p>Update or change your browser and then get back.</p>
+        <a class="btn btn-primary btn-lg" href="http://outdatedbrowser.com/">Update my browser now</a>
+    </div>
+    <div class="emulator" id="main-container">
       <div class="control-panel" id="controls">
         <h4 id="menu-title" class="menu-title">&nbsp;&#x3008;&#x3008;&#x3008;&nbsp; S&nbsp;P&nbsp;E&nbsp;C&nbsp;T&nbsp;<span style="color:darkred;">R&nbsp;U&nbsp;S&nbsp;T&nbsp;Y</span> &nbsp;&#x3008;&#x3008;&#x3008;&nbsp;</h4>
         <div class="container">

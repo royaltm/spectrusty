@@ -4,13 +4,15 @@ version = "0.1.0"
 authors = ["Rafal Michalski <royaltm75@gmail.com>"]
 edition = "2018"
 workspace = "../.."
+license = "LGPL-3.0-or-later"
 publish = false
 
 [package.metadata.wasm-pack.profile.release]
-wasm-opt = ["-Oz", "--enable-mutable-globals"]
+wasm-opt = ["-O4", "--enable-mutable-globals"]
 
 [lib]
 crate-type = ["cdylib", "rlib"]
+path = "src/rust/lib.rs"
 
 [features]
 default = ["console_error_panic_hook"]
@@ -44,7 +46,9 @@ features = [
   'KeyboardEvent',
   'Event',
   'EventTarget',
-  'GainNode'
+  'GainNode',
+  'Performance',
+  'Window',
 ]
 
 [dependencies.rand]
