@@ -143,7 +143,7 @@ impl<R: Read> ReadEncPulseIter<R> {
         epi.reset();
         epi
     }
-    /// Resets state of the iterator.
+    /// Resets the state of the iterator.
     ///
     /// The next byte read from the inner reader is interpreted as a flag byte to determine
     /// the number of lead pulses. In this instance the `state` becomes [PulseIterState::Lead].
@@ -165,6 +165,21 @@ impl<R: Read> ReadEncPulseIter<R> {
         };
         self.flag = flag;
         self.state = state;
+    }
+    /// Attempts to set the state of the iterator as [PulseIterState::Data] from the next byte.
+    ///
+    /// The next byte read from the inner reader is interpreted as a data byte.
+    /// In this instance the `state` becomes [PulseIterState::Data].
+    ///
+    /// If there are no more bytes to be read the `state` becomes [PulseIterState::Done].
+    ///
+    /// In case of an error while reading from the underlying reader the `state` becomes [PulseIterState::Error].
+    pub fn data_from_next(&mut self) {
+        self.state = match self.rd.by_ref().bytes().next() {
+            Some(Ok(current)) => PulseIterState::Data { current, pulse: 0 },
+            Some(Err(error)) => PulseIterState::Error(error),
+            None => PulseIterState::Done
+        };
     }
 }
 
