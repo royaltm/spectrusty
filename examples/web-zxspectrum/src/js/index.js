@@ -1,5 +1,17 @@
-import { $id, UserInterface, cpuFactor, cpuSlider, dowloader, setupDevice, loadRemote, checkBrowserCapacity } from './utils';
+import { $id,
+         $on,
+         UserInterface,
+         cpuFactor,
+         cpuSlider,
+         dowloader,
+         setupDevice,
+         loadRemote,
+         stateGuard,
+         restoreState,
+         checkBrowserCapacity
+       } from './utils';
 import { UrlParameters } from './urlparams';
+
 checkBrowserCapacity();
 
 import('../../pkg').then(rust_module => {
@@ -20,7 +32,8 @@ import('../../pkg').then(rust_module => {
         fileBrowser   = $id("files"),
         speedControl  = $id("speed-control"),
         speedCurrent  = $id("speed-current"),
-        downloadFile  = dowloader();
+        downloadFile  = dowloader(),
+        saveState     = stateGuard(spectrum, urlparams);
 
   var paused = false,
       renderedImage = new ImageData(1, 1);
@@ -122,7 +135,7 @@ import('../../pkg').then(rust_module => {
   .bind("save-sna", "click", (ev) => downloadSNASnap())
   .bind("save-snapshot", "click", (ev) => downloadJSONSnap());
 
-  document.addEventListener("keydown", (ev) => {
+  $on(document, "keydown", (ev) => {
     if (ev.repeat) {
       return;
     }
@@ -136,17 +149,21 @@ import('../../pkg').then(rust_module => {
         break;
       default: spectrum.updateStateFromKeyEvent(ev, true)
     }
-  }, false);
+  });
 
-  document.addEventListener("keyup",
-    (ev) => spectrum.updateStateFromKeyEvent(ev, false)
-  , false);
+  $on(document, "keyup", ev => spectrum.updateStateFromKeyEvent(ev, false));
 
-  window.addEventListener("hashchange", (_ev) => {
+  $on(window, "hashchange", _ev => {
     if (urlparams.hashChanged()) {
       loadFromUrlParams(false).then(() => spectrusty.update());
     }
-  }, false);
+  });
+
+  $on(window, "pagehide", saveState);
+  $on(window, "unload", saveState);
+  $on(window, "visibilitychange", ev => {
+    if (document.hidden) saveState(ev);
+  });
 
   // initialize
   tapeName.value = "";
@@ -365,7 +382,10 @@ import('../../pkg').then(rust_module => {
   function loadFromUrlParams(autoload) {
     var loaded = false;
     var promise = Promise.resolve(false);
-    if (urlparams.modifiedSnap()) {
+    if (autoload && restoreState(spectrum, urlparams)) {
+      autoload = false;
+    }
+    else if (urlparams.modifiedSnap()) {
       let snap = urlparams.snap;
       if (snap) {
         autoload = false;

@@ -52,6 +52,10 @@ export function $id(el) {
   return document.getElementById(el);
 }
 
+export function $on(el, ev, cb) {
+  el.addEventListener(ev, cb, false);
+}
+
 export function dowloader() {
   const saver = document.createElement("a");
   document.body.appendChild(saver);
@@ -88,6 +92,47 @@ export function loadRemote(uri, asText) {
   })
 }
 
+const FRESH_TEST = /#fresh(?:#|$)/;
+
+export function stateGuard(spectrum, urlparams) {
+  const storage = window.localStorage,
+        GRACE_TIME = 1000;
+  var lastTimeStamp = 0;
+  return function stateSave(event) {
+    var timeStamp = event.timeStamp;
+    if (storage != null && timeStamp > lastTimeStamp + GRACE_TIME) {
+      lastTimeStamp = timeStamp;
+      let key = urlparams.cache;
+      if (FRESH_TEST.test(key)) {
+        storage.clear();
+      }
+      else {
+        let value = spectrum.toJSON();
+        storage.clear();
+        storage.setItem(key, value);
+      }
+    }
+  }
+}
+
+export function restoreState(spectrum, urlparams) {
+  const storage = window.localStorage,
+        key = urlparams.cache;
+  if (storage != null && !FRESH_TEST.test(key)) {
+    let json = storage.getItem(key);
+    if (json != null) {
+      try {
+        spectrum.parseJSON(json);
+        return true;
+      }
+      catch(e) {
+        console.error(e);
+      }
+    }
+  }
+  return false;
+}
+
 export function checkBrowserCapacity() {
   var alert = $id('alert');
   try {
@@ -116,7 +161,7 @@ export function checkBrowserCapacity() {
   alert.parentElement.removeChild(alert);
 }
 
-// this is called directly from wasm
+// this function is called directly from wasm
 export function now() {
   return performance.now();
 }
