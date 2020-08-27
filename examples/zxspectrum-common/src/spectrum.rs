@@ -32,8 +32,9 @@ use spectrusty::peripherals::{
     ay::audio::{AyFuseAmps, AyAmps}
 };
 
+use spectrusty::formats::tap::TapChunkRead;
 use spectrusty_utils::{
-    tap::Tape
+    tap::{Tape, romload::try_instant_rom_tape_load_or_verify}
 };
 pub use spectrusty_utils::tap::TapState;
 
@@ -108,10 +109,15 @@ pub struct EmulatorState<F=MemTap> {
     /// frame buffer interlace mode
     #[serde(default)]
     pub interlace: InterlaceMode,
+    /// instant tape loading using ROM loading routines
+    #[serde(default = "default_instant_tape")]
+    pub instant_tape: bool,
     /// dynamic device indices
     #[serde(skip)]
     pub devices: DeviceIndex
 }
+
+fn default_instant_tape() -> bool { true }
 
 impl<C: Cpu, U, F> SpectrumUla for ZxSpectrum<C, U, F> {
     type Chipset = U;
@@ -134,6 +140,7 @@ impl<F> Default for EmulatorState<F> {
             sub_joy: 0,
             border_size: BorderSize::Full,
             interlace: InterlaceMode::default(),
+            instant_tape: default_instant_tape(),
             devices: DeviceIndex::default()
         }
     }
@@ -216,8 +223,9 @@ impl<C: Cpu, U, F> ZxSpectrum<C, U, F>
         Ok(None)
     }
 
-    /// very simple heuristics for detecting if spectrum needs some TAPE data
-    fn auto_detect_load_from_tape(&mut self) -> Result<()> {
+    /// Very simple heuristics for detecting if spectrum needs some TAPE data.
+    /// Returns `Ok(true)` if instant load attempt was made.
+    fn auto_detect_load_from_tape(&mut self) -> Result<bool> {
         const ZERO_FRAMES_THRESHOLD_TS: u32 = 3_600_000;
         let count = self.ula.read_ear_in_count();
         let state = &mut self.state;
@@ -248,12 +256,39 @@ impl<C: Cpu, U, F> ZxSpectrum<C, U, F>
                 }
             }
             // if flash loading is enabled and a tape isn't running
-            else if state.flash_tape && state.tape.is_inserted() &&
-                   !state.tape.running {
+            else if state.tape.is_inserted() && !state.tape.running {
+                if state.instant_tape {
+                    let mut chunk_no = 0;
+                    // try to instantly load/verify if ROM loader is being used
+                    if let Some(read_len) = try_instant_rom_tape_load_or_verify(
+                        &mut self.cpu,
+                        self.ula.memory_mut(),
+                        || {
+                            state.tape.make_reader()?;
+                            let pulse_iter = state.tape.reader_mut().unwrap().get_mut();
+                            let is_lead = pulse_iter.state().is_lead();
+                            let chunk_reader = pulse_iter.get_mut();
+                            chunk_no = chunk_reader.chunk_no();
+                            if is_lead {
+                                chunk_reader.rewind_chunk()?;
+                            }
+                            else {
+                                chunk_reader.forward_chunk()?;
+                            }
+                            Ok(chunk_reader.get_mut())
+                        })?
+                    {
+                        let pulse_iter = state.tape.reader_mut().unwrap().get_mut();
+                        pulse_iter.data_from_next();
+                        state.prev_ear_in_counter = 0;
+                        state.ear_in_zero_counter = 0;
+                        return Ok(read_len != 0 || chunk_no != pulse_iter.get_ref().chunk_no());
+                    }
+                }
                 const PROBE_THRESHOLD: u32 = 69888/1000;
                 // play the tape and speed up
                 // if the EAR IN probing exceeds the threshold
-                if count > U::VideoFrame::FRAME_TSTATES_COUNT as u32 / PROBE_THRESHOLD {
+                if state.flash_tape && count > U::VideoFrame::FRAME_TSTATES_COUNT as u32 / PROBE_THRESHOLD {
                     state.tape.play()?;
                     state.turbo = true;
                 }
@@ -261,7 +296,7 @@ impl<C: Cpu, U, F> ZxSpectrum<C, U, F>
             state.prev_ear_in_counter = count;
             state.ear_in_zero_counter = 0;
         }
-        Ok(())
+        Ok(false)
     }
 
     /// Returns `Ok(end_of_tape)`
@@ -289,13 +324,15 @@ impl<C: Cpu, U, F> ZxSpectrum<C, U, F>
     pub fn run_frame(&mut self) -> Result<(FTs, bool)> {
         let (turbo, running) = (self.state.turbo, self.state.tape.running);
 
-        let chunk_saved = match self.record_tape_from_mic_out()? {
+        let chunk_saved_or_instaload = match self.record_tape_from_mic_out()? {
             Some(saved) => saved,
             None => {
-                if self.state.flash_tape || self.state.turbo {
-                    self.auto_detect_load_from_tape()?;
+                if self.state.flash_tape || self.state.instant_tape || self.state.turbo {
+                    self.auto_detect_load_from_tape()?
                 }
-                false
+                else {
+                    false
+                }
             }
         };
         // clean up the internal buffers of ULA so we won't append the EAR IN data
@@ -320,7 +357,7 @@ impl<C: Cpu, U, F> ZxSpectrum<C, U, F>
         self.ula.execute_next_frame(&mut self.cpu);
 
         let fts_delta = self.ula.current_tstate() - fts_start;
-        let state_changed = chunk_saved ||
+        let state_changed = chunk_saved_or_instaload ||
                             running != self.state.tape.running ||
                             turbo   != self.state.turbo;
         Ok((fts_delta, state_changed))
