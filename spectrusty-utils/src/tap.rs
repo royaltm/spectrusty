@@ -9,6 +9,8 @@ use std::io::{Read, Write, Result, Seek, SeekFrom};
 
 use spectrusty::formats::tap::*;
 
+pub mod romload;
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum TapState {
     Idle,
@@ -669,7 +671,7 @@ impl<F: Write + Read + Seek> Tape<F> {
     /// and [Tape::running] is `true`, otherwise returns `None`.
     pub fn playing_reader_mut(&mut self) -> Option<&mut TapChunkPulseIter<F>> {
         if self.running {
-            return self.tap.as_mut().and_then(|tap| tap.reader_mut())
+            return self.reader_mut();
         }
         None
     }
@@ -678,7 +680,7 @@ impl<F: Write + Read + Seek> Tape<F> {
     /// and [Tape::running] is `true`, otherwise returns `None`.
     pub fn recording_writer_mut(&mut self) -> Option<&mut TapChunkWriter<F>> {
         if self.running {
-            return self.tap.as_mut().and_then(|tap| tap.writer_mut())
+            return self.writer_mut();
         }
         None
     }
