@@ -15,18 +15,20 @@ crate-type = ["cdylib", "rlib"]
 path = "src/rust/lib.rs"
 
 [features]
-default = ["console_error_panic_hook"]
+default = ["console_error_panic_hook", "console_log"]
 
 [dependencies]
 wasm-bindgen-futures = "0.4"
 js-sys = "0.3"
 serde = "1.0"
 serde_json = "1.0"
+log = "0.4"
 # The `console_error_panic_hook` crate provides better debugging of panics by
 # logging them with `console.error`. This is great for development, but requires
 # all the `std::fmt` and `std::panicking` infrastructure, so isn't great for
 # code size when deploying.
 console_error_panic_hook = { version = "0.1.6", optional = true }
+console_log = { version = "0.2", optional = true }
 
 [dependencies.wasm-bindgen]
 version = "0.2"

@@ -7,6 +7,7 @@ import { setupDevice } from "./utils";
   #ay=ABC,Fuse|Spec,Melodik,Fuller
   #k=2|3
   #tf=0
+  #ti=0
   #ta=0
   #t=index
   #tap=...
@@ -26,6 +27,7 @@ const SimpleOptions = {
 
 const BooleanOptions = {
   tf: "fastTape",
+  ti: "instantTape",
   ta: "audibleTape",
 };
 
@@ -56,6 +58,7 @@ export class UrlParameters {
     if (options.border == null) tags.push('borders');
     if (options.joystick == null) tags.push('joysticks');
     if (options.fastTape == null) tags.push('fast-tape');
+    if (options.instantTape == null) tags.push('instant-tape');
     if (options.audibleTape == null) tags.push('audible-tape');
     if (ay.melodik == null) tags.push('ay-melodik');
     if (ay.fuller == null) tags.push('ay-fuller-box');
@@ -66,7 +69,7 @@ export class UrlParameters {
   }
 
   updateAll(spectrum) {
-    ['models', 'interlace', 'borders', 'joysticks', 'fast-tape', 'audible-tape', 'ay-amps', 'ay-channels']
+    ['models', 'interlace', 'borders', 'joysticks', 'fast-tape', 'instant-tape', 'audible-tape', 'ay-amps', 'ay-channels']
     .forEach(tag => this.updateFrom(spectrum, tag));
     this.updateLocation();
   }
@@ -84,6 +87,7 @@ export class UrlParameters {
       case 'borders': options.border = shortBorderSize(spectrum.borderSize); break;
       case 'joysticks': options.joystick = shortJoystick(spectrum.joystick); break;
       case 'fast-tape': options.fastTape = spectrum.fastTape; break;
+      case 'instant-tape': options.instantTape = spectrum.instantTape; break;
       case 'audible-tape': options.audibleTape = spectrum.audibleTape; break;
       case 'ay-melodik': ay.melodik = spectrum.hasDevice("Melodik"); break;
       case 'ay-fuller-box': ay.fuller = spectrum.hasDevice("Fuller Box"); break;
@@ -126,6 +130,7 @@ export class UrlParameters {
       joystick,
       keyboard,
       fastTape,
+      instantTape,
       audibleTape,
       ay,
       tapChunk,
@@ -141,6 +146,7 @@ export class UrlParameters {
       tryCall(() => spectrum.keyboardIssue = "Issue " + (keyboard || '3'));
     }
     spectrum.fastTape = fastTape == null || fastTape;
+    spectrum.instantTape = instantTape == null || instantTape;
     spectrum.audibleTape = audibleTape == null || audibleTape;
     let { amps, melodik, fuller, channels } = ay || {};
     setupDevice(spectrum, "Melodik", melodik);

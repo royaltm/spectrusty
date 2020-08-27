@@ -71,6 +71,9 @@ import('../../pkg').then(rust_module => {
   ).bind("fast-tape",
     (ev) => spectrum.fastTape = ev.target.checked,
     (el) => el.checked = spectrum.fastTape
+  ).bind("instant-tape",
+    (ev) => spectrum.instantTape = ev.target.checked,
+    (el) => el.checked = spectrum.instantTape
   ).bind("files", "input", (ev) => {
     loadFile(ev.target.files);
     ev.target.value = '';
@@ -141,7 +144,7 @@ import('../../pkg').then(rust_module => {
 
   window.addEventListener("hashchange", (_ev) => {
     if (urlparams.hashChanged()) {
-      loadFromUrlParams(false);
+      loadFromUrlParams(false).then(() => spectrusty.update());
     }
   }, false);
 
@@ -369,10 +372,12 @@ import('../../pkg').then(rust_module => {
         promise = loadRemoteSnap(snap.url, snap.type).then(() => true);
       }
     }
+
     if (urlparams.modifiedTap()) {
       let tap = urlparams.tap;
       promise = promise.then(loaded => loadRemoteTape(tap)
         .then(() => {
+          urlparams.applyTo(spectrum);
           if (tap && autoload) {
             spectrum.resetAndLoad();
             return true;
@@ -383,12 +388,14 @@ import('../../pkg').then(rust_module => {
         })
       );
     }
-    return promise.then(loaded => {
-      urlparams.applyTo(spectrum);
-      spectrusty.update();
-      return loaded;
-    })
-    .catch(e => alert(e));
+    else {
+      promise = promise.then(loaded => {
+        urlparams.applyTo(spectrum);
+        return loaded;
+      });
+    }
+
+    return promise.catch(e => alert(e));
   }
 
   function populateTapeInfo(infoList) {

@@ -34,7 +34,7 @@
           </div>
           <div class="row align-items-start">
             <div class="col-auto">
-              <label for="models" title="Changing models is a hot-swap function, does not reset the machine">Select model:</label>
+              <label class="form-control-sm" for="models" title="Changing models is a hot-swap function, does not reset the machine">Select model:</label>
               <select class="form-control form-control-sm" id="models">
                 <option>ZX Spectrum 16k</option>
                 <option>ZX Spectrum 48k</option>
@@ -47,7 +47,7 @@
               </select>
             </div>
             <div class="col">
-              <label for="borders">De-interlace:</label>
+              <label for="borders" class="form-control-sm">De-interlace:</label>
               <select class="form-control form-control-sm" id="interlace">
                 <option selected>Disabled</option>
                 <option>Odd 1st</option>
@@ -55,7 +55,7 @@
               </select>
             </div>
             <div class="col">
-              <label for="borders">Border size:</label>
+              <label for="borders" class="form-control-sm">Border size:</label>
               <select class="form-control form-control-sm" id="borders">
                 <option value="full" selected>Full</option>
                 <option value="large">Large</option>
@@ -67,7 +67,7 @@
               </select>
             </div>
             <div class="col-auto">
-              <label for="joysticks" title="Move the stick with arrow keys and fire with right [CTRL]">🕹 Joystick</label>
+              <label class="form-control-sm" for="joysticks" title="Move the stick with arrow keys and fire with right [CTRL]">🕹 Joystick</label>
               <select class="form-control form-control-sm" id="joysticks">
                 <option selected>None</option>
                 <option>Kempston</option>
@@ -154,16 +154,22 @@
             </div>
           </div>
           <div class="row align-items-start mb-2">
-            <div class="col">
+            <div class="col-auto">
               <div class="custom-control custom-checkbox">
                 <input type="checkbox" class="custom-control-input" id="fast-tape">
-                <label class="custom-control-label" title="enables TURBO mode when the tape is being accessed and turns it off when loading or saving ends" for="fast-tape">⚡ auto accelerate LOAD and SAVE</label>
+                <label class="custom-control-label form-control-sm" title="enables TURBO mode when the tape is being accessed and turns it off when loading or saving ends" for="fast-tape">⚡ turbo LOAD&amp;SAVE</label>
+              </div>
+            </div>
+            <div class="col-auto">
+              <div class="custom-control custom-checkbox">
+                <input type="checkbox" class="custom-control-input" id="instant-tape">
+                <label class="custom-control-label form-control-sm" for="instant-tape" title="enables instant loading of tape data when using ROM loading routines">⚡⚡ instant ROM loader</label>
               </div>
             </div>
             <div class="col-auto">
               <div class="custom-control custom-checkbox">
                 <input type="checkbox" class="custom-control-input" id="audible-tape">
-                <label class="custom-control-label" for="audible-tape">🔊 audible tape</label>
+                <label class="custom-control-label form-control-sm" for="audible-tape" title="enables tape audio playback when playing or recording the tape in non-accelerated mode">🔊 audible tape</label>
               </div>
             </div>
           </div>

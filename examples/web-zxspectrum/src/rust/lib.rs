@@ -306,6 +306,16 @@ impl ZxSpectrumEmu {
     pub fn fast_tape(&self) -> bool {
         self.model.emulator_state_ref().flash_tape
     }
+    /// Sets the state of the instant tape load flag.
+    #[wasm_bindgen(setter = instantTape)]
+    pub fn set_instant_tape(&mut self, is_instant: bool) {
+        self.model.emulator_state_mut().instant_tape = is_instant;
+    }
+    /// Returns the state of the instant tape load flag.
+    #[wasm_bindgen(getter = instantTape)]
+    pub fn instant_tape(&self) -> bool {
+        self.model.emulator_state_ref().instant_tape
+    }
     /// Pauses audio playback by suspending audio context.
     ///
     /// Returns a [Promise] which resolves when playback has been paused or is rejected
