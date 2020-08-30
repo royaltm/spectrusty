@@ -4,8 +4,9 @@ use std::io::{self, Read};
 use spectrusty::z80emu::{Cpu, CpuFlags, Prefix, StkReg16, Reg8};
 use spectrusty::memory::ZxMemory;
 
-/// Checks if a loading routine in ROM has been called, and if so, attempts to instantly load
-/// (or verify) data directly into emulator's memory, reading from the provided source.
+/// Detects if a loading routine in Spectrum's ROM has been called, and if so, attempts to
+/// instantly load (or verify) data directly into emulator's memory, reading from the provided
+/// data source.
 ///
 /// Provide a mutable reference to a `cpu` and `memory` instances of your emulator.
 ///
@@ -13,28 +14,34 @@ use spectrusty::memory::ZxMemory;
 /// The closure should return a source of **TAPE** data as an implementation of a [Read] trait.
 ///
 /// If at least one byte has been read from a data source, the state of the `cpu` will be
-/// altered. The state of `memory` will be modified only when at least one byte will be loaded
-/// into memory from data stream.
-///
-/// The state of `cpu` will be modified before exiting to be in one of the following states:
-/// * On header byte mismatch, verify mismatch, or loading finished, the loading routine will
-///   resume from address `0x05DB`.
+/// modified in the following way:
+/// * On header flag byte mismatch, data verifying mismatch, or loading finished, the ROM loading
+///   routine will resume from address `0x05DB`.
 /// * On missing data or reading error, the loading routine will resume from address `0x05CD`
-///   with only `Z` and `H` flags set.
+///   with only `Z` and `H` flags set and other flags reset.
 ///
-/// In all cases the registers `HL`, `IX`, `DE`, `BC`, `AF` and `A'F'` will be set accordingly
-/// to match the normal loading procedure outcome.
+/// In all above cases the registers `HL`, `IX`, `DE`, `BC`, `AF` and `A'F'` will be set
+/// accordingly to match the normal loading procedure outcome.
 ///
-/// Example return values:
-/// * Ok(None) - no loading or verifying detected, no `cpu` or `memory` state has been altered.
-/// * Ok(Some(0)) - a TAPE chunk was empty, no `cpu` or `memory` state has been altered.
-/// * Ok(Some(1)) - a TAPE chunk header flag byte was mismatched or there was only a total of
-///   a single byte in a data stream.
-/// * Ok(Some(n)) - `n` is the number of bytes read from a TAPE chunk data stream.
+/// If a detection of the loading routine has been positive but reading from data stream
+/// provided no bytes, the state of the `cpu` will remain unmodified.
+///
+/// Return values:
+/// * `Ok(None)` - No ROM loading or verifying detected, the closure was not called, the state
+///   of `cpu` and `memory` have not been altered.
+/// * `Ok(Some(0))` - The closure was called but data was empty, the state of `cpu` and `memory`
+///   have not been altered.
+/// * `Ok(Some(1))` - The closure was called but header flag byte was mismatched or there was
+///   only a total of a single byte read from a stream.
+/// * `Ok(Some(n))` - Otherwise `n` is the number of bytes read from a data stream. Note that
+///   the first byte read is a flag byte being used to match the requested TAPE block type and
+///   the last byte is a validation check-xor-sum.
 ///
 /// # Errors
-/// Any error returned from the closure or attempts of reading data from the source will be
-/// returned from this method.
+/// Any error returned from the closure or while reading data from the source will be returned
+/// from this method. The state of the `cpu` and `memory` will be modified or not, depending on
+/// how many bytes have been read before reading error occured. In any case the emulator's state
+/// will be left in a coherent state.
 pub fn try_instant_rom_tape_load_or_verify<C: Cpu, M: ZxMemory, R: Read, F: FnOnce() -> io::Result<R>>(
         cpu: &mut C,
         memory: &mut M,
@@ -104,7 +111,7 @@ pub fn try_instant_rom_tape_load_or_verify<C: Cpu, M: ZxMemory, R: Read, F: FnOn
     IX: IX + tape data length
     DE: DE - tape data length
     L: 0x01
-    H: checksum
+    H: total xor sum
     B: 0
     C: (C ^ 3) & 0x7F
     A': C
@@ -117,8 +124,7 @@ fn tape_timeout_exit<C: Cpu>(cpu: &mut C, checksum: u8, tgt_addr: u16, bytes_lef
     cpu.set_pc(0x05CD);
     cpu.set_index16(Prefix::Xdd, tgt_addr);
     cpu.set_reg16(StkReg16::DE, bytes_left);
-    cpu.set_reg(Reg8::L, None, 1);
-    cpu.set_reg(Reg8::H, None, checksum);
+    cpu.set_reg2(StkReg16::HL, checksum, 1);
     cpu.set_reg(Reg8::B, None, 0);
     cpu.set_acc(0);
     cpu.set_flags(CpuFlags::Z|CpuFlags::H);
@@ -130,7 +136,7 @@ fn tape_timeout_exit<C: Cpu>(cpu: &mut C, checksum: u8, tgt_addr: u16, bytes_lef
     IX: IX + offset to unmatched byte
     DE: DE - offset to unmatched byte
     L: unmatched byte
-    H: checksum
+    H: total xor sum
     B: 0xB0
     C: (C ^ 3) & 0x7F
     A': C
@@ -140,8 +146,8 @@ fn tape_timeout_exit<C: Cpu>(cpu: &mut C, checksum: u8, tgt_addr: u16, bytes_lef
     PC: 0x05DB
     IX: IX + DE
     DE: 0
-    L: last byte
-    H: checksum
+    L: last byte (checksum)
+    H: total xor sum (should be 0 for positive result)
     B: 0xB0
     C: (C ^ 3) & 0x7F
     A': C
@@ -151,8 +157,7 @@ fn finished_exit<C: Cpu>(cpu: &mut C, checksum: u8, octet: u8, tgt_addr: u16, by
     cpu.set_pc(0x05DB);
     cpu.set_index16(Prefix::Xdd, tgt_addr);
     cpu.set_reg16(StkReg16::DE, bytes_left);
-    cpu.set_reg(Reg8::L, None, octet);
-    cpu.set_reg(Reg8::H, None, checksum);
+    cpu.set_reg2(StkReg16::HL, checksum, octet);
     cpu.set_reg(Reg8::B, None, 0xB0);
 }
 
@@ -170,17 +175,17 @@ fn finished_exit<C: Cpu>(cpu: &mut C, checksum: u8, octet: u8, tgt_addr: u16, by
 */
 fn head_mismatch_exit<C: Cpu>(cpu: &mut C, head: u8) {
     cpu.set_pc(0x05DB);
-    cpu.set_reg(Reg8::L, None, head);
-    cpu.set_reg(Reg8::H, None, head);
+    cpu.set_reg2(StkReg16::HL, head, head);
     cpu.set_reg(Reg8::B, None, 0xB0);
 }
+
 /*
     DI
-    0x056B..0x0571, SP: 0x053F
-    0x05E7..0x05FA, SP: 0x056F, SP + 2: 0x053F
-    IX: dest
-    DE: length != 0 && < 0xFF00
-    A' - header match
+    PC: 0x056B..0x0571, (SP): 0x053F
+    PC: 0x05E7..0x05FA, (SP): 0x056F, (SP + 2): 0x053F
+    IX: destination address
+    DE: 0 < data length < 0xFF00
+    A' - header match byte
     F' - CF/ZF, CF=1 load, CF=0 verify, ZF=0
 */
 /// Returns Some((sp, de, head_match, flags))

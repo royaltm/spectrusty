@@ -1,3 +1,4 @@
+//! Printer emulator related utilities.
 use std::io;
 
 mod epson_gfx;
