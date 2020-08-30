@@ -143,7 +143,7 @@ impl<'a> PageMutSlice<'a> {
 pub type Result<T> = core::result::Result<T, ZxMemoryError>;
 
 /// A trait for interfacing ZX Spectrum's various memory types.
-pub trait ZxMemory: Sized {
+pub trait ZxMemory {
     /// This is just a hint. Actual page sizes may vary.
     const PAGE_SIZE: usize = 0x4000;
     /// The size of the whole ROM, not just one bank.
@@ -279,8 +279,25 @@ pub trait ZxMemory: Sized {
         let slice = self.rom_bank_mut(rom_bank)?;
         rd.read_exact(slice).map_err(ZxMemoryError::Io)
     }
+    /// Returns an iterator of memory page slice references intersecting with a given address range.
+    ///
+    /// # Errors
+    /// May return an [ZxMemoryError::UnsupportedAddressRange].
+    fn iter_pages<A: RangeBounds<u16>>(
+            &self,
+            address_range: A,
+        ) -> Result<MemPageRefIter<'_, Self>> {
+        let range = normalize_address_range(address_range, 0, Self::RAMTOP)
+                    .map_err(|_| ZxMemoryError::UnsupportedAddressRange)?;
+        let cursor = range.start;
+        let end = range.end;
+        Ok(MemPageRefIter { mem: self, cursor, end })
+    }
     /// Iterates over mutable memory page slices [PageMutSlice] intersecting with a given address range
-    /// passing the slices to the function `f`.
+    /// passing the slices to the closure `f`.
+    ///
+    /// # Errors
+    /// May return an [ZxMemoryError::UnsupportedAddressRange] or an error returned by the provided closure.
     fn for_each_page_mut<A: RangeBounds<u16>, F>(
             &mut self,
             address_range: A,
@@ -327,15 +344,42 @@ pub trait ZxMemory: Sized {
     }
 }
 
-struct MemPageMutIter<'a, Z> {
+pub struct MemPageRefIter<'a, Z: ?Sized> {
+    mem: &'a Z,
+    cursor: usize,
+    end: usize
+}
+
+impl<'a, Z: ZxMemory + ?Sized> Iterator for MemPageRefIter<'a, Z> {
+    type Item = &'a [u8];
+    fn next(&mut self) -> Option<Self::Item> {
+        let cursor = self.cursor;
+        let end = self.end;
+        if cursor < end {
+            let MemPageOffset { index, offset, .. } = self.mem.page_index_at(cursor as u16).unwrap();
+            let offset = offset as usize;
+            let page = self.mem.page_ref(index).unwrap();
+            let read_len = end - cursor;
+            let read_end = page.len().min(offset + read_len);
+            let read_page = &page[offset..read_end];
+            self.cursor += read_page.len();
+            Some(read_page)
+        }
+        else {
+            None
+        }
+    }
+}
+
+struct MemPageMutIter<'a, Z: ?Sized> {
     mem: &'a mut Z,
     cursor: usize,
     end: usize
 }
 
-impl<'a, Z: ZxMemory> Iterator for MemPageMutIter<'a, Z> {
+impl<'a, Z: ZxMemory + ?Sized> Iterator for MemPageMutIter<'a, Z> {
     type Item = PageMutSlice<'a>;
-    fn next(&mut self) -> Option<PageMutSlice<'a>> {
+    fn next(&mut self) -> Option<Self::Item> {
         let cursor = self.cursor;
         let end = self.end;
         if cursor < end {

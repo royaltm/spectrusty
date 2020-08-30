@@ -71,7 +71,6 @@ macro_rules! impl_zxmemory {
             const SCR_BANKS_MAX: usize = 1;
             const ROM_BANKS_MAX: usize = 0;
             const RAM_BANKS_MAX: usize = 0;
-            // const FEATURES: MemoryFeatures = MemoryFeatures::NONE;
 
             #[inline(always)]
             fn reset(&mut self) {}
