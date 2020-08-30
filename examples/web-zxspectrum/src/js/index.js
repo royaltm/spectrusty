@@ -8,6 +8,9 @@ import { $id,
          loadRemote,
          stateGuard,
          restoreState,
+         parseRange,
+         parsePoke,
+         toHex,
          checkBrowserCapacity
        } from './utils';
 import { UrlParameters } from './urlparams';
@@ -133,7 +136,42 @@ import('../../pkg').then(rust_module => {
   .bind("save-z80v2", "click", (ev) => downloadZ80Snap(2))
   .bind("save-z80v1", "click", (ev) => downloadZ80Snap(1))
   .bind("save-sna", "click", (ev) => downloadSNASnap())
-  .bind("save-snapshot", "click", (ev) => downloadJSONSnap());
+  .bind("save-snapshot", "click", (ev) => downloadJSONSnap())
+  .bind("poke-memory", "click", (ev) => {
+    var res = prompt("POKE");
+    if (res) {
+      res = parsePoke(res)
+      if (res) {
+        let [address, value] = res;
+        spectrum.poke(address, value);
+      }
+      else {
+        alert("Please provide address and the value in a valid format.\n" +
+          "E.g.:\n0x4000, 0xff\n0x4000=0xff\n16384, 255\n16384=255");
+      }
+    }
+  })
+  .bind("peek-memory", "click", (ev) => {
+    var res = prompt("PEEK");
+    if (res) {
+      let address = parseInt(res);
+      if (isFinite(address)) {
+        let val = spectrum.peek(res);
+        alert("PEEK " + res +": " + val + " (0x" + val.toString(16) + ")");
+      }
+      else {
+        alert("Please provide a single address in the range: [0, 65535] or [0x0, 0xFFFF]");
+      }
+    }
+  })
+  .bind("dump-memory", "click", 
+    (ev) => dumpMemory("Dump memory range at:", "octet/stream", "memory", "bin",
+                       (start, end) => spectrum.dump(start, end))
+  )
+  .bind("disasm-memory", "click", 
+    (ev) => dumpMemory("Disassemble memory range at:", "text/plain", "z80asm", "txt",
+                       (start, end) => spectrum.disassemble(start, end))
+  );
 
   $on(document, "keydown", (ev) => {
     if (ev.repeat) {
@@ -458,6 +496,27 @@ import('../../pkg').then(rust_module => {
     let factor = cpuFactor(value);
     speedCurrent.value = "x" + factor.toFixed(2);
     spectrum.setCpuRateFactor(factor);
+  }
+
+  function dumpMemory(ask, mime, label, ext, cb) {
+    var res = prompt(ask);
+    if (res) {
+      res = parseRange(res);
+      if (res) {
+        let [start, end] = res;
+        try {
+          let data = cb(start, end);
+          downloadFile(data, mime, `${label}-0x${toHex(start&0xffff, 4)}-0x${toHex(end&0xffff, 4)}.${ext}`);
+        }
+        catch(e) {
+          alert(e);
+        }
+      }
+      else {
+        alert("Please provide address range in a valid format.\n" +
+          "E.g.:\n0x4000:0x4100\n0x4000, 0x100\n16384:16640\n16384, 256");
+      }
+    }
   }
 
   function downloadTapFile() {

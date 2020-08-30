@@ -1,8 +1,8 @@
 #![macro_use]
 
-macro_rules! console_log {
-    ($($t:tt)*) => (crate::log(&format_args!($($t)*).to_string()))
-}
+// macro_rules! console_log {
+//     ($($t:tt)*) => (crate::log(&format_args!($($t)*).to_string()))
+// }
 
 macro_rules! alert {
     ($($t:tt)*) => (crate::alert(&format_args!($($t)*).to_string()))

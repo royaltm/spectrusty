@@ -226,12 +226,24 @@
             </div>
           </div>
           <div class="form-group row">
-            <label for="keyboard-issue" class="col-sm-2 col-form-label form-control-sm">Keyboard:</label>
+            <div class="col-auto">
+              <label for="keyboard-issue" class="col-sm-2 col-form-label form-control-sm">Keyboard:</label>
+            </div>
             <div class="col-auto">
               <select class="form-control form-control-sm" id="keyboard-issue">
                 <option>Issue 3</option>
                 <option>Issue 2</option>
               </select>
+            </div>
+          </div>
+          <div class="form-group row">
+            <div class="col-auto">
+              <div class="btn-group btn-group-sm" role="group" aria-label="Memory access">
+                <button type="button" class="btn btn-secondary" id="poke-memory">Poke</button>
+                <button type="button" class="btn btn-secondary" id="peek-memory">Peek</button>
+                <button type="button" class="btn btn-secondary" id="dump-memory">Dump</button>
+                <button type="button" class="btn btn-secondary" id="disasm-memory">Disassemble</button>
+              </div>
             </div>
           </div>
         </div>

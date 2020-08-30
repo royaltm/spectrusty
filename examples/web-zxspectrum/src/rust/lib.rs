@@ -2,6 +2,7 @@ mod utils;
 mod control;
 mod audio;
 mod serde;
+mod snapshot;
 
 use core::convert::TryInto;
 use core::str::FromStr;
@@ -46,14 +47,14 @@ extern "C" {
     fn set(this: &Object, key: &JsValue, value: &JsValue);
 
     fn alert(s: &str);
-    #[wasm_bindgen(js_namespace = console)]
-    fn log(s: &str);
-    #[wasm_bindgen(js_namespace = console, js_name = log)]
-    fn log_u32(a: u32);
-    #[wasm_bindgen(js_namespace = console, js_name = log)]
-    fn log_f32(a: f32);
-    #[wasm_bindgen(js_namespace = console, js_name = log)]
-    fn log_f64(a: f64);
+    // #[wasm_bindgen(js_namespace = console)]
+    // fn log(s: &str);
+    // #[wasm_bindgen(js_namespace = console, js_name = log)]
+    // fn log_u32(a: u32);
+    // #[wasm_bindgen(js_namespace = console, js_name = log)]
+    // fn log_f32(a: f32);
+    // #[wasm_bindgen(js_namespace = console, js_name = log)]
+    // fn log_f64(a: f64);
 }
 
 type ZxSpectrumEmuModel = ZxSpectrumModel<Z80NMOS,
@@ -117,8 +118,8 @@ impl ZxSpectrumEmu {
         else {
             let num_frames = match self.animation_sync.num_frames_to_synchronize(time) {
                 Ok(num) => num,
-                Err(time) => {
-                    crate::log_f64(time);
+                Err(_time) => {
+                    // crate::log_f64(time);
                     1
                 }
             };
@@ -659,6 +660,22 @@ impl ZxSpectrumEmu {
     #[wasm_bindgen(getter = keyboardIssue)]
     pub fn keyboard_issue(&mut self) -> String {
         self.spectrum_control_mut().read_ear_mode().to_string()
+    }
+
+    pub fn poke(&mut self, address: u16, value: u8) {
+        self.spectrum_control_mut().poke_memory(address, value)
+    }
+
+    pub fn peek(&self, address: u16) -> u8 {
+        self.spectrum_control_ref().peek_memory(address)
+    }
+
+    pub fn dump(&self, start: u16, end: u16) -> Result<Vec<u8>> {
+        self.spectrum_control_ref().dump_memory(start..end).js_err()
+    }
+
+    pub fn disassemble(&self, start: u16, end: u16) -> Result<String> {
+        self.spectrum_control_ref().disassemble_memory(start..end).js_err()
     }
 
     fn update_on_frame_duration_changed(&mut self) {

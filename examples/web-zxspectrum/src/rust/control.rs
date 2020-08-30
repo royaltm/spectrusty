@@ -1,6 +1,7 @@
-use std::io;
+use core::ops::Range;
+use std::io::{self, Write};
 
-use spectrusty::z80emu::Cpu;
+use spectrusty::z80emu::{Cpu, Z80NMOS, disasm};
 use spectrusty::audio::{Blep, UlaAudioFrame};
 use spectrusty::clock::FTs;
 use spectrusty::chip::{
@@ -8,6 +9,7 @@ use spectrusty::chip::{
     AnimationFrameSyncTimer,
     ReadEarMode,
 };
+use spectrusty::memory::ZxMemory;
 use spectrusty::formats::scr::{LoadScr, ScreenDataProvider};
 
 use spectrusty_utils::{
@@ -46,6 +48,10 @@ pub trait SpectrumControl<B: Blep>: VideoControl +
     fn read_ear_mode(&self) -> ReadEarMode;
     fn set_read_ear_mode(&mut self, mode: ReadEarMode);
     fn load_scr(&mut self, scr_data: &[u8]) -> io::Result<()>;
+    fn poke_memory(&mut self, address: u16, value: u8);
+    fn peek_memory(&self, address: u16) -> u8;
+    fn dump_memory(&self, range: Range<u16>) -> io::Result<Vec<u8>>;
+    fn disassemble_memory(&self, range: Range<u16>) -> io::Result<String>;
 }
 
 impl<C: Cpu, U, B> SpectrumControl<B> for ZxSpectrum<C, U, MemTap>
@@ -103,5 +109,29 @@ impl<C: Cpu, U, B> SpectrumControl<B> for ZxSpectrum<C, U, MemTap>
 
     fn load_scr(&mut self, scr_data: &[u8]) -> io::Result<()> {
         self.ula.load_scr(io::Cursor::new(scr_data))
+    }
+
+    fn poke_memory(&mut self, address: u16, value: u8) {
+        self.ula.memory_mut().write(address, value)
+    }
+
+    fn peek_memory(&self, address: u16) -> u8 {
+        self.ula.memory_ref().read(address)
+    }
+
+    fn dump_memory(&self, range: Range<u16>) -> io::Result<Vec<u8>> {
+        let mut mem = Vec::with_capacity(range.len());
+        for page in self.ula.memory_ref().iter_pages(range)? {
+            mem.write_all(page)?;
+        }
+        Ok(mem)
+    }
+
+    fn disassemble_memory(&self, range: Range<u16>) -> io::Result<String> {
+        let pc = range.start;
+        let temp = self.dump_memory(range)?;
+        let mut output = String::new();
+        disasm::disasm_memory_write_text::<Z80NMOS, _>(pc, &temp, &mut output).unwrap();
+        Ok(output)
     }
 }

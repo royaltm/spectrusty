@@ -48,6 +48,41 @@ export function cpuSlider(y) {
                   : (1 - 1 / y)*100
 }
 
+const RANGE_RE = /^\s*(0x[0-9a-f]+|\d+)\s*([,=:])\s*(0x[0-9a-f]+|\d+)\s*$/i;
+
+export function parseRange(s) {
+  var res = s.match(RANGE_RE);
+  if (res) {
+    let start = parseInt(res[1]),
+        end = parseInt(res[3]);
+    if (isFinite(start) && isFinite(end)) {
+      switch(res[2]) {
+        case ',': return [start, start + end];
+        case ':': return [start, end];
+      }
+    }
+  }
+}
+
+export function parsePoke(s) {
+  var res = s.match(RANGE_RE);
+  if (res) {
+    let start = parseInt(res[1]),
+        end = parseInt(res[3]);
+    if (isFinite(start) && isFinite(end)) {
+      switch(res[2]) {
+        case ',': case '=': return [start, end];
+      }
+    }
+  }
+}
+
+export function toHex(n, pad) {
+  var nstr = n.toString(16);
+  pad -= nstr.length;
+  return "0".repeat(pad >= 0 ? pad : 0) + nstr;
+}
+
 export function $id(el) {
   return document.getElementById(el);
 }

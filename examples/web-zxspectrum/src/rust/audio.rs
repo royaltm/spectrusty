@@ -77,7 +77,7 @@ impl AudioStream {
         let sample_rate = ctx.sample_rate();
         let buffer_length = (sample_rate * max_buffer_duration).trunc() as u32;
 
-        console_log!("sample_rate: {} buffer_length: {}", sample_rate, buffer_length);
+        // log::debug!("sample_rate: {} buffer_length: {}", sample_rate, buffer_length);
 
         let mut audio_queue = AudioQueue::new();
         let audio_buffer = ctx.create_buffer(AUDIO_CHANNELS, buffer_length, sample_rate)?;

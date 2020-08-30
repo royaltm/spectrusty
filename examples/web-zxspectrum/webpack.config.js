@@ -2,9 +2,9 @@ const prod = process.env.NODE_ENV === 'production';
 // const PUBLIC_PATH = process.env.PUBLIC_PATH || '/spectrusty/javascripts/';
 const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
-const webpack = require('webpack');
 const WasmPackPlugin = require("@wasm-tool/wasm-pack-plugin");
 const CopyWebpackPlugin = require('copy-webpack-plugin');
+const webpack = require('webpack');
 
 module.exports = {
     context: path.join(__dirname, '.'),
