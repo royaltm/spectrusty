@@ -149,8 +149,8 @@ impl fmt::Display for TryFromU8SourceModeError {
 
 impl TryFrom<u8> for SourceMode {
     type Error = TryFromU8SourceModeError;
-    fn try_from(earmic: u8) -> Result<Self, Self::Error> {
-        SourceMode::from_bits(earmic).ok_or_else(|| TryFromU8SourceModeError(earmic))
+    fn try_from(mode: u8) -> Result<Self, Self::Error> {
+        SourceMode::from_bits(mode).ok_or_else(|| TryFromU8SourceModeError(mode))
     }
 }
 
