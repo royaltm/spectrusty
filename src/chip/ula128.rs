@@ -76,7 +76,7 @@ pub struct Ula128<B=VFNullDevice<Ula128VidFrame>, X=NoMemoryExtension> {
 }
 
 impl MemoryContention for Ula128MemContention {
-    #[inline]
+    #[inline(always)]
     fn is_contended_address(self, address: u16) -> bool {
         address & self.mask == 0x4000
     }

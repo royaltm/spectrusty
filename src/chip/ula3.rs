@@ -76,7 +76,7 @@ pub struct Ula3<B=VFNullDevice<Ula3VidFrame>, X=NoMemoryExtension> {
 }
 
 impl MemoryContention for Ula3MemContention {
-    #[inline]
+    #[inline(always)]
     fn is_contended_address(self, address: u16) -> bool {
         (self.pages & 1 << (address >> 13)) != 0
     }
