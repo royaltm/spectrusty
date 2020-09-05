@@ -378,17 +378,29 @@ import('../../pkg').then(rust_module => {
     }
   }
 
-  function loadRemoteTape(uri) {
-    return (uri ? loadRemote(uri, false)
-    .then(data => {
-      populateTapeInfo(spectrum.insertTape(data))
-    })
-    :
-    Promise.resolve().then(() => {
-      spectrum.ejectTape();
-      populateTapeInfo(spectrum.tapeInfo());
-    }))
-    .then(() => {
+  function loadRemoteTapes(urls) {
+    return Promise.allSettled((urls || []).map(uri => loadRemote(uri, false)))
+    .then(results => {
+      var info;
+      for (let res of results) {
+        if (res.status === "fulfilled") {
+          let data = res.value;
+          if (!info) {
+            info = spectrum.insertTape(data);
+          }
+          else {
+            info = spectrum.appendTape(data);
+          }
+        }
+        else {
+          alert(res.reason);
+        }
+      }
+      if (!info) {
+        spectrum.ejectTape();
+        info = spectrum.tapeInfo();
+      }
+      populateTapeInfo(info);
       fileBrowser.value = tapeName.value = "";
       updateTapeButtons(spectrum.tapeStatus());
     })
@@ -433,7 +445,7 @@ import('../../pkg').then(rust_module => {
 
     if (urlparams.modifiedTap()) {
       let tap = urlparams.tap;
-      promise = promise.then(loaded => loadRemoteTape(tap)
+      promise = promise.then(loaded => loadRemoteTapes(tap)
         .then(() => {
           urlparams.applyTo(spectrum);
           if (tap && autoload) {

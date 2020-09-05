@@ -193,7 +193,7 @@ export class UrlParameters {
 }
 
 function parseOptions(hashstr) {
-  var options = {};
+  var tap, options = {};
   for (let item of hashstr.split('#')) {
     let eqIndex = item.indexOf('=');
     let key = item.substr(0, eqIndex).toLowerCase();
@@ -203,7 +203,8 @@ function parseOptions(hashstr) {
         options.ay = parseAyOptions(value.split(","));
         break;
       case 'tap':
-        options.tap = value;
+        options.tap || (options.tap = tap = []);
+        tap.push(value);
         break;
       case 'sna':
       case 'z80':
@@ -270,7 +271,9 @@ function optionsToHash(options) {
 
   let tap = options.tap;
   if (tap) {
-    hash += `#tap=${tap}`;
+    for (let t of tap) {
+      hash += `#tap=${t}`;
+    }
   }
 
   let snap = options.snap;

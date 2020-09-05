@@ -68,10 +68,10 @@ export function parsePoke(s) {
   var res = s.match(RANGE_RE);
   if (res) {
     let start = parseInt(res[1]),
-        end = parseInt(res[3]);
-    if (isFinite(start) && isFinite(end)) {
+        val = parseInt(res[3]);
+    if (isFinite(start) && isFinite(val)) {
       switch(res[2]) {
-        case ',': case '=': return [start, end];
+        case ',': case '=': return [start, val];
       }
     }
   }
