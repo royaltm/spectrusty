@@ -118,10 +118,12 @@ impl<M: ZxMemory, D, X, V: VideoFrame> Video for Ula<M, D, X, V> {
         self.create_renderer(border_size).render_pixels::<B, P, V>(buffer, pitch)
     }
 
+    #[inline]
     fn current_video_ts(&self) -> VideoTs {
         self.tsc.into()
     }
 
+    #[inline]
     fn current_video_clock(&self) -> VFrameTsCounter<V, UlaMemoryContention> {
         VFrameTsCounter::from_video_ts(self.tsc.ts, UlaMemoryContention)
     }
@@ -136,7 +138,7 @@ impl<M: ZxMemory, D, X, V: VideoFrame> Video for Ula<M, D, X, V> {
 }
 
 impl<M: ZxMemory, B, X, V: VideoFrame> Ula<M, B, X, V> {
-    #[inline]
+    #[inline(always)]
     pub(super) fn update_frame_cache(&mut self, addr: u16, ts: VideoTs) {
         match addr {
             0x4000..=0x57FF => {
@@ -163,14 +165,12 @@ impl<M: ZxMemory, B, X, V: VideoFrame> Ula<M, B, X, V> {
 }
 
 impl<M: ZxMemory, B, X, V> Ula<M, B, X, V> {
-    #[inline]
     pub(super) fn cleanup_video_frame_data(&mut self) {
         self.border = self.last_border;
         self.border_out_changes.clear();
         self.frame_cache.clear();
     }
 
-    #[inline]
     pub(crate) fn video_render_data_view(&mut self) -> (&mut Vec<VideoTsData3>, &M, &UlaFrameCache<V>) {
         (&mut self.border_out_changes, &self.memory, &self.frame_cache)
     }

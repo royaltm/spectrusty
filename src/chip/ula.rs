@@ -84,7 +84,7 @@ pub struct Ula<M, B, X, V> {
 }
 
 impl MemoryContention for UlaMemoryContention {
-    #[inline]
+    #[inline(always)]
     fn is_contended_address(self, address: u16) -> bool {
         address & 0xC000 == 0x4000
     }

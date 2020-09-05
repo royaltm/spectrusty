@@ -402,7 +402,7 @@ impl <V: VideoFrame> FrameTimestamp for VFrameTs<V> {
         VFrameTs { ts: VideoTs { vc: Ts::min_value(), hc: V::HTS_RANGE.start },
                    _vframe: PhantomData }
     }
-    #[inline]
+    #[inline(always)]
     fn is_eof(self) -> bool {
         self.vc >= V::VSL_COUNT
     }
@@ -452,6 +452,7 @@ impl<V: VideoFrame> Add<u32> for VFrameTs<V> {
 }
 
 impl<V: VideoFrame> AddAssign<u32> for VFrameTs<V> {
+    #[inline(always)]
     fn add_assign(&mut self, delta: u32) {
         *self = *self + delta
     }
@@ -474,6 +475,7 @@ impl<V: VideoFrame> Sub<u32> for VFrameTs<V> {
 }
 
 impl<V: VideoFrame> SubAssign<u32> for VFrameTs<V> {
+    #[inline(always)]
     fn sub_assign(&mut self, delta: u32) {
         *self = *self - delta
     }
@@ -753,18 +755,21 @@ impl<V> Clone for VFrameTs<V> {
 impl<V> Eq for VFrameTs<V> {}
 
 impl<V> PartialEq for VFrameTs<V> {
+    #[inline(always)]
     fn eq(&self, other: &Self) -> bool {
         self.ts == other.ts
     }
 }
 
 impl<V> Ord for VFrameTs<V> {
+    #[inline(always)]
     fn cmp(&self, other: &Self) -> Ordering {
         self.ts.cmp(other)
     }
 }
 
 impl<V> PartialOrd for VFrameTs<V> {
+    #[inline(always)]
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
@@ -798,7 +803,7 @@ impl<V> From<VideoTs> for VFrameTs<V> {
     /// # Panics
     ///
     /// Panics when the given `ts` overflows the capacity of [VideoTs].
-    #[inline]
+    #[inline(always)]
     fn from(ts: VideoTs) -> Self {
         VFrameTs { ts, _vframe: PhantomData }
     }

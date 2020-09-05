@@ -203,7 +203,7 @@ impl<V: VideoFrame> UlaFrameCache<V> {
     /// Compares the given bitmap cell coordinates with the video timestamp and depending
     /// on the result of that comparison caches (or not) the bitmap cell with the value
     /// from the memory at the given address.
-    #[inline]
+    #[inline(never)]
     pub fn update_frame_pixels<M: ZxMemory>(
             &mut self,
             memory: &M,
@@ -227,7 +227,7 @@ impl<V: VideoFrame> UlaFrameCache<V> {
     /// Compares the given attribute cell coordinates with the video timestamp and depending
     /// on the result of that comparison caches (or not) the attribute cell or cells with
     /// the value from the memory at the given address.
-    #[inline]
+    #[inline(never)]
     pub fn update_frame_colors<M: ZxMemory>(
             &mut self,
             memory: &M,
