@@ -12,6 +12,9 @@ use serde::{Serialize, Deserialize};
 
 use crate::video::VideoFrame;
 
+mod packed;
+pub use packed::*;
+
 /// A linear T-state timestamp type.
 pub type FTs = i32;
 /// A type used for a horizontal T-state timestamp or a video scanline index for [VideoTs].
@@ -139,166 +142,6 @@ pub trait FrameTimestamp: Copy
 
 const WAIT_STATES_THRESHOLD: u16 = i16::max_value() as u16 - 256;
 
-macro_rules! video_ts_packed_data {
-    ($name:ident, $bits:literal) => {
-        /// A T-states timestamp with packed N-bits data.
-        #[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Debug)]
-        pub struct $name {
-            pub vc: Ts,
-            hc_data: Ts,
-        }
-
-        impl From<(VideoTs, u8)> for $name {
-            fn from(tuple: (VideoTs, u8)) -> Self {
-                let (vts, data) = tuple;
-                $name::new(vts, data)
-            }
-        }
-
-        impl<V> From<(VFrameTs<V>, u8)> for $name {
-            fn from(tuple: (VFrameTs<V>, u8)) -> Self {
-                let (vts, data) = tuple;
-                $name::new(vts.into(), data)
-            }
-        }
-
-        impl From<$name> for (VideoTs, u8) {
-            fn from(vtsd: $name) -> Self {
-                let $name { vc, hc_data } = vtsd;
-                let data = (hc_data as u8) & ((1 << $bits) - 1);
-                (VideoTs { vc, hc: hc_data >> $bits}, data)
-            }
-        }
-
-        impl<V: VideoFrame> From<$name> for (VFrameTs<V>, u8) {
-            fn from(vtsd: $name) -> Self {
-                let $name { vc, hc_data } = vtsd;
-                let data = (hc_data as u8) & ((1 << $bits) - 1);
-                (VFrameTs::new(vc, hc_data >> $bits), data)
-            }
-        }
-
-        impl From<$name> for VideoTs {
-            fn from(vtsd: $name) -> Self {
-                let $name { vc, hc_data } = vtsd;
-                VideoTs { vc, hc: hc_data >> $bits}
-            }
-        }
-
-        impl<V: VideoFrame> From<$name> for VFrameTs<V> {
-            fn from(vtsd: $name) -> Self {
-                let $name { vc, hc_data } = vtsd;
-                VFrameTs::new(vc, hc_data >> $bits)
-            }
-        }
-
-        impl From<&$name> for VideoTs {
-            fn from(vtsd: &$name) -> Self {
-                Self::from(*vtsd)
-            }
-        }
-
-        impl<V: VideoFrame> From<&$name> for VFrameTs<V> {
-            fn from(vtsd: &$name) -> Self {
-                Self::from(*vtsd)
-            }
-        }
-
-        impl $name {
-            const DATA_MASK: Ts = (1 << $bits) - 1;
-            #[inline]
-            pub const fn new(vts: VideoTs, data: u8) -> Self {
-                let VideoTs { vc, hc } = vts;
-                let hc_data = (hc << $bits) | (data as Ts & Self::DATA_MASK) as Ts;
-                Self { vc, hc_data }
-            }
-
-            #[inline]
-            pub fn into_data(self) -> u8 {
-                (self.hc_data & Self::DATA_MASK) as u8
-            }
-
-            #[inline]
-            pub fn data(&self) -> u8 {
-                (self.hc_data & Self::DATA_MASK) as u8
-            }
-
-            #[inline]
-            pub fn set_data(&mut self, data: u8) {
-                self.hc_data = (self.hc_data & !Self::DATA_MASK) | (data as Ts & Self::DATA_MASK);
-            }
-
-            #[inline]
-            pub fn hc(&self) -> Ts {
-                self.hc_data >> $bits
-            }
-        }
-    }
-}
-
-video_ts_packed_data! { VideoTsData1, 1 }
-video_ts_packed_data! { VideoTsData2, 2 }
-video_ts_packed_data! { VideoTsData3, 3 }
-video_ts_packed_data! { VideoTsData6, 6 }
-
-macro_rules! fts_packed_data {
-    ($name:ident, $bits:literal) => {
-        /// A T-states timestamp with packed N-bits data.
-        #[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Debug)]
-        pub struct $name(FTs);
-
-        impl From<(FTs, u8)> for $name {
-            fn from(tuple: (FTs, u8)) -> Self {
-                let (ts, data) = tuple;
-                $name::new(ts, data)
-            }
-        }
-
-        impl From<$name> for (FTs, u8) {
-            fn from(ftsd: $name) -> Self {
-                let $name(pack) = ftsd;
-                let data = (pack as u8) & ((1 << $bits) - 1);
-                (pack >> $bits, data)
-            }
-        }
-
-        impl From<$name> for FTs {
-            fn from(ftsd: $name) -> Self {
-                let $name(pack) = ftsd;
-                pack >> $bits
-            }
-        }
-
-        impl $name {
-            const DATA_MASK: FTs = (1 << $bits) - 1;
-            #[inline]
-            pub const fn new(fts: FTs, data: u8) -> Self {
-                let pack = (fts << $bits) | (data as FTs & Self::DATA_MASK);
-                Self(pack)
-            }
-
-            #[inline]
-            pub fn into_data(self) -> u8 {
-                (self.0 & Self::DATA_MASK) as u8
-            }
-
-            #[inline]
-            pub fn data(&self) -> u8 {
-                (self.0 & Self::DATA_MASK) as u8
-            }
-
-            #[inline]
-            pub fn set_data(&mut self, data: u8) {
-                self.0 = (self.0 & !Self::DATA_MASK) | (data as FTs & Self::DATA_MASK);
-            }
-        }
-    }
-}
-
-fts_packed_data! { FTsData1, 1 }
-fts_packed_data! { FTsData2, 2 }
-fts_packed_data! { FTsData3, 3 }
-
 impl VideoTs {
     #[inline]
     pub const fn new(vc: Ts, hc: Ts) -> Self {
@@ -360,6 +203,15 @@ impl <V: VideoFrame> VFrameTs<V> {
             }
         }
         VFrameTs::new(vc, hc)
+    }
+
+    #[inline]
+    fn set_hc_after_small_increment(&mut self, mut hc: Ts) {
+        if hc >= V::HTS_RANGE.end {
+            hc -= V::HTS_COUNT as Ts;
+            self.ts.vc += 1;
+        }
+        self.ts.hc = hc;
     }
 }
 
@@ -529,15 +381,6 @@ impl<V, C> VFrameTsCounter<V, C>
     pub fn is_contended_address(self, address: u16) -> bool {
         self.contention.is_contended_address(address)
     }
-
-    #[inline(always)]
-    fn set_hc_after_small_increment(&mut self, mut hc: Ts) {
-        if hc >= V::HTS_RANGE.end {
-            hc -= V::HTS_COUNT as Ts;
-            self.vts.vc += 1;
-        }
-        self.vts.hc = hc;
-    }
 }
 
 impl<V: VideoFrame, C> AddAssign<u32> for VFrameTsCounter<V, C> {
@@ -594,22 +437,83 @@ macro_rules! ula_io_contention {
         }
     };
 }
-
-impl<V: VideoFrame, C: MemoryContention> Clock for VFrameTsCounter<V, C> {
+/*
+impl<V: VideoFrame> Clock for VFrameTs<V> {
     type Limit = Ts;
     type Timestamp = VideoTs;
+
+    #[inline(always)]
     fn is_past_limit(&self, limit: Self::Limit) -> bool {
-        self.vts.vc >= limit
+        self.vc >= limit
     }
 
     fn add_irq(&mut self, _pc: u16) -> Self::Timestamp {
-        self.set_hc_after_small_increment(self.vts.hc + IRQ_ACK_CYCLE_TS as Ts);
+        self.set_hc_after_small_increment(self.hc + IRQ_ACK_CYCLE_TS as Ts);
+        self.as_timestamp()
+    }
+
+    fn add_no_mreq(&mut self, _address: u16, add_ts: NonZeroU8) {
+        let hc = self.hc + add_ts.get() as Ts;
+        self.set_hc_after_small_increment(hc);
+    }
+
+    fn add_m1(&mut self, _address: u16) -> Self::Timestamp {
+        self.set_hc_after_small_increment(self.hc + M1_CYCLE_TS as Ts);
+        self.as_timestamp()
+    }
+
+    fn add_mreq(&mut self, _address: u16) -> Self::Timestamp {
+        self.set_hc_after_small_increment(self.hc + MEMRW_CYCLE_TS as Ts);
+        self.as_timestamp()
+    }
+
+    fn add_io(&mut self, _port: u16) -> Self::Timestamp {
+        let hc = self.hc + IO_IORQ_LOW_TS as Ts;
+        let hc1 = hc + (IO_CYCLE_TS - IO_IORQ_LOW_TS) as Ts;
+
+        let mut tsc = *self;
+        tsc.set_hc_after_small_increment(hc);
+        self.set_hc_after_small_increment(hc1);
+        tsc.as_timestamp()
+    }
+
+    fn add_wait_states(&mut self, _bus: u16, wait_states: NonZeroU16) {
+        let ws = wait_states.get();
+        if ws > WAIT_STATES_THRESHOLD {
+            // emulate hanging the Spectrum
+            self.vc += HALT_VC_THRESHOLD;
+        }
+        else if ws < V::HTS_COUNT as u16 {
+            self.set_hc_after_small_increment(self.hc + ws as i16);
+        }
+        else {
+            *self += ws as u32;
+        }
+    }
+
+    #[inline(always)]
+    fn as_timestamp(&self) -> Self::Timestamp {
+        self.ts
+    }
+}
+*/
+impl<V: VideoFrame, C: MemoryContention> Clock for VFrameTsCounter<V, C> {
+    type Limit = Ts;
+    type Timestamp = VideoTs;
+
+    #[inline(always)]
+    fn is_past_limit(&self, limit: Self::Limit) -> bool {
+        self.vc >= limit
+    }
+
+    fn add_irq(&mut self, _pc: u16) -> Self::Timestamp {
+        self.vts.set_hc_after_small_increment(self.hc + IRQ_ACK_CYCLE_TS as Ts);
         self.as_timestamp()
     }
 
     fn add_no_mreq(&mut self, address: u16, add_ts: NonZeroU8) {
         let mut hc = self.hc;
-        if self.contention.is_contended_address(address) && V::is_contended_line_no_mreq(self.vc) {
+        if V::is_contended_line_no_mreq(self.vc) && self.contention.is_contended_address(address) {
             for _ in 0..add_ts.get() {
                 hc = V::contention(hc) + 1;
             }
@@ -617,7 +521,7 @@ impl<V: VideoFrame, C: MemoryContention> Clock for VFrameTsCounter<V, C> {
         else {
             hc += add_ts.get() as Ts;
         }
-        self.set_hc_after_small_increment(hc);
+        self.vts.set_hc_after_small_increment(hc);
     }
 
     fn add_m1(&mut self, address: u16) -> Self::Timestamp {
@@ -627,24 +531,24 @@ impl<V: VideoFrame, C: MemoryContention> Clock for VFrameTsCounter<V, C> {
         //     // 0xC008..=0xC011 => println!("0x{:04x}: {} {:?}", address, self.as_tstates(), self.tsc),
         //     _ => {}
         // }
-        let hc = if self.contention.is_contended_address(address) && V::is_contended_line_mreq(self.vc) {
+        let hc = if V::is_contended_line_mreq(self.vc) && self.contention.is_contended_address(address) {
             V::contention(self.hc)
         }
         else {
             self.hc
         };
-        self.set_hc_after_small_increment(hc + M1_CYCLE_TS as Ts);
+        self.vts.set_hc_after_small_increment(hc + M1_CYCLE_TS as Ts);
         self.as_timestamp()
     }
 
     fn add_mreq(&mut self, address: u16) -> Self::Timestamp {
-        let hc = if self.contention.is_contended_address(address) && V::is_contended_line_mreq(self.vc) {
+        let hc = if V::is_contended_line_mreq(self.vc) && self.contention.is_contended_address(address) {
             V::contention(self.hc)
         }
         else {
             self.hc
         };
-        self.set_hc_after_small_increment(hc + MEMRW_CYCLE_TS as Ts);
+        self.vts.set_hc_after_small_increment(hc + MEMRW_CYCLE_TS as Ts);
         self.as_timestamp()
     }
 
@@ -676,7 +580,7 @@ impl<V: VideoFrame, C: MemoryContention> Clock for VFrameTsCounter<V, C> {
     //     else { // N:4
     //         hc + IO_CYCLE_TS as Ts
     //     };
-    //     self.set_hc_after_small_increment(hc);
+    //     self.vts.set_hc_after_small_increment(hc);
     //     Self::new(vc, hc - 1).as_timestamp() // data read at last cycle
     // }
 
@@ -715,8 +619,8 @@ impl<V: VideoFrame, C: MemoryContention> Clock for VFrameTsCounter<V, C> {
             hc + (IO_CYCLE_TS - IO_IORQ_LOW_TS) as Ts
         };
         let mut vtsc = *self;
-        vtsc.set_hc_after_small_increment(hc);
-        self.set_hc_after_small_increment(hc1);
+        vtsc.vts.set_hc_after_small_increment(hc);
+        self.vts.set_hc_after_small_increment(hc1);
         vtsc.as_timestamp()
     }
 
@@ -727,7 +631,7 @@ impl<V: VideoFrame, C: MemoryContention> Clock for VFrameTsCounter<V, C> {
             self.vc += HALT_VC_THRESHOLD;
         }
         else if ws < V::HTS_COUNT as u16 {
-            self.set_hc_after_small_increment(self.hc + ws as i16);
+            self.vts.set_hc_after_small_increment(self.hc + ws as i16);
         }
         else {
             *self += ws as u32;
