@@ -16,6 +16,7 @@ use serde::{Serialize, Deserialize};
 pub struct ZxInterface1MemExt {
     #[cfg_attr(feature = "snapshot",
         serde(serialize_with = "serialize_mem", deserialize_with = "deserialize_mem"))]
+    #[cfg_attr(feature = "snapshot", serde(default = "exrom_default"))]
     exrom: ExRom
 }
 
@@ -65,4 +66,8 @@ impl ZxInterface1MemExt {
     pub fn clear_exrom(&mut self) {
         self.exrom = Rc::new([]);
     }
+}
+
+fn exrom_default() -> ExRom {
+    Rc::new([])
 }

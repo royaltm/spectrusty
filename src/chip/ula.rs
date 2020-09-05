@@ -57,6 +57,7 @@ pub struct Ula<M, B, X, V> {
     pub(super) tsc: VFrameTs<V>, // current T-state timestamp
     pub(super) memory: M,
     pub(super) bus: B,
+    // #[cfg_attr(feature = "snapshot", serde(default))]
     pub(super) memext: X,
     // keyboard
     #[cfg_attr(feature = "snapshot", serde(skip))]

@@ -108,7 +108,9 @@ pub struct UlaPlus<U: Video> {
     cur_render_mode: RenderMode,
     beg_source_mode: SourceMode,
     cur_source_mode: SourceMode,
+    #[cfg_attr(feature = "snapshot", serde(default))]
     beg_palette: UlaPlusPalette,
+    #[cfg_attr(feature = "snapshot", serde(default))]
     cur_palette: UlaPlusPalette,
     #[cfg_attr(feature = "snapshot", serde(skip))]
     sec_frame_cache: UlaFrameCache<U::VideoFrame>,

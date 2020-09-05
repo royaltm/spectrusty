@@ -1,7 +1,8 @@
 //! Utilities for serializing memory as base64 strings or just bytes in binary serializers.
-#[cfg(feature = "compression")] use core::iter::FromIterator;
 use core::fmt;
+use std::borrow::Cow;
 use std::rc::Rc;
+#[cfg(feature = "compression")] use core::iter::FromIterator;
 
 #[cfg(feature = "compression")] use compression::prelude::*;
 #[cfg(feature = "compression")] use serde::ser;
@@ -47,8 +48,8 @@ pub fn deserialize_mem<'de, T, D>(deserializer: D) -> Result<T, D::Error>
           D: Deserializer<'de>
 {
     if deserializer.is_human_readable() {
-        Deserialize::deserialize(deserializer).and_then(|string: &str|
-            base64::decode(string).map_err(de::Error::custom)
+        Deserialize::deserialize(deserializer).and_then(|string: Cow<str>|
+            base64::decode(&*string).map_err(de::Error::custom)
         )
         .and_then(T::try_from_byte_buf)
     }

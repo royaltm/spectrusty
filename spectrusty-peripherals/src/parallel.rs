@@ -36,6 +36,7 @@ pub trait ParallelPortDevice {
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]
 pub struct ParallelPortWriter<T, W> {
+    #[cfg_attr(feature = "snapshot", serde(default))]
     pub writer: W,
     busy: bool,
     data: u8,
