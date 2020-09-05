@@ -83,8 +83,11 @@ impl<U, B, X> UlaCpuExt for U
         ) -> bool
     {
         let mut vtsc = self.ensure_next_frame_vtsc();
-        let mut vc_limit = 1;
         while !vtsc.is_eof() {
+            let vc_limit = if vtsc.vc < 1 { 1 }
+            else {
+                Self::VideoFrame::VSL_COUNT
+            };
             match cpu.execute_with_limit(self, &mut vtsc, vc_limit) {
                 Ok(()) => {
                     **vtsc = Self::ula_check_halt(vtsc.into(), cpu);
@@ -108,7 +111,6 @@ impl<U, B, X> UlaCpuExt for U
                 vtsc = execute_halted_state_until_eof(vtsc, cpu);
                 break;
             }
-            vc_limit = Self::VideoFrame::VSL_COUNT;
         }
         self.set_video_ts(vtsc.into());
         self.bus_device_mut().update_timestamp(vtsc.into());
