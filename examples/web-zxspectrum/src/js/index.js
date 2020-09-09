@@ -1,5 +1,6 @@
 import { $id,
          $on,
+         $off,
          UserInterface,
          cpuFactor,
          cpuSlider,
@@ -81,6 +82,7 @@ import('../../pkg').then(rust_module => {
   .bind("trigger-nmi", "click", (ev) => spectrum.triggerNmi())
   .bind("ay-fuller-box", attachDevice, hasDevice)
   .bind("ay-melodik", attachDevice, hasDevice)
+  .bind("kempston-mouse", attachDevice, hasDevice)
   .bind("audible-tape",
     (ev) => spectrum.audibleTape = ev.target.checked,
     (el) => el.checked = spectrum.audibleTape
@@ -179,6 +181,10 @@ import('../../pkg').then(rust_module => {
     }
 
     switch (ev.code) {
+      case "F1": case "F2": case "F3": case "F4":
+      case "F5": case "F6": case "F7": case "F8":
+      case "F9": case "F10": case "F11": case "F12":
+        break;
       case "Pause":
         togglePause();
         break;
@@ -202,6 +208,34 @@ import('../../pkg').then(rust_module => {
   $on(window, "visibilitychange", ev => {
     if (document.hidden) saveState(ev);
   });
+
+  $on(canvas, "click", setupMouseLock);
+
+  const handleMouseDown = handleMouseButtonFactory(true);
+  const handleMouseUp = handleMouseButtonFactory(false);
+  $on(document, "pointerlockchange", ev => {
+    const isLocked = document.pointerLockElement === canvas;
+    const setupEvent = (isLocked ? $on : $off);
+    const unsetupEvent = (isLocked ? $off : $on);
+    setupEvent(canvas, "mousemove", handleMouseMove);
+    setupEvent(canvas, "mousedown", handleMouseDown);
+    setupEvent(canvas, "mouseup", handleMouseUp);
+    unsetupEvent(canvas, "click", setupMouseLock);
+  });
+
+  function setupMouseLock(ev) {
+    if (spectrum.hasDevice("Kempston Mouse")) {
+      canvas.requestPointerLock();
+    }
+  }
+
+  function handleMouseMove(ev) {
+    spectrum.moveMouse(ev.movementX, ev.movementY);
+  }
+
+  function handleMouseButtonFactory(pressed) {
+    return ev => spectrum.updateMouseButton(ev.button, pressed);
+  }
 
   // initialize
   tapeName.value = "";

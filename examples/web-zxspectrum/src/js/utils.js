@@ -91,6 +91,10 @@ export function $on(el, ev, cb) {
   el.addEventListener(ev, cb, false);
 }
 
+export function $off(el, ev, cb) {
+  el.removeEventListener(ev, cb, false);
+}
+
 export function dowloader() {
   const saver = document.createElement("a");
   document.body.appendChild(saver);

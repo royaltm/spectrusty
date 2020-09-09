@@ -12,7 +12,8 @@ use spectrusty::clock::VFrameTs;
 use spectrusty::bus::{
     NullDevice, NamedBusDevice, SerializeDynDevice, DeserializeDynDevice,
     NamedDynDevice, BoxNamedDynDevice,
-    ay
+    ay,
+    mouse
 };
 use spectrusty::video::{Video, VideoFrame};
 use zxspectrum_common::{
@@ -24,13 +25,15 @@ use crate::ZxSpectrumEmuModel;
 
 pub type Ay3_891xMelodik<T> = ay::Ay3_891xMelodik<NullDevice<T>>;
 pub type Ay3_891xFullerBox<T> = ay::Ay3_891xFullerBox<NullDevice<T>>;
+pub type KempstonMouse<T> = mouse::KempstonMouse<NullDevice<T>>;
 
 pub struct SerdeDynDevice;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub enum DeviceType {
     Ay3_891xMelodik,
-    Ay3_891xFullerBox
+    Ay3_891xFullerBox,
+    KempstonMouse
 }
 
 impl FromStr for DeviceType {
@@ -39,6 +42,7 @@ impl FromStr for DeviceType {
         match name {
             "Melodik"    => Ok(DeviceType::Ay3_891xMelodik),
             "Fuller Box" => Ok(DeviceType::Ay3_891xFullerBox),
+            "Kempston Mouse" => Ok(DeviceType::KempstonMouse),
             _ => Err("Unrecognized device name")
         }
     }
@@ -47,8 +51,9 @@ impl FromStr for DeviceType {
 macro_rules! device_type_dispatch {
     (($dt:expr) => ($expr:expr)($fn:ident::@device<$ts:ty>)$($tt:tt)*) => {
         match $dt {
-            DeviceType::Ay3_891xMelodik => { $expr.$fn::<Ay3_891xMelodik<$ts>>()$($tt)* }
+            DeviceType::Ay3_891xMelodik   => { $expr.$fn::<Ay3_891xMelodik<$ts>>()$($tt)* }
             DeviceType::Ay3_891xFullerBox => { $expr.$fn::<Ay3_891xFullerBox<$ts>>()$($tt)* }
+            DeviceType::KempstonMouse     => { $expr.$fn::<KempstonMouse<$ts>>()$($tt)* }
         }
     };
 }
@@ -58,6 +63,7 @@ impl DeviceType {
         match self {
             DeviceType::Ay3_891xMelodik => Ay3_891xMelodik::default().into(),
             DeviceType::Ay3_891xFullerBox => Ay3_891xFullerBox::default().into(),
+            DeviceType::KempstonMouse => KempstonMouse::default().into(),
         }
     }
 
@@ -125,6 +131,9 @@ fn recreate_dynamic_device<V1: VideoFrame + 'static, V2: VideoFrame + 'static>(
     else if device.is::<Ay3_891xFullerBox<VFrameTs<V1>>>() {
         Ok(Ay3_891xFullerBox::<VFrameTs<V2>>::default().into())
     }
+    else if device.is::<KempstonMouse<VFrameTs<V1>>>() {
+        Ok(KempstonMouse::<VFrameTs<V2>>::default().into())
+    }
     else {
         Err("unknown device")
     }
@@ -141,6 +150,9 @@ impl SerializeDynDevice for SerdeDynDevice {
         }
         else if let Some(device) = device.downcast_ref::<Ay3_891xFullerBox<T>>() {
             (DeviceType::Ay3_891xFullerBox, device).serialize(serializer)
+        }
+        else if let Some(device) = device.downcast_ref::<KempstonMouse<T>>() {
+            (DeviceType::KempstonMouse, device).serialize(serializer)
         }
         else {
             Err(ser::Error::custom("unknown device"))

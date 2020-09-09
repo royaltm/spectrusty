@@ -9,6 +9,7 @@ import { setupDevice } from "./utils";
   #tf=0
   #ti=0
   #ta=0
+  #km=0
   #t=index
   #tap=...
   #sna=...
@@ -29,6 +30,7 @@ const BooleanOptions = {
   tf: "fastTape",
   ti: "instantTape",
   ta: "audibleTape",
+  km: "kempstonMouse"
 };
 
 export class UrlParameters {
@@ -60,6 +62,7 @@ export class UrlParameters {
     if (options.fastTape == null) tags.push('fast-tape');
     if (options.instantTape == null) tags.push('instant-tape');
     if (options.audibleTape == null) tags.push('audible-tape');
+    if (options.kempstonMouse == null) tags.push('kempston-mouse');
     if (ay.melodik == null) tags.push('ay-melodik');
     if (ay.fuller == null) tags.push('ay-fuller-box');
     if (ay.amps == null) tags.push('ay-amps');
@@ -80,7 +83,7 @@ export class UrlParameters {
     switch (tag) {
       case 'models':
         options.model = lastTag(spectrum.model);
-        ['ay-melodik', 'ay-fuller-box'].forEach(t => this.updateFrom(spectrum, t));
+        ['ay-melodik', 'ay-fuller-box', 'kempston-mouse'].forEach(t => this.updateFrom(spectrum, t));
         // fall to keyboard-issue
       case 'keyboard-issue': options.keyboard = shortIssue(spectrum.keyboardIssue); break;
       case 'interlace': options.interlace = spectrum.interlace; break;
@@ -91,6 +94,7 @@ export class UrlParameters {
       case 'audible-tape': options.audibleTape = spectrum.audibleTape; break;
       case 'ay-melodik': ay.melodik = spectrum.hasDevice("Melodik"); break;
       case 'ay-fuller-box': ay.fuller = spectrum.hasDevice("Fuller Box"); break;
+      case 'kempston-mouse': options.kempstonMouse = spectrum.hasDevice("Kempston Mouse"); break;
       case 'ay-amps': ay.amps = spectrum.ayAmps.toLowerCase(); break;
       case 'ay-channels': ay.channels = spectrum.ayChannels; break;
       case 'files': this.removeTap(); break;
@@ -132,6 +136,7 @@ export class UrlParameters {
       fastTape,
       instantTape,
       audibleTape,
+      kempstonMouse,
       ay,
       tapChunk,
       // tap,
@@ -148,6 +153,7 @@ export class UrlParameters {
     spectrum.fastTape = fastTape == null || fastTape;
     spectrum.instantTape = instantTape == null || instantTape;
     spectrum.audibleTape = audibleTape == null || audibleTape;
+    setupDevice(spectrum, "Kempston Mouse", kempstonMouse);
     let { amps, melodik, fuller, channels } = ay || {};
     setupDevice(spectrum, "Melodik", melodik);
     setupDevice(spectrum, "Fuller Box", fuller);

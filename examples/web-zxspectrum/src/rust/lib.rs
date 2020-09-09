@@ -68,7 +68,8 @@ pub struct ZxSpectrumEmu {
     audio_stream: AudioStream,
     animation_sync: AnimationFrameSyncTimer,
     bandlim: BandLim,
-    pixel_data: Vec<u8>
+    pixel_data: Vec<u8>,
+    mouse_move: (i16, i16)
 }
 
 #[wasm_bindgen]
@@ -89,7 +90,12 @@ impl ZxSpectrumEmu {
         model.ensure_audio_frame_time(&mut bandlim, audio_stream.sample_rate());
         let animation_sync = AnimationFrameSyncTimer::new(utils::now(), model.effective_frame_duration_nanos());
         Ok(ZxSpectrumEmu {
-            audio_stream, model, animation_sync, bandlim, pixel_data: Vec::new()
+            audio_stream,
+            model,
+            animation_sync,
+            bandlim,
+            pixel_data: Vec::new(),
+            mouse_move: (0, 0)
         })
     }
     /// Returns the required target canvas dimensions.
@@ -116,6 +122,10 @@ impl ZxSpectrumEmu {
                                  .js_err()?.1;
         }
         else {
+            if self.mouse_move != (0, 0) {
+                model.send_mouse_move(self.mouse_move);
+                self.mouse_move = (0, 0);
+            }
             let num_frames = match self.animation_sync.num_frames_to_synchronize(time) {
                 Ok(num) => num,
                 Err(_time) => {
@@ -159,8 +169,34 @@ impl ZxSpectrumEmu {
         let ctrl_down = event.ctrl_key();
         let num_lock = event.get_modifier_state("NumLock");
         let key = event.code();
-        self.spectrum_control_mut().
-            process_keyboard_event(&key, pressed, shift_down, ctrl_down, num_lock);
+        self.spectrum_control_mut()
+            .process_keyboard_event(&key, pressed, shift_down, ctrl_down, num_lock);
+    }
+    /// Update relative mouse position.
+    #[wasm_bindgen(js_name = moveMouse)]
+    pub fn move_mouse(&mut self, movement_x: i32, movement_y: i32) {
+        fn clamped_i16(v: i32) -> i16 {
+            v.try_into().unwrap_or_else(|_|
+                if v < 0 {
+                    i16::min_value()
+                } else {
+                    i16::max_value()
+                }
+            )
+        }
+        let dx = clamped_i16(movement_x);
+        let dy = clamped_i16(movement_y);
+        let (x, y) = self.mouse_move;
+        self.mouse_move = (x.saturating_add(dx), y.saturating_add(dy));
+    }
+    /// Update state of mouse buttons.
+    ///
+    /// * `button` should be `MouseEvent.button` from `mousedown` or `mouseup` events.
+    /// * `pressed` should be `true` for the `mousedown` and `false` for the `mouseup`.
+    #[wasm_bindgen(js_name = updateMouseButton)]
+    pub fn update_mouse_button(&mut self, button: i16, pressed: bool) {
+        self.spectrum_control_mut()
+            .update_mouse_button(button, pressed);
     }
     /// Hot swaps the emulated Spectrum model to the `model` name given.
     ///

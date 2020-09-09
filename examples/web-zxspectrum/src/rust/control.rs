@@ -11,7 +11,7 @@ use spectrusty::chip::{
 };
 use spectrusty::memory::ZxMemory;
 use spectrusty::formats::scr::{LoadScr, ScreenDataProvider};
-
+use spectrusty::peripherals::mouse::MouseButtons;
 use spectrusty_utils::{
     keyboard::web_sys::{
         update_keymap, update_keypad_keys,
@@ -45,6 +45,8 @@ pub trait SpectrumControl<B: Blep>: VideoControl +
     fn emulator_state_ref(&self) -> &EmulatorState;
     fn emulator_state_mut(&mut self) -> &mut EmulatorState;
     fn process_keyboard_event(&mut self, key: &str, pressed: bool, shift_down: bool, ctrl_down: bool, num_lock: bool);
+    fn send_mouse_move(&mut self, mouse_move: (i16, i16));
+    fn update_mouse_button(&mut self, button: i16, pressed: bool);
     fn read_ear_mode(&self) -> ReadEarMode;
     fn set_read_ear_mode(&mut self, mode: ReadEarMode);
     fn load_scr(&mut self, scr_data: &[u8]) -> io::Result<()>;
@@ -56,6 +58,7 @@ pub trait SpectrumControl<B: Blep>: VideoControl +
 
 impl<C: Cpu, U, B> SpectrumControl<B> for ZxSpectrum<C, U, MemTap>
     where U: UlaCommon + DeviceAccess + UlaAudioFrame<B> + ScreenDataProvider,
+          U::VideoFrame: 'static,
           B: Blep<SampleDelta=f32>,
           Self: JoystickAccess
 {
@@ -96,6 +99,30 @@ impl<C: Cpu, U, B> SpectrumControl<B> for ZxSpectrum<C, U, MemTap>
             self.update_keypad128_keys(|padmap|
                 update_keypad_keys(padmap, key, pressed, num_lock)
             );
+        }
+    }
+
+    fn send_mouse_move(&mut self, mouse_move: (i16, i16)) {
+        if let Some(mouse) = self.mouse_interface() {
+            mouse.move_mouse(mouse_move.into())
+        }
+    }
+
+    fn update_mouse_button(&mut self, button: i16, pressed: bool) {
+        if let Some(mouse) = self.mouse_interface() {
+            let button_mask = match button {
+                0 => MouseButtons::LEFT,
+                1 => MouseButtons::MIDDLE,
+                2 => MouseButtons::RIGHT,
+                _ => return
+            };
+            let buttons = mouse.get_buttons();
+            mouse.set_buttons(if pressed {
+                buttons|button_mask
+            }
+            else {
+                buttons&!button_mask
+            })
         }
     }
 
