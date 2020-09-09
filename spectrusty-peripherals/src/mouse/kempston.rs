@@ -6,17 +6,18 @@ use super::{MouseInterface, MouseDevice, MouseMovement, MouseButtons};
 /*
     Horizontal position: IN 64479
     Vertical postition: IN 65503
-    Buttons: IN 64223 [255 = None], [254 = Left], [253 = Right], [252 = Both]
+    Buttons: IN 64223 [255 = None], [254 = Right], [253 = Left], [252 = Both]
 */
-const LEFT_BTN_MASK:   u8 = 0b0000_0001;
-const RIGHT_BTN_MASK:  u8 = 0b0000_0010;
-const UNUSED_BTN_MASK: u8 = !(LEFT_BTN_MASK|RIGHT_BTN_MASK); 
+const RIGHT_BTN_MASK:  u8 = 0b0000_0001;
+const LEFT_BTN_MASK:   u8 = 0b0000_0010;
+const MIDDLE_BTN_MASK: u8 = 0b0000_0100; // extension
+const UNUSED_BTN_MASK: u8 = !(MIDDLE_BTN_MASK|LEFT_BTN_MASK|RIGHT_BTN_MASK);
 
 const PORT_BTN_MASK: u16 = 0b0000_0001_0000_0000;
 const PORT_BTN_BITS: u16 = 0b0000_0000_0000_0000;
 const PORT_POS_MASK: u16 = 0b0000_0101_0000_0000;
-const PORT_X_MASK:   u16 = 0b0000_0001_0000_0000;
-const PORT_Y_MASK:   u16 = 0b0000_0101_0000_0000;
+const PORT_X_BITS:   u16 = 0b0000_0001_0000_0000;
+const PORT_Y_BITS:   u16 = 0b0000_0101_0000_0000;
 
 /// The Kempston Mouse device implements [MouseDevice] and [MouseInterface] traits.
 ///
@@ -61,8 +62,8 @@ impl MouseDevice for KempstonMouseDevice {
         }
         else {
             match port & PORT_POS_MASK {
-                PORT_X_MASK => self.data_x,
-                PORT_Y_MASK => self.data_y,
+                PORT_X_BITS => self.data_x,
+                PORT_Y_BITS => self.data_y,
                 _ => unsafe { core::hint::unreachable_unchecked() }
             }
         }
@@ -74,8 +75,9 @@ impl MouseInterface for KempstonMouseDevice {
     fn set_buttons(&mut self, buttons: MouseButtons) {
         self.buttons = buttons;
         self.data_btn = (self.data_btn & UNUSED_BTN_MASK) |
-            if buttons.intersects(MouseButtons::LEFT)  { 0 } else { LEFT_BTN_MASK  } |
-            if buttons.intersects(MouseButtons::RIGHT) { 0 } else { RIGHT_BTN_MASK };
+            if buttons.intersects(MouseButtons::RIGHT)  { 0 } else { RIGHT_BTN_MASK } |
+            if buttons.intersects(MouseButtons::LEFT)   { 0 } else { LEFT_BTN_MASK  } |
+            if buttons.intersects(MouseButtons::MIDDLE) { 0 } else { MIDDLE_BTN_MASK };
     }
     #[inline]
     fn get_buttons(&self) -> MouseButtons {
