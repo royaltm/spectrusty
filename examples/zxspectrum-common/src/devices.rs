@@ -153,6 +153,7 @@ macro_rules! impl_device_access_ula128 {
 }
 
 impl_device_access_ula128!(Ula128AyKeypad<Ula128VidFrame>);
+impl_device_access_ula128!(Plus128<Ula128VidFrame>);
 
 macro_rules! impl_device_access_ula3 {
     ($ula:ident<$vidfrm:ty>) => {
@@ -206,7 +207,7 @@ macro_rules! impl_device_access_ula3 {
 }
 
 impl_device_access_ula3!(Ula3Ay<Ula3VidFrame>);
-impl_device_access_ula3!(Plus128<Ula3VidFrame>);
+impl_device_access_ula3!(Plus3<Ula3VidFrame>);
 
 impl<C, U, F> DynamicDevices<U::VideoFrame> for ZxSpectrum<C, U, F>
         where C: Cpu,
