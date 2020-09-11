@@ -1,6 +1,7 @@
 import { $id,
          $on,
          $off,
+         onSwipe,
          UserInterface,
          cpuFactor,
          cpuSlider,
@@ -12,15 +13,24 @@ import { $id,
          parseRange,
          parsePoke,
          toHex,
-         checkBrowserCapacity
+         checkBrowserCapacity,
+         Directions
        } from './utils';
 import { UrlParameters } from './urlparams';
 
 checkBrowserCapacity();
 
+/* Tooltips */
+
+$(() => {
+  $('[title]').tooltip()
+})
+
 import('../../pkg').then(rust_module => {
   // for debugging purposes
   rust_module.setPanicHook();
+
+  /* Scoped globals */
 
   const urlparams     = new UrlParameters(),
         spectrum      = new rust_module.ZxSpectrumEmu(0.11, urlparams.options.model || '+2B'),
@@ -36,18 +46,31 @@ import('../../pkg').then(rust_module => {
         fileBrowser   = $id("files"),
         speedControl  = $id("speed-control"),
         speedCurrent  = $id("speed-current"),
+        introModal    = $id("intro-modal"),
         downloadFile  = dowloader(),
         saveState     = stateGuard(spectrum, urlparams);
 
   var paused = false,
       renderedImage = new ImageData(1, 1);
 
+  /* GUI */
+
   const spectrusty = new UserInterface();
+
+  /* bind UI with URI hash changes */
+
   spectrusty.onchange = (id) => {
     if (urlparams.updateFrom(spectrum, id)) {
       urlparams.updateLocation();
     }
   };
+
+  $on(window, "hashchange", _ => {
+    if (urlparams.hashChanged()) {
+      loadFromUrlParams(false).then(() => spectrusty.update());
+    }
+  });
+
   spectrusty
   // auto show/hide control panel 
   .bind("main-screen", "click", hidePanel)
@@ -128,13 +151,15 @@ import('../../pkg').then(rust_module => {
       el.value = cpuSlider(factor);
       speedCurrent.value = "x" + factor.toFixed(2);
     }
-  ).bind("keyboard-issue",
+  )
+  .bind("keyboard-issue",
     (ev) => spectrum.keyboardIssue = ev.target.value,
     (el) => {
       el.value = spectrum.keyboardIssue;
       el.disabled = !el.value;
     }
-  ).bind("save-z80v3", "click", (ev) => downloadZ80Snap(3))
+  )
+  .bind("save-z80v3", "click", (ev) => downloadZ80Snap(3))
   .bind("save-z80v2", "click", (ev) => downloadZ80Snap(2))
   .bind("save-z80v1", "click", (ev) => downloadZ80Snap(1))
   .bind("save-sna", "click", (ev) => downloadSNASnap())
@@ -175,6 +200,16 @@ import('../../pkg').then(rust_module => {
                        (start, end) => spectrum.disassemble(start, end))
   );
 
+  /* Closing modal resumes emulation */
+
+  $(introModal).on("hide.bs.modal", ev => {
+    if (paused) {
+      togglePause();
+    }
+  });
+
+  /* Keyboard */
+
   $on(document, "keydown", (ev) => {
     if (ev.repeat) {
       return;
@@ -197,17 +232,7 @@ import('../../pkg').then(rust_module => {
 
   $on(document, "keyup", ev => spectrum.updateStateFromKeyEvent(ev, false));
 
-  $on(window, "hashchange", _ev => {
-    if (urlparams.hashChanged()) {
-      loadFromUrlParams(false).then(() => spectrusty.update());
-    }
-  });
-
-  $on(window, "pagehide", saveState);
-  $on(window, "unload", saveState);
-  $on(window, "visibilitychange", ev => {
-    if (document.hidden) saveState(ev);
-  });
+  /* Mouse handlers */
 
   $on(canvas, "click", setupMouseLock);
 
@@ -237,16 +262,48 @@ import('../../pkg').then(rust_module => {
     return ev => spectrum.updateMouseButton(ev.button, pressed);
   }
 
-  // initialize
+  /* Auto save and restore state */
+
+  $on(window, "pagehide", saveState);
+  $on(window, "unload", saveState);
+  $on(window, "visibilitychange", ev => {
+    if (document.hidden) saveState(ev);
+  });
+
+  /* Panel on mobile UI */
+
+  const  { LEFT, RIGHT } = Directions;
+
+  onSwipe(canvas, RIGHT|LEFT, 50, panelSwipe);
+  onSwipe($id("menu-title"), LEFT, 50, panelSwipe);
+
+  function panelSwipe(dir) {
+    if (dir === RIGHT) {
+      showPanel();
+    }
+    else {
+      hidePanel();
+    }
+  }
+
+  /* Initialize */
+
   tapeName.value = "";
   // const ctx = canvas.getContext('bitmaprenderer');
   const ctx = canvas.getContext('2d', {alpha: false, desynchronized: true});
   ctx.imageSmoothingEnabled = false;
 
   loadFromUrlParams(true).then(loaded => {
-    if (!loaded) showPanel();
+    if (loaded) {
+      togglePause().then(() => $(introModal).modal({keyboard: false}));
+    }
+    else {
+      showPanel();
+    }
     run(true);
   });
+
+  /* Scoped utility functions */
 
   function showPanel() {
     mainContainer.classList.add("show-panel")
@@ -263,7 +320,7 @@ import('../../pkg').then(rust_module => {
   function togglePause() {
     paused = (pauseButton.value == "Pause");
     pauseButton.disabled = true;
-    (paused ? spectrum.pauseAudio() : spectrum.resumeAudio())
+    return (paused ? spectrum.pauseAudio() : spectrum.resumeAudio())
     .then(() => {
       pauseButton.value = paused ? "Resume" : "Pause";
       pauseButton.disabled = false;

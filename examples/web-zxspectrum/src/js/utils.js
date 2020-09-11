@@ -95,6 +95,88 @@ export function $off(el, ev, cb) {
   el.removeEventListener(ev, cb, false);
 }
 
+export const Directions = {
+  UP: 1,
+  RIGHT: 2,
+  DOWN: 4,
+  LEFT: 8
+};
+
+const { abs } = Math;
+
+export function onSwipe(element, directions, threshold, handler) {
+  var pendingTouch = null;
+  const { UP, RIGHT, DOWN, LEFT } = Directions;
+
+  $on(element, "touchstart", handleStart);
+  $on(element, "touchcancel", handleCancel);
+  $on(element, "touchmove", handleMove);
+  $on(element, "touchend", handleEnd);
+
+  function handleStart(ev) {
+    var touches = ev.changedTouches;
+    ev.preventDefault();
+    if (touches.length === 1 && pendingTouch == null) {
+      let touch = touches[0];
+      pendingTouch = {id: touch.identifier, x: touch.screenX, y: touch.screenY};
+    }
+    else {
+      handleCancel(ev);
+    }
+  }
+
+  function handleCancel(ev) {
+    ev.preventDefault();
+    pendingTouch = null;
+  }
+
+  function handleMove(ev) {
+    var touches = ev.changedTouches;
+    if (pendingTouch != null && touches.length === 1 && touches[0].identifier === pendingTouch.id) {
+      let { screenX, screenY } = touches[0],
+          dx = screenX - pendingTouch.x,
+          dy = screenY - pendingTouch.y,
+          mx = abs(dx),
+          my = abs(dy);
+
+      if (mx > threshold || my > threshold) {
+        let dir = 0;
+        mx = mx * 2;
+        my = my * 2;
+        if (-dy > mx) {
+          dir = UP;
+        }
+        else if (dx > my) {
+          dir = RIGHT;
+        }
+        else if (dy > mx) {
+          dir = DOWN;
+        }
+        else if (-dx > my) {
+          dir = LEFT;
+        }
+
+        handleCancel(ev);
+
+        if ((dir & directions) !== 0) {
+          handler(dir);
+        }
+      }
+      else {
+        ev.preventDefault();
+      }
+    }
+    else {
+      handleCancel(ev);
+    }
+  }
+
+  function handleEnd(ev) {
+    handleMove(ev);
+    pendingTouch = null;
+  }
+}
+
 export function dowloader() {
   const saver = document.createElement("a");
   document.body.appendChild(saver);
