@@ -172,6 +172,24 @@ impl ZxSpectrumEmu {
         self.spectrum_control_mut()
             .process_keyboard_event(&key, pressed, shift_down, ctrl_down, num_lock);
     }
+    /// Returns the state of Spectrum keyboard as a map encoded into 40-bit bitmap.
+    ///
+    /// Because JavaScript only allows to perform bitwise operations on the lower 32-bits of
+    /// a numeric value, to access the highest 8 bits divide the result of this function by
+    /// `0x1_0000_0000` first.
+    ///
+    /// See [ZXKeyboardMap][spectrusty::peripherals::ZXKeyboardMap] for the mapping of specific keys.
+    #[wasm_bindgen(getter)]
+    pub fn keyboard(&self) -> f64 {
+        self.spectrum_control_ref().get_key_state().bits() as f64
+    }
+    /// Alters the state of the single Spectrum keyboard key indicated as a key map index.
+    ///
+    /// See [ZXKeyboardMap][spectrusty::peripherals::ZXKeyboardMap] for the mapping of specific keys.
+    #[wasm_bindgen(js_name = setKeyState)]
+    pub fn set_key_state(&mut self, key: u8, pressed: bool) {
+        self.spectrum_control_mut().change_key_state(key, pressed)
+    }
     /// Update relative mouse position.
     #[wasm_bindgen(js_name = moveMouse)]
     pub fn move_mouse(&mut self, movement_x: i32, movement_y: i32) {

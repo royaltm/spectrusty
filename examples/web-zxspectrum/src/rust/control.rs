@@ -11,7 +11,10 @@ use spectrusty::chip::{
 };
 use spectrusty::memory::ZxMemory;
 use spectrusty::formats::scr::{LoadScr, ScreenDataProvider};
-use spectrusty::peripherals::mouse::MouseButtons;
+use spectrusty::peripherals::{
+    ZXKeyboardMap,
+    mouse::MouseButtons
+};
 use spectrusty_utils::{
     keyboard::web_sys::{
         update_keymap, update_keypad_keys,
@@ -45,6 +48,8 @@ pub trait SpectrumControl<B: Blep>: VideoControl +
     fn emulator_state_ref(&self) -> &EmulatorState;
     fn emulator_state_mut(&mut self) -> &mut EmulatorState;
     fn process_keyboard_event(&mut self, key: &str, pressed: bool, shift_down: bool, ctrl_down: bool, num_lock: bool);
+    fn get_key_state(&self) -> ZXKeyboardMap;
+    fn change_key_state(&mut self, key: u8, pressed: bool);
     fn send_mouse_move(&mut self, mouse_move: (i16, i16));
     fn update_mouse_button(&mut self, button: i16, pressed: bool);
     fn read_ear_mode(&self) -> ReadEarMode;
@@ -100,6 +105,15 @@ impl<C: Cpu, U, B> SpectrumControl<B> for ZxSpectrum<C, U, MemTap>
                 update_keypad_keys(padmap, key, pressed, num_lock)
             );
         }
+    }
+
+    fn get_key_state(&self) -> ZXKeyboardMap {
+        self.ula.get_key_state()
+    }
+
+    fn change_key_state(&mut self, key: u8, pressed: bool) {
+        let keymap = self.ula.get_key_state().change_key_state(key, pressed);
+        self.ula.set_key_state(keymap);
     }
 
     fn send_mouse_move(&mut self, mouse_move: (i16, i16)) {

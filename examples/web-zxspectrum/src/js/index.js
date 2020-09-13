@@ -17,6 +17,7 @@ import { $id,
          Directions
        } from './utils';
 import { UrlParameters } from './urlparams';
+import { SpectrumKeyboard } from './keyboard';
 
 checkBrowserCapacity();
 
@@ -32,23 +33,25 @@ import('../../pkg').then(rust_module => {
 
   /* Scoped globals */
 
-  const urlparams     = new UrlParameters(),
-        spectrum      = new rust_module.ZxSpectrumEmu(0.11, urlparams.options.model || '+2B'),
-        canvas        = $id("main-screen"),
-        mainContainer = $id("main-container"),
-        controls      = $id("controls"),
-        tapeName      = $id("tape-name"),
-        tapChunks     = $id("tap-chunks"),
-        tapeProgress  = $id("tape-progress"),
-        tapPlay       = $id("tap-play"),
-        tapRecord     = $id("tap-record"),
-        pauseButton   = $id("pause-resume"),
-        fileBrowser   = $id("files"),
-        speedControl  = $id("speed-control"),
-        speedCurrent  = $id("speed-current"),
-        introModal    = $id("intro-modal"),
-        downloadFile  = dowloader(),
-        saveState     = stateGuard(spectrum, urlparams);
+  const urlparams         = new UrlParameters(),
+        spectrum          = new rust_module.ZxSpectrumEmu(0.11, urlparams.options.model || '+2B'),
+        keyboard          = new SpectrumKeyboard($id("spectrum-keyboard"), "keyboard"),
+        monitorCanvas     = $id("main-screen"),
+        mainContainer     = $id("main-container"),
+        spectrumContainer = $id("spectrum-container"),
+        controls          = $id("controls"),
+        tapeName          = $id("tape-name"),
+        tapChunks         = $id("tap-chunks"),
+        tapeProgress      = $id("tape-progress"),
+        tapPlay           = $id("tap-play"),
+        tapRecord         = $id("tap-record"),
+        pauseButton       = $id("pause-resume"),
+        fileBrowser       = $id("files"),
+        speedControl      = $id("speed-control"),
+        speedCurrent      = $id("speed-current"),
+        introModal        = $id("intro-modal"),
+        downloadFile      = dowloader(),
+        saveState         = stateGuard(spectrum, urlparams);
 
   var paused = false,
       renderedImage = new ImageData(1, 1);
@@ -152,6 +155,7 @@ import('../../pkg').then(rust_module => {
       speedCurrent.value = "x" + factor.toFixed(2);
     }
   )
+  .bind("toggle-keyboard", "click", toggleVisualKeyboard)
   .bind("keyboard-issue",
     (ev) => spectrum.keyboardIssue = ev.target.value,
     (el) => {
@@ -218,6 +222,9 @@ import('../../pkg').then(rust_module => {
     switch (ev.code) {
       case "F1": case "F2": case "F3": case "F4":
       case "F5": case "F6": case "F7": case "F8":
+        ev.preventDefault();
+        toggleVisualKeyboard();
+        break;
       case "F9": case "F10": case "F11": case "F12":
         break;
       case "Pause":
@@ -226,31 +233,38 @@ import('../../pkg').then(rust_module => {
       case "Escape":
         togglePanel();
         break;
-      default: spectrum.updateStateFromKeyEvent(ev, true)
+      default:
+        spectrum.updateStateFromKeyEvent(ev, true);
+        keyboard.update(spectrum.keyboard).redraw();
     }
   });
 
-  $on(document, "keyup", ev => spectrum.updateStateFromKeyEvent(ev, false));
+  $on(document, "keyup", ev => {
+    spectrum.updateStateFromKeyEvent(ev, false);
+    keyboard.update(spectrum.keyboard).redraw();
+  });
+
+  keyboard.bind((key, pressed) => spectrum.setKeyState(key, pressed));
 
   /* Mouse handlers */
 
-  $on(canvas, "click", setupMouseLock);
+  $on(monitorCanvas, "click", setupMouseLock);
 
   const handleMouseDown = handleMouseButtonFactory(true);
   const handleMouseUp = handleMouseButtonFactory(false);
   $on(document, "pointerlockchange", ev => {
-    const isLocked = document.pointerLockElement === canvas;
+    const isLocked = document.pointerLockElement === monitorCanvas;
     const setupEvent = (isLocked ? $on : $off);
     const unsetupEvent = (isLocked ? $off : $on);
-    setupEvent(canvas, "mousemove", handleMouseMove);
-    setupEvent(canvas, "mousedown", handleMouseDown);
-    setupEvent(canvas, "mouseup", handleMouseUp);
-    unsetupEvent(canvas, "click", setupMouseLock);
+    setupEvent(monitorCanvas, "mousemove", handleMouseMove);
+    setupEvent(monitorCanvas, "mousedown", handleMouseDown);
+    setupEvent(monitorCanvas, "mouseup", handleMouseUp);
+    unsetupEvent(monitorCanvas, "click", setupMouseLock);
   });
 
   function setupMouseLock(ev) {
     if (spectrum.hasDevice("Kempston Mouse")) {
-      canvas.requestPointerLock();
+      monitorCanvas.requestPointerLock();
     }
   }
 
@@ -272,25 +286,29 @@ import('../../pkg').then(rust_module => {
 
   /* Panel on mobile UI */
 
-  const  { LEFT, RIGHT } = Directions;
+  const  { LEFT, RIGHT, UP, DOWN } = Directions;
 
-  onSwipe(canvas, RIGHT|LEFT, 50, panelSwipe);
-  onSwipe($id("menu-title"), LEFT, 50, panelSwipe);
+  onSwipe(monitorCanvas, RIGHT|LEFT|UP|DOWN, 50, panelSwipe);
+  onSwipe($id("menu-title"), LEFT, 20, panelSwipe);
 
   function panelSwipe(dir) {
-    if (dir === RIGHT) {
-      showPanel();
-    }
-    else {
-      hidePanel();
+    switch (dir) {
+      case RIGHT:
+        showPanel(); break;
+      case LEFT:
+        hidePanel(); break;
+      case UP:
+        showVisualKeyboard(); break;
+      case DOWN:
+        hideVisualKeyboard(); break;
     }
   }
 
   /* Initialize */
 
   tapeName.value = "";
-  // const ctx = canvas.getContext('bitmaprenderer');
-  const ctx = canvas.getContext('2d', {alpha: false, desynchronized: true});
+  // const ctx = monitorCanvas.getContext('bitmaprenderer');
+  const ctx = monitorCanvas.getContext('2d', {alpha: false, desynchronized: true});
   ctx.imageSmoothingEnabled = false;
 
   loadFromUrlParams(true).then(loaded => {
@@ -317,6 +335,18 @@ import('../../pkg').then(rust_module => {
     mainContainer.classList.toggle("show-panel")
   }
 
+  function toggleVisualKeyboard() {
+    spectrumContainer.classList.toggle("show-keyboard")
+  }
+
+  function showVisualKeyboard() {
+    spectrumContainer.classList.add("show-keyboard")
+  }
+
+  function hideVisualKeyboard() {
+    spectrumContainer.classList.remove("show-keyboard")
+  }
+
   function togglePause() {
     paused = (pauseButton.value == "Pause");
     pauseButton.disabled = true;
@@ -339,17 +369,17 @@ import('../../pkg').then(rust_module => {
       if (width !== renderedImage.width || height !== renderedImage.height) {
         let [cw, ch] = spectrum.canvasSize;
         // console.log("screen: %s x %s -> %s x %s", width, height, cw, ch);
-        canvas.width = cw;
-        canvas.height = ch;
+        monitorCanvas.width = cw;
+        monitorCanvas.height = ch;
         renderedImage = new ImageData(width, height);
       }
 
       renderedImage.data.set(data); // need to copy data first from wasm memory to asynchronously read it
 
       return createImageBitmap(renderedImage)
-        //, {resizeWidth: canvas.width, resizeHeight: canvas.height, resizeQuality: "pixelated"})
+        //, {resizeWidth: monitorCanvas.width, resizeHeight: monitorCanvas.height, resizeQuality: "pixelated"})
       .then(bitmap => {
-        ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+        ctx.drawImage(bitmap, 0, 0, monitorCanvas.width, monitorCanvas.height);
         bitmap.close();
         // ctx.transferFromImageBitmap(bitmap);
         return changed

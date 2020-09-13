@@ -234,7 +234,7 @@
               </div>
             </div>
             <div class="col-auto">
-              <label for="keyboard-issue" class="mb-0">Keyboard:</label>
+              <button type="button" class="btn btn-outline-info btn-sm" id="toggle-keyboard">⌨ Keyboard</button>
             </div>
             <div class="col-auto">
               <select class="form-control form-control-sm" id="keyboard-issue">
@@ -255,7 +255,10 @@
           </div>
         </div>
       </div>
-      <canvas class="monitor" id="main-screen"></canvas>
+      <div id="spectrum-container" class="spectrum">
+        <canvas class="monitor" id="main-screen"></canvas>
+        <canvas class="keyboard" id="spectrum-keyboard"></canvas>
+      </div>
     </div>
     <div class="modal fade" id="intro-modal" data-backdrop="static" data-keyboard="false" tabindex="-1" aria-labelledby="intro-modal-label" aria-hidden="true">
     <div class="modal-dialog">
@@ -267,10 +270,10 @@
           </button>
         </div>
         <div class="modal-body">
-          This is a ZX Spectrum emulator based on SPECTRUSTY library and compiled to WebAssembly. The sources are available here.
+          ZX Spectrum emulator based on SPECTRUSTY library, compiled to WebAssembly. The sources are available here.
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-dismiss="modal">Ok</button>
+          <button type="button" class="btn btn-primary" data-dismiss="modal">Continue</button>
         </div>
       </div>
     </div>

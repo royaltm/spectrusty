@@ -56,15 +56,31 @@ body {
   background-attachment: local;
 }
 
+.emulator .spectrum {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+}
+
 .emulator .monitor {
   box-sizing: border-box;
   display: block;
   object-fit: contain;
   min-width: 352px;
   min-height: 288px;
-  max-height: 100%;
   width: 100%;
-  flex: 1 1 100%;
+  max-height: 100%;
+}
+
+.emulator .keyboard {
+  box-sizing: border-box;
+  display: block;
+  object-fit: contain;
+  min-width: 352px;
+  /*width: 100%;*/
+  /*flex: 1 1 30%;*/
 }
 
 .show-panel.emulator {
@@ -83,13 +99,6 @@ body {
   visibility: visible;
 }
 
-.show-panel.emulator .monitor {
-  animation-duration: 0.25s;
-  animation-name: monitor-slidein;
-  animation-timing-function: ease-in;
-  flex: 1 1 60%;
-}
-
 :not(.show-panel).emulator .control-panel {
   animation-duration: 0.25s;
   animation-name: panel-slideout;
@@ -99,11 +108,48 @@ body {
   visibility: hidden;
 } 
 
-:not(.show-panel).emulator .monitor {
+.show-panel.emulator .spectrum {
   animation-duration: 0.25s;
-  animation-name: monitor-slideout;
+  animation-name: spectrum-slidein;
+  animation-timing-function: ease-in;
+  flex: 1 1 60%;
+}
+
+:not(.show-panel).emulator .spectrum {
+  animation-duration: 0.25s;
+  animation-name: spectrum-slideout;
   animation-timing-function: ease-in;
   flex: 1 1 100%;
+}
+
+.show-keyboard.spectrum .monitor {
+  animation-duration: 0.25s;
+  animation-name: monitor-keyboard-slidein;
+  animation-timing-function: ease-out;
+  flex: 1 1 70%;
+}
+
+:not(.show-keyboard).spectrum .monitor {
+  animation-duration: 0.25s;
+  animation-name: monitor-keyboard-slideout;
+  animation-timing-function: ease-in;
+  flex: 1 1 100%;
+}
+
+.show-keyboard.spectrum .keyboard {
+  animation-duration: 0.25s;
+  animation-name: keyboard-slidein;
+  animation-timing-function: ease-out;
+  height: 30%;
+  visibility: visible;
+}
+
+:not(.show-keyboard).spectrum .keyboard {
+  animation-duration: 0.25s;
+  animation-name: keyboard-slideout;
+  animation-timing-function: ease-in;
+  height: 0;
+  visibility: hidden;
 }
 
 @keyframes emulator-slidein {
@@ -153,7 +199,7 @@ body {
   }
 }
 
-@keyframes monitor-slidein {
+@keyframes spectrum-slidein {
   from {
     flex-basis: 100%;
   }
@@ -163,9 +209,58 @@ body {
   }
 }
 
-@keyframes monitor-slideout {
+@keyframes spectrum-slideout {
   from {
     flex-basis: 60%;
+  }
+
+  to {
+    flex-basis: 100%;
+  }
+}
+
+@keyframes keyboard-slidein {
+  from {
+    height: 0;
+    opacity: 0;
+  }
+
+  to {
+    height: 30%;
+    opacity: 1;
+  }
+}
+
+@keyframes keyboard-slideout {
+  from {
+    height: 30%;
+    visibility: visible;
+    opacity: 1;
+  }
+
+  90% {
+    opacity: 0;
+  }
+
+  to {
+    height: 0;
+    visibility: hidden;
+  }
+}
+
+@keyframes monitor-keyboard-slidein {
+  from {
+    flex-basis: 100%;
+  }
+
+  to {
+    flex-basis: 70%;
+  }
+}
+
+@keyframes monitor-keyboard-slideout {
+  from {
+    flex-basis: 70%;
   }
 
   to {
