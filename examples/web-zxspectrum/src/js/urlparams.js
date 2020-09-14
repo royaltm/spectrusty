@@ -55,24 +55,24 @@ export class UrlParameters {
     var tags = [];
     const options = this.options;
     const ay = options.ay || (options.ay = {});
-    if (options.model == null) tags.push('models');
-    if (options.interlace == null) tags.push('interlace');
-    if (options.border == null) tags.push('borders');
-    if (options.joystick == null) tags.push('joysticks');
-    if (options.fastTape == null) tags.push('fast-tape');
-    if (options.instantTape == null) tags.push('instant-tape');
-    if (options.audibleTape == null) tags.push('audible-tape');
-    if (options.kempstonMouse == null) tags.push('kempston-mouse');
-    if (ay.melodik == null) tags.push('ay-melodik');
-    if (ay.fuller == null) tags.push('ay-fuller-box');
-    if (ay.amps == null) tags.push('ay-amps');
-    if (ay.channels == null) tags.push('ay-channels');
+    if (options.model == null) tags.push("models");
+    if (options.interlace == null) tags.push("interlace");
+    if (options.border == null) tags.push("borders");
+    if (options.joystick == null) tags.push("joysticks");
+    if (options.fastTape == null) tags.push("fast-tape");
+    if (options.instantTape == null) tags.push("instant-tape");
+    if (options.audibleTape == null) tags.push("audible-tape");
+    if (options.kempstonMouse == null) tags.push("kempston-mouse");
+    if (ay.melodik == null) tags.push("ay-melodik");
+    if (ay.fuller == null) tags.push("ay-fuller-box");
+    if (ay.amps == null) tags.push("ay-amps");
+    if (ay.channels == null) tags.push("ay-channels");
     tags.forEach(tag => this.updateFrom(spectrum, tag));
     this.updateLocation();
   }
 
   updateAll(spectrum) {
-    ['models', 'interlace', 'borders', 'joysticks', 'fast-tape', 'instant-tape', 'audible-tape', 'ay-amps', 'ay-channels']
+    ["models", "interlace", "borders", "joysticks", "fast-tape", "instant-tape", "audible-tape", "ay-amps", "ay-channels"]
     .forEach(tag => this.updateFrom(spectrum, tag));
     this.updateLocation();
   }
@@ -81,37 +81,37 @@ export class UrlParameters {
     const options = this.options;
     const ay = options.ay || (options.ay = {});
     switch (tag) {
-      case 'models':
+      case "models":
         options.model = lastTag(spectrum.model);
-        ['ay-melodik', 'ay-fuller-box', 'kempston-mouse'].forEach(t => this.updateFrom(spectrum, t));
+        ["ay-melodik", "ay-fuller-box", "kempston-mouse"].forEach(t => this.updateFrom(spectrum, t));
         // fall to keyboard-issue
-      case 'keyboard-issue': options.keyboard = shortIssue(spectrum.keyboardIssue); break;
-      case 'interlace': options.interlace = spectrum.interlace; break;
-      case 'borders': options.border = shortBorderSize(spectrum.borderSize); break;
-      case 'joysticks': options.joystick = shortJoystick(spectrum.joystick); break;
-      case 'fast-tape': options.fastTape = spectrum.fastTape; break;
-      case 'instant-tape': options.instantTape = spectrum.instantTape; break;
-      case 'audible-tape': options.audibleTape = spectrum.audibleTape; break;
-      case 'ay-melodik': ay.melodik = spectrum.hasDevice("Melodik"); break;
-      case 'ay-fuller-box': ay.fuller = spectrum.hasDevice("Fuller Box"); break;
-      case 'kempston-mouse': options.kempstonMouse = spectrum.hasDevice("Kempston Mouse"); break;
-      case 'ay-amps': ay.amps = spectrum.ayAmps.toLowerCase(); break;
-      case 'ay-channels': ay.channels = spectrum.ayChannels; break;
-      case 'files': this.removeTap(); break;
-      case 'reset-hard':
-      case 'reset-soft':
-      case 'reset-power':
-      case 'trigger-nmi': this.removeSnap(); break;
-      case 'tap-eject':
+      case "keyboard-issue": options.keyboard = shortIssue(spectrum.keyboardIssue); break;
+      case "interlace": options.interlace = spectrum.interlace; break;
+      case "borders": options.border = shortBorderSize(spectrum.borderSize); break;
+      case "joysticks": options.joystick = shortJoystick(spectrum.joystick); break;
+      case "fast-tape": options.fastTape = spectrum.fastTape; break;
+      case "instant-tape": options.instantTape = spectrum.instantTape; break;
+      case "audible-tape": options.audibleTape = spectrum.audibleTape; break;
+      case "ay-melodik": ay.melodik = spectrum.hasDevice("Melodik"); break;
+      case "ay-fuller-box": ay.fuller = spectrum.hasDevice("Fuller Box"); break;
+      case "kempston-mouse": options.kempstonMouse = spectrum.hasDevice("Kempston Mouse"); break;
+      case "ay-amps": ay.amps = spectrum.ayAmps.toLowerCase(); break;
+      case "ay-channels": ay.channels = spectrum.ayChannels; break;
+      case "files": this.removeTap(); break;
+      case "reset-hard":
+      case "reset-soft":
+      case "reset-power":
+      case "trigger-nmi": this.removeSnap(); break;
+      case "tap-eject":
         this.removeTap();
         // fall below
-      case 'tap-chunks': {
+      case "tap-chunks": {
         let [index, _] = spectrum.tapeProgress();
         if (index < 0) {
           delete options.tapChunk;
         }
         else {
-          options.tapChunk = '' + index;
+          options.tapChunk = "" + index;
         }
         break;
       }
@@ -145,10 +145,10 @@ export class UrlParameters {
 
     if (model) tryCall(() => spectrum.selectModel(model));
     tryCall(() => spectrum.interlace = interlace|0);
-    tryCall(() => spectrum.selectBorderSize(border || 'full'));
-    tryCall(() => spectrum.selectJoystick(parseJoystick(joystick || '')));
+    tryCall(() => spectrum.selectBorderSize(border || "full"));
+    tryCall(() => spectrum.selectJoystick(parseJoystick(joystick || "")));
     if (spectrum.keyboardIssue.startsWith("Issue")) {
-      tryCall(() => spectrum.keyboardIssue = "Issue " + (keyboard || '3'));
+      tryCall(() => spectrum.keyboardIssue = "Issue " + (keyboard || "3"));
     }
     spectrum.fastTape = fastTape == null || fastTape;
     spectrum.instantTape = instantTape == null || instantTape;
@@ -157,8 +157,8 @@ export class UrlParameters {
     let { amps, melodik, fuller, channels } = ay || {};
     setupDevice(spectrum, "Melodik", melodik);
     setupDevice(spectrum, "Fuller Box", fuller);
-    tryCall(() => spectrum.ayAmps = amps || 'Spec');
-    tryCall(() => spectrum.ayChannels = (channels || 'ACB').toUpperCase());
+    tryCall(() => spectrum.ayAmps = amps || "Spec");
+    tryCall(() => spectrum.ayChannels = (channels || "ACB").toUpperCase());
     if (tapChunk != null) tryCall(() => spectrum.selectTapeChunk(tapChunk));
   }
 
@@ -200,21 +200,21 @@ export class UrlParameters {
 
 function parseOptions(hashstr) {
   var tap, options = {};
-  for (let item of hashstr.split('#')) {
-    let eqIndex = item.indexOf('=');
+  for (let item of hashstr.split("#")) {
+    let eqIndex = item.indexOf("=");
     let key = item.substr(0, eqIndex).toLowerCase();
     let value = item.substr(eqIndex + 1);
     switch (key) {
-      case 'ay':
+      case "ay":
         options.ay = parseAyOptions(value.split(","));
         break;
-      case 'tap':
+      case "tap":
         options.tap || (options.tap = tap = []);
         tap.push(value);
         break;
-      case 'sna':
-      case 'z80':
-      case 'json':
+      case "sna":
+      case "z80":
+      case "json":
         options.snap = {type: key, url: value};
         break;
       default:
@@ -225,7 +225,7 @@ function parseOptions(hashstr) {
         else {
           name = BooleanOptions[key];
           if (name) {
-            options[name] = value != '' && value != '0';
+            options[name] = value != "" && value != "0";
           }
         }
         break;
@@ -238,15 +238,15 @@ function parseAyOptions(tags) {
   var options = {};
   for (let tag of tags) {
     switch (tag = tag.toLowerCase()) {
-      case 'fuse':
-      case 'spec':
+      case "fuse":
+      case "spec":
         options.amps = tag;
         break;
-      case 'melodik':
-      case 'fuller':
+      case "melodik":
+      case "fuller":
         options[tag] = true;
         break;
-      case 'mono':
+      case "mono":
         options.channels = tag;
       default:
         if (/^[abc]{3}$/.test(tag)) {
@@ -258,7 +258,7 @@ function parseAyOptions(tags) {
 }
 
 function optionsToHash(options) {
-  var hash = '';
+  var hash = "";
   for (let key in SimpleOptions) {
     let value = options[SimpleOptions[key]];
     if (value) {
@@ -269,7 +269,7 @@ function optionsToHash(options) {
   for (let key in BooleanOptions) {
     let value = options[BooleanOptions[key]];
     if (value != null) {
-      hash += `#${key}=${value ? '1' : '0'}`;
+      hash += `#${key}=${value ? "1" : "0"}`;
     }
   }
 
@@ -290,19 +290,19 @@ function optionsToHash(options) {
 }
 
 function ayOptionsToHash(options) {
-  var tags = ['amps', 'channels', 'melodik', 'fuller']
+  var tags = ["amps", "channels", "melodik", "fuller"]
     .filter(tag => !!options[tag])
     .map(tag => {
       let value = options[tag];
-      if ('string' === typeof value) {
+      if ("string" === typeof value) {
         return value;
       }
       else {
         return tag;
       }
     })
-    .join(',');
-  return tags ? `#ay=${tags}` : '';
+    .join(",");
+  return tags ? `#ay=${tags}` : "";
 }
 
 function tryCall(callback) {
@@ -316,11 +316,11 @@ function tryCall(callback) {
 
 function parseJoystick(name) {
   switch (name.toLowerCase()) {
-    case 'k': case 'kempston': return 0;
-    case 'f': case 'fuller': return 1;
-    case 'sr': case 'sinclair right': return 2;
-    case 'sl': case 'sinclair left': return 3;
-    case 'c': case 'cursor': case 'protek': case 'agf': return 4;
+    case "k": case "kempston": return 0;
+    case "f": case "fuller": return 1;
+    case "sr": case "sinclair right": return 2;
+    case "sl": case "sinclair left": return 3;
+    case "c": case "cursor": case "protek": case "agf": return 4;
     default: {
       let index = parseInt(name);
       if (index >= 0 && index <= 4) {
@@ -332,34 +332,34 @@ function parseJoystick(name) {
 }
 
 function lastTag(name) {
-  return name.substr(name.lastIndexOf(' ') + 1);
+  return name.substr(name.lastIndexOf(" ") + 1);
 }
 
 const BorderSizes = {
-  full: '6', large: '5', medium: '4', small: '3', tiny: '2', minimal: '1', none: '0'
+  full: "6", large: "5", medium: "4", small: "3", tiny: "2", minimal: "1", none: "0"
 };
 
 function shortBorderSize(name) {
-  return BorderSizes[name] || '6';
+  return BorderSizes[name] || "6";
 }
 
 const JoystickNames = {
-  Kempston: 'k',
-  Fuller: 'f',
-  'Sinclair Right': 'sr',
-  'Sinclair Left': 'sl',
-  Cursor: 'c'
+  Kempston: "k",
+  Fuller: "f",
+  "Sinclair Right": "sr",
+  "Sinclair Left": "sl",
+  Cursor: "c"
 };
 
 function shortJoystick(name) {
-  return JoystickNames[name] || '';
+  return JoystickNames[name] || "";
 }
 
 function shortIssue(name) {
-  if (name.startsWith('Issue')) {
+  if (name.startsWith("Issue")) {
     return lastTag(name);
   }
   else {
-    return '';
+    return "";
   }
 }

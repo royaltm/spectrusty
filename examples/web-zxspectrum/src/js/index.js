@@ -15,27 +15,27 @@ import { $id,
          toHex,
          checkBrowserCapacity,
          Directions
-       } from './utils';
-import { UrlParameters } from './urlparams';
-import { SpectrumKeyboard } from './keyboard';
+       } from "./utils";
+import { UrlParameters } from "./urlparams";
+import { SpectrumKeyboard } from "./keyboard";
 
 checkBrowserCapacity();
 
 /* Tooltips */
 
 $(() => {
-  $('[title]').tooltip()
+  $("[title]").tooltip()
 })
 
-import('../../pkg').then(rust_module => {
+import("../../pkg").then(rust_module => {
   // for debugging purposes
   rust_module.setPanicHook();
 
   /* Scoped globals */
 
   const urlparams         = new UrlParameters(),
-        spectrum          = new rust_module.ZxSpectrumEmu(0.11, urlparams.options.model || '+2B'),
-        keyboard          = new SpectrumKeyboard($id("spectrum-keyboard"), "keyboard"),
+        spectrum          = new rust_module.ZxSpectrumEmu(0.11, urlparams.options.model || "+2B"),
+        keyboard          = new SpectrumKeyboard($id("spectrum-keyboard"), "keyboards/"),
         monitorCanvas     = $id("main-screen"),
         mainContainer     = $id("main-container"),
         spectrumContainer = $id("spectrum-container"),
@@ -120,7 +120,7 @@ import('../../pkg').then(rust_module => {
     (el) => el.checked = spectrum.instantTape
   ).bind("files", "input", (ev) => {
     loadFile(ev.target.files);
-    ev.target.value = '';
+    ev.target.value = "";
   })
   .bind("tap-play", "click", (ev) => updateTapeButtons(spectrum.togglePlayTape()))
   .bind("tap-record", "click", (ev) => updateTapeButtons(spectrum.toggleRecordTape()))
@@ -307,8 +307,8 @@ import('../../pkg').then(rust_module => {
   /* Initialize */
 
   tapeName.value = "";
-  // const ctx = monitorCanvas.getContext('bitmaprenderer');
-  const ctx = monitorCanvas.getContext('2d', {alpha: false, desynchronized: true});
+  // const ctx = monitorCanvas.getContext("bitmaprenderer");
+  const ctx = monitorCanvas.getContext("2d", {alpha: false, desynchronized: true});
   ctx.imageSmoothingEnabled = false;
 
   loadFromUrlParams(true).then(loaded => {
@@ -455,29 +455,29 @@ import('../../pkg').then(rust_module => {
           reader = new FileReader();
       reader.onloadend = function() {
         var data = reader.result;
-        if (typeof data !== 'string') {
+        if (typeof data !== "string") {
           data = new Uint8Array(data);
         }
         try {
           switch(ext) {
-            case '.tap':
+            case ".tap":
               tapeName.value = name;
               populateTapeInfo(n == 0 ? spectrum.insertTape(data)
                                       : spectrum.appendTape(data));
               setTimeout(() => loadFile(files, n + 1), 0);
               break;
-            case '.scr':
+            case ".scr":
               spectrum.showScr(data);
               break;
-            case '.sna':
+            case ".sna":
               spectrum.loadSna(data);
               tapeName.value = "";
               break;
-            case '.z80':
+            case ".z80":
               spectrum.loadZ80(data);
               tapeName.value = "";
               break;
-            case '.json':
+            case ".json":
               spectrum.parseJSON(data);
               tapeName.value = "";
               break;
@@ -490,7 +490,7 @@ import('../../pkg').then(rust_module => {
         spectrusty.update();
         urlparams.updateAll(spectrum);
       };
-      if (ext === '.json') {
+      if (ext === ".json") {
         reader.readAsText(file);
       }
       else {
@@ -529,16 +529,16 @@ import('../../pkg').then(rust_module => {
   }
 
   function loadRemoteSnap(uri, type) {
-    return loadRemote(uri, type === 'json')
+    return loadRemote(uri, type === "json")
     .then(data => {
       switch(type) {
-        case 'sna':
+        case "sna":
           spectrum.loadSna(data);
           break;
-        case 'z80':
+        case "z80":
           spectrum.loadZ80(data);
           break;
-        case 'json':
+        case "json":
           spectrum.parseJSON(data);
           break;
         default:

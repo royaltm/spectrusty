@@ -1,4 +1,4 @@
-import('./pkg')
+import("./pkg")
   .then(rust_module => {
     let ayPlayer = null;
     let ayFileList = [];

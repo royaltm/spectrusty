@@ -25,7 +25,7 @@ macro_rules! resource {
     };
 }
 
-const ROM48: &[u8] = include_bytes!(resource!("48.rom"));
+const ROM48: &[u8] = include_bytes!(resource!("roms/48.rom"));
 
 #[derive(Clone, Copy, Serialize, Deserialize, Debug)]
 pub enum Clocking {

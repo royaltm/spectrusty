@@ -4,6 +4,6 @@ export function init() {
     return handle;
   }
   else {
-    return this.handle = import('./pkg').then(wasm => wasm.ZxSpectrumEmu);
+    return this.handle = import("./pkg").then(wasm => wasm.ZxSpectrumEmu);
   }
 }

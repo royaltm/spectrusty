@@ -1,21 +1,21 @@
-const prod = process.env.NODE_ENV === 'production';
-// const PUBLIC_PATH = process.env.PUBLIC_PATH || '/spectrusty/javascripts/';
-const path = require('path');
-const HtmlWebpackPlugin = require('html-webpack-plugin');
+const prod = process.env.NODE_ENV === "production";
+// const PUBLIC_PATH = process.env.PUBLIC_PATH || "/spectrusty/javascripts/";
+const path = require("path");
+const HtmlWebpackPlugin = require("html-webpack-plugin");
 const WasmPackPlugin = require("@wasm-tool/wasm-pack-plugin");
-const CopyWebpackPlugin = require('copy-webpack-plugin');
-const webpack = require('webpack');
+const CopyWebpackPlugin = require("copy-webpack-plugin");
+const webpack = require("webpack");
 
 module.exports = {
-    context: path.join(__dirname, '.'),
-    entry: './src/js/index.js',
+    context: path.join(__dirname, "."),
+    entry: "./src/js/index.js",
     output: {
-        path: path.resolve(__dirname, 'dist'),
-        filename: 'index.js',
+        path: path.resolve(__dirname, "dist"),
+        filename: "index.js",
     },
     plugins: [
         new HtmlWebpackPlugin({
-            template: './src/index.html'
+            template: "./src/index.html"
         }),
         new WasmPackPlugin({
             crateDirectory: path.resolve(__dirname, "."),
@@ -53,36 +53,14 @@ module.exports = {
             forceMode: "production",
         }),
         new CopyWebpackPlugin([
-            { from: 'static' }
+            "static"
         ]),
         // Have this example work in Edge which doesn't ship `TextEncoder` or
         // `TextDecoder` at this time.
         // new webpack.ProvidePlugin({
-        //   TextDecoder: ['text-encoding', 'TextDecoder'],
-        //   TextEncoder: ['text-encoding', 'TextEncoder']
+        //   TextDecoder: ["text-encoding", "TextDecoder"],
+        //   TextEncoder: ["text-encoding", "TextEncoder"]
         // })
     ],
-    mode: prod ? 'production' : 'development'
+    mode: prod ? "production" : "development"
 };
-// {
-//     context: path.join(__dirname, '.'),
-//     entry: './src/js/spectrusty.js',
-//     output: {
-//         path: path.resolve(__dirname, 'dist'),
-//         publicPath: PUBLIC_PATH,
-//         filename: 'spectrusty.js',
-//         libraryTarget: "umd",
-//         // libraryExport: "Spectrusty",
-//         library: "Spectrusty"
-//     },
-//     plugins: [
-//         new WasmPackPlugin({
-//             crateDirectory: path.resolve(__dirname, "."),
-//             extraArgs: prod ? "--no-typescript -- --no-default-features"
-//                             : "--no-typescript",
-//             forceMode: "production",
-//         }),
-//     ],
-//     mode: prod ? 'production' : 'development'
-// }
-// ];

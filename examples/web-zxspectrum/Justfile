@@ -1,4 +1,4 @@
-name := 'web_spectrusty'
+name := 'web-zxspectrum'
 target_dir := '../../target/wasm32-unknown-unknown/release/'
 node_env := env_var_or_default('NODE_ENV', "production")
 

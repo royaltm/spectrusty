@@ -42,8 +42,8 @@ export class SpectrumKeyboard {
   }
 
   bind(onkey) {
-    if (typeof onkey === 'function') {
-      if (typeof this.onkey !== 'function') {
+    if (typeof onkey === "function") {
+      if (typeof this.onkey !== "function") {
         const element = this.canvas;
         $on(element, "mousedown", ev => mouseHandler.call(this, ev, true));
         $on(element, "mouseup", ev => mouseHandler.call(this, ev, false));

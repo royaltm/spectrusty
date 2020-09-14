@@ -15,7 +15,7 @@ export class UserInterface {
       ev.preventDefault();
       try {
         handler(ev);
-        if (typeof this.onchange === 'function') {
+        if (typeof this.onchange === "function") {
           this.onchange(id);
         }
       } catch (e) {
@@ -57,8 +57,8 @@ export function parseRange(s) {
         end = parseInt(res[3]);
     if (isFinite(start) && isFinite(end)) {
       switch(res[2]) {
-        case ',': return [start, start + end];
-        case ':': return [start, end];
+        case ",": return [start, start + end];
+        case ":": return [start, end];
       }
     }
   }
@@ -71,7 +71,7 @@ export function parsePoke(s) {
         val = parseInt(res[3]);
     if (isFinite(start) && isFinite(val)) {
       switch(res[2]) {
-        case ',': case '=': return [start, val];
+        case ",": case "=": return [start, val];
       }
     }
   }
@@ -255,27 +255,27 @@ export function restoreState(spectrum, urlparams) {
 }
 
 export function checkBrowserCapacity() {
-  var alert = $id('alert');
+  var alert = $id("alert");
   try {
     /* check edge features */
-    if ('undefined' === typeof window.WebAssembly) {
+    if ("undefined" === typeof window.WebAssembly) {
       throw Error("required browser with WebAssembly support");
     }
-    if ('function' !== typeof window.requestAnimationFrame) {
+    if ("function" !== typeof window.requestAnimationFrame) {
       throw Error("required browser with requestAnimationFrame support");
     }
-    if ('function' !== typeof window.fetch) {
+    if ("function" !== typeof window.fetch) {
       throw Error("required browser with fetch support");
     }
-    if ('function' !== typeof window.TextDecoder) {
+    if ("function" !== typeof window.TextDecoder) {
       throw Error("required browser with TextDecoder support");
     }
-    if ('function' !== typeof window.ImageBitmap) {
+    if ("function" !== typeof window.ImageBitmap) {
       throw Error("required browser with ImageBitmap support");
     }
   } catch(err) {
-    if (err.message.substr(0, 22) === 'required browser with ') {
-      $id('alert-feature').innerHTML = '<strong>' + err.message.substr(22).split(' ', 1)[0] + '</strong>';
+    if (err.message.substr(0, 22) === "required browser with ") {
+      $id("alert-feature").innerHTML = "<strong>" + err.message.substr(22).split(" ", 1)[0] + "</strong>";
     }
     throw err;
   }

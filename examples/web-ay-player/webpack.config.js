@@ -1,20 +1,20 @@
-const prod = process.env.NODE_ENV === 'production'
-const path = require('path');
-const HtmlWebpackPlugin = require('html-webpack-plugin');
-const webpack = require('webpack');
+const prod = process.env.NODE_ENV === "production"
+const path = require("path");
+const HtmlWebpackPlugin = require("html-webpack-plugin");
+const webpack = require("webpack");
 const WasmPackPlugin = require("@wasm-tool/wasm-pack-plugin");
-const CopyWebpackPlugin = require('copy-webpack-plugin');
+const CopyWebpackPlugin = require("copy-webpack-plugin");
 
 module.exports = {
-    context: path.join(__dirname, '.'),
-    entry: './index.js',
+    context: path.join(__dirname, "."),
+    entry: "./index.js",
     output: {
-        path: path.resolve(__dirname, 'dist'),
-        filename: 'index.js',
+        path: path.resolve(__dirname, "dist"),
+        filename: "index.js",
     },
     plugins: [
         new HtmlWebpackPlugin({
-            template: 'index.html'
+            template: "index.html"
         }),
         new WasmPackPlugin({
             crateDirectory: path.resolve(__dirname, "."),
@@ -52,14 +52,14 @@ module.exports = {
             forceMode: "production",
         }),
         new CopyWebpackPlugin([
-            { from: 'static' }
+            { from: "static" }
         ]),
         // Have this example work in Edge which doesn't ship `TextEncoder` or
         // `TextDecoder` at this time.
         new webpack.ProvidePlugin({
-          TextDecoder: ['text-encoding', 'TextDecoder'],
-          TextEncoder: ['text-encoding', 'TextEncoder']
+          TextDecoder: ["text-encoding", "TextDecoder"],
+          TextEncoder: ["text-encoding", "TextEncoder"]
         })
     ],
-    mode: prod ? 'production' : 'development'
+    mode: prod ? "production" : "development"
 };
