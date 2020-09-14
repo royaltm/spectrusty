@@ -1,3 +1,10 @@
+/*
+    Copyright (C) 2020  Rafal Michalski
+
+    This file is part of SPECTRUSTY, a Rust library for building emulators.
+
+    For the full copyright notice, see the lib.rs file.
+*/
 //! System bus device emulators to be used with [ControlUnit][crate::chip::ControlUnit]s.
 // pub mod ay;
 // mod dynbus;

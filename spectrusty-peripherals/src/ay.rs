@@ -1,3 +1,10 @@
+/*
+    Copyright (C) 2020  Rafal Michalski
+
+    This file is part of SPECTRUSTY, a Rust library for building emulators.
+
+    For the full copyright notice, see the lib.rs file.
+*/
 //! The **AY-3-8910** programmable sound generator chipset family.
 //!
 //! This module contains chipset I/O interface protocol traits and heler types.

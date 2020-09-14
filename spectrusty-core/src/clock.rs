@@ -1,3 +1,10 @@
+/*
+    Copyright (C) 2020  Rafal Michalski
+
+    This file is part of SPECTRUSTY, a Rust library for building emulators.
+
+    For the full copyright notice, see the lib.rs file.
+*/
 //! T-state timestamp types and counters.
 use core::cmp::{Ordering, Ord, PartialEq, PartialOrd};
 use core::convert::TryInto;
@@ -66,7 +73,10 @@ pub struct VFrameTsCounter<V, C>  {
 /// CPU indefinitely.
 pub const HALT_VC_THRESHOLD: i16 = i16::max_value() >> 1;
 
-/// A trait with utils for frames-aware timestamps.
+/// A trait providing simple calculation methods for frame-aware timestamps.
+///
+/// This allows [BusDevice][crate::bus::BusDevice] implementations to depend on a generic timestamp type
+/// avoiding unnecessary [VideoFrame] dependency.
 pub trait FrameTimestamp: Copy
                          + PartialEq
                          + Eq
@@ -80,11 +90,11 @@ pub trait FrameTimestamp: Copy
                          + Into<FTs>
                          + From<FTs>
 {
-    /// Returns a normalized [VFrameTs] from the given count of T-states.
+    /// Returns a normalized timestamp from the given count of T-states.
     ///
     /// # Panics
     ///
-    /// Panics when the given `ts` overflows the capacity of [VideoTs].
+    /// Panics when the given `ts` overflows the capacity of the timestamp.
     fn from_tstates(ts: FTs) -> Self;
     /// Returns the number of T-states measured from the start of the frame.
     ///
@@ -102,11 +112,9 @@ pub trait FrameTimestamp: Copy
     ///
     /// The returned timestamp value is in the range [0, [VideoFrame::FRAME_TSTATES_COUNT]).
     fn into_frame_tstates(self, frames: u64) -> (u64, FTs);
-    /// Returns the largest value that can be represented by a `VideoTs`
-    /// with normalized horizontal counter.
+    /// Returns the largest value that can be represented by a normalized timestamp.
     fn max_value() -> Self;
-    /// Returns the smallest value that can be represented by a `VideoTs`
-    /// with a normalized horizontal counter.
+    /// Returns the smallest value that can be represented by a normalized timestamp.
     fn min_value() -> Self;
     /// Returns `true` if the counter value is past or near the end of a frame. Otherwise returns `false`.
     ///
@@ -119,21 +127,21 @@ pub trait FrameTimestamp: Copy
     fn saturating_sub_frame(self) -> Self;
     /// Returns a normalized video timestamp after subtracting an `other` from it.
     ///
-    /// Saturates at [VFrameTs::min] or [VFrameTs::max].
+    /// Saturates at [FrameTimestamp::min_value] or [FrameTimestamp::max_value].
     fn saturating_sub(self, other: Self) -> Self;
     /// Returns a normalized video timestamp after adding an `other` to it.
     ///
-    /// Saturates at [VFrameTs::min] or [VFrameTs::max].
+    /// Saturates at [FrameTimestamp::min_value] or [FrameTimestamp::max_value].
     fn saturating_add(self, other: Self) -> Self;
-    /// Ensures the verical counter is in the range: `(-VSL_COUNT, V::VSL_COUNT)` by calculating
+    /// Ensures the verical counter is in the range: `(-VSL_COUNT, VSL_COUNT)` by calculating
     /// a remainder of the division of the vertical counter by [VideoFrame::VSL_COUNT].
     fn wrap_frame(&mut self);
-    /// Returns the smallest timestamp value that can be represented by a normalized [VFrameTsCounter]
+    /// Returns the smallest value that can be represented by a normalized timestamp
     /// as a number of T-states.
     fn min_tstates() -> FTs {
         Self::min_value().into_tstates()
     }
-    /// Returns the largest timestamp value that can be represented by a normalized [VFrameTsCounter]
+    /// Returns the largest value that can be represented by a normalized timestamp
     /// as a number of T-states.
     fn max_tstates() -> FTs {
         Self::max_value().into_tstates()
@@ -182,7 +190,7 @@ impl <V: VideoFrame> VFrameTs<V> {
         VFrameTs::new(vc, hc)
     }
     /// Returns a video timestamp with a horizontal counter within the allowed range and a scan line
-    /// counter adjusted accordingly. Saturates at [VFrameTs::min] or [VFrameTs::max].
+    /// counter adjusted accordingly. Saturates at [VFrameTs::min_value] or [VFrameTs::max_value].
     #[inline]
     pub fn saturating_normalized(self) -> Self {
         let VideoTs { mut vc, mut hc } = self.ts;
@@ -396,13 +404,13 @@ impl<V: VideoFrame, C> SubAssign<u32> for VFrameTsCounter<V, C> {
 }
 
 /// A macro being used to implement an ULA I/O contention scheme, for [z80emu::Clock::add_io] method of
-/// [VFrameTsCounter][clock::VFrameTsCounter].
+/// [VFrameTsCounter].
 /// It's being exported for the purpose of performing FUSE tests.
 ///
-/// * $mc should be a type implementing [clock::MemoryContention] trait.
+/// * $mc should be a type implementing [MemoryContention] trait.
 /// * $port is a port address.
 /// * $hc is an identifier of a mutable variable containing the `hc` property of a `VideoTs` timestamp.
-/// * $contention should be a path to the [video::VideoFrame::contention] function.
+/// * $contention should be a path to the [VideoFrame::contention] function.
 ///
 /// The macro returns a horizontal timestamp pointing after the whole I/O cycle is over.
 /// The `hc` variable is modified to contain a horizontal timestamp indicating when the data R/W operation 

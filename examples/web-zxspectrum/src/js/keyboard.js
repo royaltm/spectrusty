@@ -1,3 +1,9 @@
+/*
+    web-zxspectrum: ZX Spectrum emulator example as a Web application.
+    Copyright (C) 2020  Rafal Michalski
+
+    For the full copyright notice, see the index.js file.
+*/
 import { $on } from "./utils";
 
 const ROWKEYS = [
@@ -20,14 +26,13 @@ ROWKEYS.forEach((row, n) => row.forEach((key, k) => {
 }));
 
 export class SpectrumKeyboard {
-  constructor(canvas, prefix) {
+  constructor(canvas, imgsrc) {
     this.canvas = canvas;
-    this.prefix = prefix || "";
     this.state = new Array(NKEYS).fill(false);
     this.lastMouseKey = null;
     this.pendingTouches = new Map();
-    canvas.width = 541;
-    canvas.height = 201;
+    canvas.width = 704;
+    canvas.height = 281;
 
     this.ctx = canvas.getContext("2d", {alpha: false, desynchronized: true});
 
@@ -38,7 +43,7 @@ export class SpectrumKeyboard {
       this.keyboard = keyboard;
       this.redraw();
     };
-    keyboard.src = prefix + "48.png";
+    keyboard.src = imgsrc;
   }
 
   bind(onkey) {
@@ -205,29 +210,29 @@ function keyFromOffsetCoords(x, y, canvas) {
 
 function keyFromCoords(x, y) {
   if (y > 0) {
-    if (y < 55) {
-      if (x >= 1 && x < 501) {
-        return ROWKEYS[0][((x - 1) / 50)|0];
+    if (y < 74) {
+      if (x >= 1 && x < 651) {
+        return ROWKEYS[0][((x - 1) / 65)|0];
       }
     }
-    else if (y < 105) {
-      if (x >= 26 && x < 526) {
-        return ROWKEYS[1][((x - 26) / 50)|0];
+    else if (y < 135) {
+      if (x >= 35 && x < 685) {
+        return ROWKEYS[1][((x - 35) / 65)|0];
       }
     }
-    else if (y < 155) {
-      if (x >= 38 && x < 538) {
-        return ROWKEYS[2][((x - 38) / 50)|0];
+    else if (y < 203) {
+      if (x >= 52 && x < 702) {
+        return ROWKEYS[2][((x - 52) / 65)|0];
       }
     }
-    else if (y < 200 && x > 0) {
-      if (x < 64) {
+    else if (y < 267 && x > 0) {
+      if (x < 85) {
         return ROWKEYS[3][0];
       }
-      else if (x < 464) {
-        return ROWKEYS[3][1 + (((x - 64) / 50)|0)];
+      else if (x < 605) {
+        return ROWKEYS[3][1 + (((x - 85) / 65)|0)];
       }
-      else if (x <= 538) {
+      else if (x <= 700) {
         return ROWKEYS[3][9];
       }
     }
@@ -235,28 +240,28 @@ function keyFromCoords(x, y) {
 }
 
 function keyRect(row, rkey) {
-  var x, y, w = 38;
+  var x, y, w = 47;
   const rect = new Path2D();
 
   switch(row) {
     case 0:
-      y = 17; x = 7 + rkey * 50; break;
+      y = 27; x = 12 + rkey * 65; break;
     case 1:
-      y = 66; x = 32 + rkey * 50; break;
+      y = 92; x = 44 + rkey * 65; break;
     case 2:
-      y = 115; x = 44 + rkey * 50; break;
+      y = 158; x = 60 + rkey * 65; break;
     default:
-      y = 164;
+      y = 223;
       switch(rkey) {
         case 0:
-          x = 8; w = 49; break;
+          x = 12; w = 63; break;
         case 9:
-          x = 470; w = 62; break;
+          x = 614; w = 78; break;
         default:
-          x = 69 + (rkey - 1) * 50;
+          x = 94 + (rkey - 1) * 65;
       }
   }
 
-  rect.rect(x, y, w, 28);
+  rect.rect(x, y, w, 32);
   return rect;
 }

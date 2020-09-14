@@ -1,3 +1,10 @@
+/*
+    Copyright (C) 2020  Rafal Michalski
+
+    This file is part of SPECTRUSTY, a Rust library for building emulators.
+
+    For the full copyright notice, see the lib.rs file.
+*/
 //! An emulator of Sinclair Uncommitted Logic Array chip for ZX Spectrum 16k/48k PAL/NTSC.
 #![macro_use]
 use core::fmt;

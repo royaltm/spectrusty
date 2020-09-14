@@ -1,3 +1,10 @@
+/*
+    Copyright (C) 2020  Rafal Michalski
+
+    This file is part of SPECTRUSTY, a Rust library for building emulators.
+
+    For the full copyright notice, see the lib.rs file.
+*/
 use core::mem;
 use core::num::NonZeroU16;
 use core::fmt::{Display, Debug};
@@ -30,7 +37,7 @@ pub type NamedDynDevice<T> = dyn NamedBusDevice<T>;
 /// This is a type of items stored by [DynamicBus].
 pub type BoxNamedDynDevice<T> = Box<dyn NamedBusDevice<T>>;
 
-/// A terminated [DynamicBus] pseudo-device with [VFrameTs<V>][VFrameTs] timestamps.
+/// A terminated [DynamicBus] pseudo-device with [`VFNullDevice<V>`][VFNullDevice].
 pub type DynamicVBus<V> = DynamicBus<VFNullDevice<V>>;
 
 /// A pseudo bus device that allows for adding and removing devices of different types at run time.

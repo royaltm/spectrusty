@@ -54,7 +54,7 @@ module.exports = {
         }),
         new CopyWebpackPlugin([
             "static",
-            { from: "../../resources/Plus2BROMSet.rom/keyboards", to: "keyboards" },
+            { from: "../../resources/keyboard48.jpg", to: "images/" },
             { from: "../../resources/games", to: "games" },
             { from: "../../resources/demos", to: "demos" }
         ]),

@@ -1,3 +1,10 @@
+/*
+    sdl2-zxspectrum: ZX Spectrum emulator example as a SDL2 application.
+    Copyright (C) 2020  Rafal Michalski
+
+    For the full copyright notice, see the main.rs file.
+*/
+//! (De)serialization of dynamic devices.
 use core::fmt;
 use core::marker::PhantomData;
 
@@ -22,39 +29,42 @@ pub type KempstonMouse<T> = mouse::KempstonMouse<NullDevice<T>>;
 #[derive(Debug, Default, Copy, Clone)]
 pub struct SerdeDynDevice;
 
-#[derive(Serialize, Deserialize)]
-enum DeviceType {
+macro_rules! define_device_types {
+    ($dol:tt $($name:ident),*) => {
+
+        #[derive(Serialize, Deserialize)]
+        enum DeviceType { $($name),* }
+
+        macro_rules! serialize_dyn_devices {
+            ($device:ident, $serializer:ident, @device<$ts:ty>) => {
+                $(
+                    if let Some(device) = $device.downcast_ref::<$name<$ts>>() {
+                        (DeviceType::$name, device).serialize($serializer)
+                    }
+                    else
+                )*
+                {
+                    Err(ser::Error::custom("unknown device"))
+                }
+            };
+        }
+
+        macro_rules! device_type_dispatch {
+            (($dt:expr) => ($expr:expr).$fn:ident::@device<$ts:ty>()$dol($tt:tt)*) => {
+                match $dt {
+                    $(DeviceType::$name => { $expr.$fn::<$name<$ts>>()$dol($tt)* })*
+                }
+            };
+        }
+    }
+}
+
+define_device_types!{$
     Ay3_891xMelodik,
     Ay3_891xFullerBox,
     KempstonMouse,
     ZxPrinter,
     ZxInterface1
-}
-
-macro_rules! device_type_dispatch {
-    (($dt:expr) => ($expr:expr).$fn:ident::@device<$ts:ty>()$($tt:tt)*) => {
-        match $dt {
-            DeviceType::Ay3_891xMelodik   => { $expr.$fn::<Ay3_891xMelodik<$ts>>()$($tt)* }
-            DeviceType::Ay3_891xFullerBox => { $expr.$fn::<Ay3_891xFullerBox<$ts>>()$($tt)* }
-            DeviceType::KempstonMouse     => { $expr.$fn::<KempstonMouse<$ts>>()$($tt)* }
-            DeviceType::ZxPrinter         => { $expr.$fn::<ZxPrinter<$ts>>()$($tt)* }
-            DeviceType::ZxInterface1      => { $expr.$fn::<ZxInterface1<$ts>>()$($tt)* }
-        }
-    };
-}
-
-macro_rules! serialize_dyn_devices {
-    ($device:ident, $serializer:ident {$($name:ident<$ts:ty>),*}) => {
-        $(
-            if let Some(device) = $device.downcast_ref::<$name<$ts>>() {
-                (DeviceType::$name, device).serialize($serializer)
-            }
-            else
-        )*
-        {
-            Err(ser::Error::custom("unknown device"))
-        }
-    };
 }
 
 impl SerializeDynDevice for SerdeDynDevice {
@@ -64,13 +74,7 @@ impl SerializeDynDevice for SerdeDynDevice {
         ) -> Result<S::Ok, S::Error>
         where T: FrameTimestamp + Serialize + 'static
     {
-        serialize_dyn_devices!(device, serializer {
-            Ay3_891xMelodik<T>,
-            Ay3_891xFullerBox<T>,
-            KempstonMouse<T>,
-            ZxPrinter<T>,
-            ZxInterface1<T>
-        })
+        serialize_dyn_devices!(device, serializer, @device<T>)
     }
 }
 
@@ -91,7 +95,8 @@ impl<'de> DeserializeDynDevice<'de> for SerdeDynDevice {
 
             fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
                 let dt: DeviceType = seq.next_element()?
-                    .ok_or_else(|| de::Error::invalid_length(0, &self))?;
+                                    .ok_or_else(|| de::Error::invalid_length(0, &self))?;
+
                 device_type_dispatch!(
                     (dt) => (seq).next_element::@device<T>()?.map(Into::into)
                 )

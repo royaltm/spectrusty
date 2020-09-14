@@ -1,3 +1,10 @@
+/*
+    Copyright (C) 2020  Rafal Michalski
+
+    This file is part of SPECTRUSTY, a Rust library for building emulators.
+
+    For the full copyright notice, see the lib.rs file.
+*/
 //! ZX Microdrives for the ZX Interface 1.
 use core::ops::{Index, IndexMut};
 use core::num::{NonZeroU8, NonZeroU16};

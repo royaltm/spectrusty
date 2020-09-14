@@ -1,3 +1,10 @@
+/*
+    Copyright (C) 2020  Rafal Michalski
+
+    This file is part of SPECTRUSTY, a Rust library for building emulators.
+
+    For the full copyright notice, see the lib.rs file.
+*/
 //! Utilities for serializing memory as base64 strings or just bytes in binary serializers.
 use core::fmt;
 use std::borrow::Cow;

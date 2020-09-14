@@ -1,3 +1,9 @@
+/*
+    zxspectrum-common: High-level ZX Spectrum emulator library example.
+    Copyright (C) 2020  Rafal Michalski
+
+    For the full copyright notice, see the lib.rs file.
+*/
 use core::convert::TryFrom;
 use core::iter;
 use core::str::FromStr;
@@ -45,28 +51,28 @@ use super::spectrum::{MemTap, EmulatorState, ZxSpectrum, SpectrumUla};
 pub static ROM48: &[&[u8]] = &[include_bytes!("../../../resources/roms/48.rom")];
 pub static ROM_TC2048: &[&[u8]] = &[include_bytes!("../../../resources/roms/tc2048.rom")];
 pub static ROM128: &[&[u8]] = &[include_bytes!("../../../resources/roms/128-0.rom"),
-                            include_bytes!("../../../resources/roms/128-1.rom")];
+                                include_bytes!("../../../resources/roms/128-1.rom")];
 pub static ROM_PLUS2: &[&[u8]] = &[include_bytes!("../../../resources/roms/plus2-0.rom"),
-                               include_bytes!("../../../resources/roms/plus2-1.rom")];
+                                   include_bytes!("../../../resources/roms/plus2-1.rom")];
 pub static ROM_PLUS3: &[&[u8]] = &[include_bytes!("../../../resources/roms/plus3-0.rom"),
-                               include_bytes!("../../../resources/roms/plus3-1.rom"),
-                               include_bytes!("../../../resources/roms/plus3-2.rom"),
-                               include_bytes!("../../../resources/roms/plus3-3.rom")];
-pub static ROM_PLUS2B: &[&[u8]] = &[include_bytes!("../../../resources/Plus2BROMSet.rom/emulators/0.rom"),
-                               include_bytes!("../../../resources/Plus2BROMSet.rom/emulators/1.rom"),
-                               include_bytes!("../../../resources/Plus2BROMSet.rom/emulators/2.rom"),
-                               include_bytes!("../../../resources/Plus2BROMSet.rom/emulators/3.rom")];
+                                   include_bytes!("../../../resources/roms/plus3-1.rom"),
+                                   include_bytes!("../../../resources/roms/plus3-2.rom"),
+                                   include_bytes!("../../../resources/roms/plus3-3.rom")];
+pub static ROM_PLUS2B: &[&[u8]] = &[include_bytes!("../../../resources/roms/plus2B.rom"),
+                                    include_bytes!("../../../resources/roms/48.rom"),
+                                    include_bytes!("../../../resources/roms/BBCBasic.rom"),
+                                    include_bytes!("../../../resources/roms/opense.rom")];
 
 /* First some chipset type declarations */
 
 /// Timex TC2048 chipset.
 pub type TC2048<D, X=NoMemoryExtension> = Scld<Memory48kDock64kEx, D, X, UlaVideoFrame>;
-// ULA 128 with a AY-3-8912 sound processor + Keypad and RS232 in its I/O port A
+/// ULA 128 with a AY-3-8912 sound processor + Keypad and RS232 in its I/O port A.
 pub type Ula128AyKeypad<D,
                         X=NoMemoryExtension,
                         R=Empty,
                         W=Sink> = Ula128<Ay3_8912KeypadRs232<Ula128VidFrame, D, R, W>, X>;
-/// ULA +3 with +3 Centronics Port and with a AY-3-8912 sound processor + RS232 in its I/O port A
+/// ULA +3 with +3 Centronics Port and with a AY-3-8912 sound processor + RS232 in its I/O port A.
 pub type Ula3Ay<D,
                 X=NoMemoryExtension,
                 R=Empty,
@@ -75,19 +81,20 @@ pub type Ula3Ay<D,
                                     W>,
                                 X>;
 
-/// ULAplus with ULA 128k
+/// ULAplus with ULA 128k.
 pub type Plus128<D,
                  X=NoMemoryExtension,
                  R=Empty,
                  W=Sink> = UlaPlus<Ula128AyKeypad<D, X, R, W>>;
 
-/// ULAplus with ULA +3
+/// ULAplus with ULA +3.
 pub type Plus3<D,
                  X=NoMemoryExtension,
                  R=Empty,
                  W=Sink> = UlaPlus<Ula3Ay<D, X, R, W>>;
 
 /* Then some model type declaration */
+
 pub type ZxSpectrum16k<C, D, X=NoMemoryExtension, F=MemTap> = ZxSpectrum<C, UlaPAL<Memory16kEx, D, X>, F>;
 pub type ZxSpectrum48k<C, D, X=NoMemoryExtension, F=MemTap> = ZxSpectrum<C, UlaPAL<Memory48kEx, D, X>, F>;
 pub type ZxSpectrumNTSC<C, D, X=NoMemoryExtension, F=MemTap> = ZxSpectrum<C, UlaNTSC<Memory48kEx, D, X>, F>;
@@ -110,6 +117,7 @@ pub type ZxSpectrum2B<C, D, X=NoMemoryExtension,
                             R=Empty,
                             W=Sink> = ZxSpectrum<C, Plus3<D, X, R, W>, F>;
 
+/// This enum is being used for querying or requesting a model type.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ModelRequest {
     Spectrum16,
@@ -124,9 +132,13 @@ pub enum ModelRequest {
     SpectrumPlus2B,
 }
 
+/// The handy iterator of all model types.
+///
+/// Usefull for e.g. listing available model names.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ModelRequestIter(Option<ModelRequest>);
 
+/// An enum of all available ZX Spectrum models.
 #[derive(Serialize, Deserialize)]
 #[serde(tag = "model")]
 #[serde(bound(
@@ -165,6 +177,7 @@ pub enum ZxSpectrumModel<C: Cpu,
     SpectrumPlus2B(ZxSpectrum2B<C, PluggableJoystickDynamicBus<S, Ula3VidFrame>, X, F, R, W>)
 }
 
+/// A helper trait for controling ULAplus mode availability.
 pub trait UlaPlusMode {
     fn is_ulaplus_enabled(&self) -> bool {
         false
@@ -219,6 +232,7 @@ macro_rules! spectrum_model_ula_dispatch {
 }
 
 impl ModelRequest {
+    /// Returns an iterator of all available model types.
     pub fn iter() -> ModelRequestIter {
         ModelRequestIter(Some(ModelRequest::Spectrum16))
     }
@@ -373,6 +387,9 @@ impl<C, S, X, F, R, W> ZxSpectrumModel<C, S, X, F, R, W>
           R: io::Read + fmt::Debug + Default,
           W: io::Write + fmt::Debug + Default
 {
+    /// Returns an instance of a requested model.
+    ///
+    /// The model is initialized with the `ROM` present in the model's memory.
     pub fn new(req: ModelRequest) -> Self {
         use ModelRequest::*;
         match req {
@@ -396,11 +413,12 @@ impl<C, S, X, F, R, W> ZxSpectrumModel<C, S, X, F, R, W>
 impl<C: Cpu, U, F> ZxSpectrum<C, U, F>
     where U: MemoryAccess
 {
-    pub fn with_roms(mut self, roms: &[&[u8]], offs: usize) -> Self {
+    /// Returns a model with the provided ROM data as `roms` pages and a rom bank `offset`.
+    pub fn with_roms(mut self, roms: &[&[u8]], offset: usize) -> Self {
         let mem = self.ula.memory_mut();
         mem.fill_mem(.., random).unwrap();
         for (n, rom) in roms.iter().flat_map(|rom| rom.chunks_exact(U::Memory::PAGE_SIZE)).enumerate() {
-            mem.load_into_rom_bank(n + offs, rom).unwrap();
+            mem.load_into_rom_bank(n + offset, rom).unwrap();
         }
         self
     }
@@ -410,6 +428,9 @@ impl<C: Cpu, U, F> ZxSpectrum<C, U, F>
     where U: DeviceAccess,
           U::VideoFrame: 'static
 {
+    /// Overrides the state of the emulator from the provided `state` value.
+    ///
+    /// Takes care of rebuilding the device index.
     pub fn set_state(&mut self, state: EmulatorState<F>) {
         self.state = state;
         self.rebuild_device_index();
@@ -421,6 +442,8 @@ impl<C: Cpu, M, D, X, V, F> ZxSpectrum<C, Ula<M, D, X, V>, F>
           X: MemoryExtension,
           V: VideoFrame
 {
+    /// Copies the paged in RAM memory, the border color, the CPU state and the emulator 
+    /// state into `self` from the provided `model`.
     pub fn copy_from<S, R, W>(&mut self, model: ZxSpectrumModel<C, S, X, F, R, W>)
         where <Self as SpectrumUla>::Chipset: DeviceAccess,
               R: io::Read + fmt::Debug + Default,
@@ -442,6 +465,8 @@ impl<C: Cpu, D, X, V, F> ZxSpectrum<C, Scld<Memory48kDock64kEx, D, X, V>, F>
     where X: MemoryExtension,
           V: VideoFrame,
 {
+    /// Copies the paged in RAM memory, the border color, the CPU state and the emulator 
+    /// state into `self` from the provided `model`.
     pub fn copy_from<S, R, W>(&mut self, model: ZxSpectrumModel<C, S, X, F, R, W>)
         where <Self as SpectrumUla>::Chipset: DeviceAccess,
               R: io::Read + fmt::Debug + Default,
@@ -463,6 +488,8 @@ impl<C: Cpu, D, X, F, R, W> ZxSpectrum128k<C, D, X, F, R, W>
     where D: BusDevice,
           X: MemoryExtension,
 {
+    /// Copies the paged in RAM memory, the border color, the CPU state and the emulator 
+    /// state into `self` from the provided `model`. Locks `self` into 48k mode.
     pub fn copy_from<S>(&mut self, model: ZxSpectrumModel<C, S, X, F, R, W>)
         where <Self as SpectrumUla>::Chipset: DeviceAccess,
               R: io::Read + fmt::Debug + 'static,
@@ -493,6 +520,8 @@ impl<C: Cpu, D, X, F, R, W> ZxSpectrum128kPlus<C, D, X, F, R, W>
     where D: BusDevice,
           X: MemoryExtension,
 {
+    /// Copies the paged in RAM memory, the border color, the CPU state and the emulator 
+    /// state into `self` from the provided `model`. Locks `self` into 48k mode.
     pub fn copy_from<S>(&mut self, model: ZxSpectrumModel<C, S, X, F, R, W>)
         where <Self as SpectrumUla>::Chipset: DeviceAccess,
               R: io::Read + fmt::Debug + 'static,
@@ -525,6 +554,8 @@ impl<C: Cpu, D, X, F, R, W> ZxSpectrum2A<C, D, X, F, R, W>
           W: io::Write + fmt::Debug,
           X: MemoryExtension
 {
+    /// Copies the paged in RAM memory, the border color, the CPU state and the emulator 
+    /// state into `self` from the provided `model`. Locks `self` into 48k mode.
     pub fn copy_from<S>(&mut self, model: ZxSpectrumModel<C, S, X, F, R, W>)
         where <Self as SpectrumUla>::Chipset: DeviceAccess,
               D: 'static, R: 'static,  W: 'static, X: 'static
@@ -557,6 +588,8 @@ impl<C: Cpu, D, X, F, R, W> ZxSpectrum2B<C, D, X, F, R, W>
           W: io::Write + fmt::Debug,
           X: MemoryExtension,
 {
+    /// Copies the paged in RAM memory, the border color, the CPU state and the emulator 
+    /// state into `self` from the provided `model`. Locks `self` into 48k mode.
     pub fn copy_from<S>(&mut self, model: ZxSpectrumModel<C, S, X, F, R, W>)
         where <Self as SpectrumUla>::Chipset: DeviceAccess,
               D: 'static, R: 'static, W: 'static, X: 'static
@@ -631,22 +664,26 @@ impl<C, S, X, F, R, W> ZxSpectrumModel<C, S, X, F, R, W>
         true
     }
 
+    /// Returns the default CPU clock frequency of this model.
     pub fn cpu_rate(&self) -> u32 {
         spectrum_model_ula_dispatch!(self(S, X)::CPU_HZ)
     }
 
+    /// Returns the number of T-states per frame of this model.
     pub fn frame_tstates_count(&self) -> FTs {
         spectrum_model_ula_dispatch!(self(S, X)::FRAME_TSTATES)
     }
 
+    /// Returns the [Video::PIXEL_DENSITY] of this model.
     pub fn pixel_density(&self) -> u32 {
         spectrum_model_ula_dispatch!(self(S, X)::PIXEL_DENSITY)
     }
 
+    /// Destructs `self` into [Cpu] and [EmulatorState].
     pub fn into_cpu_and_state(self) -> (C, EmulatorState<F>) {
         spectrum_model_dispatch!(self(spec) => (spec.cpu, spec.state))
     }
-    // returns a dynamicly dispatched reader from RAM
+    /// Returns a dynamicaly dispatched reader from paged in RAM.
     pub fn read_ram<'a>(&'a self) -> Box<dyn Read + 'a> {
         match self {
             ZxSpectrumModel::Spectrum16(spec16) => Box::new(spec16.ula.memory_ref().ram_ref()
@@ -734,7 +771,7 @@ impl<C, S, X, F, R, W> ZxSpectrumModel<C, S, X, F, R, W>
         }
     }
 
-    /// hot-swap hardware models
+    /// Hot-swaps hardware model.
     pub fn change_model(&mut self, request: ModelRequest)
         where X: Default + 'static,
               R: Default + 'static,
@@ -790,6 +827,12 @@ impl<C, S, X, F, R, W> ZxSpectrumModel<C, S, X, F, R, W>
           R: io::Read + fmt::Debug + 'static,
           W: io::Write + fmt::Debug + 'static,
 {
+    /// Resets the current model, waits for the boot sequence to end and performs auto-type
+    /// so the data from the tape can be loaded.
+    ///
+    /// Runs as many frames as necessary to acomplish the task.
+    ///
+    /// Returns the tuple from [ZxSpectrum::run_with_auto_type].
     pub fn reset_and_load(&mut self) -> crate::spectrum::Result<(FTs, bool)> {
         spectrum_model_dispatch!(self(spec) => spec.reset(true));
         use ZxSpectrumModel::*;

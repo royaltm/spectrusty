@@ -1,3 +1,22 @@
+/*
+    web-ay-player: Web ZX Spectrum AY file format audio player example.
+    Copyright (C) 2020  Rafal Michalski
+
+    web-ay-player is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    web-ay-player is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+    Author contact information: see Cargo.toml file, section [package.authors].
+*/
 import("./pkg")
   .then(rust_module => {
     let ayPlayer = null;

@@ -1,4 +1,23 @@
-//! How to render sound directly from Ay3_891xAudio emulator.
+/*
+    audio_ay_cpal: demonstrates how to render sound directly from the
+                   Ay3_891xAudio emulator.
+    Copyright (C) 2020  Rafal Michalski
+
+    audio_ay_cpal is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    audio_ay_cpal is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+    Author contact information: see Cargo.toml file, section [package.authors].
+*/
 use spectrusty::audio::{
     music::*,
     synth::*,
@@ -68,6 +87,10 @@ fn produce<T: 'static + FromSample<f32> + AudioSample + cpal::Sample + Send>(mut
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    println!(r#"audio_ay_cpal  Copyright (C) 2020  Rafal Michalski
+This program comes with ABSOLUTELY NO WARRANTY.
+This is free software, and you are welcome to redistribute it under certain conditions."#);
+
     let frame_duration_nanos = nanos_from_frame_tc_cpu_hz(FRAME_TSTATES as u32, CPU_HZ) as u32;
     let audio = AudioHandleAnyFormat::create(&cpal::default_host(), frame_duration_nanos, 0)?;
 

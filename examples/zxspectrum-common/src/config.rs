@@ -1,3 +1,9 @@
+/*
+    zxspectrum-common: High-level ZX Spectrum emulator library example.
+    Copyright (C) 2020  Rafal Michalski
+
+    For the full copyright notice, see the lib.rs file.
+*/
 use core::convert::TryFrom;
 use core::iter::FromIterator;
 use core::ops::{Deref, DerefMut};
@@ -8,6 +14,7 @@ use std::collections::hash_map::Entry;
 
 use serde::{Serialize, Deserialize};
 
+/// An enum for determining PSG D/A conversion function.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[derive(Serialize, Deserialize)]
 pub enum AyAmpSelect {
@@ -15,6 +22,7 @@ pub enum AyAmpSelect {
     Fuse,
 }
 
+/// An enum for determining PSG channel mixing.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[derive(Serialize, Deserialize)]
 pub enum AyChannelsMode {
@@ -27,6 +35,7 @@ pub enum AyChannelsMode {
     Mono
 }
 
+/// An enum for determining mode of de-interlacing video frames.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[derive(Serialize, Deserialize)]
 #[serde(try_from = "u8", into = "u8")]
@@ -37,6 +46,9 @@ pub enum InterlaceMode {
     EvenFramesFirst = 2,
 }
 
+/// A wrapper type for the dynamic device index.
+///
+/// The index maps the concrete device [TypeId] to the position index of the attached dynamic device.
 #[derive(Default, Debug, Clone)]
 pub struct DeviceIndex(fnv::FnvHashMap<TypeId, usize>);
 
@@ -80,6 +92,7 @@ impl Default for AyChannelsMode {
 }
 
 impl AyChannelsMode {
+    /// Returns `true` if `self` is [AyChannelsMode::Mono]. Otherwise returns `false`.
     pub fn is_mono(self) -> bool {
         AyChannelsMode::Mono == self
     }
@@ -180,6 +193,7 @@ impl fmt::Display for InterlaceMode {
 }
 
 impl InterlaceMode {
+    /// Returns `true` if the de-interlacing is enabled. Otherwise returns `false`.
     #[inline]
     pub fn is_enabled(self) -> bool {
         self != InterlaceMode::Disabled
@@ -187,22 +201,28 @@ impl InterlaceMode {
 }
 
 impl DeviceIndex {
+    /// Returns `true` if the device type `D` exists. Otherwise returns `false`.
     pub fn has_device<D: 'static>(&self) -> bool {
         self.0.contains_key(&TypeId::of::<D>())
     }
 
+    /// Returns position index of the device type `D` if the device exists.
     pub fn get_device_index<D: 'static>(&self) -> Option<usize> {
         self.0.get(&TypeId::of::<D>()).copied()
     }
 
+    /// Gets the specified device's hash map [Entry] for in-place manipulation.
     pub fn device_entry<D: 'static>(&mut self) -> Entry<'_, TypeId, usize> {
         self.0.entry(TypeId::of::<D>())
     }
 
+    /// Removes a device type `D` if exists and returns its position index.
     pub fn remove_device_index<D: 'static>(&mut self) -> Option<usize> {
         self.0.remove(&TypeId::of::<D>())
     }
 
+    /// Inserts a device type `D` if exists and returns its previous position index
+    /// if device has already existed.
     pub fn insert_device_index<D: 'static>(&mut self, index: usize) -> Option<usize> {
         self.0.insert(TypeId::of::<D>(), index)
     }

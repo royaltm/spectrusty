@@ -1,3 +1,10 @@
+/*
+    Copyright (C) 2020  Rafal Michalski
+
+    This file is part of SPECTRUSTY, a Rust library for building emulators.
+
+    For the full copyright notice, see the lib.rs file.
+*/
 /*! **MDR** file format utilities.
 
 **MDR** files are data images of formatted sectors of ZX Microdrive tape cartridges.

@@ -1,73 +1,48 @@
-<div align="center">
+SPECTRUSTY
+==========
 
-  <h1><code>wasm-pack-template</code></h1>
+Web ZX Spectrum
+---------------
 
-  <strong>A template for kick starting a Rust and WebAssembly project using <a href="https://github.com/rustwasm/wasm-pack">wasm-pack</a>.</strong>
+ZX Spectrum emulator as a Web application.
 
-  <p>
-    <a href="https://travis-ci.org/rustwasm/wasm-pack-template"><img src="https://img.shields.io/travis/rustwasm/wasm-pack-template.svg?style=flat-square" alt="Build Status" /></a>
-  </p>
+This is an example of how to built a usable emulator program using SPECTRUSTY.
 
-  <h3>
-    <a href="https://rustwasm.github.io/docs/wasm-pack/tutorials/npm-browser-packages/index.html">Tutorial</a>
-    <span> | </span>
-    <a href="https://discordapp.com/channels/442252698964721669/443151097398296587">Chat</a>
-  </h3>
+Web UI in this example can be used with most modern desktop and mobile browsers.
 
-  <sub>Built with 🦀🕸 by <a href="https://rustwasm.github.io/">The Rust and WebAssembly Working Group</a></sub>
-</div>
+This program does not emulates printers, serial and parallel ports nor functions of ZX Interface I, such as Microdrives, or networking.
 
-## TODO
+For the example implementation of those features in a complete emulator program, please see [SDL2 ZX Spectrum](../sdl2-zxspectrum) instead.
 
-* snapshot serde
 
-## About
+### Prerequisites
 
-[**📚 Read this template tutorial! 📚**][template-docs]
+In addition to Rust compiler the following tools are needed:
 
-This template is designed for compiling Rust libraries into WebAssembly and
-publishing the resulting package to NPM.
+* [node.js + npm](https://nodejs.org/en/)
 
-Be sure to check out [other `wasm-pack` tutorials online][tutorials] for other
-templates and usages of `wasm-pack`.
-
-[tutorials]: https://rustwasm.github.io/docs/wasm-pack/tutorials/index.html
-[template-docs]: https://rustwasm.github.io/docs/wasm-pack/tutorials/npm-browser-packages/index.html
-
-## 🚴 Usage
-
-### 🐑 Use `cargo generate` to Clone this Template
-
-[Learn more about `cargo generate` here.](https://github.com/ashleygwilliams/cargo-generate)
+Install local dependencies, run from this directory:
 
 ```
-cargo generate --git https://github.com/rustwasm/wasm-pack-template.git --name my-project
-cd my-project
+npm install
 ```
 
-### 🛠️ Build with `wasm-pack build`
+
+### Development
+
+To run it locally in development mode:
 
 ```
-wasm-pack build
+npm run serve
 ```
 
-### 🔬 Test in Headless Browsers with `wasm-pack test`
+Open `http://localhost:8080` in the web browser.
+
+
+### Distribution
+
+To build distribution files in a `dist` folder:
 
 ```
-wasm-pack test --headless --firefox
+NODE_ENV=production npm run build
 ```
-
-### 🎁 Publish to NPM with `wasm-pack publish`
-
-```
-wasm-pack publish
-```
-
-## 🔋 Batteries Included
-
-* [`wasm-bindgen`](https://github.com/rustwasm/wasm-bindgen) for communicating
-  between WebAssembly and JavaScript.
-* [`console_error_panic_hook`](https://github.com/rustwasm/console_error_panic_hook)
-  for logging panic messages to the developer console.
-* [`wee_alloc`](https://github.com/rustwasm/wee_alloc), an allocator optimized
-  for small code size.

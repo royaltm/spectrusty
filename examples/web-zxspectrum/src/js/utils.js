@@ -1,3 +1,9 @@
+/*
+    web-zxspectrum: ZX Spectrum emulator example as a Web application.
+    Copyright (C) 2020  Rafal Michalski
+
+    For the full copyright notice, see the index.js file.
+*/
 export class UserInterface {
   constructor() {
     this.bindings = {};

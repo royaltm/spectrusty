@@ -7,3 +7,5 @@
 *.json
 *.json.gz
 *.wav
+*.z80
+*.sna

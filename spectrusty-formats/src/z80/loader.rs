@@ -1,3 +1,10 @@
+/*
+    Copyright (C) 2020  Rafal Michalski
+
+    This file is part of SPECTRUSTY, a Rust library for building emulators.
+
+    For the full copyright notice, see the lib.rs file.
+*/
 use std::io::{self, Read, Result};
 
 use spectrusty_core::z80emu::{CpuFlags,Z80NMOS, StkReg16, Prefix, Cpu};

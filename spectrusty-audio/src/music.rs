@@ -1,3 +1,10 @@
+/*
+    Copyright (C) 2020  Rafal Michalski
+
+    This file is part of SPECTRUSTY, a Rust library for building emulators.
+
+    For the full copyright notice, see the lib.rs file.
+*/
 //! Music related functions.
 use core::convert::TryInto;
 /// Returns an iterator of equal tempered scale frequencies (in a single octave) obtained from a given base frequency.

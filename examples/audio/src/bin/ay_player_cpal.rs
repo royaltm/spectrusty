@@ -1,4 +1,22 @@
-//! Command line AY Player and WAV generator
+/*
+    ay_pleyer_cpal: Command-line ZX Spectrum AY file player demo.
+    Copyright (C) 2020  Rafal Michalski
+
+    ay_pleyer_cpal is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    ay_pleyer_cpal is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+    Author contact information: see Cargo.toml file, section [package.authors].
+*/
 use core::num::NonZeroU32;
 use std::io::Read;
 
@@ -131,7 +149,7 @@ fn produce<T, R: Read>(
             bandlim.next_frame();
             // send sample buffer to the consumer
             audio.producer.send_frame().unwrap();
-            eprint!("\r{:04x} {:04x} {:04x} {:04x} {:04x} {:02x?} ",
+            trace!("{:04x} {:04x} {:04x} {:04x} {:04x} {:02x?} ",
                     cpu.get_sp(),
                     cpu.get_reg16(z80emu::StkReg16::HL),
                     cpu.get_reg16(z80emu::StkReg16::BC),
@@ -147,13 +165,18 @@ fn produce<T, R: Read>(
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    println!(r#"ay_pleyer_cpal  Copyright (C) 2020  Rafal Michalski
+This program comes with ABSOLUTELY NO WARRANTY.
+This is free software, and you are welcome to redistribute it under certain conditions."#);
+
     let log_level = if cfg!(debug_assertions) {
-        Level::Trace
+        log::LevelFilter::Trace
     }
     else {
-        Level::Info
+        log::LevelFilter::Info
     };
-    simple_logger::init_with_level(log_level).map_err(|_| "simple logger initialization failed")?;
+    simple_logger::SimpleLogger::new().with_level(log_level).init()
+                   .map_err(|_| "simple logger initialization failed")?;
 
     let frame_duration_nanos = ZxSpectrum128Config::frame_duration_nanos() as u32;
     let audio = AudioHandleAnyFormat::create(&cpal::default_host(), frame_duration_nanos, 5)?;
@@ -164,9 +187,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         sample_format: hound::SampleFormat::Float,
     };
 
-    // let file_name = std::env::args().nth(1).unwrap_or_else(|| "tests/DeathWish3.sna".into());
-    // println!("Loading SNA: {}", file_name);
-    let file_name = std::env::args().nth(1).unwrap_or_else(|| "../../tests/NodesOfYesod.AY".into());
+    let file_name = std::env::args().nth(1).unwrap_or_else(|| "../../resources/nodes_of_yesod.ay".into());
     println!("Loading: {}", file_name);
     let song_index = std::env::args().nth(2).unwrap_or_else(|| "0".into());
     let song_index: u16 = song_index.parse().unwrap();

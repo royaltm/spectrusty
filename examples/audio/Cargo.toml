@@ -4,15 +4,18 @@ version = "0.1.0"
 authors = ["Rafal Michalski <royaltm75@gmail.com>"]
 edition = "2018"
 workspace = "../.."
-license = "LGPL-3.0-or-later"
+license = "GPL-3.0-or-later"
 publish = false
+description = """
+Example programs demonstrating how to implement audio functions provided
+by the SPECTRUSTY library using native bindings via the CPAL library.
+"""
 
 [dependencies]
-# spectrusty_audio = { path = "spectrusty_audio", version = "0.1" }
 cpal = "0.12"
-hound = "3.4.0"
+hound = "3.4"
 log = "0.4"
-simple_logger = "1.6.0"
+simple_logger = "1.9"
 
 [dependencies.spectrusty]
 version = "*"

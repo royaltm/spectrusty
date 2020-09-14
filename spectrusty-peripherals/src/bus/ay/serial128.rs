@@ -1,3 +1,10 @@
+/*
+    Copyright (C) 2020  Rafal Michalski
+
+    This file is part of SPECTRUSTY, a Rust library for building emulators.
+
+    For the full copyright notice, see the lib.rs file.
+*/
 //! A collection of custom [Ay3_891xBusDevice] types for Spectrum's 128k with [SerialPorts128].
 use core::fmt;
 use spectrusty_core::{bus::BusDevice, clock::VFrameTs};

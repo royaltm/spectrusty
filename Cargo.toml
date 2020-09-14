@@ -4,16 +4,19 @@ version = "0.1.0"
 authors = ["Rafal Michalski <royaltm75@gmail.com>"]
 edition = "2018"
 categories = ["emulators"]
-description = "A library for building ZX Spectrum emulators"
 keywords = ["ZX Spectrum", "retro"]
 repository = "https://github.com/royaltm/spectrusty"
 homepage = "https://royaltm.github.io/spectrusty/"
 readme = "README.md"
 license = "LGPL-3.0-or-later"
-include = ["src/", "LICENSE.md", "README.md"]
+include = ["/src/", "/COPYING", "/COPYING.LESSER", "/README.md"]
+description = """
+SPECTRUSTY is a library for building highly customizable emulators of the ZX Spectrum computer series and their clones.
+"""
 
 [package.metadata.docs.rs]
 all-features = true
+# targets = ["x86_64-unknown-linux-gnu", "wasm32-unknown-unknown"]
 
 [features]
 default = ["formats", "peripherals", "snapshot", "compression"]

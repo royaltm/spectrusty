@@ -1,3 +1,10 @@
+/*
+    Copyright (C) 2020  Rafal Michalski
+
+    This file is part of SPECTRUSTY, a Rust library for building emulators.
+
+    For the full copyright notice, see the lib.rs file.
+*/
 use std::io;
 
 #[cfg(feature = "snapshot")]
@@ -11,8 +18,8 @@ use super::*;
 /// A simple **ZXPrinter** spooler that produces images via [DotMatrixGfx] trait.
 /// Use this type as a substitute for the `S` generic parameter of [ZxPrinterDevice] or [ZxPrinterBusDevice].
 ///
-/// [ZxPrinterDevice]: spectrusty_peripherals::zxprinter::ZxPrinterDevice
-/// [ZxPrinterBusDevice]: spectrusty_peripherals::bus::zxprinter::ZxPrinterBusDevice
+/// [ZxPrinterDevice]: spectrusty::peripherals::zxprinter::ZxPrinterDevice
+/// [ZxPrinterBusDevice]: spectrusty::peripherals::bus::zxprinter::ZxPrinterBusDevice
 #[derive(Clone, Default, Debug)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "snapshot", serde(default))]

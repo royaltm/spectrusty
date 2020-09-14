@@ -1,3 +1,9 @@
+/*
+    sdl2-zxspectrum: ZX Spectrum emulator example as a SDL2 application.
+    Copyright (C) 2020  Rafal Michalski
+
+    For the full copyright notice, see the main.rs file.
+*/
 use core::fmt::{self, Write};
 use core::slice;
 use std::io;
@@ -21,7 +27,7 @@ use spectrusty::memory::PagedMemory8k;
 use spectrusty::video::Video;
 use zxspectrum_common::{
     DynamicDevices, DeviceAccess,
-    Ula3Ay, Plus128, Ula128AyKeypad
+    Ula3Ay, Plus128, Plus3, Ula128AyKeypad
 };
 use spectrusty_utils::printer::{EpsonPrinterGfx, ImageSpooler};
 
@@ -119,7 +125,8 @@ macro_rules! impl_spooler_access_ula128 {
 
 impl_spooler_access_ula128!(Ula128AyKeypad<Ula128VidFrame>);
 impl_spooler_access_ula128!(Ula3Ay<Ula3VidFrame>);
-impl_spooler_access_ula128!(Plus128<Ula3VidFrame>);
+impl_spooler_access_ula128!(Plus3<Ula3VidFrame>);
+impl_spooler_access_ula128!(Plus128<Ula128VidFrame>);
 
 impl<M, D, X, V> SpoolerAccess for Ula<M, D, X, V> where Self: DeviceAccess {}
 

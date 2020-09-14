@@ -1,3 +1,10 @@
+/*
+    Copyright (C) 2020  Rafal Michalski
+
+    This file is part of SPECTRUSTY, a Rust library for building emulators.
+
+    For the full copyright notice, see the lib.rs file.
+*/
 //! # Audio API
 mod sample;
 
@@ -119,7 +126,7 @@ pub struct BlepStereo<B: Blep> {
     pub blep: B,
 }
 
-/// A digital level to a sample amplitude convertion trait.
+/// A digital level to a sample amplitude conversion trait.
 pub trait AmpLevels<T: Copy> {
     /// This method should return the appropriate digital sample amplitude for the given `level`.
     ///
@@ -143,7 +150,7 @@ pub trait AudioFrame<B: Blep> {
     ///
     /// # Panics
     /// Panics if the current frame execution didn't get to the near of end-of-frame.
-    /// To check if you can actually call this method, invoke [ControlUnit::is_frame_over][crate::chip::ControlUnit::is_frame_over].
+    /// To check if you can actually call this method, invoke [FrameState::is_frame_over][crate::chip::FrameState::is_frame_over].
     fn get_audio_frame_end_time(&self) -> FTs;
     /// Calls [Blep::end_frame] to finalize the frame and prepare it for rendition.
     ///
@@ -151,7 +158,7 @@ pub trait AudioFrame<B: Blep> {
     ///
     /// # Panics
     /// Panics if the current frame execution didn't get to the near of end-of-frame.
-    /// To check if you can actually call this method, invoke [ControlUnit::is_frame_over][crate::chip::ControlUnit::is_frame_over].
+    /// To check if you can actually call this method, invoke [FrameState::is_frame_over][crate::chip::FrameState::is_frame_over].
     #[inline]
     fn end_audio_frame(&self, blep: &mut B) -> usize {
         blep.end_frame(self.get_audio_frame_end_time())

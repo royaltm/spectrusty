@@ -1,3 +1,10 @@
+/*
+    Copyright (C) 2020  Rafal Michalski
+
+    This file is part of SPECTRUSTY, a Rust library for building emulators.
+
+    For the full copyright notice, see the lib.rs file.
+*/
 //! Hard sync without aliasing.
 //!
 //! For the original implementation refer to [this web site](http://www.slack.net/~ant/bl-synth).

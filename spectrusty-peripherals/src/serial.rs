@@ -1,3 +1,10 @@
+/*
+    Copyright (C) 2020  Rafal Michalski
+
+    This file is part of SPECTRUSTY, a Rust library for building emulators.
+
+    For the full copyright notice, see the lib.rs file.
+*/
 //! Serial port related api and emulation of ZX Spectrum's peripheral devices using serial communication.
 //!
 //! The terminology regarding serial port pins/lines being used in ZX Spectrum's technical documentation:

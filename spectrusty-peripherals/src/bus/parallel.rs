@@ -1,3 +1,10 @@
+/*
+    Copyright (C) 2020  Rafal Michalski
+
+    This file is part of SPECTRUSTY, a Rust library for building emulators.
+
+    For the full copyright notice, see the lib.rs file.
+*/
 //! Spectrum +3 CENTRONICS port bus device for parallel printers and other devices.
 use core::num::NonZeroU16;
 use core::fmt;

@@ -1,3 +1,9 @@
+/*
+    zxspectrum-common: High-level ZX Spectrum emulator library example.
+    Copyright (C) 2020  Rafal Michalski
+
+    For the full copyright notice, see the lib.rs file.
+*/
 use core::fmt;
 use std::io;
 use spectrusty::z80emu::Cpu;
@@ -18,6 +24,7 @@ use super::spectrum::ZxSpectrum;
 use super::devices::{DeviceAccess, DynamicDevices};
 use super::models::*;
 
+/// A helper method returning a joystick index for [JoystickSelect] enum from optional [JoystickModel].
 pub fn joy_index_from_joystick_model(joy: Option<JoystickModel>) -> usize {
     use JoystickModel::*;
     match joy {
@@ -30,6 +37,7 @@ pub fn joy_index_from_joystick_model(joy: Option<JoystickModel>) -> usize {
     }
 }
 
+/// On success returns a [JoystickModel] based on joystick name and `sub_joy` index.
 pub fn joystick_model_from_name(name: &str, sub_joy: usize) -> Option<JoystickModel> {
     Some(match name {
         "Kempston" => JoystickModel::Kempston,
@@ -41,6 +49,7 @@ pub fn joystick_model_from_name(name: &str, sub_joy: usize) -> Option<JoystickMo
     })
 }
 
+/// A helper method for updating the AY-3-8910 PSG registers from `reg_selected` and `reg_values`.
 pub fn update_ay_state<V, A, B>(
         ay_sound: &mut Ay3_891xAudio,
         ay_io: &mut Ay3_8910Io<VFrameTs<V>, A, B>,
@@ -59,21 +68,21 @@ pub fn update_ay_state<V, A, B>(
     }
 }
 
+/// A trait for easy accessing and controling [JoystickInterface].
 pub trait JoystickAccess {
-    // Joystick interface access
     fn joystick_interface(&mut self) -> Option<&mut (dyn JoystickInterface + 'static)> {
         None
     }
-    // Does nothing by default.
+    /// Selects joystick by specifying its index.
     fn select_joystick(&mut self, _joy: usize) {}
-    // Returns `subjoy` by default.
+    /// Changes joystick implementation to the next available.
     fn select_next_joystick(&mut self) {}
-    // Returns joystick name
+    /// Returns the name of the joystick if present.
     fn current_joystick(&self) -> Option<&str> { None }
 }
 
+/// A trait for easy accessing and controling [MouseInterface].
 pub trait MouseAccess {
-    // Mouse interface access
     fn mouse_interface(&mut self) -> Option<&mut (dyn MouseInterface + 'static)> {
         None
     }
@@ -140,10 +149,11 @@ impl<C, U, F> MouseAccess for ZxSpectrum<C, U, F>
 }
 
 impl<C: Cpu, U: DeviceAccess, F> ZxSpectrum<C, U, F> {
+    /// Returns a current view of AY-3-8910 registers if a PSG is attached.
     pub fn ay128k_state(&self) -> Option<(AyRegister, &[u8;16])> {
         self.ula.ay128_ref().map(|(_, ay_io)| (ay_io.selected_register(), ay_io.registers()))
     }
-
+    /// Updates AY-3-8910 registers' state if a PSG is attached.
     pub fn update_ay128k_state(&mut self, reg_selected: AyRegister, reg_values: &[u8]) -> bool {
         self.ula.ay128_mut()
         .map(|(ay_sound, ay_io)|

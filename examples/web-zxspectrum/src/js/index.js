@@ -1,3 +1,22 @@
+/*
+    web-zxspectrum: ZX Spectrum emulator example as a Web application.
+    Copyright (C) 2020  Rafal Michalski
+
+    web-zxspectrum is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    web-zxspectrum is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+    Author contact information: see Cargo.toml file, section [package.authors].
+*/
 import { $id,
          $on,
          $off,
@@ -35,7 +54,7 @@ import("../../pkg").then(rust_module => {
 
   const urlparams         = new UrlParameters(),
         spectrum          = new rust_module.ZxSpectrumEmu(0.11, urlparams.options.model || "+2B"),
-        keyboard          = new SpectrumKeyboard($id("spectrum-keyboard"), "keyboards/"),
+        keyboard          = new SpectrumKeyboard($id("spectrum-keyboard"), "images/keyboard48.jpg"),
         monitorCanvas     = $id("main-screen"),
         mainContainer     = $id("main-container"),
         spectrumContainer = $id("spectrum-container"),
@@ -204,14 +223,23 @@ import("../../pkg").then(rust_module => {
                        (start, end) => spectrum.disassemble(start, end))
   );
 
-  /* Closing modal resumes emulation */
+  /* About modal */
 
-  $(introModal).on("hide.bs.modal", ev => {
+  $(introModal)
+  .on("hide.bs.modal", ev => {
     if (paused) {
+      togglePause();
+    }
+  })
+  .on("show.bs.modal", ev => {
+    if (!paused) {
       togglePause();
     }
   });
 
+  function showAbout() {
+    $(introModal).modal({keyboard: false});
+  }
   /* Keyboard */
 
   $on(document, "keydown", (ev) => {
@@ -220,7 +248,11 @@ import("../../pkg").then(rust_module => {
     }
 
     switch (ev.code) {
-      case "F1": case "F2": case "F3": case "F4":
+      case "F1":
+        ev.preventDefault();
+        showAbout();
+        break;
+      case "F2": case "F3": case "F4":
       case "F5": case "F6": case "F7": case "F8":
         ev.preventDefault();
         toggleVisualKeyboard();
@@ -311,12 +343,12 @@ import("../../pkg").then(rust_module => {
   const ctx = monitorCanvas.getContext("2d", {alpha: false, desynchronized: true});
   ctx.imageSmoothingEnabled = false;
 
-  loadFromUrlParams(true).then(loaded => {
-    if (loaded) {
-      togglePause().then(() => $(introModal).modal({keyboard: false}));
-    }
-    else {
+  loadFromUrlParams(true).then(state => {
+    if (state === "fresh" || state === "continue") {
       showPanel();
+    }
+    if (state === "fresh" || state === "run") {
+      togglePause().then(showAbout);
     }
     run(true);
   });
@@ -551,38 +583,36 @@ import("../../pkg").then(rust_module => {
   }
 
   function loadFromUrlParams(autoload) {
-    var loaded = false;
-    var promise = Promise.resolve(false);
+    var promise = Promise.resolve("fresh");
     if (autoload && restoreState(spectrum, urlparams)) {
       autoload = false;
+      promise = Promise.resolve("continue");
     }
     else if (urlparams.modifiedSnap()) {
       let snap = urlparams.snap;
       if (snap) {
         autoload = false;
-        promise = loadRemoteSnap(snap.url, snap.type).then(() => true);
+        promise = loadRemoteSnap(snap.url, snap.type).then(() => "run");
       }
     }
 
     if (urlparams.modifiedTap()) {
       let tap = urlparams.tap;
-      promise = promise.then(loaded => loadRemoteTapes(tap)
+      promise = promise.then(state => loadRemoteTapes(tap)
         .then(() => {
           urlparams.applyTo(spectrum);
           if (tap && autoload) {
             spectrum.resetAndLoad();
-            return true;
+            state = "run";
           }
-          else {
-            return loaded;
-          }
+          return state;
         })
       );
     }
     else {
-      promise = promise.then(loaded => {
+      promise = promise.then(state => {
         urlparams.applyTo(spectrum);
-        return loaded;
+        return state;
       });
     }
 

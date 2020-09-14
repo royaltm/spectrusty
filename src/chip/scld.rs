@@ -1,3 +1,10 @@
+/*
+    Copyright (C) 2020  Rafal Michalski
+
+    This file is part of SPECTRUSTY, a Rust library for building emulators.
+
+    For the full copyright notice, see the lib.rs file.
+*/
 /*! An emulator of the Timex's SCLD chip used in TC2048 / TC2068 and TS2068 models.
 
 Implementation ceveats:
@@ -17,6 +24,7 @@ Implementation ceveats:
 In case of TC2048 the 16k ROM should be loaded to rom banks: `[ROM_BANKS_MAX - 1, ROM_BANKS_MAX]`.
 In case of Tx2068 the 24k ROM should be loaded to rom banks: `[ROM_BANKS_MAX - 1, ROM_BANKS_MAX, 8]`.
 
+[UlaVideoFrame]: crate::chip::ula::UlaVideoFrame
 [UlaNTSCVidFrame]: crate::chip::ula::UlaNTSCVidFrame
 [ZxMemory::ROM_BANKS_MAX]: crate::memory::ZxMemory::ROM_BANKS_MAX
 */

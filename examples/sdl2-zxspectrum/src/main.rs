@@ -1,3 +1,22 @@
+/*
+    sdl2-zxspectrum: ZX Spectrum emulator example as a SDL2 application.
+    Copyright (C) 2020  Rafal Michalski
+
+    sdl2-zxspectrum is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    sdl2-zxspectrum is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+    Author contact information: see Cargo.toml file, section [package.authors].
+*/
 // #![windows_subsystem = "windows"] // it is "console" by default
 // #![allow(unused_assignments)]
 // #![allow(unused_imports)]
@@ -58,7 +77,7 @@ use emulator::*;
 type PixelBuf<'a> = pixel::PixelBufP32<'a>;
 type SpectrumPal = pixel::SpectrumPalA8R8G8B8;
 const PIXEL_FORMAT: PixelFormatEnum = PixelFormatEnum::RGB888;
-const KEYBOARD_IMAGE: &[u8] = include_bytes!("../../../resources/Plus2BROMSet.rom/keyboards/48.png");
+const KEYBOARD_IMAGE: &[u8] = include_bytes!("../../../resources/keyboard48.jpg");
 
 const HEAD: &str = r#"The SDL2 desktop example emulator for "rust-zxspecemu""#;
 const HELP: &str = r###"
@@ -70,7 +89,7 @@ F2: Turbo - runs as fast as possible, while key is being pressed.
 F3: Saves printer spooler content.
 F4: Changes joystick implementation (cursor keys).
 F5: Plays current TAP file.
-F6: Prints current TAP file info.
+F6: Shows current TAP file info.
 F7: Cycles through: fast load on/off, then tape audio on/off.
 F8: Starts recording of TAP chunks appending them to the current TAP file.
 F9: Soft reset.
@@ -93,7 +112,7 @@ const REQUESTED_AUDIO_LATENCY: usize = 1;
 use std::thread;
 
 fn main() -> Result<()> {
-    simple_logger::init_with_level(log::Level::Debug)?;
+    simple_logger::SimpleLogger::new().with_level(log::LevelFilter::Info).init()?;
 
     let matches = clap_app!(Spectrusty =>
         (version: "1.0")
@@ -118,7 +137,7 @@ fn main() -> Result<()> {
 
     println!("{:?}", matches.values_of("FILES"));
 
-    thread::Builder::new().stack_size(2048 * 1024)
+    thread::Builder::new().stack_size(4096 * 1024)
     .spawn(move || {
         select_model(matches).unwrap()
     })?
@@ -129,21 +148,35 @@ fn main() -> Result<()> {
 fn select_model(matches: clap::ArgMatches) -> Result<()> {
     let mut mreq = ModelRequest::SpectrumPlus2B;
 
-    if let Some(model) = matches.value_of("model") {
-        match model.parse() {
-            Ok(m) => mreq = m,
-            Err(e) => {
-                eprintln!("{}!", e);
-                eprintln!("Available models (\"ZX Spectrum\" or \"Timex\" prefixes may be omitted):");
-                for m in ModelRequest::iter() {
-                    eprintln!("- {}", m);
+    // for filepath in matches.values_of("FILES") {
+    //     match filepath.extension().and_then(OsStr::to_str) {
+    // }
+    let model: ZxSpectrumModel;
+
+    let files = matches.values_of("FILES");
+
+    if let Some(filename) = files.and_then(|mut f| f.next()) {
+        let file = File::open(filename)?;
+        model = serde_json::from_reader(file)?;
+        mreq = ModelRequest::from(&model);
+    }
+    else {
+        if let Some(model) = matches.value_of("model") {
+            match model.parse() {
+                Ok(m) => mreq = m,
+                Err(e) => {
+                    eprintln!("{}!", e);
+                    eprintln!("Available models (\"ZX Spectrum\" or \"Timex\" prefixes may be omitted):");
+                    for m in ModelRequest::iter() {
+                        eprintln!("- {}", m);
+                    }
+                    return Ok(())
                 }
-                return Ok(())
             }
         }
+        model = ZxSpectrumModel::new(mreq);
     }
 
-    let model: ZxSpectrumModel = ZxSpectrumModel::new(mreq);
     spectrum_model_dispatch!(model(spec) => config_and_run(mreq, spec, matches))
 }
 
@@ -166,16 +199,20 @@ fn config_and_run<U: 'static>(
     let latency = matches.value_of("audio").map(usize::from_str).transpose()?
                              .unwrap_or(REQUESTED_AUDIO_LATENCY);
 
-    let cpu = matches.value_of("cpu").unwrap_or("nmos");
-    if cpu.eq_ignore_ascii_case("cmos") {
-        spec.cpu = spec.cpu.clone().into_cmos();
-    }
-    else if cpu.eq_ignore_ascii_case("bm1") || cpu.eq_ignore_ascii_case("bm") {
-        spec.cpu = spec.cpu.clone().into_bm1();
-    }
-    else if !cpu.eq_ignore_ascii_case("nmos") {
-        eprintln!(r#"Unknown CPU type "{}".\nSelect one of: NMOS, CMOS, BM1"#, cpu);
-        return Ok(())
+    if let Some(cpu) = matches.value_of("cpu") {
+        if cpu.eq_ignore_ascii_case("nmos") {
+            spec.cpu = spec.cpu.clone().into_nmos();
+        }
+        else if cpu.eq_ignore_ascii_case("cmos") {
+            spec.cpu = spec.cpu.clone().into_cmos();
+        }
+        else if cpu.eq_ignore_ascii_case("bm1") || cpu.eq_ignore_ascii_case("bm") {
+            spec.cpu = spec.cpu.clone().into_bm1();
+        }
+        else {
+            eprintln!(r#"Unknown CPU type "{}".\nSelect one of: NMOS, CMOS, BM1"#, cpu);
+            return Ok(())
+        }
     }
 
     if let Some(border_size) = matches.value_of("border") {
@@ -256,7 +293,7 @@ fn run<C, U: 'static>(
           ZxSpectrum<C, U>: serde::Serialize + JoystickAccess
 {
     // SDL2 related code follows
-    // the context variables, created below could be a part of some struct in a real emulator
+    // the context variables, created below could be a part of some struct in a mature program
     let video_subsystem = sdl_context.video()?;
     debug!("driver: {}", video_subsystem.current_video_driver());
 
@@ -283,8 +320,8 @@ fn run<C, U: 'static>(
     };
 
     let mut texture = create_texture(zx.spectrum.render_size_pixels())?;
-    println!("canvas: {:?}", canvas.window().window_pixel_format());
-    println!("stream: {:?}", texture.query());
+    debug!("canvas: {:?}", canvas.window().window_pixel_format());
+    debug!("stream: {:?}", texture.query());
 
     let mut keyboard_visible = false;
     let mut keyboard_canvas = create_image_canvas_window(&video_subsystem, KEYBOARD_IMAGE)?;
@@ -481,9 +518,16 @@ fn run<C, U: 'static>(
                     zx.resume_audio();
                 }
                 Event::KeyDown { keycode: Some(Keycode::F7), repeat: false, ..} => {
-                    zx.spectrum.state.flash_tape = !zx.spectrum.state.flash_tape;
-                    if zx.spectrum.state.flash_tape {
+                    if zx.spectrum.state.instant_tape {
+                        zx.spectrum.state.instant_tape = false;
+                        zx.spectrum.state.flash_tape = false;
                         zx.spectrum.state.audible_tape = !zx.spectrum.state.audible_tape;
+                    }
+                    else if zx.spectrum.state.flash_tape {
+                        zx.spectrum.state.instant_tape = true;
+                    }
+                    else {
+                        zx.spectrum.state.flash_tape = true;
                     }
                     update_info = true;
                 }

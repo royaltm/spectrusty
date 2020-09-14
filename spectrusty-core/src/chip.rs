@@ -1,3 +1,10 @@
+/*
+    Copyright (C) 2020  Rafal Michalski
+
+    This file is part of SPECTRUSTY, a Rust library for building emulators.
+
+    For the full copyright notice, see the lib.rs file.
+*/
 //! Chipset emulation building blocks.
 use core::num::NonZeroU32;
 use core::time::Duration;
@@ -41,7 +48,7 @@ pub trait FrameState {
     fn frame_tstate(&self) -> (u64, FTs);
     /// Returns the current value of the T-state counter.
     /// 
-    /// Unlike [ControlUnit::frame_tstate] values return by this method can sometimes be negative as well as
+    /// Unlike [FrameState::frame_tstate] values return by this method can sometimes be negative as well as
     /// exceeding the maximum nuber of T-states per frame.
     fn current_tstate(&self) -> FTs;
     /// Sets the T-state counter to the specified value modulo `<Self as Video>::FRAME_TSTATES_COUNT`.

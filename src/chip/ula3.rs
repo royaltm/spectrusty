@@ -1,3 +1,10 @@
+/*
+    Copyright (C) 2020  Rafal Michalski
+
+    This file is part of SPECTRUSTY, a Rust library for building emulators.
+
+    For the full copyright notice, see the lib.rs file.
+*/
 //! An emulator of Amstrad Gate Array chip for ZX Spectrum +2A/+3.
 #![macro_use]
 mod audio_earmic;

@@ -1,3 +1,9 @@
+/*
+    web-ay-player: Web ZX Spectrum AY file format audio player example.
+    Copyright (C) 2020  Rafal Michalski
+
+    For the full copyright notice, see the lib.rs file.
+*/
 use std::io::Cursor;
 
 use serde::{Serialize, Deserialize};

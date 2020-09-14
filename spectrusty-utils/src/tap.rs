@@ -1,3 +1,10 @@
+/*
+    Copyright (C) 2020  Rafal Michalski
+
+    This file is part of SPECTRUSTY, a Rust library for building emulators.
+
+    For the full copyright notice, see the lib.rs file.
+*/
 //! **TAP** format related utilities for sweetening the handling of **TAP** files.
 use core::fmt;
 use core::convert::TryFrom;
@@ -18,7 +25,7 @@ pub enum TapState {
 ///
 /// The `F` can be anything that implements: [Read] + [Write] + [Seek].
 ///
-/// [TAP]: spectrusty_formats::tap
+/// [TAP]: spectrusty::formats::tap
 pub enum Tap<F> {
     Reader(TapChunkPulseIter<F>),
     Writer(TapChunkWriter<F>)

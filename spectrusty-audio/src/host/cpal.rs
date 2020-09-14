@@ -1,3 +1,10 @@
+/*
+    Copyright (C) 2020  Rafal Michalski
+
+    This file is part of SPECTRUSTY, a Rust library for building emulators.
+
+    For the full copyright notice, see the lib.rs file.
+*/
 //! Audio device streaming implementation for [cpal](https://crates.io/crates/cpal).
 //!
 //! This module implements [carousel][crate::carousel] using the **cpal** audio layer.
@@ -21,12 +28,12 @@ use spectrusty_core::audio::AudioSample;
 use crate::carousel::*;
 pub use super::{AudioHandleError, AudioHandleErrorKind};
 
-/// The struct for producing and controling the audio playback.
+/// The struct for producing and controlling the audio playback.
 ///
 /// It embeds the interconnected pair of [carousel][crate::carousel]'s [AudioFrameProducer] with the
 /// [AudioFrameConsumer] directly exposing the `producer` to the user. The consumer lives in the
 /// **cpal** audio thread and is responsible for filling up the audio output buffer with sample data
-/// sent by the `producer`.
+/// sent from the `producer`.
 ///
 /// The `T` parameter should be one of the [sample primitives][cpal::Sample].
 pub struct AudioHandle<T: cpal::Sample + AudioSample> {
@@ -39,7 +46,7 @@ pub struct AudioHandle<T: cpal::Sample + AudioSample> {
     stream: Stream
 }
 
-/// The enum for producing and controling the audio playback regardless of the sample format used.
+/// The enum for producing and controlling the audio playback regardless of the sample format used.
 pub enum AudioHandleAnyFormat {
     I16(AudioHandle<i16>),
     U16(AudioHandle<u16>),

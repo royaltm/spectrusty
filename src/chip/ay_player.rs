@@ -1,3 +1,10 @@
+/*
+    Copyright (C) 2020  Rafal Michalski
+
+    This file is part of SPECTRUSTY, a Rust library for building emulators.
+
+    For the full copyright notice, see the lib.rs file.
+*/
 //! An emulator of a video-less chip for ZX Spectrum to be used in a music player.
 use core::num::NonZeroU16;
 use core::marker::PhantomData;

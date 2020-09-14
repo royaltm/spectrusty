@@ -1,3 +1,10 @@
+/*
+    Copyright (C) 2020  Rafal Michalski
+
+    This file is part of SPECTRUSTY, a Rust library for building emulators.
+
+    For the full copyright notice, see the lib.rs file.
+*/
 //! Platform dependend audio device streaming implementations.
 //!
 //! To make use of this module enable one of the available features to the `spectrusty_audio` entry in `[dependencies]`

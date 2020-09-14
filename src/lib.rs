@@ -1,3 +1,23 @@
+/*
+    Copyright (C) 2020  Rafal Michalski
+
+    This file is part of SPECTRUSTY, a Rust library for building emulators.
+
+    SPECTRUSTY is free software: you can redistribute it and/or modify it under
+    the terms of the GNU Lesser General Public License (LGPL) as published
+    by the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    SPECTRUSTY is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU Lesser General Public License for more details.
+
+    You should have received a copy of the GNU Lesser General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+    Author contact information: see Cargo.toml file, section [package.authors].
+*/
 /*! # SPECTRUSTY
 
 **S P E C T R U S T Y**
@@ -7,21 +27,28 @@
   <polygon points="100,100 200,0 250,0 150,100" fill="#00D800" stroke="#00D800"/>
   <polygon points="150,100 250,0 300,0 200,100" fill="#00D8D8" stroke="#00D8D8"/>
 </svg>
-is a library that can be used for emulating various ZX Spectrum computer models and its clones.
+is a library for building emulators based on various ZX Spectrum computer models and clones.
 
-The components of the library can also be used to implement chiptune players, format converters, and more.
+Components of the library can also be used to implement chiptune players, format converters, and more.
 
-Because of its vast scope, **SPECTRUSTY** has been split into several dependent libraries and one extra library
-with utilities. The additional libraries can be used separately or from within this library.
-Several features control which components will be included.
+Because of its vast scope, **SPECTRUSTY** has been split into several dependent crates and one extra crate
+with complementary utilities. The additional crates can be used separately or through this library.
 
-* spectrusty - this library.
-* [spectrusty-core] - defines basic traits and structs, re-exported.
-* [spectrusty-audio] - tools for synthesizing and playing audio samples, feature: "audio", re-exported as [audio].
-* [spectrusty-formats] - file formats and utilities, feature: "formats", re-exported as [formats].
-* [spectrusty-peripherals] - emulators of various peripherals, feature: "peripherals", re-exported as [peripherals].
-* [spectrusty-utils] - additional utils, like TAPe organizers, keyboard helpers for various platforms, not included.
-* [z80emu] - Zilog's Z80 CPU family emulator, re-exported as [z80emu].
+* `"spectrusty"` - this library.
+* [spectrusty-core] - defines basic traits and structs.
+* [spectrusty-audio] - tools for synthesizing and playing audio samples.
+* [spectrusty-formats] - file formats and related utilities.
+* [spectrusty-peripherals] - emulators of various peripheral devices.
+* [z80emu] - Zilog's Z80 CPU family emulator, re-exported as `z80emu`.
+
+The separate but a complementary crate [spectrusty-utils] provides additional utilities, like 
+TAPe organizers, tape ROM auto-loader, printer utilities and keyboard helpers for various platforms.
+
+Several dependency features control which components will be included:
+
+* `"audio"` - includes [spectrusty-audio] which is re-exported as [audio].
+* `"formats"` - includes [spectrusty-formats] which is re-exported as [formats].
+* `"peripherals"` - includes [spectrusty-peripherals] which is re-exported as [peripherals].
 
 Additional features:
 
@@ -46,8 +73,9 @@ Responsible for code execution, keyboard input, video and accessing peripheral d
 | trait | function |
 |-------|----------|
 | [UlaCommon][chip::UlaCommon]       | A grouping trait that includes all of the traits listed below in this table |
-| [ControlUnit][chip::ControlUnit]   | Code execution, reset/nmi, frame/T-state counter, [BusDevice] peripherals access|
-| [MemoryAccess][chip::MemoryAccess] | An access to onboard memory [ZxMemory] and memory extensions [MemoryExtension] |
+| [ControlUnit][chip::ControlUnit]   | Code execution, reset/nmi, access to [BusDevice] peripherals |
+| [FrameState][chip::FrameState]     | Provides access to frame and T-state counters |
+| [MemoryAccess][chip::MemoryAccess] | Provides access to onboard memory [ZxMemory] and memory extensions [MemoryExtension] |
 | [Video][video::Video]              | Rendering video frame into pixel buffer, border color control |
 | [KeyboardInterface][peripherals::KeyboardInterface] | Keyboard input control |
 | [EarIn][chip::EarIn]               | EAR line input access |
@@ -73,7 +101,7 @@ Associated traits implemented by special unit structs for driving audio and vide
 
 | trait | function |
 |-------|----------|
-| [VideoFrame][video::VideoFrame] | Helps driving video rendering, provides arithmetic and conversion tools for [VideoTs] timestamps |
+| [VideoFrame] | Helps driving video rendering, provides arithmetic and conversion tools for [VideoTs] timestamps |
 | [MemoryContention][clock::MemoryContention] | A trait that helps establish if an address is being contended |
 | [AmpLevels][audio::AmpLevels] | Converts digital audio levels to sample amplitudes |
 
@@ -96,6 +124,7 @@ These are the most commonly used:
 | struct | function |
 |--------|----------|
 | [VideoTs] | A video T-state timestamp, that consist of two components: a scan line number and a horizontal T-state |
+| [VFrameTs][clock::VFrameTs]`<V>` | A [VideoFrame] aware video T-state timestamp, for timestamp calculations |
 | [VFrameTsCounter][clock::VFrameTsCounter]`<V, C>` | Counts T-states and handles the CPU clock contention |
 | [Ula][chip::ula::Ula]`<M, B, X, V>` | A chipset for emulating ZX Spectrum 16/48k PAL/NTSC |
 | [Ula128][chip::ula128::Ula128]`<B, X>` | A chipset for emulating ZX Spectrum 128k/+2 |
@@ -108,17 +137,22 @@ These are the most commonly used:
 * `M`: A system memory that implements [ZxMemory] trait.
 * `B`: A peripheral device that implements [BusDevice].
 * `X`: A memory extension that implements [MemoryExtension].
-* `V`: A unit struct that implements [VideoFrame][video::VideoFrame].
+* `V`: A unit struct that implements [VideoFrame].
 * `C`: A unit struct that implements [MemoryContention][clock::MemoryContention].
 * `U`: An underlying chipset implementing [UlaPlusInner][chip::plus::UlaPlusInner].
 
+[spectrusty-core]: spectrusty_core
+[spectrusty-audio]: spectrusty_audio
+[spectrusty-formats]: spectrusty_formats
+[spectrusty-peripherals]: spectrusty_peripherals
+[spectrusty-utils]: ../spectrusty_utils
 [SDL2]: https://crates.io/crates/sdl2
 [cpal]: https://crates.io/crates/cpal
-[spectrusty_utils]: https://github.com/royaltm/spectrusty/spectrusty-utils
 [BusDevice]: bus::BusDevice
 [Blep]: audio::Blep
 [ZxMemory]: memory::ZxMemory
 [MemoryExtension]: memory::MemoryExtension
+[VideoFrame]: video::VideoFrame
 [VideoTs]: clock::VideoTs
 */
 pub use spectrusty_core::z80emu;

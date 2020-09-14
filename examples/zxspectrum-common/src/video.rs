@@ -1,11 +1,20 @@
+/*
+    zxspectrum-common: High-level ZX Spectrum emulator library example.
+    Copyright (C) 2020  Rafal Michalski
+
+    For the full copyright notice, see the lib.rs file.
+*/
 use spectrusty::z80emu::Cpu;
 use spectrusty::chip::{ControlUnit, FrameState};
 use spectrusty::video::{Palette, PixelBuffer, BorderColor, Video, VideoFrame};
 use crate::config::InterlaceMode;
 use super::spectrum::ZxSpectrum;
 
+/// A helper trait for querying and controling certain video aspects of the emulated machine.
+///
+/// Can be used in a dynamic context.
 pub trait VideoControl {
-    /// A rendered screen pixel size (horizontal, vertical) measured in real pixels being rendered
+    /// A rendered screen pixel size (horizontal, vertical) measured in real pixels being rendered,
     /// depending on the border size selection and interlace mode.
     fn render_size_pixels(&self) -> (u32, u32);
     /// A target screen pixel size (horizontal, vertical) measured in square pixels being presented
@@ -13,11 +22,16 @@ pub trait VideoControl {
     fn target_size_pixels(&self) -> (u32, u32);
     /// Returns the current border color.
     fn border_color(&self) -> BorderColor;
-    /// Force sets the border area to the given color.
+    /// Override the border area with the given color.
     fn set_border_color(&mut self, border: BorderColor);
 }
 
+/// A helper trait for rendering vide frames of the emulated machine.
+///
+/// Can be used in a dynamic context.
 pub trait VideoBuffer<'a, B: PixelBuffer<'a>, P: Palette<Pixel=B::Pixel>> {
+    /// Renders video frame into the provided pixel `buffer`, resizing it when necessary.
+    /// Returns pixel size: `(horizontal, vertical)` of the rendered area.
     fn render_video_frame(
         &mut self,
         buffer: &'a mut Vec<u8>) -> (u32, u32);

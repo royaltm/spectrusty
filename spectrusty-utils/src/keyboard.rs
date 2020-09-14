@@ -1,3 +1,10 @@
+/*
+    Copyright (C) 2020  Rafal Michalski
+
+    This file is part of SPECTRUSTY, a Rust library for building emulators.
+
+    For the full copyright notice, see the lib.rs file.
+*/
 //! Keyboard related utils.
 //!
 //! To make use of one of the event loop dependend implmentation of the keyboard utilities add one of the

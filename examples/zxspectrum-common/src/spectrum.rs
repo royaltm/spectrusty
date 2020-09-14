@@ -1,3 +1,9 @@
+/*
+    zxspectrum-common: High-level ZX Spectrum emulator library example.
+    Copyright (C) 2020  Rafal Michalski
+
+    For the full copyright notice, see the lib.rs file.
+*/
 use core::time::Duration;
 use std::io::{Read, Write, Seek, Cursor};
 
@@ -41,21 +47,31 @@ pub use spectrusty_utils::tap::TapState;
 use super::config::*;
 use super::devices::DeviceAccess;
 
+/// A common result type used by many methods in this library.
 pub type Result<T> = core::result::Result<T, Box<dyn std::error::Error>>;
 
+/// A trait for allowing easy accessing of a chipset type from the generic [ZxSpectrum] model.
 pub trait SpectrumUla {
     type Chipset;
 }
 
+/// The main emulator type representing a generic ZX Spectrum model.
+///
+/// The model is composed of: CPU, chipset, control variables and the emulator state.
+///
 /// # Note
 ///
 /// After deserialization, a device index should be rebuild with [DynamicDevices::rebuild_device_index].
+///
+/// [DynamicDevices::rebuild_device_index]: crate::DynamicDevices::rebuild_device_index
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct ZxSpectrum<C: Cpu, U, F> {
     pub cpu: C,
     pub ula: U,
     pub nmi_request: bool,
+    /// If a RESET has been requested the `bool` indicates if it should be a hard - `true` or
+    /// a soft - `false` reset.
     pub reset_request: Option<bool>,
     #[serde(bound = "")] // so we won't have F: Serialize + Deserialize<'de> requirement
     pub state: EmulatorState<F>
@@ -73,46 +89,48 @@ impl<C: Cpu, U: Default, F> Default for ZxSpectrum<C, U, F> {
     }
 }
 
+/// An in-memory TAP container type.
 pub type MemTap = Cursor<Vec<u8>>;
 
+/// The state of the emulator.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 #[serde(bound = "")] // so we won't have F: Serialize + Deserialize<'de> requirement
 pub struct EmulatorState<F=MemTap> {
-    /// the TAPE recorder, maybe a tape is inside?
+    /// The TAPE recorder, maybe a tape is inside?
     #[serde(skip)]
     pub tape: Tape<F>,
-    /// a record of a previous frame EAR IN counter
+    /// A record of a previous frame EAR IN counter.
     pub prev_ear_in_counter: u32,
-    /// a counter of frames where EAR IN counter is zero
+    /// A counter of frames where EAR IN counter is zero.
     pub ear_in_zero_counter: u32,
-    /// is the emulation paused?
+    /// Indicates if the emulation is paused.
     pub paused: bool,
-    /// do we want to run as fast as possible?
+    /// Indicates if the emulation should run as fast as possible.
     pub turbo: bool,
-    /// emulation speed: 1.0 - original rate
+    /// Emulation speed factor: 1.0 - original rate.
     pub clock_rate_factor: f32,
-    /// do we want to auto accelerate and enable auto load?
+    /// Should the tape loading and saving be auto-accelerated?
     pub flash_tape: bool,
-    /// do we want to hear the tape signal?
+    /// Should the tape audio signal be emitted when acceleration is disabled?
     pub audible_tape: bool,
-    /// AY blep channels
+    /// AY PSG channel mixing.
     pub ay_channels: AyChannelsMode,
-    /// AY AmpLevels
+    /// AY PSG D/A conversion function.
     pub ay_amps: AyAmpSelect,
-    /// EAR/MIC blep channel
+    /// EAR/MIC audio output [Blep] channel.
     pub earmic_channel: usize,
-    /// sub joystick index of the selected joystick device
+    /// Joystick sub-index of the selected joystick device.
     pub sub_joy: usize,
-    /// rendering area border size
+    /// Video area border size.
     pub border_size: BorderSize,
-    /// frame buffer interlace mode
+    /// Video de-interlace mode.
     #[serde(default)]
     pub interlace: InterlaceMode,
-    /// instant tape loading using ROM loading routines
+    /// Indicates if an instant tape loading using ROM loading routines should be enabled.
     #[serde(default = "default_instant_tape")]
     pub instant_tape: bool,
-    /// dynamic device indices
+    /// Index of attached dynamic devices.
     #[serde(skip)]
     pub devices: DeviceIndex
 }
@@ -185,6 +203,7 @@ impl<C: Cpu, U, F> ZxSpectrum<C, U, F>
     where U: UlaCommon,
           F: Read + Write + Seek
 {
+    /// Provide function that updates the keyboard map.
     pub fn update_keyboard<FN: FnOnce(ZXKeyboardMap) -> ZXKeyboardMap>(
             &mut self,
             update_keys: FN)
@@ -194,6 +213,7 @@ impl<C: Cpu, U, F> ZxSpectrum<C, U, F>
         self.ula.set_key_state(keymap);
     }
 
+    /// Provide function that updates the keypad map.
     pub fn update_keypad128_keys<FN: FnOnce(KeypadKeys) -> KeypadKeys>(
             &mut self,
             update_keys: FN
@@ -320,7 +340,12 @@ impl<C: Cpu, U, F> ZxSpectrum<C, U, F>
         }
         Ok(false)
     }
-    /// Returns (T-states diff, state_changed)
+    /// Runs the emulation of a single frame.
+    ///
+    /// Provides EAR/MIC input/output from the tape if a recorder is playing or recording.
+    ///
+    /// Returns a tuple of `(T-states difference, state_changed)`. The returned `state_changed`
+    /// is a hint if the UI needs to be updated.
     pub fn run_frame(&mut self) -> Result<(FTs, bool)> {
         let (turbo, running) = (self.state.turbo, self.state.tape.running);
 
@@ -362,10 +387,11 @@ impl<C: Cpu, U, F> ZxSpectrum<C, U, F>
                             turbo   != self.state.turbo;
         Ok((fts_delta, state_changed))
     }
-    /// Returns (T-states diff, state_changed)
+    /// Runs emulated frames as fast as possible until a single frame duration passes in real-time
+    /// or if turbo state ends automatically from the TAPE loading end heuristics.
     ///
-    /// Runs frames as fast as possible until a single frame duration passes in real-time
-    /// or if turbo state ends automatically.
+    /// Returns a tuple of `(T-states difference, state_changed)`. The returned `state_changed`
+    /// is a hint if the UI needs to be updated.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn run_frames_accelerated(&mut self, time_sync: &mut ThreadSyncTimer) -> Result<(FTs, bool)> {
         let mut sum: FTs = 0;
@@ -382,6 +408,7 @@ impl<C: Cpu, U, F> ZxSpectrum<C, U, F>
         }
         Ok((sum, state_changed))
     }
+
     #[cfg(target_arch = "wasm32")]
     pub fn run_frames_accelerated<FN: Fn() -> f64>(
             &mut self,
@@ -404,6 +431,8 @@ impl<C: Cpu, U, F> ZxSpectrum<C, U, F>
         Ok((sum, state_changed))
     }
     /// Runs frames inserting a keymap each frame from the keymap iterator.
+    ///
+    /// This can be used by the auto-loading function.
     pub fn run_with_auto_type<'a, I: IntoIterator<Item=&'a (ZXKeyboardMap, u32)>>(
             &mut self,
             pretype_frames: u32,
@@ -432,7 +461,9 @@ impl<C: Cpu, U, F> ZxSpectrum<C, U, F>
         runner(ZXKeyboardMap::empty())?;
         Ok((sum, state_changed))
     }
-    /// Adds pulse steps to the `blep` and returns the number of samples ready to be produced.
+    /// Renders audio data from the last run frame.
+    ///
+    /// Adds pulse steps to the [Blep] and returns the number of samples ready to be produced.
     pub fn render_audio<B>(&mut self, blep: &mut B) -> usize
         where U: UlaAudioFrame<B>,
               B: Blep,
@@ -463,11 +494,14 @@ impl<C: Cpu, U, F> ZxSpectrum<C, U, F>
         }
         self.ula.end_audio_frame(blep)
     }
-
+    /// Requests the RESET function which will be executed on the next frame run.
+    ///
+    /// `hard` should be `true` if the hardware reset is required or `false` for the software
+    /// `RST 00` call.
     pub fn reset(&mut self, hard: bool) {
         self.reset_request = Some(hard);
     }
-
+    /// Requests the NMI trigger function which will be executed on the next frame run.
     pub fn trigger_nmi(&mut self) {
         self.nmi_request = true;
     }

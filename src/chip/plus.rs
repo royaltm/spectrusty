@@ -1,3 +1,10 @@
+/*
+    Copyright (C) 2020  Rafal Michalski
+
+    This file is part of SPECTRUSTY, a Rust library for building emulators.
+
+    For the full copyright notice, see the lib.rs file.
+*/
 /*! An emulator of the ULAplus enhanced graphics.
 
 This emulator wraps one of ULA chipset emulators that implements [UlaPlusInner] trait, and enhances its graphics
@@ -50,6 +57,9 @@ In 48k mode there are two available screen memory areas:
 
 ¹ - Relative to the beginning of the 16kb page.
 ² - A screen bank argument for e.g. [ZxMemory::screen_ref] and [ZxMemory::screen_mut].
+
+[ZxMemory::screen_ref]: crate::memory::ZxMemory::screen_ref
+[ZxMemory::screen_mut]: crate::memory::ZxMemory::screen_mut
 */
 use core::fmt;
 
@@ -94,6 +104,10 @@ use crate::memory::MemoryExtension;
 */
 
 /// Provides ULAplus screen and color modes for [Ula], [Ula128] and [Ula3].
+///
+/// [Ula]: crate::chip::Ula
+/// [Ula128]: crate::chip::Ula128
+/// [Ula3]: crate::chip::Ula3
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]
 #[derive(Clone)]

@@ -1,3 +1,9 @@
+/*
+    zxspectrum-common: High-level ZX Spectrum emulator library example.
+    Copyright (C) 2020  Rafal Michalski
+
+    For the full copyright notice, see the lib.rs file.
+*/
 use core::fmt;
 use std::collections::hash_map::Entry;
 use std::io;
@@ -36,17 +42,26 @@ pub type PluggableJoystickDynamicBus<SD, V> = OptionalBusDevice<MultiJoystickBus
                                                                 DynamicSerdeVBus<SD, V>>;
 /// AY-3-8912 I/O ports for 128/+2/+2A/+3/+2B models with serial ports controller, AUX device plugged 
 /// to the aux port, and a RS-232 device with custom reader and writer.
-pub type Ay128Io<V, AUX, R, W> = Ay3_8912Io<VFrameTs<V>, SerialPorts128<AUX, Rs232Io<VFrameTs<V>, R, W>>>;
+pub type Ay128Io<V, AUX, R, W> = Ay3_8912Io<VFrameTs<V>,
+                                            SerialPorts128<AUX,
+                                                           Rs232Io<VFrameTs<V>, R, W>
+                                                          >
+                                           >;
 
 /// Trait with helpers for accessing static bus devices.
+///
+/// This trait can be used for different BUS configuration.
+///
+/// All trait methods return optional values depending if a device is present in the static BUS configuration.
+/// Thus it's easier to write re-usable code which accesses certain devices.
 pub trait DeviceAccess: Video {
-    /// A device used as joystick bus device
+    /// A device used as a joystick bus device.
     type JoystickBusDevice;
-    /// A serial port device attached to AY-3-8912 I/O port A / serial1 - AUX port
+    /// A serial port device attached to AY-3-8912 I/O port A / serial1 - AUX port.
     type Ay128Serial1: SerialPortDevice<Timestamp=VFrameTs<Self::VideoFrame>> + fmt::Debug;
-    /// RS232 input
+    /// RS232 input.
     type CommRd: io::Read + fmt::Debug;
-    /// RS232/Centronics output
+    /// RS232/Centronics output.
     type CommWr: io::Write + fmt::Debug;
 
     fn dyn_bus_device_mut(&mut self) -> Option<&mut DynamicVBus<Self::VideoFrame>> { None }
@@ -63,13 +78,17 @@ pub trait DeviceAccess: Video {
 }
 
 /// Trait with helpers for managing dynamic bus devices.
+///
+/// This trait can be used to easily manage dynamic devices in run time.
 pub trait DynamicDevices<V: VideoFrame> {
     /// Returns `true` if dynamic bus device is present in the bus device chain.
     fn attach_device<D: Into<BoxNamedDynDevice<VFrameTs<V>>>>(&mut self, device: D) -> bool;
     fn detach_device<D: NamedBusDevice<VFrameTs<V>> + 'static>(&mut self) -> Option<Box<D>>;
     fn device_mut<D: NamedBusDevice<VFrameTs<V>> + 'static>(&mut self) -> Option<&mut D>;
     fn device_ref<D: NamedBusDevice<VFrameTs<V>> + 'static>(&self) -> Option<&D>;
-    /// This needs to be called after deserializing dynamic devices.
+    /// This must be called after deserializing struct containing dynamic devices.
+    ///
+    /// Otherwise methods in this trait won't be able to find already present devices.
     fn rebuild_device_index(&mut self);
 }
 
@@ -284,6 +303,9 @@ impl<C: Cpu, S, X, F, R, W> ZxSpectrumModel<C, S, X, F, R, W>
           R: io::Read + fmt::Debug,
           W: io::Write + fmt::Debug,
 {
+    /// This must be called after deserializing struct containing dynamic devices.
+    ///
+    /// Otherwise methods managing dynamic devices won't be able to find devices that are already present.
     pub fn rebuild_device_index(&mut self) {
         spectrum_model_dispatch!(self(spec) => spec.rebuild_device_index());
     }

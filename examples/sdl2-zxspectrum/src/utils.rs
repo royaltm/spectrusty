@@ -1,3 +1,9 @@
+/*
+    sdl2-zxspectrum: ZX Spectrum emulator example as a SDL2 application.
+    Copyright (C) 2020  Rafal Michalski
+
+    For the full copyright notice, see the main.rs file.
+*/
 #![allow(unused_macros)]
 
 #[allow(unused_imports)]
@@ -45,7 +51,7 @@ pub fn err_str<E: Error>(e: E) -> String { e.to_string() }
 
 pub fn create_image_canvas_window(video_sdl: &VideoSubsystem, image_data: &[u8]) -> Result<WindowCanvas, Box<dyn Error>> {
     let img = image::load_from_memory_with_format(image_data,
-                                                  image::ImageFormat::Png)?
+                                                  image::ImageFormat::Jpeg)?
               .into_rgb();
     let (width, height) = img.dimensions();
     let window = video_sdl.window("ZX Spectrum", width, height)
@@ -57,7 +63,7 @@ pub fn create_image_canvas_window(video_sdl: &VideoSubsystem, image_data: &[u8])
     let mut canvas = window.into_canvas().build()?;
     let texture_creator = canvas.texture_creator();
     let mut texture = texture_creator.create_texture_static(PixelFormatEnum::RGB24, width, height)?;
-    println!("{:?}", texture.query());
+    // println!("{:?}", texture.query());
     let samples = img.as_flat_samples();
     let pitch = samples.layout.height_stride;
     texture.update(None,

@@ -1,3 +1,10 @@
+/*
+    Copyright (C) 2020  Rafal Michalski
+
+    This file is part of SPECTRUSTY, a Rust library for building emulators.
+
+    For the full copyright notice, see the lib.rs file.
+*/
 //! Keyboard related functions to be used with [SDL2](https://crates.io/crates/sdl2).
 //!
 //! Requires "sdl2" feature to be enabled.

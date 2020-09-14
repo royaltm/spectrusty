@@ -1,4 +1,22 @@
-//! ZX Spectrum tape sound PR0N demo!
+/*
+    audio_tap_cpal: ZX Spectrum TAPE sound demo!
+    Copyright (C) 2020  Rafal Michalski
+
+    audio_tap_cpal is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    audio_tap_cpal is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+    Author contact information: see Cargo.toml file, section [package.authors].
+*/
 use std::io::{Cursor, Read, Seek};
 use spectrusty::audio::{
     synth::*,
@@ -51,8 +69,10 @@ fn produce<T: 'static + FromSample<i16> + AudioSample + cpal::Sample + Send, R: 
                         let chunk = TapChunk::from(tap_pulse_iter.get_ref().get_ref()).validated().unwrap();
                         println!("{}", chunk);
                         if chunk.is_head() {
-                            println!("name: {}", chunk.array_name().unwrap());
                             println!("{:?}", chunk);
+                            if let Some(BlockType::NumberArray)|Some(BlockType::CharArray) = chunk.block_type() {
+                                println!("array name: {}", chunk.array_name().unwrap());
+                            }
                         }
                     }
                 }
@@ -120,6 +140,10 @@ fn produce<T: 'static + FromSample<i16> + AudioSample + cpal::Sample + Send, R: 
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    println!(r#"audio_tap_cpal  Copyright (C) 2020  Rafal Michalski
+This program comes with ABSOLUTELY NO WARRANTY.
+This is free software, and you are welcome to redistribute it under certain conditions."#);
+
     let frame_duration_nanos = nanos_from_frame_tc_cpu_hz(FRAME_TSTATES as u32, CPU_HZ) as u32;
     let audio = AudioHandleAnyFormat::create(&cpal::default_host(), frame_duration_nanos, 0)?;
     let spec = hound::WavSpec {

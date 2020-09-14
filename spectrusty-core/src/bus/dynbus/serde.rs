@@ -1,3 +1,10 @@
+/*
+    Copyright (C) 2020  Rafal Michalski
+
+    This file is part of SPECTRUSTY, a Rust library for building emulators.
+
+    For the full copyright notice, see the lib.rs file.
+*/
 use core::fmt::{self, Debug};
 use core::ops::{Deref, DerefMut};
 use core::marker::PhantomData;
@@ -32,7 +39,7 @@ pub trait DeserializeDynDevice<'de> {
     ) -> Result<Box<dyn NamedBusDevice<T>>, D::Error>;
 }
 
-/// A terminated [DynamicSerdeBus] pseudo-device with [VFrameTs<V>][VFrameTs] timestamps.
+/// A terminated [DynamicSerdeBus] pseudo-device with [`VFNullDevice<V>`][VFNullDevice].
 pub type DynamicSerdeVBus<S, V> = DynamicSerdeBus<S, VFNullDevice<V>>;
 
 /// A wrapper for [DynamicBus] that is able to serialize and deserialize together with devices attached to it.

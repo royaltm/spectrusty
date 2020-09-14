@@ -1,3 +1,10 @@
+/*
+    Copyright (C) 2020  Rafal Michalski
+
+    This file is part of SPECTRUSTY, a Rust library for building emulators.
+
+    For the full copyright notice, see the lib.rs file.
+*/
 //! Kempston Joystick implementation.
 use super::{JoystickDevice, Directions, JoystickInterface};
                       // 000F_UDLR

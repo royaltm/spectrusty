@@ -1,3 +1,9 @@
+/*
+    sdl2-zxspectrum: ZX Spectrum emulator example as a SDL2 application.
+    Copyright (C) 2020  Rafal Michalski
+
+    For the full copyright notice, see the main.rs file.
+*/
 use core::convert::TryFrom;
 use core::fmt;
 use core::ops::Range;
@@ -121,8 +127,7 @@ impl<C: Cpu, U> ZxSpectrumEmu<C, U> {
         // };
         // let writer = Some(hound::WavWriter::create("spectrum.wav", spec).unwrap());
         let audio = Audio::create(sdl_context, U::frame_duration_nanos(), latency)?;
-        println!("{:?}", audio.channels);
-        let mut bandlim = BlepAmpFilter::build(0.5)(BlepStereo::build(0.86)(BandLimited::new(audio.channels.into())));
+        let mut bandlim = BlepAmpFilter::build(0.25)(BlepStereo::build(0.86)(BandLimited::new(audio.channels.into())));
         spectrum.ula.ensure_audio_frame_time(&mut bandlim, audio.sample_rate, U::effective_cpu_rate(1.0));
         let time_sync = ThreadSyncTimer::new(U::frame_duration_nanos());
         audio.play();
@@ -436,7 +441,9 @@ impl<C: Cpu, U> ZxSpectrumEmu<C, U> {
         let running = self.spectrum.state.tape.running;
         // is there any TAPE inserted at all?
         if let Some(tap) = self.spectrum.state.tape.tap.as_mut() {
-            let flash = if self.spectrum.state.flash_tape { '⚡' } else { ' ' };
+            let flash = if self.spectrum.state.instant_tape { "⚡⚡" }
+                        else if self.spectrum.state.flash_tape { "⚡" }
+                        else { " " };
             // we'll show if the TAP sound is audible
             let audible = if self.spectrum.state.audible_tape { '🔊' } else { '🔈' };
             match tap {

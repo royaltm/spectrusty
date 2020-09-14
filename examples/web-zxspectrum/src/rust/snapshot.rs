@@ -1,3 +1,9 @@
+/*
+    web-zxspectrum: ZX Spectrum emulator example as a Web application.
+    Copyright (C) 2020  Rafal Michalski
+
+    For the full copyright notice, see the lib.rs file.
+*/
 use std::io::Read;
 use core::convert::TryFrom;
 

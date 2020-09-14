@@ -1,8 +1,12 @@
+!*.tap
+!*.ay
 /other
 /games
 /demos
 /roms/*.rom
-!/roms/48.rom
 !/roms/128-*.rom
-!/roms/plus[23]-*.rom
+!/roms/48.rom
+!/roms/BBCBasic.rom
+!/roms/opense.rom
+!/roms/plus[23]*.rom
 !/roms/tc20*.rom

@@ -1,3 +1,10 @@
+/*
+    Copyright (C) 2020  Rafal Michalski
+
+    This file is part of SPECTRUSTY, a Rust library for building emulators.
+
+    For the full copyright notice, see the lib.rs file.
+*/
 //! Audio device streaming implementation for [SDL2](https://crates.io/crates/sdl2).
 //!
 //! This module implements [carousel][crate::carousel] using the **SDL2** audio layer.
@@ -42,12 +49,12 @@ impl<T: AudioFormatNum + AudioSample> AudioCallback for AudioCb<T> {
     }
 }
 
-/// The struct for producing and controling the audio playback.
+/// The struct for producing and controlling the audio playback.
 ///
 /// It embeds the interconnected pair of [carousel][crate::carousel]'s [AudioFrameProducer] with the
 /// [AudioFrameConsumer] directly exposing the `producer` to the user. The consumer lives in the
 /// **SDL2** audio thread and is responsible for filling up the audio output buffer with sample data
-/// sent by the `producer`.
+/// sent from the `producer`.
 ///
 /// The `T` parameter should be one of the [sample primitives][AudioSample].
 pub struct AudioHandle<T: AudioFormatNum + AudioSample> {

@@ -1,3 +1,10 @@
+/*
+    Copyright (C) 2020  Rafal Michalski
+
+    This file is part of SPECTRUSTY, a Rust library for building emulators.
+
+    For the full copyright notice, see the lib.rs file.
+*/
 //! **AY** file format parser and player initializer. See: [ProjectAY](https://www.worldofspectrum.org/projectay/).
 use core::fmt::{self, Write};
 use core::num::NonZeroU16;

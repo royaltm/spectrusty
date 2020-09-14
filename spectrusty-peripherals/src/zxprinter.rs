@@ -1,3 +1,10 @@
+/*
+    Copyright (C) 2020  Rafal Michalski
+
+    This file is part of SPECTRUSTY, a Rust library for building emulators.
+
+    For the full copyright notice, see the lib.rs file.
+*/
 //! An emulator of the family of printers: **ZX Printer** / **Alphacom 32** / **Timex TS2040**.
 //!
 //! **ZX Printer** is an extremely compact, 32 column printer which uses an aluminium coated paper.
