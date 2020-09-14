@@ -42,20 +42,20 @@ use spectrusty_utils::io::{Empty, Sink};
 use super::devices::{DeviceAccess, DynamicDevices, PluggableJoystickDynamicBus};
 use super::spectrum::{MemTap, EmulatorState, ZxSpectrum, SpectrumUla};
 
-pub static ROM48: &[&[u8]] = &[include_bytes!("../../../resources/48.rom")];
-pub static ROM_TC2048: &[&[u8]] = &[include_bytes!("../../../resources/tc2048.rom")];
-pub static ROM128: &[&[u8]] = &[include_bytes!("../../../resources/128-0.rom"),
-                            include_bytes!("../../../resources/128-1.rom")];
-pub static ROM_PLUS2: &[&[u8]] = &[include_bytes!("../../../resources/plus2-0.rom"),
-                               include_bytes!("../../../resources/plus2-1.rom")];
-pub static ROM_PLUS3: &[&[u8]] = &[include_bytes!("../../../resources/plus3-0.rom"),
-                               include_bytes!("../../../resources/plus3-1.rom"),
-                               include_bytes!("../../../resources/plus3-2.rom"),
-                               include_bytes!("../../../resources/plus3-3.rom")];
-pub static ROM_PLUS2B: &[&[u8]] = &[include_bytes!("../../../resources/plus2b-0.rom"),
-                               include_bytes!("../../../resources/plus2b-1.rom"),
-                               include_bytes!("../../../resources/plus2b-2.rom"),
-                               include_bytes!("../../../resources/plus2b-3.rom")];
+pub static ROM48: &[&[u8]] = &[include_bytes!("../../../resources/roms/48.rom")];
+pub static ROM_TC2048: &[&[u8]] = &[include_bytes!("../../../resources/roms/tc2048.rom")];
+pub static ROM128: &[&[u8]] = &[include_bytes!("../../../resources/roms/128-0.rom"),
+                            include_bytes!("../../../resources/roms/128-1.rom")];
+pub static ROM_PLUS2: &[&[u8]] = &[include_bytes!("../../../resources/roms/plus2-0.rom"),
+                               include_bytes!("../../../resources/roms/plus2-1.rom")];
+pub static ROM_PLUS3: &[&[u8]] = &[include_bytes!("../../../resources/roms/plus3-0.rom"),
+                               include_bytes!("../../../resources/roms/plus3-1.rom"),
+                               include_bytes!("../../../resources/roms/plus3-2.rom"),
+                               include_bytes!("../../../resources/roms/plus3-3.rom")];
+pub static ROM_PLUS2B: &[&[u8]] = &[include_bytes!("../../../resources/Plus2BROMSet.rom/emulators/0.rom"),
+                               include_bytes!("../../../resources/Plus2BROMSet.rom/emulators/1.rom"),
+                               include_bytes!("../../../resources/Plus2BROMSet.rom/emulators/2.rom"),
+                               include_bytes!("../../../resources/Plus2BROMSet.rom/emulators/3.rom")];
 
 /* First some chipset type declarations */
 

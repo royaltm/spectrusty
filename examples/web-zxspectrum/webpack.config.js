@@ -53,7 +53,10 @@ module.exports = {
             forceMode: "production",
         }),
         new CopyWebpackPlugin([
-            "static"
+            "static",
+            { from: "../../resources/Plus2BROMSet.rom/keyboards", to: "keyboards" },
+            { from: "../../resources/games", to: "games" },
+            { from: "../../resources/demos", to: "demos" }
         ]),
         // Have this example work in Edge which doesn't ship `TextEncoder` or
         // `TextDecoder` at this time.

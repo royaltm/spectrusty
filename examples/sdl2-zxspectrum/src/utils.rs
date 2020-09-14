@@ -45,7 +45,7 @@ pub fn err_str<E: Error>(e: E) -> String { e.to_string() }
 
 pub fn create_image_canvas_window(video_sdl: &VideoSubsystem, image_data: &[u8]) -> Result<WindowCanvas, Box<dyn Error>> {
     let img = image::load_from_memory_with_format(image_data,
-                                                  image::ImageFormat::Jpeg)?
+                                                  image::ImageFormat::Png)?
               .into_rgb();
     let (width, height) = img.dimensions();
     let window = video_sdl.window("ZX Spectrum", width, height)

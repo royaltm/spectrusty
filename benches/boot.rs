@@ -9,7 +9,7 @@ use spectrusty::video::VideoFrame;
 use rand::prelude::*;
 use spectrusty::z80emu::*;
 
-const ROM48: &[u8] = include_bytes!("../resources/48.rom");
+const ROM48: &[u8] = include_bytes!("../resources/roms/48.rom");
 
 const KEYBOARD_INPUT: u16 = 0x10A8;
 const NO_DEBUG: Option<CpuDebugFn> = None;

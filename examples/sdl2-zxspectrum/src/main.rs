@@ -58,7 +58,7 @@ use emulator::*;
 type PixelBuf<'a> = pixel::PixelBufP32<'a>;
 type SpectrumPal = pixel::SpectrumPalA8R8G8B8;
 const PIXEL_FORMAT: PixelFormatEnum = PixelFormatEnum::RGB888;
-const KEYBOARD_IMAGE: &[u8] = include_bytes!("../../../resources/ZXSpectrumKeys704.jpg");
+const KEYBOARD_IMAGE: &[u8] = include_bytes!("../../../resources/Plus2BROMSet.rom/keyboards/48.png");
 
 const HEAD: &str = r#"The SDL2 desktop example emulator for "rust-zxspecemu""#;
 const HELP: &str = r###"

@@ -6,13 +6,13 @@ use spectrusty::clock::*;
 use rand::prelude::*;
 use spectrusty::z80emu::*;
 
-const ROM48: &[u8] = include_bytes!("../resources/48.rom");
-const ROM128_0: &[u8] = include_bytes!("../resources/128-0.rom");
-const ROM128_1: &[u8] = include_bytes!("../resources/128-1.rom");
-const ROM_PLUS3_0: &[u8] = include_bytes!("../resources/plus3-0.rom");
-const ROM_PLUS3_1: &[u8] = include_bytes!("../resources/plus3-1.rom");
-const ROM_PLUS3_2: &[u8] = include_bytes!("../resources/plus3-2.rom");
-const ROM_PLUS3_3: &[u8] = include_bytes!("../resources/plus3-3.rom");
+const ROM48: &[u8] = include_bytes!("../resources/roms/48.rom");
+const ROM128_0: &[u8] = include_bytes!("../resources/roms/128-0.rom");
+const ROM128_1: &[u8] = include_bytes!("../resources/roms/128-1.rom");
+const ROM_PLUS3_0: &[u8] = include_bytes!("../resources/roms/plus3-0.rom");
+const ROM_PLUS3_1: &[u8] = include_bytes!("../resources/roms/plus3-1.rom");
+const ROM_PLUS3_2: &[u8] = include_bytes!("../resources/roms/plus3-2.rom");
+const ROM_PLUS3_3: &[u8] = include_bytes!("../resources/roms/plus3-3.rom");
 
 const CPU_RESET: &str = r#"{
   "af": -1,

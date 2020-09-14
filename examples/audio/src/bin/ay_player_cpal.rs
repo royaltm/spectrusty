@@ -48,7 +48,7 @@ fn produce<T, R: Read>(
     let mut player = Ay128kPlayer::default();
     player.ensure_audio_frame_time(&mut bandlim, audio.sample_rate);
     player.reset(&mut cpu, true);
-    // let rom_file = std::fs::File::open("resources/48k.rom").unwrap();
+    // let rom_file = std::fs::File::open("resources/roms/48.rom").unwrap();
     // player.memory.load_into_rom_page(0, rom_file).unwrap();
     // read_sna(rd, &mut cpu, &mut player.memory).unwrap();
     let ay_file = match read_ay(rd) {
