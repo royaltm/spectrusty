@@ -16,6 +16,7 @@ use std::fs;
 #[allow(unused_imports)]
 use log::{error, warn, info, debug, trace};
 
+use ::serde::Serialize;
 use arrayvec::ArrayString;
 use chrono::prelude::*;
 use sdl2::{Sdl, mouse::MouseButton, keyboard::{Keycode, Mod as Modifier}};
@@ -99,15 +100,32 @@ type Audio = AudioHandle<Sample>;
 pub type BandLim = BlepAmpFilter<BlepStereo<BandLimited<BlepDelta>>>;
 
 /// This is the main class being instantiated in main.
+#[derive(Serialize)]
 pub struct ZxSpectrumEmu<C: Cpu, U> {
     pub model: ModelRequest,
+    #[serde(flatten)]
     pub spectrum: ZxSpectrum<C, U>,
+    #[serde(skip)]
     pub audio: Audio,
+    #[serde(skip)]
     pub time_sync: ThreadSyncTimer,
+    #[serde(skip)]
     bandlim: BandLim,
+    #[serde(skip)]
     pub mouse_rel: (i32, i32),
+    #[serde(skip)]
     info_text: String,
+    #[serde(skip)]
     info_range: Range<usize>
+}
+
+pub fn snap_file_ext(filepath: &str) -> Option<&'static str> {
+    match Path::new(filepath).extension().and_then(OsStr::to_str) {
+        Some(ext) if ext.eq_ignore_ascii_case("json") => Some("json"),
+        Some(ext) if ext.eq_ignore_ascii_case("sna") => Some("sna"),
+        Some(ext) if ext.eq_ignore_ascii_case("z80") => Some("z80"),
+        _ => None
+    }
 }
 
 impl<C: Cpu, U> ZxSpectrumEmu<C, U> {
@@ -555,4 +573,3 @@ fn dynamic_info<C, U, W: fmt::Write>(spec: &ZxSpectrum<C, U>, info: &mut W) -> R
     }
     Ok(())
 }
-

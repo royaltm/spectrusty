@@ -33,7 +33,7 @@ use spectrusty::bus::{
 };
 use spectrusty::chip::{
     FrameState, Ula128Control, Ula3Control, ScldControl,
-    MemoryAccess, HostConfig,
+    MemoryAccess, HostConfig, UlaCommon,
     Ula128MemFlags, Ula3CtrlFlags, ScldCtrlFlags,
     ula::{Ula, UlaPAL, UlaNTSC, UlaVideoFrame, UlaNTSCVidFrame},
     ula128::{Ula128, Ula128VidFrame},
@@ -119,6 +119,8 @@ pub type ZxSpectrum2B<C, D, X=NoMemoryExtension,
 
 /// This enum is being used for querying or requesting a model type.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Serialize)]
+#[serde(into="&str")]
 pub enum ModelRequest {
     Spectrum16,
     Spectrum48,
@@ -819,6 +821,39 @@ impl<C, S, X, F, R, W> ZxSpectrumModel<C, S, X, F, R, W>
     }
 }
 
+impl<C: Cpu, U, F> ZxSpectrum<C, U, F>
+    where C: Cpu,
+          F: io::Read + io::Write + io::Seek,
+          U: UlaCommon
+{
+    /// Resets Spectrum as a specified `model`, waits for the boot sequence to end and performs auto-type
+    /// so the data from the tape can be loaded.
+    ///
+    /// Runs as many frames as necessary to acomplish the task.
+    ///
+    /// Returns the tuple from [ZxSpectrum::run_with_auto_type].
+    pub fn reset_and_load(&mut self, model: ModelRequest) -> crate::spectrum::Result<(FTs, bool)> {
+        self.reset(true);
+        use ModelRequest::*;
+        type Zk = spectrusty::peripherals::ZXKeyboardMap;
+        const LOAD_SE: Zk = Zk::from_bits_truncate(Zk::SS.bits()|Zk::Q.bits());
+        const QUOTE: Zk = Zk::from_bits_truncate(Zk::SS.bits()|Zk::P.bits());
+        const LOAD_QQ_EN: &[(Zk, u32)] = &[(Zk::J, 1), (QUOTE, 1), (Zk::SS, 4), (QUOTE, 1), (Zk::EN, 1)];
+        const LOAD_QQ_EN_SE: &[(Zk, u32)] = &[(Zk::EN, 1), (Zk::empty(), 17), (LOAD_SE, 1), (QUOTE, 1), (Zk::SS, 4), (QUOTE, 1), (Zk::EN, 1)];
+        match model {
+            Spectrum16 => self.run_with_auto_type(48, LOAD_QQ_EN),
+            Spectrum48|TimexTC2048 => self.run_with_auto_type(87, LOAD_QQ_EN),
+            SpectrumNTSC => self.run_with_auto_type(103, LOAD_QQ_EN),
+            Spectrum128|SpectrumPlus2|SpectrumPlusPlus2 => {
+                self.run_with_auto_type(67, iter::once(&(Zk::EN, 1)))
+            }
+            SpectrumPlus2A => self.run_with_auto_type(87, iter::once(&(Zk::EN, 1))),
+            SpectrumPlus2B => self.run_with_auto_type(63, LOAD_QQ_EN_SE),
+            _ => unimplemented!("reset_and_load unimplemented for specifed model")
+        }
+    }
+}
+
 impl<C, S, X, F, R, W> ZxSpectrumModel<C, S, X, F, R, W>
     where C: Cpu,
           S: 'static,
@@ -834,23 +869,8 @@ impl<C, S, X, F, R, W> ZxSpectrumModel<C, S, X, F, R, W>
     ///
     /// Returns the tuple from [ZxSpectrum::run_with_auto_type].
     pub fn reset_and_load(&mut self) -> crate::spectrum::Result<(FTs, bool)> {
-        spectrum_model_dispatch!(self(spec) => spec.reset(true));
-        use ZxSpectrumModel::*;
-        type Zk = spectrusty::peripherals::ZXKeyboardMap;
-        const LOAD_SE: Zk = Zk::from_bits_truncate(Zk::SS.bits()|Zk::Q.bits());
-        const QUOTE: Zk = Zk::from_bits_truncate(Zk::SS.bits()|Zk::P.bits());
-        const LOAD_QQ_EN: &[(Zk, u32)] = &[(Zk::J, 1), (QUOTE, 1), (Zk::SS, 4), (QUOTE, 1), (Zk::EN, 1)];
-        const LOAD_QQ_EN_SE: &[(Zk, u32)] = &[(Zk::EN, 1), (Zk::empty(), 17), (LOAD_SE, 1), (QUOTE, 1), (Zk::SS, 4), (QUOTE, 1), (Zk::EN, 1)];
-        match self {
-            Spectrum16(spec16) => spec16.run_with_auto_type(48, LOAD_QQ_EN),
-            Spectrum48(spec48) => spec48.run_with_auto_type(87, LOAD_QQ_EN),
-            SpectrumNTSC(spec48) => spec48.run_with_auto_type(103, LOAD_QQ_EN),
-            Spectrum128(spec128)|SpectrumPlus2(spec128) => spec128.run_with_auto_type(67, iter::once(&(Zk::EN, 1))),
-            SpectrumPlus2A(spec3) => spec3.run_with_auto_type(87, iter::once(&(Zk::EN, 1))),
-            TimexTC2048(timex) => timex.run_with_auto_type(87, LOAD_QQ_EN),
-            SpectrumPlusPlus2(plus128) => plus128.run_with_auto_type(67, iter::once(&(Zk::EN, 1))),
-            SpectrumPlus2B(plus128) => plus128.run_with_auto_type(63, LOAD_QQ_EN_SE),
-        }
+        let model = (&*self).into();
+        spectrum_model_dispatch!(self(spec) => spec.reset_and_load(model))
     }
 }
 

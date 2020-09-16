@@ -21,8 +21,8 @@ pub fn alert_window(text: Cow<str>) {
     show_simple_message_box(MessageBoxFlag::ERROR, "ZX Spectrum", &text, None).expect("to show message box");
 }
 
-pub fn info_window(text: Cow<str>) {
-    show_simple_message_box(MessageBoxFlag::INFORMATION, "ZX Spectrum", &text, None).expect("to show message box");
+pub fn info_window(head: &str, text: Cow<str>) {
+    show_simple_message_box(MessageBoxFlag::INFORMATION, head, &text, None).expect("to show message box");
 }
 
 #[cfg(not(windows))]

@@ -79,7 +79,7 @@ type SpectrumPal = pixel::SpectrumPalA8R8G8B8;
 const PIXEL_FORMAT: PixelFormatEnum = PixelFormatEnum::RGB888;
 const KEYBOARD_IMAGE: &[u8] = include_bytes!("../../../resources/keyboard48.jpg");
 
-const HEAD: &str = r#"The SDL2 desktop example emulator for "rust-zxspecemu""#;
+const HEAD: &str = r#"SPECTRUSTY: a desktop SDL2 example emulator."#;
 const HELP: &str = r###"
 Drag & drop TAP, SNA or SCR files over the emulator window in order to load them.
 
@@ -114,10 +114,10 @@ use std::thread;
 fn main() -> Result<()> {
     simple_logger::SimpleLogger::new().with_level(log::LevelFilter::Info).init()?;
 
-    let matches = clap_app!(Spectrusty =>
+    let matches = clap_app!(SDL2_SPECTRUSTY_Example =>
         (version: "1.0")
-        (author: "Rafal Michalski")
-        (about: "Spectrusty library example SDL2 emulator")
+        (author: "Rafał Michalski")
+        (about: HEAD)
         (@arg audio: --audio +takes_value "Audio latency")
         (@arg border: -b --border +takes_value "Initial border size")
         (@arg cpu: -c --cpu +takes_value "Select CPU type")
@@ -135,7 +135,7 @@ fn main() -> Result<()> {
 
     set_dpi_awareness()?;
 
-    println!("{:?}", matches.values_of("FILES"));
+    // println!("{:?}", matches.values_of("FILES"));
 
     thread::Builder::new().stack_size(4096 * 1024)
     .spawn(move || {
@@ -148,17 +148,21 @@ fn main() -> Result<()> {
 fn select_model(matches: clap::ArgMatches) -> Result<()> {
     let mut mreq = ModelRequest::SpectrumPlus2B;
 
-    // for filepath in matches.values_of("FILES") {
-    //     match filepath.extension().and_then(OsStr::to_str) {
-    // }
-    let model: ZxSpectrumModel;
+    let model;
+    let prevent_autoload;
 
     let files = matches.values_of("FILES");
 
-    if let Some(filename) = files.and_then(|mut f| f.next()) {
-        let file = File::open(filename)?;
+    if let Some(filepath) = files.and_then(|mut f|
+                                    f.find(|&fpath|
+                                        snap_file_ext(fpath) == Some("json")
+                                    )
+                                )
+    {
+        let file = File::open(filepath)?;
         model = serde_json::from_reader(file)?;
         mreq = ModelRequest::from(&model);
+        prevent_autoload = true;
     }
     else {
         if let Some(model) = matches.value_of("model") {
@@ -175,15 +179,17 @@ fn select_model(matches: clap::ArgMatches) -> Result<()> {
             }
         }
         model = ZxSpectrumModel::new(mreq);
+        prevent_autoload = false;
     }
 
-    spectrum_model_dispatch!(model(spec) => config_and_run(mreq, spec, matches))
+    spectrum_model_dispatch!(model(spec) => config_and_run(mreq, spec, matches, prevent_autoload))
 }
 
 fn config_and_run<U: 'static>(
         mreq: ModelRequest,
         mut spec: ZxSpectrum<Z80Any, U>,
         matches: clap::ArgMatches,
+        prevent_autoload: bool,
     ) -> Result<()>
     where U: HostConfig
            + UlaCommon
@@ -191,8 +197,9 @@ fn config_and_run<U: 'static>(
            + SpoolerAccess
            + ScreenDataProvider
            + UlaPlusMode
-           + MemoryAccess<MemoryExt = ZxInterface1MemExt>,
-          ZxSpectrum<Z80Any, U>: serde::Serialize + JoystickAccess
+           + MemoryAccess<MemoryExt = ZxInterface1MemExt>
+           + serde::Serialize,
+          ZxSpectrum<Z80Any, U>: JoystickAccess
 {
     let sdl_context = sdl2::init()?;
 
@@ -277,7 +284,35 @@ fn config_and_run<U: 'static>(
     }
 
     let mut zx = ZxSpectrumEmu::new_with(mreq, spec, &sdl_context, latency)?;
-    run(&mut zx, &sdl_context)
+
+    // load non-snapshot files
+    if let Some(files) = matches.values_of("FILES") {
+        for filepath in files.filter(|&filepath|
+                                        snap_file_ext(filepath).is_none()
+                                    )
+        {
+            info!("Loading file: {}", filepath);
+            match zx.handle_file(filepath)? {
+                Some(msg) => info!("{}", msg),
+                None => warn!("Unknown file type: {}", filepath),
+            }
+        }
+
+        if zx.spectrum.state.tape.is_inserted() && !prevent_autoload {
+            zx.spectrum.reset_and_load(zx.model)?;
+        }
+    }
+
+    // run the emulator
+    run(&mut zx, &sdl_context)?;
+
+    // save the snapshot
+    let json_name = format!("spectrusty_{}.json", Utc::now().format("%Y-%m-%d_%H%M%S%.f"));
+    let json_file = std::fs::File::create(&json_name)?;
+    serde_json::to_writer(json_file, &zx)?;
+    info!("Saved a snapshot file: {}", json_name);
+
+    Ok(())
 }
 
 fn run<C, U: 'static>(
@@ -290,7 +325,7 @@ fn run<C, U: 'static>(
            + SpoolerAccess
            + ScreenDataProvider
            + UlaPlusMode,
-          ZxSpectrum<C, U>: serde::Serialize + JoystickAccess
+          ZxSpectrum<C, U>: JoystickAccess
 {
     // SDL2 related code follows
     // the context variables, created below could be a part of some struct in a mature program
@@ -401,8 +436,8 @@ fn run<C, U: 'static>(
                 }
                 Event::KeyDown{ keycode: Some(Keycode::F1), repeat: false, ..} => {
                     zx.audio.pause();
-                    info_window(format!("{}\nHardware configuration:\n{}\n{}",
-                                    HEAD, zx.device_info()?, HELP).into());
+                    info_window(HEAD, format!("Hardware configuration:\n{}\n{}",
+                                    zx.device_info()?, HELP).into());
                     zx.resume_audio();
                 }
                 Event::KeyDown{ keycode: Some(Keycode::F11), repeat: false, ..} => {
@@ -449,7 +484,7 @@ fn run<C, U: 'static>(
                 }
                 Event::KeyDown { keycode: Some(Keycode::F3), repeat: false, ..} => {
                     zx.audio.pause();
-                    info_window(zx.save_printed_images()?.into());
+                    info_window("Printer", zx.save_printed_images()?.into());
                     zx.resume_audio();
                     update_info = true;
                 }
@@ -514,7 +549,7 @@ fn run<C, U: 'static>(
                 }
                 Event::KeyDown { keycode: Some(Keycode::F6), repeat: false, ..} => {
                     zx.audio.pause();
-                    info_window(zx.tape_info()?);
+                    info_window("Tape recorder", zx.tape_info()?);
                     zx.resume_audio();
                 }
                 Event::KeyDown { keycode: Some(Keycode::F7), repeat: false, ..} => {
@@ -568,7 +603,7 @@ fn run<C, U: 'static>(
                 Event::KeyDown { keycode: Some(Keycode::PrintScreen), repeat: false, ..} => {
                     zx.audio.pause();
                     let filename = zx.save_screen()?;
-                    info_window(format!("Screen saved as:\n{}", filename).into());
+                    info_window("Screen captured", format!("Screen saved as:\n{}", filename).into());
                     zx.resume_audio();
                 }
                 Event::KeyDown { keycode: Some(Keycode::Tab), repeat: false, ..} => {
@@ -587,11 +622,11 @@ fn run<C, U: 'static>(
                     match zx.handle_file(&filename) {
                         Ok(Some(msg)) => {
                             if !msg.is_empty() {
-                                info_window(msg.into());
+                                info_window("File", msg.into());
                             }
                             update_info = true;
                         }
-                        Ok(None) => info_window(format!("Unknown file type: {}", filename).into()),
+                        Ok(None) => info_window("File", format!("Unknown file type: {}", filename).into()),
                         Err(e) => alert_window(e.to_string().into()),
                     }
                     zx.resume_audio();
@@ -662,5 +697,6 @@ fn run<C, U: 'static>(
             }
         }
     }
+
     Ok(())
 }
