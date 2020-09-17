@@ -4,9 +4,10 @@ SPECTRUSTY
 ZX Spectrum common
 ------------------
 
-This package contains an example ZX Spectrum emulator library that organizes concrete models and device interfaces.
+This package contains an example ZX Spectrum emulator library that organizes concrete models and interfaces for easy device access.
 
-This library provides a very opinionated, high-level API on top of SPECTRUSTY.
+This library provides a very opinionated, high-level emulator API on top of SPECTRUSTY.
+
 
 ### Models
 

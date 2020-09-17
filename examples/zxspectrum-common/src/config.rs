@@ -201,28 +201,28 @@ impl InterlaceMode {
 }
 
 impl DeviceIndex {
-    /// Returns `true` if the device type `D` exists. Otherwise returns `false`.
+    /// Returns `true` if a device of type `D` is present. Otherwise returns `false`.
     pub fn has_device<D: 'static>(&self) -> bool {
         self.0.contains_key(&TypeId::of::<D>())
     }
 
-    /// Returns position index of the device type `D` if the device exists.
+    /// Returns position index of a device of type `D`, if the device is present.
     pub fn get_device_index<D: 'static>(&self) -> Option<usize> {
         self.0.get(&TypeId::of::<D>()).copied()
     }
 
-    /// Gets the specified device's hash map [Entry] for in-place manipulation.
+    /// Gets the specified (by its type) device's hash map [Entry] for in-place manipulation.
     pub fn device_entry<D: 'static>(&mut self) -> Entry<'_, TypeId, usize> {
         self.0.entry(TypeId::of::<D>())
     }
 
-    /// Removes a device type `D` if exists and returns its position index.
+    /// Removes a device of type `D` if present and returns its position index.
     pub fn remove_device_index<D: 'static>(&mut self) -> Option<usize> {
         self.0.remove(&TypeId::of::<D>())
     }
 
-    /// Inserts a device type `D` if exists and returns its previous position index
-    /// if device has already existed.
+    /// Inserts a device of type `D` and returns its previous position index if 
+    /// a device of the same type has been previously present.
     pub fn insert_device_index<D: 'static>(&mut self, index: usize) -> Option<usize> {
         self.0.insert(TypeId::of::<D>(), index)
     }

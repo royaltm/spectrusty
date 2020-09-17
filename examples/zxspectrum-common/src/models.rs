@@ -35,7 +35,7 @@ use spectrusty::chip::{
     FrameState, Ula128Control, Ula3Control, ScldControl,
     MemoryAccess, HostConfig, UlaCommon,
     Ula128MemFlags, Ula3CtrlFlags, ScldCtrlFlags,
-    ula::{Ula, UlaPAL, UlaNTSC, UlaVideoFrame, UlaNTSCVidFrame},
+    ula::{Ula, UlaVideoFrame, UlaNTSCVidFrame},
     ula128::{Ula128, Ula128VidFrame},
     ula3::{Ula3, Ula3VidFrame},
     scld::Scld,
@@ -64,6 +64,7 @@ pub static ROM_PLUS2B: &[&[u8]] = &[include_bytes!("../../../resources/roms/plus
                                     include_bytes!("../../../resources/roms/opense.rom")];
 
 /* First some chipset type declarations */
+pub use spectrusty::chip::ula::{UlaPAL, UlaNTSC};
 
 /// Timex TC2048 chipset.
 pub type TC2048<D, X=NoMemoryExtension> = Scld<Memory48kDock64kEx, D, X, UlaVideoFrame>;
@@ -117,7 +118,7 @@ pub type ZxSpectrum2B<C, D, X=NoMemoryExtension,
                             R=Empty,
                             W=Sink> = ZxSpectrum<C, Plus3<D, X, R, W>, F>;
 
-/// This enum is being used for querying or requesting a model type.
+/// This enum is being used for querying or creating a new [ZxSpectrumModel].
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[derive(Serialize)]
 #[serde(into="&str")]
@@ -190,6 +191,45 @@ pub trait UlaPlusMode {
     }
 }
 
+/// Macro for dispatching expressions to the current [ZxSpectrumModel]'s inner instance of [ZxSpectrum] type.
+///
+/// * `$model` - should be the variable name (or using the 3rd syntax it can be an expression) referring
+///   to the instance of [ZxSpectrumModel].
+/// * `$spec` - should be the variable name that will hold the reference to the instance of [ZxSpectrum];
+///   it can be used inside the `$expr` to access the inner [ZxSpectrum].
+/// * `$expr` - an expression that needs to be evaluated.
+///
+/// # Example
+///
+/// ```
+/// use std::{io, fmt};
+/// use spectrusty::{
+///     chip::MemoryAccess,
+///     memory::{ZxMemory, ZxMemoryError, MemoryExtension},
+///     formats::snapshot::MemoryRange,
+///     z80emu::Cpu};
+/// use zxspectrum_common::{ZxSpectrumModel, spectrum_model_dispatch};
+///
+/// fn memory_ref<C,S,X,F,R,W>(
+///         model: &ZxSpectrumModel<C,S,X,F,R,W>,
+///         range: MemoryRange
+///     ) -> Result<&[u8], ZxMemoryError>
+///     where C: Cpu,
+///           X: MemoryExtension,
+///           R: io::Read + fmt::Debug,
+///           W: io::Write + fmt::Debug,
+/// {
+///     fn get_ref<M: ZxMemory>(memory: &M, range: MemoryRange) -> Result<&[u8], ZxMemoryError> {
+///         match range {
+///             MemoryRange::Rom(range) => memory.rom_ref().get(range),
+///             MemoryRange::Ram(range) => memory.ram_ref().get(range),
+///             _ => Err(ZxMemoryError::UnsupportedExRomPaging)?
+///         }.ok_or_else(|| ZxMemoryError::UnsupportedAddressRange)
+///     }
+///
+///     spectrum_model_dispatch!(model(spec) => get_ref(spec.ula.memory_ref(), range))
+/// }
+/// ```
 #[macro_export]
 macro_rules! spectrum_model_dispatch {
     ($model:ident($spec:ident) => $expr:expr) => {
@@ -213,22 +253,80 @@ macro_rules! spectrum_model_dispatch {
     };
 }
 
+/// Macro for accessing associated constants and methods of the current [ZxSpectrumModel]'s chipset type.
+///
+/// * `$model` - should be the variable name (or using the 3rd syntax it can be an expression) referring
+///   to the instance of [ZxSpectrumModel].
+/// * `$sdd` - the type `S` that implements [SerializeDynDevice].
+/// * `$ext` - the type `X` that implements [MemoryExtension].
+/// * `$expr` - a method expression or a constant name that should be called on the chipset type.
+///
+/// # Example
+///
+/// ```
+/// use std::{io, fmt};
+/// use spectrusty::{
+///     z80emu::Cpu,
+///     chip::HostConfig,
+///     memory::MemoryExtension,
+///     video::Video
+/// };
+/// use zxspectrum_common::{
+///     ModelRequest, ZxSpectrumModel, spectrum_model_ula_static_dispatch
+/// };
+///
+/// fn info<C,S,X,F,R,W>(
+///         model: &ZxSpectrumModel<C,S,X,F,R,W>,
+///     ) -> String
+///     where C: Cpu,
+///           X: MemoryExtension,
+///           R: io::Read + fmt::Debug,
+///           W: io::Write + fmt::Debug,
+/// {
+///     format!("model: {} cpu_hz: {} T-states/frame: {} pixel density: {}",
+///         ModelRequest::from(model),
+///         spectrum_model_ula_static_dispatch!(model(S, X)::CPU_HZ),
+///         spectrum_model_ula_static_dispatch!(model(S, X)::FRAME_TSTATES),
+///         spectrum_model_ula_static_dispatch!(model(S, X)::pixel_density())
+///     )
+/// }
+/// ```
 #[macro_export]
-macro_rules! spectrum_model_ula_dispatch {
+macro_rules! spectrum_model_ula_static_dispatch {
     ($model:ident($sdd:ty, $ext:ty)::$($expr:tt)*) => {
-        spectrum_model_ula_dispatch!(($model)($sdd, $ext)::$($expr)*)
+        spectrum_model_ula_static_dispatch!(($model)($sdd, $ext)::$($expr)*)
     };
     (($model:expr)($sdd:ty, $ext:ty)::$($expr:tt)*) => {
-        match $model {
-            $crate::ZxSpectrumModel::Spectrum16(..) => UlaPAL::<Memory16kEx, PluggableJoystickDynamicBus<$sdd, UlaVideoFrame>, $ext>::$($expr)*,
-            $crate::ZxSpectrumModel::Spectrum48(..) => UlaPAL::<Memory48kEx, PluggableJoystickDynamicBus<$sdd, UlaVideoFrame>, $ext>::$($expr)*,
-            $crate::ZxSpectrumModel::SpectrumNTSC(..) => UlaNTSC::<Memory48kEx, PluggableJoystickDynamicBus<$sdd, UlaNTSCVidFrame>, $ext>::$($expr)*,
-            $crate::ZxSpectrumModel::Spectrum128(..)|
-            $crate::ZxSpectrumModel::SpectrumPlus2(..)|
-            $crate::ZxSpectrumModel::SpectrumPlusPlus2(..) => Ula128AyKeypad::<PluggableJoystickDynamicBus<$sdd, Ula128VidFrame>, $ext>::$($expr)*,
-            $crate::ZxSpectrumModel::SpectrumPlus2A(..)|
-            $crate::ZxSpectrumModel::SpectrumPlus2B(..) => Ula3Ay::<PluggableJoystickDynamicBus<$sdd, Ula3VidFrame>, $ext>::$($expr)*,
-            $crate::ZxSpectrumModel::TimexTC2048(..) => TC2048::<PluggableJoystickDynamicBus<$sdd, UlaVideoFrame>, $ext>::$($expr)*
+        {
+            use spectrusty::chip::{ula, ula128, ula3};
+            use spectrusty::memory;
+            match $model {
+                $crate::ZxSpectrumModel::Spectrum16(..) => {
+                    $crate::UlaPAL::<memory::Memory16kEx, $crate::PluggableJoystickDynamicBus<$sdd, ula::UlaVideoFrame>, $ext>::$($expr)*
+                }
+                $crate::ZxSpectrumModel::Spectrum48(..) => {
+                    $crate::UlaPAL::<memory::Memory48kEx, $crate::PluggableJoystickDynamicBus<$sdd, ula::UlaVideoFrame>, $ext>::$($expr)*
+                }
+                $crate::ZxSpectrumModel::SpectrumNTSC(..) => {
+                    $crate::UlaNTSC::<memory::Memory48kEx, $crate::PluggableJoystickDynamicBus<$sdd, ula::UlaNTSCVidFrame>, $ext>::$($expr)*
+                }
+                $crate::ZxSpectrumModel::Spectrum128(..)|
+                $crate::ZxSpectrumModel::SpectrumPlus2(..) => {
+                    $crate::Ula128AyKeypad::<$crate::PluggableJoystickDynamicBus<$sdd, ula128::Ula128VidFrame>, $ext>::$($expr)*
+                }
+                $crate::ZxSpectrumModel::SpectrumPlusPlus2(..) => {
+                    $crate::Plus128::<$crate::PluggableJoystickDynamicBus<$sdd, ula128::Ula128VidFrame>, $ext>::$($expr)*
+                }
+                $crate::ZxSpectrumModel::SpectrumPlus2A(..) => {
+                    $crate::Ula3Ay::<$crate::PluggableJoystickDynamicBus<$sdd, ula3::Ula3VidFrame>, $ext>::$($expr)*
+                }
+                $crate::ZxSpectrumModel::SpectrumPlus2B(..) => {
+                    $crate::Plus3::<$crate::PluggableJoystickDynamicBus<$sdd, ula3::Ula3VidFrame>, $ext>::$($expr)*
+                }
+                $crate::ZxSpectrumModel::TimexTC2048(..) => {
+                    $crate::TC2048::<$crate::PluggableJoystickDynamicBus<$sdd, ula::UlaVideoFrame>, $ext>::$($expr)*
+                }
+            }
         }
     };
 }
@@ -668,17 +766,17 @@ impl<C, S, X, F, R, W> ZxSpectrumModel<C, S, X, F, R, W>
 
     /// Returns the default CPU clock frequency of this model.
     pub fn cpu_rate(&self) -> u32 {
-        spectrum_model_ula_dispatch!(self(S, X)::CPU_HZ)
+        spectrum_model_ula_static_dispatch!(self(S, X)::CPU_HZ)
     }
 
     /// Returns the number of T-states per frame of this model.
     pub fn frame_tstates_count(&self) -> FTs {
-        spectrum_model_ula_dispatch!(self(S, X)::FRAME_TSTATES)
+        spectrum_model_ula_static_dispatch!(self(S, X)::FRAME_TSTATES)
     }
 
     /// Returns the [Video::PIXEL_DENSITY] of this model.
     pub fn pixel_density(&self) -> u32 {
-        spectrum_model_ula_dispatch!(self(S, X)::PIXEL_DENSITY)
+        spectrum_model_ula_static_dispatch!(self(S, X)::PIXEL_DENSITY)
     }
 
     /// Destructs `self` into [Cpu] and [EmulatorState].
@@ -829,7 +927,7 @@ impl<C: Cpu, U, F> ZxSpectrum<C, U, F>
     /// Resets Spectrum as a specified `model`, waits for the boot sequence to end and performs auto-type
     /// so the data from the tape can be loaded.
     ///
-    /// Runs as many frames as necessary to acomplish the task.
+    /// Runs as many frames as necessary to accomplish the task.
     ///
     /// Returns the tuple from [ZxSpectrum::run_with_auto_type].
     pub fn reset_and_load(&mut self, model: ModelRequest) -> crate::spectrum::Result<(FTs, bool)> {
@@ -865,7 +963,7 @@ impl<C, S, X, F, R, W> ZxSpectrumModel<C, S, X, F, R, W>
     /// Resets the current model, waits for the boot sequence to end and performs auto-type
     /// so the data from the tape can be loaded.
     ///
-    /// Runs as many frames as necessary to acomplish the task.
+    /// Runs as many frames as necessary to accomplish the task.
     ///
     /// Returns the tuple from [ZxSpectrum::run_with_auto_type].
     pub fn reset_and_load(&mut self) -> crate::spectrum::Result<(FTs, bool)> {

@@ -50,8 +50,9 @@ use super::devices::DeviceAccess;
 /// A common result type used by many methods in this library.
 pub type Result<T> = core::result::Result<T, Box<dyn std::error::Error>>;
 
-/// A trait for allowing easy accessing of a chipset type from the generic [ZxSpectrum] model.
+/// A helper trait for defining contraints on the chipset type from the specialized [ZxSpectrum] types.
 pub trait SpectrumUla {
+    /// The type of the [ZxSpectrum] chipset.
     type Chipset;
 }
 
@@ -92,7 +93,7 @@ impl<C: Cpu, U: Default, F> Default for ZxSpectrum<C, U, F> {
 /// An in-memory TAP container type.
 pub type MemTap = Cursor<Vec<u8>>;
 
-/// The state of the emulator.
+/// The state of the emulator functions provided by this crate.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 #[serde(bound = "")] // so we won't have F: Serialize + Deserialize<'de> requirement

@@ -17,7 +17,7 @@
 
     Author contact information: see Cargo.toml file, section [package.authors].
 */
-//! High-level ZX Spectrum emulator library example.
+//! High-level ZX Spectrum emulator library example on top of [SPECTRUSTY][spectrusty].
 mod config;
 #[macro_use] mod models;
 mod devices;

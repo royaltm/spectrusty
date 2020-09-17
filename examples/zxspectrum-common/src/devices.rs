@@ -86,7 +86,7 @@ pub trait DynamicDevices<V: VideoFrame> {
     fn detach_device<D: NamedBusDevice<VFrameTs<V>> + 'static>(&mut self) -> Option<Box<D>>;
     fn device_mut<D: NamedBusDevice<VFrameTs<V>> + 'static>(&mut self) -> Option<&mut D>;
     fn device_ref<D: NamedBusDevice<VFrameTs<V>> + 'static>(&self) -> Option<&D>;
-    /// This must be called after deserializing struct containing dynamic devices.
+    /// This must be called after deserializing a struct containing dynamic devices.
     ///
     /// Otherwise methods in this trait won't be able to find already present devices.
     fn rebuild_device_index(&mut self);
@@ -303,7 +303,7 @@ impl<C: Cpu, S, X, F, R, W> ZxSpectrumModel<C, S, X, F, R, W>
           R: io::Read + fmt::Debug,
           W: io::Write + fmt::Debug,
 {
-    /// This must be called after deserializing struct containing dynamic devices.
+    /// This must be called after deserializing a struct containing dynamic devices.
     ///
     /// Otherwise methods managing dynamic devices won't be able to find devices that are already present.
     pub fn rebuild_device_index(&mut self) {
