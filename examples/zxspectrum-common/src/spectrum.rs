@@ -56,13 +56,13 @@ pub trait SpectrumUla {
     type Chipset;
 }
 
-/// The main emulator type representing a generic ZX Spectrum model.
+/// The main struct representing a generic ZX Spectrum model and the status of the emulator.
 ///
-/// The model is composed of: CPU, chipset, control variables and the emulator state.
+/// The model is composed of: a CPU, a chipset, control variables, and emulator parameters.
 ///
 /// # Note
 ///
-/// After deserialization, a device index should be rebuild with [DynamicDevices::rebuild_device_index].
+/// After deserialization, a device index should be rebuilt with [DynamicDevices::rebuild_device_index].
 ///
 /// [DynamicDevices::rebuild_device_index]: crate::DynamicDevices::rebuild_device_index
 #[derive(Serialize, Deserialize, Debug)]

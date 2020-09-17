@@ -29,7 +29,8 @@ use spectrusty::bus::{
             Ay3_8912KeypadRs232, Ay3_8912Rs232
         }
     },
-    parallel::Plus3CentronicsWriterBusDevice
+    parallel::{Plus3CentronicsBusDevice, ParallelPortWriter}
+    // parallel::Plus3CentronicsWriterBusDevice
 };
 use spectrusty::chip::{
     FrameState, Ula128Control, Ula3Control, ScldControl,
@@ -77,11 +78,11 @@ pub type Ula128AyKeypad<D,
 pub type Ula3Ay<D,
                 X=NoMemoryExtension,
                 R=Empty,
-                W=Sink> = Ula3<Plus3CentronicsWriterBusDevice<
-                                    Ay3_8912Rs232<Ula3VidFrame, D, R, W>,
-                                    W>,
+                W=Sink> = Ula3<Plus3CentronicsBusDevice<
+                                        ParallelPortWriter<VFrameTs<Ula3VidFrame>, W>,
+                                        Ay3_8912Rs232<Ula3VidFrame, D, R, W>
+                                    >,
                                 X>;
-
 /// ULAplus with ULA 128k.
 pub type Plus128<D,
                  X=NoMemoryExtension,
@@ -90,9 +91,9 @@ pub type Plus128<D,
 
 /// ULAplus with ULA +3.
 pub type Plus3<D,
-                 X=NoMemoryExtension,
-                 R=Empty,
-                 W=Sink> = UlaPlus<Ula3Ay<D, X, R, W>>;
+               X=NoMemoryExtension,
+               R=Empty,
+               W=Sink> = UlaPlus<Ula3Ay<D, X, R, W>>;
 
 /* Then some model type declaration */
 
@@ -141,7 +142,7 @@ pub enum ModelRequest {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ModelRequestIter(Option<ModelRequest>);
 
-/// An enum of all available ZX Spectrum models.
+/// An enum of all available models.
 #[derive(Serialize, Deserialize)]
 #[serde(tag = "model")]
 #[serde(bound(
@@ -156,8 +157,9 @@ pub enum ZxSpectrumModel<C: Cpu,
                          S,
                          X,
                          F=MemTap,
-                         R: io::Read + fmt::Debug=Empty,
-                         W: io::Write + fmt::Debug=Sink> {
+                         R=Empty,
+                         W=Sink>
+{
     #[serde(rename = "ZX Spectrum 16k")]
     Spectrum16(ZxSpectrum16k<C, PluggableJoystickDynamicBus<S, UlaVideoFrame>, X, F>),
     #[serde(rename = "ZX Spectrum 48k")]
@@ -202,7 +204,6 @@ pub trait UlaPlusMode {
 /// # Example
 ///
 /// ```
-/// use std::{io, fmt};
 /// use spectrusty::{
 ///     chip::MemoryAccess,
 ///     memory::{ZxMemory, ZxMemoryError, MemoryExtension},
@@ -215,9 +216,7 @@ pub trait UlaPlusMode {
 ///         range: MemoryRange
 ///     ) -> Result<&[u8], ZxMemoryError>
 ///     where C: Cpu,
-///           X: MemoryExtension,
-///           R: io::Read + fmt::Debug,
-///           W: io::Write + fmt::Debug,
+///           X: MemoryExtension
 /// {
 ///     fn get_ref<M: ZxMemory>(memory: &M, range: MemoryRange) -> Result<&[u8], ZxMemoryError> {
 ///         match range {
@@ -264,7 +263,6 @@ macro_rules! spectrum_model_dispatch {
 /// # Example
 ///
 /// ```
-/// use std::{io, fmt};
 /// use spectrusty::{
 ///     z80emu::Cpu,
 ///     chip::HostConfig,
@@ -279,9 +277,7 @@ macro_rules! spectrum_model_dispatch {
 ///         model: &ZxSpectrumModel<C,S,X,F,R,W>,
 ///     ) -> String
 ///     where C: Cpu,
-///           X: MemoryExtension,
-///           R: io::Read + fmt::Debug,
-///           W: io::Write + fmt::Debug,
+///           X: MemoryExtension
 /// {
 ///     format!("model: {} cpu_hz: {} T-states/frame: {} pixel density: {}",
 ///         ModelRequest::from(model),
@@ -462,10 +458,7 @@ impl FromStr for ModelRequest {
     }
 }
 
-impl<C: Cpu, S, X, F, R, W> From<&ZxSpectrumModel<C, S, X, F, R, W>> for ModelRequest
-    where R: io::Read + fmt::Debug,
-          W: io::Write + fmt::Debug
-{
+impl<C: Cpu, S, X, F, R, W> From<&ZxSpectrumModel<C, S, X, F, R, W>> for ModelRequest {
     fn from(model: &ZxSpectrumModel<C, S, X, F, R, W>) -> Self {
         match model {
             ZxSpectrumModel::Spectrum16(..) => ModelRequest::Spectrum16,
@@ -484,8 +477,8 @@ impl<C: Cpu, S, X, F, R, W> From<&ZxSpectrumModel<C, S, X, F, R, W>> for ModelRe
 impl<C, S, X, F, R, W> ZxSpectrumModel<C, S, X, F, R, W>
     where C: Cpu,
           X: MemoryExtension + Default,
-          R: io::Read + fmt::Debug + Default,
-          W: io::Write + fmt::Debug + Default
+          R: Default,
+          W: Default
 {
     /// Returns an instance of a requested model.
     ///
