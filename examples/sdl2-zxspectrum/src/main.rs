@@ -80,6 +80,21 @@ const PIXEL_FORMAT: PixelFormatEnum = PixelFormatEnum::RGB888;
 const KEYBOARD_IMAGE: &[u8] = include_bytes!("../../../resources/keyboard48.jpg");
 
 const HEAD: &str = r#"SPECTRUSTY: a desktop SDL2 example emulator."#;
+const COPY: &str = r###"
+This program is an example of how to use the SPECTRUSTY library 
+to create a ZX Spectrum emulator using Simple DirectMedia Layer 2.
+
+ZX Spectrum ROM © 1982-1987 Amstrad PLC.
+OpenSE BASIC © 2000-2012 Nine Tiles Networks Ltd, Andrew Owen.
+BBC BASIC (Z80) © 1982-2000 R.T. Russell, 1989-2005 J.G. Harston.
+
+© 2020 Rafał Michalski.
+This program comes with ABSOLUTELY NO WARRANTY.
+This is free software, and you are welcome to redistribute it
+under certain conditions.
+
+See: https://royaltm.github.io/spectrusty/
+"###;
 const HELP: &str = r###"
 Drag & drop TAP, SNA or SCR files over the emulator window in order to load them.
 
@@ -149,7 +164,7 @@ fn select_model(matches: clap::ArgMatches) -> Result<()> {
     let mut mreq = ModelRequest::SpectrumPlus2B;
 
     let model;
-    let prevent_autoload;
+    let allow_autoload;
 
     let files = matches.values_of("FILES");
 
@@ -162,7 +177,7 @@ fn select_model(matches: clap::ArgMatches) -> Result<()> {
         let file = File::open(filepath)?;
         model = serde_json::from_reader(file)?;
         mreq = ModelRequest::from(&model);
-        prevent_autoload = true;
+        allow_autoload = false;
     }
     else {
         if let Some(model) = matches.value_of("model") {
@@ -179,17 +194,24 @@ fn select_model(matches: clap::ArgMatches) -> Result<()> {
             }
         }
         model = ZxSpectrumModel::new(mreq);
-        prevent_autoload = false;
+        allow_autoload = true;
     }
 
-    spectrum_model_dispatch!(model(spec) => config_and_run(mreq, spec, matches, prevent_autoload))
+    info!("{}: cpu_hz: {} T-states/frame: {} pixel density: {}",
+        ModelRequest::from(&model),
+        model.cpu_rate(),
+        model.frame_tstates_count(),
+        model.pixel_density()
+    );
+
+    spectrum_model_dispatch!(model(spec) => config_and_run(mreq, spec, matches, allow_autoload))
 }
 
 fn config_and_run<U: 'static>(
         mreq: ModelRequest,
         mut spec: ZxSpectrum<Z80Any, U>,
         matches: clap::ArgMatches,
-        prevent_autoload: bool,
+        allow_autoload: bool,
     ) -> Result<()>
     where U: HostConfig
            + UlaCommon
@@ -284,6 +306,7 @@ fn config_and_run<U: 'static>(
     }
 
     let mut zx = ZxSpectrumEmu::new_with(mreq, spec, &sdl_context, latency)?;
+    let mut show_copyright = allow_autoload;
 
     // load non-snapshot files
     if let Some(files) = matches.values_of("FILES") {
@@ -293,18 +316,21 @@ fn config_and_run<U: 'static>(
         {
             info!("Loading file: {}", filepath);
             match zx.handle_file(filepath)? {
-                Some(msg) => info!("{}", msg),
+                Some(msg) => if !msg.is_empty() {
+                    info!("{}", msg)
+                },
                 None => warn!("Unknown file type: {}", filepath),
             }
         }
 
-        if zx.spectrum.state.tape.is_inserted() && !prevent_autoload {
+        if zx.spectrum.state.tape.is_inserted() && allow_autoload {
             zx.spectrum.reset_and_load(zx.model)?;
+            show_copyright = false;
         }
     }
 
     // run the emulator
-    run(&mut zx, &sdl_context)?;
+    run(&mut zx, &sdl_context, show_copyright)?;
 
     // save the snapshot
     let json_name = format!("spectrusty_{}.json", Utc::now().format("%Y-%m-%d_%H%M%S%.f"));
@@ -318,6 +344,7 @@ fn config_and_run<U: 'static>(
 fn run<C, U: 'static>(
         zx: &mut ZxSpectrumEmu<C, U>,
         sdl_context: &Sdl,
+        show_copyright: bool
     ) -> Result<()>
     where C: Cpu + fmt::Display,
           U: UlaCommon
@@ -372,6 +399,10 @@ fn run<C, U: 'static>(
     let mut file_count = 0;
     // mouse move resultant on keyboard helper window
     let mut move_keyboard: Option<(i32, i32)> = None;
+
+    if show_copyright {
+        info_window(HEAD, COPY.into());
+    }
 
     // here we run a simple: read events, emulate and draw loop
     'mainloop: loop {

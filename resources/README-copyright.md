@@ -1,8 +1,8 @@
-Files in subdirectories of this directory are _NOT_ covered by the GNU GPL or LGPL and are not included in the SPECTRUSTY library packages, but are being used by some of the example programs in this repository.
+The [ROM files](roms/) are _NOT_ covered by the GNU GPL or LGPL and are not included in the SPECTRUSTY library packages, but are being used by some of the example programs in this repository.
 
-If you would like to use files from this directory in your own emulators, you should acknowledge the following copyright and license notices.
+If you'd like to use files from this directory in your programs, you should acknowledge the following copyright and license notices.
 
-Files:
+Specifically files:
 
 * [roms/128-0.rom]
 * [roms/128-1.rom]
@@ -15,7 +15,7 @@ Files:
 * [roms/plus3-3.rom]
 * [roms/tc2048.rom]
 
-are copyright Amstrad PLC, who have kindly given their per­mission for the redistribution of their copyrighted material but retain that copyright, with the exception that you may not sell the ROMs or embed the ROMs in hardware. Although it is allowed to sell a product which contains the ROMs, so long as the charge is being made for the product, and not for the ROMs themselves.
+are copyright Amstrad PLC, who have kindly given their per­mission for the redistribution of their copyrighted material but retain that copyright, with the exception that you may not sell the ROMs or embed the ROMs in hardware. Although it is allowed to sell a product that contains the ROMs, so long as the charge is being made for the product, and not for the ROMs themselves.
 See [comp.sys.amstrad.8bit/msg/c092cc4d4943131e](http://groups.google.com/group/comp.sys.amstrad.8bit/msg/c092cc4d4943131e) for the details.
 
 * [roms/tc2068-0.rom]
@@ -30,14 +30,15 @@ Certain code within the conversion of BBC BASIC (Z80) in order to enable it to r
 
 * [roms/opense.rom]
 
-is the [OpenSE BASIC](https://sourceforge.net/projects/sebasic/) version 3.1.2, which is copyright Nine Tiles Networks Ltd, with modifications and extensions by Andrew Owen with code from the ZX81 ROM, ZX80 ROM, skeleton ROM (from The Messenger), SAM Coupe and SE Basic. Made available under the GNU GPL v2 or later.
+is the [OpenSE BASIC](https://sourceforge.net/projects/sebasic/) version 3.1.2, which is copyright Nine Tiles Networks Ltd, with modifications and extensions by Andrew Owen with code from the ZX81 ROM, ZX80 ROM, skeleton ROM (from The Messenger), SAM Coupe, and SE Basic. Available under the GNU GPL v2 or later.
 
 * [roms/plus2B.rom]
 
-is a Spectrum +2B Monster ROM - editor, derived from Amstrad code, based on the UK 128 ROM 0 disassembly by Matthew Wilson (2011-12-13) and bug-fixed by Paul Farrow. It is a part of the +2B ROM archive distributed by: [spectrumcomputing.co.uk](https://spectrumcomputing.co.uk/entry/27590/ZX-Spectrum/2B_ROM_Set) or [zxart.ee](https://zxart.ee/eng/software/tool/programming/basic/2b-rom-set/2b-rom-set1/) created and released by Andrew S. Owen without a particular copryight notice. The source code for this ROM is available in the aforementioned distribution package.
+is a Spectrum +2B Monster ROM - editor, derived from Amstrad code, based on the UK 128 ROM 0 disassembly by Matthew Wilson (2011-12-13) and bug-fixed by Paul Farrow. It is a part of the +2B ROM archive distributed by [spectrumcomputing.co.uk](https://spectrumcomputing.co.uk/entry/27590/ZX-Spectrum/2B_ROM_Set) or [zxart.ee](https://zxart.ee/eng/software/tool/programming/basic/2b-rom-set/2b-rom-set1/) created and released by Andrew S. Owen without a particular copyright notice. The source code for this ROM is available in the aforementioned distribution package.
 
-If you would like your software removed from this repository and made unavailable for download (or have any queries regarding copyright or licensing) please contact the owner of this repository or create a new issue.
+If you'd like your software to be removed from this repository and made unavailable for download (or have any queries regarding copyright or licensing) please contact the owner of this repository or create a new issue.
 
+```
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
 "Software"), to deal in the Software without restriction, including
@@ -56,3 +57,4 @@ IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
 CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
 TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```

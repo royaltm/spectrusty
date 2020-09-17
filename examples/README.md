@@ -8,7 +8,7 @@ This directory contains example programs for the SPECTRUSTY library.
 
 _NOTE_: Each of these examples is a separate crate and should be compiled and run from within the example's directory.
 
-_COPYRIGHT_: The following example programs are covered by the GNU GPL-3.0 or later, see [COPYING](../COPYING). The `COPYING.LESSER` does _not_ apply to these files.
+_COPYRIGHT_: The following example programs are covered by the GNU GPL-3.0 or later, see [COPYING](../COPYING). `COPYING.LESSER` does _not_ apply to these files.
 
 ### [CPAL Audio](audio/)
 
@@ -32,8 +32,8 @@ WebAssembly example of a complete ZX Spectrum emulator with UI aware of both des
 
 ### [ZX Spectrum common](zxspectrum-common/)
 
-An example ZX Spectrum emulator library that organizes concrete models and device interfaces.
+An example ZX Spectrum emulator library that organizes concrete models and interfaces for easy device access.
 
-This library provides a very opinionated, high-level API on top of SPECTRUSTY.
+This library provides a very opinionated, high-level emulator API on top of SPECTRUSTY.
 
 Commonly used by both [Web](web-zxspectrum/) and [SDL2](sdl2-zxspectrum/) example emulators.
