@@ -95,6 +95,26 @@ impl<F: Flavour> From<CpuModel> for Z80<F>
     }
 }
 
+impl From<CpuModel> for Z80Any {
+    fn from(cpu: CpuModel) -> Self {
+        match cpu {
+            CpuModel::NMOS(z80) => Z80Any::NMOS(z80),
+            CpuModel::CMOS(z80) => Z80Any::CMOS(z80),
+            CpuModel::BM1(z80)  => Z80Any::BM1(z80),
+        }
+    }
+}
+
+impl From<Z80Any> for CpuModel {
+    fn from(cpu: Z80Any) -> Self {
+        match cpu {
+            Z80Any::NMOS(z80) => CpuModel::NMOS(z80),
+            Z80Any::CMOS(z80) => CpuModel::CMOS(z80),
+            Z80Any::BM1(z80)  => CpuModel::BM1(z80),
+        }
+    }
+}
+
 /// The memory range specifies which part of the emulated hardware the data should be loaded to.
 #[non_exhaustive]
 #[derive(Debug,Clone,PartialEq,Eq,Hash)]
