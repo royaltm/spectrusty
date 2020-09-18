@@ -588,10 +588,10 @@ impl<M> ZxMemory for MemPageableRomRamExRom<M>
             self.unpage_exrom();
         }
     }
-    fn is_exrom_at(&mut self, page: u8) -> bool {
+    fn is_exrom_at(&self, page: u8) -> bool {
         self.is_exrom_page(page)
     }
-    fn has_mapped_exrom(&mut self, exrom_bank: &ExRom) -> bool {
+    fn has_mapped_exrom(&self, exrom_bank: &ExRom) -> bool {
         self.is_exrom_attached(exrom_bank)
     }
 }

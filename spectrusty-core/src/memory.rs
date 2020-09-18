@@ -247,9 +247,9 @@ pub trait ZxMemory {
     /// Otherwise does nothing.
     fn unmap_exrom(&mut self, _exrom_bank: &ExRom) { }
     /// Returns `true` if an EX-ROM bank is currently being mapped at the specified memory `page`.
-    fn is_exrom_at(&mut self, _page: u8) -> bool { false }
+    fn is_exrom_at(&self, _page: u8) -> bool { false }
     /// Returns `true` if a specified EX-ROM bank is currently being mapped.
-    fn has_mapped_exrom(&mut self, _exrom_bank: &ExRom) -> bool { false }
+    fn has_mapped_exrom(&self, _exrom_bank: &ExRom) -> bool { false }
     /// `ram_bank` should be less or equal to `RAM_BANKS_MAX` and `page` should be less or equal to PAGES_MAX.
     fn map_ram_bank(&mut self, ram_bank: usize, page: u8) -> Result<()>;
     /// Returns `Ok(MemPageOffset)` if address is equal to or less than [ZxMemory::RAMTOP].
