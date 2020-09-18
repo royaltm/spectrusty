@@ -286,6 +286,10 @@ impl<M, B, X, V> MemoryAccess for Scld<M, B, X, V>
     fn memory_ref(&self) -> &Self::Memory {
         &self.ula.memory
     }
+
+    fn memory_with_ext_mut(&mut self) -> (&mut Self::Memory, &mut Self::MemoryExt) {
+        (&mut self.ula.memory, &mut self.ula.memext)
+    }
 }
 
 impl<M, B, X, V> ControlUnit for Scld<M, B, X, V>

@@ -32,6 +32,8 @@ pub trait MemoryAccess {
     fn memory_ref(&self) -> &Self::Memory;    
     /// Returns a mutable reference to the memory.
     fn memory_mut(&mut self) -> &mut Self::Memory;
+    /// Returns mutable references to both the memory and the memory extension.
+    fn memory_with_ext_mut(&mut self) -> (&mut Self::Memory, &mut Self::MemoryExt);
 }
 
 /// The trait for reading and modifying the state of frame and cycle counters.

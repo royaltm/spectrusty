@@ -445,6 +445,10 @@ impl<U> MemoryAccess for UlaPlus<U>
     fn memory_ref(&self) -> &Self::Memory {
         self.ula.memory_ref()
     }
+
+    fn memory_with_ext_mut(&mut self) -> (&mut Self::Memory, &mut Self::MemoryExt) {
+        self.ula.memory_with_ext_mut()
+    }
 }
 
 impl<U, B, X> ControlUnit for UlaPlus<U>
