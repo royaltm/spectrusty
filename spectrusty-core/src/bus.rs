@@ -70,16 +70,14 @@ impl<T: Debug + 'static> dyn NamedBusDevice<T> + 'static {
 
 /// An interface for emulating devices that communicate with the emulated `CPU` via I/O requests.
 ///
-/// This trait allows to attach many, different devices to form a so called "daisy chain".
+/// This trait allows one to attach many, different devices to form a so-called "daisy chain".
 ///
-/// Implementations of this trait should be provided as [ControlUnit::BusDevice] associated type.
+/// Implementations of this trait should be provided as an associated type of [ControlUnit::BusDevice].
 ///
 /// [ControlUnit]: crate::chip::ControlUnit
 /// [ControlUnit::BusDevice]: crate::chip::ControlUnit::BusDevice
 pub trait BusDevice: Debug {
-    /// A type used as a time stamp. Must be the same as [Io::Timestamp][crate::z80emu::Io::Timestamp]
-    /// implemented by a [ControlUnit][crate::chip::ControlUnit] and for all the following devices
-    /// in a daisy chain.
+    /// A type used as a time-stamp.
     type Timestamp: Sized;
     /// A type of the next device in a daisy chain.
     type NextDevice: BusDevice<Timestamp=Self::Timestamp>;
@@ -90,11 +88,14 @@ pub trait BusDevice: Debug {
     fn next_device_ref(&self) -> &Self::NextDevice;
     /// Destructs self and returns the instance of the next bus device.
     fn into_next_device(self) -> Self::NextDevice;
-    /// Resets the device and all devices in this chain. Used by [ControlUnit::reset][crate::chip::ControlUnit::reset].
+    /// Resets the device and all devices in this chain.
+    ///
+    /// This method is called from [ControlUnit::reset][crate::chip::ControlUnit::reset].
     ///
     /// Default implementation forwards this call to the next device.
     ///
-    /// **NOTE**: Implementors of bus devices should always forward this call after optionally applying it to `self`.
+    /// **NOTE**: Implementations should always forward this call down the chain after optionally applying it
+    /// to `self`.
     #[inline(always)]
     fn reset(&mut self, timestamp: Self::Timestamp) {
         self.next_device_mut().reset(timestamp)
@@ -103,7 +104,8 @@ pub trait BusDevice: Debug {
     ///
     /// Default implementation forwards this call to the next device.
     ///
-    /// **NOTE**: Implementors of bus devices should always forward this call after optionally applying it to `self`.
+    /// **NOTE**: Implementations should always forward this call down the chain after optionally applying it
+    /// to `self`.
     #[inline(always)]
     fn update_timestamp(&mut self, timestamp: Self::Timestamp) {
         self.next_device_mut().update_timestamp(timestamp)
@@ -118,7 +120,8 @@ pub trait BusDevice: Debug {
     ///
     /// Default implementation forwards this call to the next device.
     ///
-    /// **NOTE**: Implementors of bus devices should always forward this call after optionally applying it to `self`.
+    /// **NOTE**: Implementations should always forward this call down the chain after optionally applying it
+    /// to `self`.
     #[inline(always)]
     fn next_frame(&mut self, timestamp: Self::Timestamp) {
         self.next_device_mut().next_frame(timestamp)
@@ -129,10 +132,10 @@ pub trait BusDevice: Debug {
     ///
     /// Returns an optional tuple with the (data, insert wait states).
     ///
-    /// **NOTE**: Implementations of bus devices should only need to forward this call if it does not apply
-    /// to this device or if not all bits are modified by the implementing device. In the latter case
-    /// the result from the forwarded call should be logically `ANDed` with the result of reading from this
-    /// device and if the upstream result is `None` the result should be returned with all unused bits set to 1.
+    /// **NOTE**: Implementations should only need to forward this call if it does not apply to this device
+    /// or if not all bits are modified by the implementing device. In the latter case the result from the
+    /// forwarded call should be logically `ANDed` with the result of reading from this device and if the
+    /// upstream result is `None` the result should be returned with all unused bits set to 1.
     #[inline(always)]
     fn read_io(&mut self, port: u16, timestamp: Self::Timestamp) -> Option<(u8, Option<NonZeroU16>)> {
         self.next_device_mut().read_io(port, timestamp)
@@ -143,17 +146,21 @@ pub trait BusDevice: Debug {
     ///
     /// Default implementation forwards this call to the next device.
     ///
-    /// **NOTE**: Implementations of bus devices should only forward this call to the next device
-    /// if it does not apply to this device or if the device doesn't block writing.
-    /// If the device blocks writing to next devices and the port matches this method must
-    /// return `true`. Otherwise this method should return the forwarded result.
+    /// **NOTE**: Implementations should only forward this call to the next device if it does not apply
+    /// to this device or if the device doesn't block writing. If the device blocks writing to downstream
+    /// devices and the port matches, this method must return `true`. Otherwise this method should return
+    /// the forwarded result.
     #[inline(always)]
     fn write_io(&mut self, port: u16, data: u8, timestamp: Self::Timestamp) -> Option<u16> {
         self.next_device_mut().write_io(port, data, timestamp)
     }
     /// Gets the `TypeId` of `self`.
     ///
-    /// A required part for `dyn BusDevice`.
+    /// A required part for the ability to downcast dynamic `BusDevice` instances.
+    ///
+    /// # Safety
+    /// The default implementation of this method must not be overwritten by the specializations.
+    /// Consider this method as `final`.
     fn type_id(&self) -> TypeId where Self: 'static {
         TypeId::of::<Self>()
     }
@@ -223,7 +230,7 @@ impl<T> fmt::Display for NullDevice<T> {
     }
 }
 
-/// A pseudo [BusDevice] allowing for plugging in and out any device at run time.
+/// A pseudo [BusDevice] allowing for plugging in and out a device at run time.
 #[derive(Clone, Default, Debug)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]

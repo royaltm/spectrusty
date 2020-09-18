@@ -17,7 +17,8 @@ use crate::clock::FrameTimestamp;
 use super::*;
 use super::super::{VFNullDevice, BusDevice};
 
-/// This trait needs to be implemented for [DynamicSerdeBus] to be able to serialize dynamic devices.
+/// This trait needs to be implemented by a type provided to [DynamicSerdeBus] as a parameter `S`,
+/// to serialize dynamic devices.
 pub trait SerializeDynDevice {
     /// This function should serialize the provided dynamic device.
     ///
@@ -30,7 +31,8 @@ pub trait SerializeDynDevice {
     ) -> Result<S::Ok, S::Error>;
 }
 
-/// This trait needs to be implemented for [DynamicSerdeBus] to be able to deserialize dynamic devices.
+/// This trait needs to be implemented by a type provided to [DynamicSerdeBus] as a parameter `S`,
+/// to deserialize dynamic devices.
 pub trait DeserializeDynDevice<'de> {
     /// This function should deserialize and return the dynamic device on success.
     fn deserialize_dyn_device<T: Default + FrameTimestamp + Deserialize<'de> + 'static,
@@ -42,12 +44,14 @@ pub trait DeserializeDynDevice<'de> {
 /// A terminated [DynamicSerdeBus] pseudo-device with [`VFNullDevice<V>`][VFNullDevice].
 pub type DynamicSerdeVBus<S, V> = DynamicSerdeBus<S, VFNullDevice<V>>;
 
-/// A wrapper for [DynamicBus] that is able to serialize and deserialize together with devices attached to it.
+/// A wrapper for [DynamicBus] that is able to serialize and deserialize together with currently
+/// attached dynamic devices.
 ///
 /// Use this type instead of [DynamicBus] when specifying [crate::chip::ControlUnit::BusDevice] or
 /// [BusDevice::NextDevice].
 ///
-/// Provide a type that implements [SerializeDynDevice] and [DeserializeDynDevice] as struct's generic parameter `S`.
+/// A type that implements [SerializeDynDevice] and [DeserializeDynDevice] must be declared as
+/// generic parameter `S`.
 #[repr(transparent)]
 pub struct DynamicSerdeBus<S, D: BusDevice>(DynamicBus<D>, PhantomData<S>);
 

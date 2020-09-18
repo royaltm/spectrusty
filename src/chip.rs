@@ -57,7 +57,7 @@ pub trait UlaCommon: UlaControl
                    + EarIn
                    + for<'a> MicOut<'a> {}
 
-/// Additional function access methods for Ula chipsets.
+/// Specialized ULA functionality access methods.
 pub trait UlaControl {
     /// Returns the state of the "late timings" mode.
     fn has_late_timings(&self) -> bool;

@@ -142,7 +142,15 @@ pub enum ModelRequest {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ModelRequestIter(Option<ModelRequest>);
 
-/// An enum of all available models.
+/// Enumerates all available models.
+///
+/// Generic types should implement:
+/// * `C` - [Cpu]
+/// * `S` - [SerializeDynDevice] + [DeserializeDynDevice]
+/// * `X` - [MemoryExtension]
+/// * `F` - Tape data provider [io::Read] + [io::Write] + [io::Seek] (e.g. [std::fs::File] or [io::Cursor]).
+/// * `R` - [io::Read] for RS-232 external input
+/// * `W` - [io::Write] for RS-232 and Centronics external output
 #[derive(Serialize, Deserialize)]
 #[serde(tag = "model")]
 #[serde(bound(

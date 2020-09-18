@@ -48,7 +48,7 @@ pub enum InterlaceMode {
 
 /// A wrapper type for the dynamic device index.
 ///
-/// The index maps the concrete device [TypeId] to the position index of the attached dynamic device.
+/// It maps the concrete device [TypeId] to the index position of the attached dynamic device.
 #[derive(Default, Debug, Clone)]
 pub struct DeviceIndex(fnv::FnvHashMap<TypeId, usize>);
 
@@ -206,7 +206,7 @@ impl DeviceIndex {
         self.0.contains_key(&TypeId::of::<D>())
     }
 
-    /// Returns position index of a device of type `D`, if the device is present.
+    /// Returns index position of a device of type `D`, if the device is present.
     pub fn get_device_index<D: 'static>(&self) -> Option<usize> {
         self.0.get(&TypeId::of::<D>()).copied()
     }
@@ -216,12 +216,12 @@ impl DeviceIndex {
         self.0.entry(TypeId::of::<D>())
     }
 
-    /// Removes a device of type `D` if present and returns its position index.
+    /// Removes a device of type `D` if present and returns its index position.
     pub fn remove_device_index<D: 'static>(&mut self) -> Option<usize> {
         self.0.remove(&TypeId::of::<D>())
     }
 
-    /// Inserts a device of type `D` and returns its previous position index if 
+    /// Inserts a device of type `D` and returns its previous index position if 
     /// a device of the same type has been previously present.
     pub fn insert_device_index<D: 'static>(&mut self, index: usize) -> Option<usize> {
         self.0.insert(TypeId::of::<D>(), index)

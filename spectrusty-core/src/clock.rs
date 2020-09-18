@@ -403,7 +403,7 @@ impl<V: VideoFrame, C> SubAssign<u32> for VFrameTsCounter<V, C> {
     }
 }
 
-/// A macro being used to implement an ULA I/O contention scheme, for [z80emu::Clock::add_io] method of
+/// A macro being used to implement the ULA I/O contention scheme, for [z80emu::Clock::add_io] method of
 /// [VFrameTsCounter].
 /// It's being exported for the purpose of performing FUSE tests.
 ///

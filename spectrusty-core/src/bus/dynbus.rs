@@ -46,11 +46,11 @@ pub type DynamicVBus<V> = DynamicBus<VFNullDevice<V>>;
 /// Also the device of this type can't be cloned (nor the [ControlUnit][crate::chip::ControlUnit]
 /// with this device attached).
 ///
-/// `DynamicBus` implements [BusDevice] so obviously it's possible to attach a statically
-/// dispatched next [BusDevice] to it.
+/// `DynamicBus<D>` implements [BusDevice] itself, so obviously it's possible to declare a statically
+/// dispatched downstream [BusDevice] as its parameter `D`.
 ///
-/// Currently only types implementing [BusDevice] directly terminated with [NullDevice] can be
-/// appended as dynamically dispatched objects.
+/// Currently only types implementing [BusDevice] that are directly terminated with [NullDevice]
+/// can be attached as dynamically dispatched objects.
 #[derive(Default, Debug)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 pub struct DynamicBus<D: BusDevice> {
@@ -83,15 +83,16 @@ impl<D: BusDevice> AsMut<[BoxNamedDynDevice<D::Timestamp>]> for DynamicBus<D> {
 impl<D> DynamicBus<D>
     where D: BusDevice
 {
-    /// Returns a number of attached devices.
+    /// Returns the number of attached devices.
     pub fn len(&self) -> usize {
         self.devices.len()
     }
-    /// Returns a `true` if there are no devices in the dynamic chain. Otherwise returns `false`.
+    /// Returns `true` if there are no devices in the dynamic chain. Otherwise returns `false`.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
-    /// Appends a device at the end of the daisy-chain. Returns an index to a dynamic device.
+    /// Appends an instance of a `device` at the end of the daisy-chain.
+    /// Returns its index position in the dynamic device chain.
     pub fn append_device<B>(&mut self, device: B) -> usize
         where B: Into<BoxNamedDynDevice<D::Timestamp>>
     {
@@ -103,7 +104,7 @@ impl<D> DynamicBus<D>
     pub fn remove_device(&mut self) -> Option<BoxNamedDynDevice<D::Timestamp>> {
         self.devices.pop()
     }
-    /// Replaces a device at the given `index` and returns it.
+    /// Replaces a device at the given `index` position and returns it.
     /// 
     /// The removed device is replaced by the last device of the chain.
     ///
@@ -112,7 +113,7 @@ impl<D> DynamicBus<D>
     pub fn swap_remove_device(&mut self, index: usize) -> BoxNamedDynDevice<D::Timestamp> {
         self.devices.swap_remove(index)
     }
-    /// Replaces a device at the given `index`. Returns the previous device occupying the replaced spot.
+    /// Replaces a device at the given `index` position. Returns the previous device occupying the replaced spot.
     ///
     /// # Panics
     /// Panics if a device doesn't exist at `index`.
@@ -125,13 +126,13 @@ impl<D> DynamicBus<D>
     pub fn clear(&mut self) {
         self.devices.clear();
     }
-    /// Returns a reference to a dynamic device at `index` in the dynamic daisy-chain.
+    /// Returns a reference to a dynamic device at `index` position in the dynamic daisy-chain.
     #[inline]
     pub fn get_device_ref(&self, index: usize) -> Option<&NamedDynDevice<D::Timestamp>> {
         // self.devices[index].as_ref()
         self.devices.get(index).map(|d| d.as_ref())
     }
-    /// Returns a mutable reference to a dynamic device at `index` in the dynamic daisy-chain.
+    /// Returns a mutable reference to a dynamic device at `index` position in the dynamic daisy-chain.
     #[inline]
     pub fn get_device_mut(&mut self, index: usize) -> Option<&mut NamedDynDevice<D::Timestamp>> {
         self.devices.get_mut(index).map(|d| d.as_mut())

@@ -60,13 +60,23 @@ pub trait FrameState {
     fn is_frame_over(&self) -> bool;
 }
 
-/// The main trait implemented for chipsets for accessing devices and running the emulation.
+/// This trait provides the interface for running the emulation and accessing instances of peripheral devices.
+///
+/// It's being implemented by the emulators of core chipsets.
 pub trait ControlUnit {
-    /// The type of the first attached [BusDevice].
+    /// A type of a chain of emulated peripheral devices should be declared here.
+    ///
+    /// This determines which devices, the emulated computer will be able to interact with.
+    ///
+    /// An associated constant: [BusDevice::Timestamp] must match the associated type declared for
+    /// implementations of [z80emu][z80emu::host] traits such as [Io::Timestamp] or [Memory::Timestamp].
+    ///
+    /// [Io::Timestamp]: crate::z80emu::Io::Timestamp
+    /// [Memory::Timestamp]: crate::z80emu::Memory::Timestamp
     type BusDevice: BusDevice;
-    /// Returns a mutable reference to the first bus device.
+    /// Returns a mutable reference to the instance of the first bus device in the device chain.
     fn bus_device_mut(&mut self) -> &mut Self::BusDevice;
-    /// Returns a reference to the first bus device.
+    /// Returns a reference to the the instance of the first bus device in the device chain.
     fn bus_device_ref(&self) -> &Self::BusDevice;
     /// Destructs self and returns the instance of the bus device.
     fn into_bus_device(self) -> Self::BusDevice;
@@ -76,32 +86,32 @@ pub trait ControlUnit {
     /// * `true` emulates a **RESET** signal being active for the `cpu` and all bus devices.
     /// * `false` executes a `RST 0` instruction on the `cpu` but without forwarding the clock counter.
     ///
-    /// In any case this operation is always instant.
+    /// In any case, this operation is always instant.
     fn reset<C: Cpu>(&mut self, cpu: &mut C, hard: bool);
-    /// Triggers a non-maskable interrupt. Returns `true` if the **NMI** was successfully executed.
+    /// Triggers a non-maskable interrupt. Returns `true` if **NMI** was accepted.
     ///
     /// Returns `false` when the `cpu` has just executed an `EI` instruction or one of `0xDD`, `0xFD` prefixes.
-    /// In this instance this is a no-op.
+    /// In this instance, calling this method is a no-op, and it returns `false`.
     ///
     /// For more details see [z80emu::Cpu::nmi].
     fn nmi<C: Cpu>(&mut self, cpu: &mut C) -> bool;
-    /// Conditionally prepares the internal state for the next frame and executes instructions on the `cpu` as fast
-    /// as possible untill the near end of that frame.
+    /// Conditionally prepares the internal state for the next frame and executes instructions on the `cpu`
+    /// as fast as possible, until the near end of that frame.
     fn execute_next_frame<C: Cpu>(&mut self, cpu: &mut C);
-    /// Conditionally prepares the internal state for the next frame, advances the frame counter and wraps the T-state
-    /// counter if it is near the end of a frame.
+    /// Conditionally prepares the internal state for the next frame, advances the frame counter, and wraps
+    /// the T-state counter if it is near the end of a frame.
     ///
-    /// This method should be called after all side effects (e.g. video and audio rendering) has been performed.
-    /// Implementations would usually clear some internal data from a previous frame.
+    /// This method should be called after all side effects (e.g. video and audio rendering) have been taken care of.
+    /// Usually, implementations will clear internal data from a previous frame.
     ///
     /// Both [ControlUnit::execute_next_frame] and [ControlUnit::execute_single_step] invoke this method internally,
-    /// so the only reason to call this method from the emulator program would be to make sure internal buffers are
-    /// empty before feeding the implementation with external data to be consumed by devices during the next frame
-    /// or to serialize the structure.
+    /// so the only reason to call this method from the emulator program would be to make sure internal buffers
+    /// are empty before feeding the implementation with external data that will be consumed by devices during
+    /// the next frame.
     fn ensure_next_frame(&mut self);
     /// Executes a single instruction on the `cpu` with the option to pass a debugging function.
     ///
-    /// If the T-state counter value is near the end of a frame prepares the internal state for the next frame
+    /// If the T-state counter value is near the end of a frame, prepares the internal state for the next frame
     /// before executing the next instruction.
     fn execute_single_step<C: Cpu,
                            F: FnOnce(CpuDebug)>(

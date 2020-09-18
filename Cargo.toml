@@ -11,7 +11,8 @@ readme = "README.md"
 license = "LGPL-3.0-or-later"
 include = ["/src/", "/COPYING", "/COPYING.LESSER", "/README.md"]
 description = """
-SPECTRUSTY is a library for building highly customizable emulators of the ZX Spectrum computer series and their clones.
+SPECTRUSTY is a library for building highly customizable emulators \
+of the ZX Spectrum computer series and clones.
 """
 
 [package.metadata.docs.rs]

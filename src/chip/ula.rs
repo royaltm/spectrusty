@@ -46,16 +46,21 @@ pub use cpuext::*;
 pub use video::UlaVideoFrame;
 pub use video_ntsc::UlaNTSCVidFrame;
 
-/// ZX Spectrum NTSC 16k/48k ULA.
+/// NTSC 16k/48k ULA (Uncommitted Logic Array).
 pub type UlaNTSC<M, B=VFNullDevice<UlaNTSCVidFrame>, X=NoMemoryExtension> = Ula<M, B, X, UlaNTSCVidFrame>;
-/// ZX Spectrum PAL 16k/48k ULA.
+/// PAL 16k/48k ULA (Uncommitted Logic Array).
 pub type UlaPAL<M, B=VFNullDevice<UlaVideoFrame>, X=NoMemoryExtension> = Ula<M, B, X, UlaVideoFrame>;
 
 /// A struct implementing [MemoryContention] for addresses in the range: [0x4000, 0x7FFF] being contended.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct UlaMemoryContention;
 
-/// ZX Spectrum 16k/48k ULA.
+/// Generic 16k/48k Ferranti ULA (Uncommitted Logic Array).
+///
+/// * `M` - [ZxMemory]
+/// * `B` - [`BusDevice<Timestamp=VFrameTs<V>>`][BusDevice]
+/// * `X` - [MemoryExtension]
+/// * `V` - [VideoFrame]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]
 #[derive(Clone)]

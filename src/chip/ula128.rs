@@ -66,7 +66,7 @@ pub enum MemPage8 {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TryFromU8MemPage8Error(pub u8);
 
-/// ZX Spectrum 128k ULA.
+/// 128k ULA (Uncommitted Logic Array).
 #[derive(Clone)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]

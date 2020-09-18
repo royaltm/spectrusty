@@ -80,6 +80,7 @@ Responsible for code execution, keyboard input, video and accessing peripheral d
 | [KeyboardInterface][peripherals::KeyboardInterface] | Keyboard input control |
 | [EarIn][chip::EarIn]               | EAR line input access |
 | [MicOut][chip::MicOut]             | MIC line output access |
+| [UlaControl][chip::UlaControl]     | Accessors for specialized ULA functionality |
 
 Audio output:
 
