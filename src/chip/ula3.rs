@@ -24,7 +24,7 @@ use crate::z80emu::{*, host::Result};
 use crate::bus::{BusDevice, VFNullDevice};
 use crate::clock::{VFrameTs, VideoTs, VFrameTsCounter, MemoryContention};
 use crate::chip::{
-    Ula128Control, Ula3Control, Ula128MemFlags, Ula3CtrlFlags, Ula3Paging,
+    Ula128MemFlags, Ula3CtrlFlags, Ula3Paging, UlaControl,
     InnerAccess, EarIn, ReadEarMode, ControlUnit, MemoryAccess,
     ula::{
         Ula, UlaControlExt, UlaCpuExt,
@@ -174,8 +174,16 @@ impl<B, X> InnerAccess for Ula3<B, X> {
     }
 }
 
-impl<B, X> Ula128Control for Ula3<B, X> {
-    fn ula128_mem_port_value(&self) -> Ula128MemFlags {
+impl<B, X> UlaControl for Ula3<B, X> {
+    fn has_late_timings(&self) -> bool {
+        self.ula.has_late_timings()
+    }
+
+    fn set_late_timings(&mut self, late_timings: bool) {
+        self.ula.set_late_timings(late_timings)
+    }
+
+    fn ula128_mem_port_value(&self) -> Option<Ula128MemFlags> {
         let mut flags = Ula128MemFlags::empty()
                         .with_last_ram_page_bank(self.mem_page3_bank.into());
         if self.cur_screen_shadow {
@@ -188,27 +196,28 @@ impl<B, X> Ula128Control for Ula3<B, X> {
         if self.mem_locked {
             flags.insert(Ula128MemFlags::LOCK_MMU);
         }
-        flags
+        Some(flags)
     }
 
-    fn set_ula128_mem_port_value(&mut self, value: Ula128MemFlags) {
+    fn set_ula128_mem_port_value(&mut self, value: Ula128MemFlags) -> bool {
         self.set_mem1_port_value(value, self.ula.current_video_ts());
+        true
     }
-}
 
-impl<B, X> Ula3Control for Ula3<B, X> {
-    fn ula3_ctrl_port_value(&self) -> Ula3CtrlFlags {
-        if let Some(paging) = self.mem_special_paging {
+    fn ula3_ctrl_port_value(&self) -> Option<Ula3CtrlFlags> {
+        let flags = if let Some(paging) = self.mem_special_paging {
             Ula3CtrlFlags::with_special_paging(Ula3CtrlFlags::empty(), paging)
         }
         else {
             Ula3CtrlFlags::with_rom_page_bank_hi(Ula3CtrlFlags::empty(),
                 self.rom_bank.into())
-        }
+        };
+        Some(flags)
     }
 
-    fn set_ula3_ctrl_port_value(&mut self, value: Ula3CtrlFlags) {
+    fn set_ula3_ctrl_port_value(&mut self, value: Ula3CtrlFlags) -> bool {
         self.set_mem2_port_value(value);
+        true
     }
 }
 

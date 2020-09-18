@@ -36,7 +36,7 @@ use crate::clock::{
 };
 use crate::bus::{BusDevice};
 use crate::chip::{
-    ScldControl, ScldCtrlFlags,
+    ScldCtrlFlags, UlaControl,
     InnerAccess, EarIn, ReadEarMode, ControlUnit, MemoryAccess,
     ula::{
         Ula,
@@ -143,24 +143,34 @@ impl<M, B, X, V> InnerAccess for Scld<M, B, X, V>
     }
 }
 
-impl<M, B, X, V> ScldControl for Scld<M, B, X, V>
+impl<M, B, X, V> UlaControl for Scld<M, B, X, V>
     where M: PagedMemory8k,
           V: VideoFrame
 {
-    fn scld_ctrl_port_value(&self) -> ScldCtrlFlags {
-        self.cur_ctrl_flags
+    fn has_late_timings(&self) -> bool {
+        self.ula.has_late_timings()
     }
 
-    fn set_scld_ctrl_port_value(&mut self, value: ScldCtrlFlags) {
-        self.set_ctrl_flags_value(value, self.current_video_ts())
+    fn set_late_timings(&mut self, late_timings: bool) {
+        self.ula.set_late_timings(late_timings)
     }
 
-    fn scld_mmu_port_value(&self) -> u8 {
-        self.mem_paged
+    fn scld_ctrl_port_value(&self) -> Option<ScldCtrlFlags> {
+        Some(self.cur_ctrl_flags)
     }
 
-    fn set_scld_mmu_port_value(&mut self, value: u8) {
-        self.set_mmu_flags_value(value)
+    fn set_scld_ctrl_port_value(&mut self, value: ScldCtrlFlags) -> bool {
+        self.set_ctrl_flags_value(value, self.current_video_ts());
+        true
+    }
+
+    fn scld_mmu_port_value(&self) -> Option<u8> {
+        Some(self.mem_paged)
+    }
+
+    fn set_scld_mmu_port_value(&mut self, value: u8) -> bool {
+        self.set_mmu_flags_value(value);
+        true
     }
 }
 

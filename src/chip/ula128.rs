@@ -25,7 +25,7 @@ use serde::{Serialize, Deserialize};
 use crate::bus::{BusDevice, VFNullDevice};
 use crate::clock::{VFrameTs, VideoTs, VFrameTsCounter, MemoryContention};
 use crate::chip::{
-    InnerAccess, Ula128Control, ControlUnit, MemoryAccess, Ula128MemFlags,
+    InnerAccess, ControlUnit, MemoryAccess, Ula128MemFlags, UlaControl,
     ula::{
         Ula, UlaControlExt, UlaCpuExt,
         frame_cache::UlaFrameCache
@@ -184,8 +184,16 @@ impl<B, X> InnerAccess for Ula128<B, X> {
     }
 }
 
-impl<B, X> Ula128Control for Ula128<B, X> {
-    fn ula128_mem_port_value(&self) -> Ula128MemFlags {
+impl<B, X> UlaControl for Ula128<B, X> {
+    fn has_late_timings(&self) -> bool {
+        self.ula.has_late_timings()
+    }
+
+    fn set_late_timings(&mut self, late_timings: bool) {
+        self.ula.set_late_timings(late_timings)
+    }
+
+    fn ula128_mem_port_value(&self) -> Option<Ula128MemFlags> {
         let mut flags = Ula128MemFlags::empty()
                         .with_last_ram_page_bank(self.mem_page3_bank.into());
         if self.cur_screen_shadow {
@@ -199,11 +207,12 @@ impl<B, X> Ula128Control for Ula128<B, X> {
         if self.mem_locked {
             flags.insert(Ula128MemFlags::LOCK_MMU);
         }
-        flags
+        Some(flags)
     }
 
-    fn set_ula128_mem_port_value(&mut self, value: Ula128MemFlags) {
+    fn set_ula128_mem_port_value(&mut self, value: Ula128MemFlags) -> bool {
         self.set_mem_port_value(value, self.ula.current_video_ts());
+        true
     }
 }
 

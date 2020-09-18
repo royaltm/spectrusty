@@ -10,7 +10,10 @@ use core::num::NonZeroU16;
 use crate::z80emu::{Io, Memory};
 use crate::bus::{PortAddress};
 use crate::clock::VideoTs;
-use crate::chip::{UlaPortFlags, scld::io::ScldCtrlPortAddress};
+use crate::chip::{
+    UlaPortFlags, ScldCtrlFlags, UlaPlusRegFlags,
+    scld::io::ScldCtrlPortAddress
+};
 use crate::peripherals::{KeyboardInterface, ZXKeyboardMap};
 use crate::memory::ZxMemory;
 use crate::video::{Video, BorderColor};
@@ -63,10 +66,10 @@ impl<'a, U> Io for UlaPlus<U>
             self.ula.ula_write_earmic(UlaPortFlags::from_bits_truncate(data), ts);
         }
         else if ScldCtrlPortAddress::match_port(port) && !self.ulaplus_disabled {
-            self.write_scld_ctrl_port(data, ts);
+            self.write_scld_ctrl_port(ScldCtrlFlags::from(data), ts);
         }
         else if PlusRegisterPortAddress::match_port(port) && !self.ulaplus_disabled {
-            self.write_plus_regs_port(data, ts);
+            self.write_plus_regs_port(UlaPlusRegFlags::from(data), ts);
         }
         else if PlusDataPortAddress::match_port(port) && !self.ulaplus_disabled {
             self.write_plus_data_port(data, ts);

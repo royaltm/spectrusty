@@ -82,7 +82,7 @@ use crate::clock::{
 use crate::chip::{
     ControlUnit, MemoryAccess,
     UlaPortFlags, ScldCtrlFlags, UlaPlusRegFlags, ColorMode, Ula128MemFlags, Ula3CtrlFlags,
-    Ula128Control, Ula3Control,
+    UlaControl,
     InnerAccess,
     scld::frame_cache::SourceMode,
     ula::{
@@ -247,27 +247,66 @@ impl<U> InnerAccess for UlaPlus<U>
     }
 }
 
-impl<U> Ula128Control for UlaPlus<U>
-    where U: Ula128Control + Video
+impl<'a, U> UlaControl for UlaPlus<U>
+    where U: Video + UlaControl + UlaPlusInner<'a>
 {
-    fn ula128_mem_port_value(&self) -> Ula128MemFlags {
-        self.inner_ref().ula128_mem_port_value()
+    fn has_late_timings(&self) -> bool {
+        self.ula.has_late_timings()
     }
 
-    fn set_ula128_mem_port_value(&mut self, value: Ula128MemFlags) {
-        self.inner_mut().set_ula128_mem_port_value(value)
-    }
-}
-
-impl<U> Ula3Control for UlaPlus<U>
-    where U: Ula3Control + Video
-{
-    fn ula3_ctrl_port_value(&self) -> Ula3CtrlFlags {
-        self.inner_ref().ula3_ctrl_port_value()
+    fn set_late_timings(&mut self, late_timings: bool) {
+        self.ula.set_late_timings(late_timings)
     }
 
-    fn set_ula3_ctrl_port_value(&mut self, value: Ula3CtrlFlags) {
-        self.inner_mut().set_ula3_ctrl_port_value(value)
+    fn ula128_mem_port_value(&self) -> Option<Ula128MemFlags> {
+        self.ula.ula128_mem_port_value()
+    }
+
+    fn set_ula128_mem_port_value(&mut self, value: Ula128MemFlags) -> bool {
+        self.ula.set_ula128_mem_port_value(value)
+    }
+
+    fn ula3_ctrl_port_value(&self) -> Option<Ula3CtrlFlags> {
+        self.ula.ula3_ctrl_port_value()
+    }
+
+    fn set_ula3_ctrl_port_value(&mut self, value: Ula3CtrlFlags) -> bool {
+        self.ula.set_ula3_ctrl_port_value(value)
+    }
+
+    fn scld_ctrl_port_value(&self) -> Option<ScldCtrlFlags> {
+        Some(self.scld_mode)
+    }
+
+    fn set_scld_ctrl_port_value(&mut self, value: ScldCtrlFlags) -> bool {
+        self.write_scld_ctrl_port(value, self.ula.current_video_ts());
+        true
+    }
+
+    fn scld_mmu_port_value(&self) -> Option<u8> {
+        self.ula.scld_mmu_port_value()
+    }
+
+    fn set_scld_mmu_port_value(&mut self, value: u8) -> bool {
+        self.ula.set_scld_mmu_port_value(value)
+    }
+
+    fn ulaplus_reg_port_value(&self) -> Option<UlaPlusRegFlags> {
+        Some(self.register_flags)
+    }
+
+    fn set_ulaplus_reg_port_value(&mut self, value: UlaPlusRegFlags) -> bool {
+        self.write_plus_regs_port(value, self.ula.current_video_ts());
+        true
+    }
+
+    fn ulaplus_data_port_value(&self) -> Option<u8> {
+        Some(self.read_plus_data_port())
+    }
+
+    fn set_ulaplus_data_port_value(&mut self, value: u8) -> bool {
+        self.write_plus_data_port(value, self.ula.current_video_ts());
+        true
     }
 }
 
@@ -310,14 +349,6 @@ impl<'a, U> UlaPlus<U>
             self.update_render_mode(render_mode, ts);
             self.update_source_mode(SourceMode::default(), ts);
         }
-    }
-    /// Returns the last value sent to the register port `0xBF3B`.
-    pub fn ulaplus_reg_port_value(&self) -> UlaPlusRegFlags {
-        self.register_flags
-    }
-    /// Returns the last value sent to the data port `0xFF3B`.
-    pub fn ulaplus_data_port_value(&self) -> u8 {
-        self.read_plus_data_port()
     }
     /// Returns the current rendering mode.
     pub fn render_mode(&self) -> RenderMode {
@@ -384,14 +415,12 @@ impl<'a, U> UlaPlus<U>
         self.update_render_mode(self.render_mode_from_plus_flags(flags), ts);
     }
 
-    fn write_scld_ctrl_port(&mut self, data: u8, ts: VideoTs) {
-        let flags = ScldCtrlFlags::from(data);
+    fn write_scld_ctrl_port(&mut self, flags: ScldCtrlFlags, ts: VideoTs) {
         self.scld_mode = flags;
         self.update_screen_mode(flags.into_plus_mode(), ts);
     }
 
-    fn write_plus_regs_port(&mut self, data: u8, ts: VideoTs) {
-        let flags = UlaPlusRegFlags::from(data);
+    fn write_plus_regs_port(&mut self, flags: UlaPlusRegFlags, ts: VideoTs) {
         if flags.is_mode_group() {
             self.update_screen_mode(flags|self.scld_mode.into_plus_mode(), ts);
         }

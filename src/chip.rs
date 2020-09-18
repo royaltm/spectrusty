@@ -57,9 +57,7 @@ pub trait UlaCommon: UlaControl
                    + EarIn
                    + for<'a> MicOut<'a> {}
 
-/// Additional utility methods for Ula chipsets.
-///
-/// Usefull for creating snapshots.
+/// Additional function access methods for Ula chipsets.
 pub trait UlaControl {
     /// Returns the state of the "late timings" mode.
     fn has_late_timings(&self) -> bool;
@@ -68,38 +66,37 @@ pub trait UlaControl {
     /// In this mode interrupts are being requested just one T-state earlier than normally.
     /// This results in all other timings being one T-state later.
     fn set_late_timings(&mut self, late_timings: bool);
-}
-
-/// Additional utility methods for Ula128 chipsets.
-///
-/// Usefull for creating snapshots.
-pub trait Ula128Control {
-    /// Returns the last value sent to the memory port `0x7FFD`.
-    fn ula128_mem_port_value(&self) -> Ula128MemFlags;
-    fn set_ula128_mem_port_value(&mut self, value: Ula128MemFlags);
-}
-
-/// Additional utility methods for Ula3 chipsets.
-///
-/// Usefull for creating snapshots.
-pub trait Ula3Control {
-    /// Returns the last value sent to the memory port `0x1FFD`.
-    fn ula3_ctrl_port_value(&self) -> Ula3CtrlFlags;
-    fn set_ula3_ctrl_port_value(&mut self, value: Ula3CtrlFlags);
-}
-
-/// Additional utility methods for Scld chipsets.
-///
-/// Usefull for creating snapshots.
-pub trait ScldControl {
+    /// Returns the last value sent to the memory port `0x7FFD` if supported.
+    fn ula128_mem_port_value(&self) -> Option<Ula128MemFlags> { None }
+    /// Sets the current value of the memory port `0x7FFD`. Returns `true` if supported.
+    /// Otherwise, returns `false` and no writing is performed.
+    fn set_ula128_mem_port_value(&mut self, _value: Ula128MemFlags) -> bool { false }
+    /// Returns the last value sent to the memory port `0x1FFD` if supported.
+    fn ula3_ctrl_port_value(&self) -> Option<Ula3CtrlFlags> { None }
+    /// Sets the current value of the memory port `0x1FFD`. Returns `true` if supported.
+    /// Otherwise, returns `false` and no writing is performed.
+    fn set_ula3_ctrl_port_value(&mut self, _value: Ula3CtrlFlags) -> bool { false }
     /// Returns the last value sent to the memory port `0xFF`.
-    fn scld_ctrl_port_value(&self) -> ScldCtrlFlags;
-    fn set_scld_ctrl_port_value(&mut self, value: ScldCtrlFlags);
+    fn scld_ctrl_port_value(&self) -> Option<ScldCtrlFlags> { None }
+    /// Sets the current value of the memory port `0xFF`. Returns `true` if supported.
+    /// Otherwise, returns `false` and no writing is performed.
+    fn set_scld_ctrl_port_value(&mut self, _value: ScldCtrlFlags) -> bool { false }
     /// Returns the last value sent to the memory port `0xF4`.
-    fn scld_mmu_port_value(&self) -> u8;
-    fn set_scld_mmu_port_value(&mut self, value: u8);
+    fn scld_mmu_port_value(&self) -> Option<u8> { None }
+    /// Sets the current value of the memory port `0xF4`. Returns `true` if supported.
+    /// Otherwise, returns `false` and no writing is performed.
+    fn set_scld_mmu_port_value(&mut self, _value: u8) -> bool { false }
+    /// Returns the last value sent to the register port `0xBF3B`.
+    fn ulaplus_reg_port_value(&self) -> Option<UlaPlusRegFlags> { None }
+    /// Sets the current value of the memory port `0xBF3B`. Returns `true` if supported.
+    /// Otherwise, returns `false` and no writing is performed.
+    fn set_ulaplus_reg_port_value(&mut self, _value: UlaPlusRegFlags) -> bool { false }
+    /// Returns the last value sent to the data port `0xFF3B`.
+    fn ulaplus_data_port_value(&self) -> Option<u8> { None }
+    /// Sets the current value of the memory port `0xFF3B`. Returns `true` if supported.
+    /// Otherwise, returns `false` and no writing is performed.
+    fn set_ulaplus_data_port_value(&mut self, _value: u8) -> bool { false }
 }
-
 
 impl<M: ZxMemory, B, X> HostConfig for Ula<M, B, X, UlaVideoFrame> {
     const CPU_HZ: u32 = ZxSpectrumPALConfig::CPU_HZ;
@@ -141,17 +138,3 @@ impl<U> UlaCommon for U
            + EarIn
            + for<'a> MicOut<'a>
 {}
-
-impl<U, I> UlaControl for U
-    where U: InnerAccess<Inner=I>,
-          I: UlaControl
-{
-    #[inline]
-    fn has_late_timings(&self) -> bool {
-        self.inner_ref().has_late_timings()
-    }
-    #[inline]
-    fn set_late_timings(&mut self, late_timings: bool) {
-        self.inner_mut().set_late_timings(late_timings)
-    }
-}
