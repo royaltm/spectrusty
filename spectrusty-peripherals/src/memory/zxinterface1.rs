@@ -8,7 +8,9 @@
 use std::rc::Rc;
 use std::io::{self, Read};
 
-use spectrusty_core::memory::{ExRom, ZxMemory, MemoryExtension};
+use spectrusty_core::memory::{
+    MemoryExtension, ExRom, ZxMemory, ZxMemoryError
+};
 #[cfg(feature = "snapshot")]
 use spectrusty_core::memory::serde::{serialize_mem, deserialize_mem};
 #[cfg(feature = "snapshot")]
@@ -72,6 +74,21 @@ impl ZxInterface1MemExt {
     /// is cleared from the extension.
     pub fn clear_exrom(&mut self) {
         self.exrom = Rc::new([]);
+    }
+    /// Maps EX-ROM into `memory` page `0`.
+    ///
+    /// # Errors
+    /// Returns an error if extension's EX-ROM bank is not populated with ROM data.
+    pub fn map_exrom<M: ZxMemory>(&self, memory: &mut M) -> Result<(), ZxMemoryError> {
+        memory.map_exrom(Rc::clone(&self.exrom), 0)
+    }
+    /// Unmaps EX-ROM from `memory`.
+    pub fn unmap_exrom<M: ZxMemory>(&self, memory: &mut M) {
+        memory.unmap_exrom(&self.exrom)
+    }
+    /// Returns `true` if EX-ROM is currently paged in.
+    pub fn is_mapped_exrom<M: ZxMemory>(&self, memory: &M) -> bool {
+        memory.has_mapped_exrom(&self.exrom)
     }
 }
 
