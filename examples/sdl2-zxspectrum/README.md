@@ -128,7 +128,11 @@ ARGS:
 
 By default the `ZX Spectrum +2B` model is being selected.
 
-If a `TAP` file is specified as a command argument, the emulator will attempt to automatically load the tape, unless a snapshot file is also specified as another argument.
+If a `TAP` file is specified as `FILES`, the emulator will attempt to automatically load data from the tape, unless a snapshot file is also specified as another argument.
+
+When a `Z80` snapshot is specified, that requires ZX Interface 1 to be attached, make sure to also provide a path to the IF 1 ROM file via `-i` or `--interface1` option.
+
+Options, except `--model` and `--interface1`, provided together with a snapshot file argument, will overwrite any settings loaded from that snapshot.
 
 
 #### Examples

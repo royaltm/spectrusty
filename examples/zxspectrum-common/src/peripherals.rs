@@ -6,9 +6,10 @@
 */
 use core::fmt;
 use std::io;
+use spectrusty::bus::BoxNamedDynDevice;
 use spectrusty::z80emu::Cpu;
 use spectrusty::clock::VFrameTs;
-use spectrusty::memory::MemoryExtension;
+use spectrusty::memory::{MemoryExtension, ZxMemory, ZxMemoryError};
 use spectrusty::bus::{
     OptionalBusDevice, VFNullDevice,
     ay::{
@@ -17,7 +18,7 @@ use spectrusty::bus::{
     joystick::{MultiJoystickBusDevice, JoystickSelect, JoystickInterface},
     mouse::{KempstonMouse, MouseInterface}
 };
-use spectrusty::formats::snapshot::JoystickModel;
+use spectrusty::formats::snapshot::{MemoryRange, JoystickModel, Ay3_891xDevice};
 use spectrusty::video::Video;
 
 use super::spectrum::ZxSpectrum;
@@ -66,6 +67,89 @@ pub fn update_ay_state<V, A, B>(
     for (reg, val) in ay_io.iter_sound_gen_regs() {
         ay_sound.update_register(reg, val);
     }
+}
+
+/// Returns the current state of AY-3-891x PSG registers from one of
+/// the dynamically added devices, indicated by [Ay3_891xDevice].
+pub fn get_ay_state_from_dyn_device<C: Cpu, U: Video + 'static, F>(
+        spec: &ZxSpectrum<C, U, F>,
+        choice: Ay3_891xDevice
+    ) -> Option<(AyRegister, &[u8;16])>
+    where U: DeviceAccess
+{
+    match choice {
+        Ay3_891xDevice::Melodik => {
+            spec.device_ref::<super::Ay3_891xMelodik<VFrameTs<U::VideoFrame>>>().map(|ay_dev| {
+                (ay_dev.ay_io.selected_register(),
+                 ay_dev.ay_io.registers())
+            })
+        }
+        Ay3_891xDevice::FullerBox => {
+            spec.device_ref::<super::Ay3_891xFullerBox<VFrameTs<U::VideoFrame>>>().map(|ay_dev| {
+                (ay_dev.ay_io.selected_register(),
+                 ay_dev.ay_io.registers())
+            })
+        }
+        _ => None
+    }
+}
+
+/// Creates one of the indicated by `choice` AY-3-891x PSG dynamic devices, and
+/// attaches it to the [ZxSpectrum] referenced by `spec`.
+///
+/// Initializes the created PSG registers to values from `reg_values` and the 
+/// currently selected register to `reg_selected`.
+///
+/// Returns `true` if a device has been attached. Otherwise returns `false`.
+pub fn create_ay_dyn_device<C: Cpu, U: Video + 'static, F>(
+        spec: &mut ZxSpectrum<C, U, F>,
+        choice: Ay3_891xDevice,
+        reg_selected: AyRegister,
+        reg_values: &[u8;16]
+    ) -> bool
+    where ZxSpectrum<C, U, F>: DynamicDevices<U::VideoFrame>
+{
+    let device: BoxNamedDynDevice<VFrameTs<U::VideoFrame>> = match choice {
+        Ay3_891xDevice::Melodik => {
+            let mut ay_dev = super::Ay3_891xMelodik::<VFrameTs<U::VideoFrame>>::default();
+            update_ay_state(&mut ay_dev.ay_sound, &mut ay_dev.ay_io, reg_selected, reg_values);
+            ay_dev.into()
+        },
+        Ay3_891xDevice::FullerBox => {
+            let mut ay_dev = super::Ay3_891xFullerBox::<VFrameTs<U::VideoFrame>>::default();
+            update_ay_state(&mut ay_dev.ay_sound, &mut ay_dev.ay_io, reg_selected, reg_values);
+            ay_dev.into()
+        }
+        _ => return false
+    };
+
+    spec.attach_device(device)
+}
+
+/// Returns a reference to the slice of bytes from the `memory` fragment indicated by `range`.
+pub fn memory_range_ref<M: ZxMemory>(memory: &M, range: MemoryRange) -> Result<&[u8], ZxMemoryError> {
+    match range {
+        MemoryRange::Rom(range) => memory.rom_ref().get(range),
+        MemoryRange::Ram(range) => memory.ram_ref().get(range),
+        _ => Err(ZxMemoryError::UnsupportedExRomPaging)?
+    }.ok_or_else(|| ZxMemoryError::UnsupportedAddressRange)
+}
+
+/// Convenient function for populating fragments of `memory` indicated by `range`
+/// with bytes from `reader`.
+pub fn read_into_memory_range<R: io::Read, M: ZxMemory>(
+        memory: &mut M,
+        range: MemoryRange,
+        mut reader: R
+    ) -> Result<(), ZxMemoryError>
+{
+    let mem_slice = match range {
+        MemoryRange::Rom(range) => memory.rom_mut().get_mut(range),
+        MemoryRange::Ram(range) => memory.ram_mut().get_mut(range),
+        _ => Err(ZxMemoryError::UnsupportedExRomPaging)?
+    }.ok_or_else(|| ZxMemoryError::UnsupportedAddressRange)?;
+
+    reader.read_exact(mem_slice).map_err(ZxMemoryError::Io)
 }
 
 /// A trait for easy accessing and controling [JoystickInterface].

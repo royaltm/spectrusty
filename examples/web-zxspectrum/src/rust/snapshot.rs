@@ -7,31 +7,28 @@
 use std::io::Read;
 use core::convert::TryFrom;
 
-use spectrusty::z80emu::Cpu;
-use spectrusty::clock::{FTs, VFrameTs};
+use spectrusty::clock::FTs;
 use spectrusty::chip::{
-    ReadEarMode, MemoryAccess, Ula128MemFlags, Ula3CtrlFlags, ScldCtrlFlags
-};
-use spectrusty::bus::{
-    BoxNamedDynDevice
+    ReadEarMode, MemoryAccess, UlaControl,
+    Ula128MemFlags, Ula3CtrlFlags, ScldCtrlFlags
 };
 use spectrusty::formats::snapshot::*;
 use spectrusty::peripherals::ay::AyRegister;
-use spectrusty::memory::{ZxMemory, ZxMemoryError};
-use spectrusty::video::{BorderColor, Video};
+use spectrusty::memory::ZxMemoryError;
+use spectrusty::video::BorderColor;
 use zxspectrum_common::{
-    ZxSpectrum, ZxSpectrumModel, ModelRequest, JoystickAccess, DeviceAccess, DynamicDevices,
-    update_ay_state, joy_index_from_joystick_model, joystick_model_from_name,
-    spectrum_model_dispatch
+    ZxSpectrumModel, ModelRequest, JoystickAccess,
+    create_ay_dyn_device, get_ay_state_from_dyn_device,
+    joy_index_from_joystick_model, joystick_model_from_name,
+    memory_range_ref, read_into_memory_range,
+    spectrum_model_dispatch,
 };
 
 use crate::ZxSpectrumEmu;
-use crate::serde::{Ay3_891xMelodik, Ay3_891xFullerBox};
 
 impl SnapshotCreator for ZxSpectrumEmu {
     fn model(&self) -> ComputerModel {
         let model = ModelRequest::from(&self.model);
-        // log::debug!("model: {}", model);
         ComputerModel::from(model)
     }
 
@@ -44,98 +41,56 @@ impl SnapshotCreator for ZxSpectrumEmu {
     }
 
     fn current_clock(&self) -> FTs {
-        let ts = self.model.current_tstate();
-        // log::debug!("clock: {}", ts);
-        ts
+        self.model.current_tstate()
     }
 
     fn border_color(&self) -> BorderColor {
-        let color = self.model.border_color();
-        // log::debug!("border color: {:?}", color);
-        color
+        self.model.border_color()
     }
 
     fn issue(&self) -> ReadEarMode {
-        let issue = self.spectrum_control_ref().read_ear_mode();
-        // log::debug!("keyboard issue: {:?}", issue);
-        issue
+        self.spectrum_control_ref().read_ear_mode()
     }
 
     fn memory_ref(&self, range: MemoryRange) -> Result<&[u8], ZxMemoryError> {
-        // log::debug!("mem range ref: {:?}", range);
-        spectrum_model_dispatch!((&self.model)(spec) => memory_ref(range, spec.ula.memory_ref()))
+        spectrum_model_dispatch!((&self.model)(spec) => {
+            memory_range_ref(spec.ula.memory_ref(), range)
+        })
     }
 
     fn joystick(&self) -> Option<JoystickModel> {
-        let joy = self.model.current_joystick().and_then(|name| {
+        self.model.current_joystick().and_then(|name| {
             let sub_joy = self.model.emulator_state_ref().sub_joy;
             joystick_model_from_name(name, sub_joy)
-        });
-        // log::debug!("joystick: {:?}", joy);
-        joy
+        })
     }
 
     fn ay_state(&self, choice: Ay3_891xDevice) -> Option<(AyRegister, &[u8;16])> {
-        // log::debug!("AY req: {:?}", choice);
-
-        fn get_ay_state<C: Cpu, U: Video + 'static, F>(
-                spec: &ZxSpectrum<C, U, F>,
-                choice: Ay3_891xDevice
-            ) -> Option<(AyRegister, &[u8;16])>
-            where U: DeviceAccess
-        {
-            match choice {
-                Ay3_891xDevice::Melodik => {
-                    spec.device_ref::<Ay3_891xMelodik<VFrameTs<U::VideoFrame>>>().map(|ay_dev| {
-                        (ay_dev.ay_io.selected_register(),
-                         ay_dev.ay_io.registers())
-                    })
-                }
-                Ay3_891xDevice::FullerBox => {
-                    spec.device_ref::<Ay3_891xFullerBox<VFrameTs<U::VideoFrame>>>().map(|ay_dev| {
-                        (ay_dev.ay_io.selected_register(),
-                         ay_dev.ay_io.registers())
-                    })
-                }
-                _ => None
-            }.map(|(sel, regs)|{
-                // log::debug!("AY: {:?}, {:?}", sel, regs);
-                (sel, regs)
-            })
-        }
         match choice {
             Ay3_891xDevice::Ay128k => {
                 spectrum_model_dispatch!((&self.model)(spec) => spec.ay128k_state())
             }
             Ay3_891xDevice::Melodik|Ay3_891xDevice::FullerBox => {
-                spectrum_model_dispatch!((&self.model)(spec) => get_ay_state(spec, choice))
+                spectrum_model_dispatch!((&self.model)(spec) => get_ay_state_from_dyn_device(spec, choice))
             }
             _ => None
         }
     }
 
     fn ula128_flags(&self) -> Ula128MemFlags {
-        let flags = self.model.ula128_mem_port_value().unwrap();
-        // log::debug!("ULA 128 flags: {:?}", flags);
-        flags
+        spectrum_model_dispatch!((&self.model)(spec) => spec.ula.ula128_mem_port_value().unwrap())
     }
 
     fn ula3_flags(&self) -> Ula3CtrlFlags {
-        let flags = self.model.ula3_ctrl_port_value().unwrap();
-        // log::debug!("ULA 3 flags: {:?}", flags);
-        flags
+        spectrum_model_dispatch!((&self.model)(spec) => spec.ula.ula3_ctrl_port_value().unwrap())
     }
 
     fn timex_flags(&self) -> ScldCtrlFlags {
-        let flags = self.model.scld_ctrl_port_value().unwrap();
-        // log::debug!("SCLD flags: {:?}", flags);
-        flags
+        spectrum_model_dispatch!((&self.model)(spec) => spec.ula.scld_ctrl_port_value().unwrap())
     }
 
     fn timex_memory_banks(&self) -> u8 {
-        let flags = self.model.scld_mmu_port_value().unwrap();
-        // log::debug!("SCLD banks: {:b}", flags);
-        flags
+        spectrum_model_dispatch!((&self.model)(spec) => spec.ula.scld_mmu_port_value().unwrap())
     }
 }
 
@@ -150,7 +105,6 @@ impl SnapshotLoader for ZxSpectrumEmu {
             issue: ReadEarMode
         ) -> Result<(), Self::Error>
     {
-        // log::debug!("{} {} {:?} {:?}", model, extensions, border, issue);
         let model_req = ModelRequest::try_from(model)?;
         if extensions != Extensions::NONE {
             alert!("The extensions: {} are not supported\n\
@@ -165,72 +119,40 @@ impl SnapshotLoader for ZxSpectrumEmu {
     }
 
     fn assign_cpu(&mut self, cpu: CpuModel) {
-        // log::debug!("CPU: {:?}", cpu);
         self.model.set_cpu(cpu)
     }
 
     fn set_clock(&mut self, tstates: FTs) {
-        // log::debug!("set clock: {:?}", tstates);
         self.model.set_frame_tstate(tstates)
     }
 
     fn write_port(&mut self, port: u16, data: u8) {
-        // log::debug!("write port: {:x} {}", port, data);
         self.model.write_port(port, data)
     }
 
     fn select_joystick(&mut self, joystick: JoystickModel) {
-        // log::debug!("joystick {:?}", joystick);
         self.model.select_joystick(joy_index_from_joystick_model(Some(joystick)));
     }
 
     fn setup_ay(&mut self, choice: Ay3_891xDevice, reg_selected: AyRegister, reg_values: &[u8;16]) {
-        // log::debug!("AY: {:?}, {:?}, {:?}", choice, reg_selected, reg_values);
-
-        fn create_device<C: Cpu, U: Video + 'static, F>(
-                spec: &mut ZxSpectrum<C, U, F>,
-                choice: Ay3_891xDevice,
-                reg_selected: AyRegister,
-                reg_values: &[u8;16]
-            )
-            where ZxSpectrum<C, U, F>: DynamicDevices<U::VideoFrame>
-        {
-            let device: BoxNamedDynDevice<VFrameTs<U::VideoFrame>> = match choice {
-                Ay3_891xDevice::Melodik => {
-                    let mut ay_dev = Ay3_891xMelodik::<VFrameTs<U::VideoFrame>>::default();
-                    update_ay_state(&mut ay_dev.ay_sound, &mut ay_dev.ay_io, reg_selected, reg_values);
-                    ay_dev.into()
-                },
-                Ay3_891xDevice::FullerBox => {
-                    let mut ay_dev = Ay3_891xFullerBox::<VFrameTs<U::VideoFrame>>::default();
-                    update_ay_state(&mut ay_dev.ay_sound, &mut ay_dev.ay_io, reg_selected, reg_values);
-                    ay_dev.into()
-                }
-                _ => return
-            };
-            spec.attach_device(device);
-        }
-
         match choice {
             Ay3_891xDevice::Ay128k => {
                 spectrum_model_dispatch!((&mut self.model)(spec) => {
                     spec.update_ay128k_state(reg_selected, reg_values);
                 });
-                return
             }
             Ay3_891xDevice::Melodik|Ay3_891xDevice::FullerBox => {
                 spectrum_model_dispatch!((&mut self.model)(spec) => {
-                    create_device(spec, choice, reg_selected, reg_values);
+                    create_ay_dyn_device(spec, choice, reg_selected, reg_values);
                 });
             }
-            _ => return
+            _ => {}
         }
     }
 
     fn read_into_memory<R: Read>(&mut self, range: MemoryRange, reader: R) -> Result<(), ZxMemoryError> {
-        // log::debug!("mem range: {:?}", range);
         spectrum_model_dispatch!((&mut self.model)(spec) => {
-            read_into_memory(range, reader, spec.ula.memory_mut())
+            read_into_memory_range(spec.ula.memory_mut(), range, reader)
         })
     }
 
@@ -248,27 +170,4 @@ impl SnapshotLoader for ZxSpectrumEmu {
         crate::alert("The snapshot requested that TR-DOS ROM is paged in\n\
                       this will result in an undefined behaviour of the emulated computer");
     }
-}
-
-fn memory_ref<M: ZxMemory>(range: MemoryRange, memory: &M) -> Result<&[u8], ZxMemoryError> {
-    match range {
-        MemoryRange::Rom(range) => memory.rom_ref().get(range),
-        MemoryRange::Ram(range) => memory.ram_ref().get(range),
-        _ => Err(ZxMemoryError::UnsupportedExRomPaging)?
-    }.ok_or_else(|| ZxMemoryError::UnsupportedAddressRange)
-}
-
-fn read_into_memory<R: Read, M: ZxMemory>(
-        range: MemoryRange,
-        mut reader: R,
-        memory: &mut M
-    ) -> Result<(), ZxMemoryError>
-{
-    let mem_slice = match range {
-        MemoryRange::Rom(range) => memory.rom_mut().get_mut(range),
-        MemoryRange::Ram(range) => memory.ram_mut().get_mut(range),
-        _ => Err(ZxMemoryError::UnsupportedExRomPaging)?
-    }.ok_or_else(|| ZxMemoryError::UnsupportedAddressRange)?;
-
-    reader.read_exact(mem_slice).map_err(ZxMemoryError::Io)
 }

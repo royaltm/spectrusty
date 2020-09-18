@@ -40,7 +40,6 @@ use sdl2::{Sdl,
            pixels::PixelFormatEnum,
            rect::Rect,
            video::{WindowPos, FullscreenType, Window, WindowContext}};
-use chrono::prelude::*;
 
 use spectrusty::z80emu::{Z80Any, Cpu};
 use spectrusty::audio::UlaAudioFrame;
@@ -55,7 +54,10 @@ use spectrusty::bus::{
 };
 use spectrusty::formats::{
     mdr::MicroCartridgeExt,
-    scr::ScreenDataProvider
+    scr::ScreenDataProvider,
+    snapshot::SnapshotCreator,
+    sna,
+    z80
 };
 use spectrusty::video::{BorderSize, pixel};
 use zxspectrum_common::{
@@ -112,7 +114,7 @@ F10: Hard reset.
 F11: Triggers non-maskable interrupt.
 F12: Cycles through border sizes.
 ScrLck: Show/hide keyboard image.
-PrtScr: Save screen as .SCR file.
+PrtScr: Saves a Z80 snapshot together with a SCR screen file.
 Pause: Pauses/resumes emulation.
 Insert: Creates a new TAP file.
 Delete: Removes the current TAP from the emulator.
@@ -145,7 +147,7 @@ fn main() -> Result<()> {
         (@arg melodik: --ay "Inserts Melodik AY-3-8910 device")
         (@arg fuller: --fuller "Inserts Fuller AY-3-8910 device")
         (@arg mouse: --mouse "Inserts Kempston Mouse device")
-        (@arg FILES: ... "Sets the input file(s) to load at startup")
+        (@arg FILES: ... "Sets the file(s) to load at startup")
     ).get_matches();
 
     set_dpi_awareness()?;
@@ -166,16 +168,40 @@ fn select_model(matches: clap::ArgMatches) -> Result<()> {
     let model;
     let allow_autoload;
 
+    let mut request_if1 = None;
+    let mut if1_rom_paged_in = false;
+
     let files = matches.values_of("FILES");
 
-    if let Some(filepath) = files.and_then(|mut f|
-                                    f.find(|&fpath|
-                                        snap_file_ext(fpath) == Some("json")
+    if let Some((filepath, kind)) = files.and_then(|f|
+                                        f.filter_map(|fpath|
+                                            snapshot_kind(fpath)
+                                            .map(|kind| (fpath, kind))
+                                        )
+                                        .next()
                                     )
-                                )
     {
+        info!("Loading snapshot: {}", filepath);
         let file = File::open(filepath)?;
-        model = serde_json::from_reader(file)?;
+        model = match kind {
+            SnapshotKind::Json => {
+                let mut model: ZxSpectrumModel = serde_json::from_reader(file)?;
+                model.rebuild_device_index();
+                model
+            }
+            SnapshotKind::Sna|SnapshotKind::Z80 => {
+                let load_fn = match kind {
+                    SnapshotKind::Sna => sna::load_sna,
+                    SnapshotKind::Z80 => z80::load_z80,
+                    _ => unreachable!()
+                };
+                let mut snap = ZxSpectrumModelSnap::default();
+                load_fn(file, &mut snap)?;
+                request_if1 = Some(snap.has_if1);
+                if1_rom_paged_in = snap.if1_rom_paged_in;
+                snap.model.unwrap()
+            }
+        };
         mreq = ModelRequest::from(&model);
         allow_autoload = false;
     }
@@ -204,7 +230,9 @@ fn select_model(matches: clap::ArgMatches) -> Result<()> {
         model.pixel_density()
     );
 
-    spectrum_model_dispatch!(model(spec) => config_and_run(mreq, spec, matches, allow_autoload))
+    spectrum_model_dispatch!(model(spec) => config_and_run(
+        mreq, spec, matches, allow_autoload, request_if1, if1_rom_paged_in
+    ))
 }
 
 fn config_and_run<U: 'static>(
@@ -212,6 +240,8 @@ fn config_and_run<U: 'static>(
         mut spec: ZxSpectrum<Z80Any, U>,
         matches: clap::ArgMatches,
         allow_autoload: bool,
+        request_if1: Option<bool>,
+        if1_rom_paged_in: bool
     ) -> Result<()>
     where U: HostConfig
            + UlaCommon
@@ -249,26 +279,36 @@ fn config_and_run<U: 'static>(
     }
 
     if let Some(rom_path) = matches.value_of("interface1") {
-        let rom_file = File::open(rom_path)?;
-        spec.ula.memory_ext_mut().load_if1_rom(rom_file)?;
-        spec.attach_device(ZxInterface1::<VFrameTs<U::VideoFrame>>::default());
-        info!("Interface 1 installed");
-        let network = spec.zxif1_network_mut().unwrap();
-        if let Some(bind) = matches.value_of("zxnet_bind") {
-            info!("ZX-NET bind: {}", bind);
-            network.socket.bind(bind)?;
-        }
-        if let Some(conn) = matches.value_of("zxnet_conn") {
-            info!("ZX-NET conn: {}", conn);
-            network.socket.connect(conn)?;
-        }
-        for n in 0..1 {
-            spec.microdrives_mut().unwrap().replace_cartridge(n,
-                    MicroCartridge::new_formatted(180, format!("blank {}", n + 1)));
+        if request_if1 != Some(false) {
+            let rom_file = File::open(rom_path)?;
+            spec.ula.memory_ext_mut().load_if1_rom(rom_file)?;
+            spec.attach_device(ZxInterface1::<VFrameTs<U::VideoFrame>>::default());
+            info!("Interface 1 installed");
+            let network = spec.zxif1_network_mut().unwrap();
+            if let Some(bind) = matches.value_of("zxnet_bind") {
+                info!("ZX-NET bind: {}", bind);
+                network.socket.bind(bind)?;
+            }
+            if let Some(conn) = matches.value_of("zxnet_conn") {
+                info!("ZX-NET conn: {}", conn);
+                network.socket.connect(conn)?;
+            }
+            for n in 0..1 {
+                spec.microdrives_mut().unwrap().replace_cartridge(n,
+                        MicroCartridge::new_formatted(180, format!("blank {}", n + 1)));
+            }
+            if if1_rom_paged_in {
+                let (mem, ext) = spec.ula.memory_with_ext_mut();
+                ext.map_exrom(mem)?;
+            }
         }
     }
     else if matches.is_present("zxnet_bind") || matches.is_present("zxnet_conn") {
-        eprintln!(r#"--bind and --conn options require --interface1"#, );
+        eprintln!(r#"--bind and --conn options require --interface1"#);
+        return Ok(())
+    }
+    else if request_if1 == Some(true) {
+        eprintln!(r#"Snapshot requires ZX Interface 1 but no IF 1 ROM path was provided."#);
         return Ok(())
     }
 
@@ -311,7 +351,7 @@ fn config_and_run<U: 'static>(
     // load non-snapshot files
     if let Some(files) = matches.values_of("FILES") {
         for filepath in files.filter(|&filepath|
-                                        snap_file_ext(filepath).is_none()
+                                        snapshot_kind(filepath).is_none()
                                     )
         {
             info!("Loading file: {}", filepath);
@@ -333,7 +373,7 @@ fn config_and_run<U: 'static>(
     run(&mut zx, &sdl_context, show_copyright)?;
 
     // save the snapshot
-    let json_name = format!("spectrusty_{}.json", Utc::now().format("%Y-%m-%d_%H%M%S%.f"));
+    let json_name = format!("spectrusty_{}.json", now_timestamp_format!());
     let json_file = std::fs::File::create(&json_name)?;
     serde_json::to_writer(json_file, &zx)?;
     info!("Saved a snapshot file: {}", json_name);
@@ -352,6 +392,7 @@ fn run<C, U: 'static>(
            + SpoolerAccess
            + ScreenDataProvider
            + UlaPlusMode,
+          ZxSpectrumEmu<C, U>: SnapshotCreator,
           ZxSpectrum<C, U>: JoystickAccess
 {
     // SDL2 related code follows
@@ -633,8 +674,12 @@ fn run<C, U: 'static>(
                 }
                 Event::KeyDown { keycode: Some(Keycode::PrintScreen), repeat: false, ..} => {
                     zx.audio.pause();
-                    let filename = zx.save_screen()?;
-                    info_window("Screen captured", format!("Screen saved as:\n{}", filename).into());
+                    let basename = format!("spectrusty_{}", now_timestamp_format!());
+                    zx.save_screen(&basename)?;
+                    let info = zx.save_z80(&basename)?;
+                    info_window("Snapshot captured",
+                        format!("Screen saved as:\n{}.scr\nSnapshot saved as:\n{}.z80\n\n{}",
+                            basename, basename, info).into());
                     zx.resume_audio();
                 }
                 Event::KeyDown { keycode: Some(Keycode::Tab), repeat: false, ..} => {
@@ -721,7 +766,7 @@ fn run<C, U: 'static>(
         }
         if let Some(mdr) = mdrive.take_cartridge(0) {
             if mdr.count_sectors_in_use() != 0 {
-                let name = format!("microdrive_{}.mdr", Utc::now().format("%Y-%m-%d_%H%M%S%.f"));
+                let name = format!("microdrive_{}.mdr", now_timestamp_format!());
                 let mut file = std::fs::File::create(&name)?;
                 mdr.write_mdr(&mut file)?;
                 info!("Saved a microdrive: {}", name);

@@ -16,22 +16,17 @@ use serde::{
 use spectrusty::z80emu::Cpu;
 use spectrusty::clock::VFrameTs;
 use spectrusty::bus::{
-    NullDevice, NamedBusDevice, SerializeDynDevice, DeserializeDynDevice,
+    NamedBusDevice, SerializeDynDevice, DeserializeDynDevice,
     NamedDynDevice, BoxNamedDynDevice,
-    ay,
-    mouse
 };
 use spectrusty::video::{Video, VideoFrame};
 use zxspectrum_common::{
+    Ay3_891xMelodik, Ay3_891xFullerBox, KempstonMouse,
     ZxSpectrum, DeviceAccess, DynamicDevices,
     spectrum_model_dispatch
 };
 
 use crate::ZxSpectrumEmuModel;
-
-pub type Ay3_891xMelodik<T> = ay::Ay3_891xMelodik<NullDevice<T>>;
-pub type Ay3_891xFullerBox<T> = ay::Ay3_891xFullerBox<NullDevice<T>>;
-pub type KempstonMouse<T> = mouse::KempstonMouse<NullDevice<T>>;
 
 pub struct SerdeDynDevice;
 

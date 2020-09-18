@@ -16,15 +16,11 @@ use serde::{
 
 use spectrusty::clock::FrameTimestamp;
 use spectrusty::bus::{
-    NullDevice, NamedBusDevice, SerializeDynDevice, DeserializeDynDevice, 
-    ay,
-    mouse,
+    NamedBusDevice, SerializeDynDevice, DeserializeDynDevice
 };
 use super::{ZxInterface1, ZxPrinter};
 
-pub type Ay3_891xMelodik<T> = ay::Ay3_891xMelodik<NullDevice<T>>;
-pub type Ay3_891xFullerBox<T> = ay::Ay3_891xFullerBox<NullDevice<T>>;
-pub type KempstonMouse<T> = mouse::KempstonMouse<NullDevice<T>>;
+pub use zxspectrum_common::{Ay3_891xMelodik, Ay3_891xFullerBox, KempstonMouse};
 
 #[derive(Debug, Default, Copy, Clone)]
 pub struct SerdeDynDevice;

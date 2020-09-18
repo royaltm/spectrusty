@@ -5,11 +5,11 @@
     For the full copyright notice, see the main.rs file.
 */
 #![allow(unused_macros)]
+use std::{borrow::Cow, error::Error, ptr};
 
 #[allow(unused_imports)]
 use log::{error, warn, info, debug, trace};
 
-use std::{borrow::Cow, error::Error, ptr};
 use sdl2::{VideoSubsystem,
             // video::Window,
             pixels::PixelFormatEnum,
@@ -72,6 +72,12 @@ pub fn create_image_canvas_window(video_sdl: &VideoSubsystem, image_data: &[u8])
     canvas.copy(&texture, None, None)?;
     canvas.present();
     Ok(canvas)
+}
+
+macro_rules! now_timestamp_format {
+ () => {
+    ::chrono::Utc::now().format("%Y-%m-%d_%H%M%S%.f")
+ };
 }
 
 macro_rules! measure_performance {

@@ -11,15 +11,17 @@ use std::io;
 use spectrusty::z80emu::Cpu;
 use spectrusty::clock::VFrameTs;
 use spectrusty::bus::{
-    BusDevice, OptionalBusDevice, DynamicVBus, DynamicSerdeVBus,
+    BusDevice, OptionalBusDevice, DynamicVBus, DynamicSerdeVBus, NullDevice,
     NamedBusDevice, BoxNamedDynDevice, VFNullDevice,
     ay::{
+        self,
         Ay3_891xAudio, Ay3_8912Io,
         serial128::{
             SerialKeypad, NullSerialPort,
             Rs232Io, SerialPorts128
         }
     },
+    mouse,
     joystick::MultiJoystickBusDevice,
 };
 use spectrusty::chip::{
@@ -47,6 +49,13 @@ pub type Ay128Io<V, AUX, R, W> = Ay3_8912Io<VFrameTs<V>,
                                                            Rs232Io<VFrameTs<V>, R, W>
                                                           >
                                            >;
+
+/// Melodik AY-3-8913 [BusDevice] that can be used as a dynamic device.
+pub type Ay3_891xMelodik<T> = ay::Ay3_891xMelodik<NullDevice<T>>;
+/// Fuller Box AY-3-8913 [BusDevice] that can be used as a dynamic device.
+pub type Ay3_891xFullerBox<T> = ay::Ay3_891xFullerBox<NullDevice<T>>;
+/// Kempston Mouse [BusDevice] that can be used as a dynamic device.
+pub type KempstonMouse<T> = mouse::KempstonMouse<NullDevice<T>>;
 
 /// Trait with helpers for accessing static bus devices.
 ///
@@ -81,7 +90,11 @@ pub trait DeviceAccess: Video {
 ///
 /// This trait can be used to easily manage dynamic devices in run time.
 pub trait DynamicDevices<V: VideoFrame> {
-    /// Returns `true` if dynamic bus device is present in the bus device chain.
+    /// Returns `true` if a dynamic bus [DynamicVBus] is present in the static device chain
+    /// and the provided `device` has been attached to it. Returns `false` otherwise.
+    ///
+    /// Any previous dynamic device of the same type `D` will be replaced by the provided
+    /// `device` instance.
     fn attach_device<D: Into<BoxNamedDynDevice<VFrameTs<V>>>>(&mut self, device: D) -> bool;
     fn detach_device<D: NamedBusDevice<VFrameTs<V>> + 'static>(&mut self) -> Option<Box<D>>;
     fn device_mut<D: NamedBusDevice<VFrameTs<V>> + 'static>(&mut self) -> Option<&mut D>;

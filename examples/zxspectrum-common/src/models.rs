@@ -13,7 +13,7 @@ use rand::prelude::*;
 
 use serde::{Serialize, Deserialize};
 
-use spectrusty::z80emu::{Cpu, Z80, {z80::Flavour}, host::Io};
+use spectrusty::z80emu::{Cpu, Z80, Z80Any, {z80::Flavour}, host::Io};
 use spectrusty::audio::Blep;
 use spectrusty::clock::{FTs, VFrameTs};
 use spectrusty::formats::snapshot::ComputerModel;
@@ -33,9 +33,9 @@ use spectrusty::bus::{
     // parallel::Plus3CentronicsWriterBusDevice
 };
 use spectrusty::chip::{
-    FrameState, Ula128Control, Ula3Control, ScldControl,
+    FrameState, UlaControl,
     MemoryAccess, HostConfig, UlaCommon,
-    Ula128MemFlags, Ula3CtrlFlags, ScldCtrlFlags,
+    Ula128MemFlags, Ula3CtrlFlags,
     ula::{Ula, UlaVideoFrame, UlaNTSCVidFrame},
     ula128::{Ula128, Ula128VidFrame},
     ula3::{Ula3, Ula3VidFrame},
@@ -604,7 +604,7 @@ impl<C: Cpu, D, X, F, R, W> ZxSpectrum128k<C, D, X, F, R, W>
 
     pub fn lock_48k_mode(&mut self) {
         self.ula.set_ula128_mem_port_value(Ula128MemFlags::ROM_BANK
-                                          |Ula128MemFlags::LOCK_MMU)
+                                          |Ula128MemFlags::LOCK_MMU);
         // self.ula.write_io(0x7ffd, 0b0011_0000, VideoTs::default());
     }
 }
@@ -612,6 +612,7 @@ impl<C: Cpu, D, X, F, R, W> ZxSpectrum128k<C, D, X, F, R, W>
 impl<C: Cpu, D, X, F, R, W> ZxSpectrum128kPlus<C, D, X, F, R, W>
     where D: BusDevice,
           X: MemoryExtension,
+          <Self as SpectrumUla>::Chipset: UlaControl
 {
     /// Copies the paged in RAM memory, the border color, the CPU state and the emulator 
     /// state into `self` from the provided `model`. Locks `self` into 48k mode.
@@ -636,16 +637,16 @@ impl<C: Cpu, D, X, F, R, W> ZxSpectrum128kPlus<C, D, X, F, R, W>
 
     pub fn lock_48k_mode(&mut self) {
         self.ula.set_ula128_mem_port_value(Ula128MemFlags::ROM_BANK
-                                          |Ula128MemFlags::LOCK_MMU)
+                                          |Ula128MemFlags::LOCK_MMU);
         // self.ula.write_io(0x7ffd, 0b0011_0000, VideoTs::default());
     }
 }
 
 impl<C: Cpu, D, X, F, R, W> ZxSpectrum2A<C, D, X, F, R, W>
     where D: BusDevice<Timestamp=VFrameTs<Ula3VidFrame>>,
+          X: MemoryExtension,
           R: io::Read + fmt::Debug,
           W: io::Write + fmt::Debug,
-          X: MemoryExtension
 {
     /// Copies the paged in RAM memory, the border color, the CPU state and the emulator 
     /// state into `self` from the provided `model`. Locks `self` into 48k mode.
@@ -670,16 +671,16 @@ impl<C: Cpu, D, X, F, R, W> ZxSpectrum2A<C, D, X, F, R, W>
         self.ula.set_ula3_ctrl_port_value(Ula3CtrlFlags::ROM_BANK_HI);
         // self.ula.write_io(0x1ffd, 0b0000_0100, VideoTs::default());
         self.ula.set_ula128_mem_port_value(Ula128MemFlags::ROM_BANK
-                                          |Ula128MemFlags::LOCK_MMU)
+                                          |Ula128MemFlags::LOCK_MMU);
         // self.ula.write_io(0x7ffd, 0b0011_0000, VideoTs::default());
     }
 }
 
 impl<C: Cpu, D, X, F, R, W> ZxSpectrum2B<C, D, X, F, R, W>
     where D: BusDevice<Timestamp=VFrameTs<Ula3VidFrame>>,
+          X: MemoryExtension,
           R: io::Read + fmt::Debug,
           W: io::Write + fmt::Debug,
-          X: MemoryExtension,
 {
     /// Copies the paged in RAM memory, the border color, the CPU state and the emulator 
     /// state into `self` from the provided `model`. Locks `self` into 48k mode.
@@ -704,7 +705,7 @@ impl<C: Cpu, D, X, F, R, W> ZxSpectrum2B<C, D, X, F, R, W>
         self.ula.set_ula3_ctrl_port_value(Ula3CtrlFlags::empty());
         // self.ula.write_io(0x1ffd, 0b0000_0000, VideoTs::default());
         self.ula.set_ula128_mem_port_value(Ula128MemFlags::ROM_BANK
-                                          |Ula128MemFlags::LOCK_MMU)
+                                          |Ula128MemFlags::LOCK_MMU);
         // self.ula.write_io(0x7ffd, 0b0011_0000, VideoTs::default());
     }
 }
@@ -832,38 +833,6 @@ impl<C, S, X, F, R, W> ZxSpectrumModel<C, S, X, F, R, W>
         spectrum_model_dispatch!(self(spec) => spec.ula.current_tstate())
     }
 
-    pub fn ula128_mem_port_value(&self) -> Option<Ula128MemFlags> {
-        match self {
-            ZxSpectrumModel::Spectrum128(spec128)|
-            ZxSpectrumModel::SpectrumPlus2(spec128) => Some(spec128.ula.ula128_mem_port_value()),
-            ZxSpectrumModel::SpectrumPlus2A(spec3) => Some(spec3.ula.ula128_mem_port_value()),
-            ZxSpectrumModel::SpectrumPlus2B(plus128) => Some(plus128.ula.ula128_mem_port_value()),
-            _ => None
-        }
-    }
-
-    pub fn ula3_ctrl_port_value(&self) -> Option<Ula3CtrlFlags> {
-        match self {
-            ZxSpectrumModel::SpectrumPlus2A(spec3) => Some(spec3.ula.ula3_ctrl_port_value()),
-            ZxSpectrumModel::SpectrumPlus2B(plus128) => Some(plus128.ula.ula3_ctrl_port_value()),
-            _ => None
-        }
-    }
-
-    pub fn scld_ctrl_port_value(&self) -> Option<ScldCtrlFlags> {
-        match self {
-            ZxSpectrumModel::TimexTC2048(timex) => Some(timex.ula.scld_ctrl_port_value()),
-            _ => None
-        }
-    }
-
-    pub fn scld_mmu_port_value(&self) -> Option<u8> {
-        match self {
-            ZxSpectrumModel::TimexTC2048(timex) => Some(timex.ula.scld_mmu_port_value()),
-            _ => None
-        }
-    }
-
     /// Hot-swaps hardware model.
     pub fn change_model(&mut self, request: ModelRequest)
         where X: Default + 'static,
@@ -965,11 +934,15 @@ impl<C, S, X, F, R, W> ZxSpectrumModel<C, S, X, F, R, W>
     }
 }
 
-impl<CF: Flavour, S, X, F, R, W> ZxSpectrumModel<Z80<CF>, S, X, F, R, W>
-    where R: io::Read + fmt::Debug,
-          W: io::Write + fmt::Debug
-{
+impl<CF: Flavour, S, X, F, R, W> ZxSpectrumModel<Z80<CF>, S, X, F, R, W> {
     pub fn set_cpu<I: Into<Z80<CF>>>(&mut self, cpu: I) {
+        let cpu = cpu.into();
+        spectrum_model_dispatch!(self(spec) => spec.cpu = cpu)
+    }
+}
+
+impl<S, X, F, R, W> ZxSpectrumModel<Z80Any, S, X, F, R, W> {
+    pub fn set_cpu_any<I: Into<Z80Any>>(&mut self, cpu: I) {
         let cpu = cpu.into();
         spectrum_model_dispatch!(self(spec) => spec.cpu = cpu)
     }

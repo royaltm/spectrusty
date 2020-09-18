@@ -18,7 +18,6 @@ use log::{error, warn, info, debug, trace};
 
 use ::serde::Serialize;
 use arrayvec::ArrayString;
-use chrono::prelude::*;
 use sdl2::{Sdl, mouse::MouseButton, keyboard::{Keycode, Mod as Modifier}};
 
 use spectrusty::audio::{
@@ -41,11 +40,12 @@ use spectrusty::bus::{
 use spectrusty::formats::{
     tap::{TapChunkRead, TapReadInfoIter, TapChunkInfo},
     mdr::MicroCartridgeExt,
-    scr::{LoadScr, ScreenDataProvider}
+    scr::{LoadScr, ScreenDataProvider},
+    snapshot::SnapshotCreator,
+    z80
 };
 use spectrusty::peripherals::{
     mouse::MouseButtons,
-    memory::ZxInterface1MemExt
 };
 use spectrusty::video::{
     VideoFrame, Video
@@ -70,12 +70,20 @@ mod nonblocking;
 mod interface1;
 mod printer;
 mod serde;
+mod snapshot;
 use self::nonblocking::NonBlockingStdinReader;
 use self::printer::{EpsonGfxFilteredStdoutWriter};
 pub use self::printer::{ZxPrinter, DynSpoolerAccess, SpoolerAccess};
 pub use self::interface1::{ZxInterface1, ZxInterface1Access};
+pub use snapshot::ZxSpectrumModelSnap;
+pub use spectrusty::peripherals::memory::ZxInterface1MemExt;
 
 pub type Result<T> = core::result::Result<T, Box<dyn std::error::Error>>;
+
+type Sample = f32;
+type BlepDelta = f32;
+type Audio = AudioHandle<Sample>;
+pub type BandLim = BlepAmpFilter<BlepStereo<BandLimited<BlepDelta>>>;
 
 /// ZX Spectrum with TAPs as direct files.
 pub type ZxSpectrum<C, U> = zxspectrum_common::ZxSpectrum<C, U, fs::File>;
@@ -86,20 +94,8 @@ pub type ZxSpectrumModel<C=Z80Any, X=ZxInterface1MemExt> = zxspectrum_common::Zx
                                         fs::File,
                                         NonBlockingStdinReader,
                                         EpsonGfxFilteredStdoutWriter>;
-// pub type ZxSpectrumTest<'a> = ZxSpectrumEmu<'a, Z80Any, zxspectrum_common::Plus128>;
-// zxspectrum_common::ZxSpectrum16k<
-//                             Z80Any,
-//                             NullDevice<VideoTs>,
-//                             NoMemoryExtension,
-//                             io::Cursor<Vec<u8>>>;//,
-                            // Empty,
-                            // Sink>;
-type Sample = f32;
-type BlepDelta = f32;
-type Audio = AudioHandle<Sample>;
-pub type BandLim = BlepAmpFilter<BlepStereo<BandLimited<BlepDelta>>>;
 
-/// This is the main class being instantiated in main.
+/// This is the main emulator class.
 #[derive(Serialize)]
 pub struct ZxSpectrumEmu<C: Cpu, U> {
     pub model: ModelRequest,
@@ -119,11 +115,16 @@ pub struct ZxSpectrumEmu<C: Cpu, U> {
     info_range: Range<usize>
 }
 
-pub fn snap_file_ext(filepath: &str) -> Option<&'static str> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SnapshotKind {
+    Json, Sna, Z80
+}
+
+pub fn snapshot_kind(filepath: &str) -> Option<SnapshotKind> {
     match Path::new(filepath).extension().and_then(OsStr::to_str) {
-        Some(ext) if ext.eq_ignore_ascii_case("json") => Some("json"),
-        Some(ext) if ext.eq_ignore_ascii_case("sna") => Some("sna"),
-        Some(ext) if ext.eq_ignore_ascii_case("z80") => Some("z80"),
+        Some(ext) if ext.eq_ignore_ascii_case("json") => Some(SnapshotKind::Json),
+        Some(ext) if ext.eq_ignore_ascii_case("sna") => Some(SnapshotKind::Sna),
+        Some(ext) if ext.eq_ignore_ascii_case("z80") => Some(SnapshotKind::Z80),
         _ => None
     }
 }
@@ -280,7 +281,7 @@ impl<C: Cpu, U> ZxSpectrumEmu<C, U> {
         fn save_images<S: DotMatrixGfx>(info: &mut String, source: &str, spooler: &mut S) -> Result<()> {
             use fmt::Write;
             if !spooler.is_empty() {
-                let mut name = format!("print_out_{}_{}", source, Utc::now().format("%Y-%m-%d_%H%M%S%.f"));
+                let mut name = format!("print_out_{}_{}", source, now_timestamp_format!());
                 let base_len = name.len();
                 let mut buf: Vec<u8> = Vec::new();
                 if let Some((width, height)) = spooler.write_gfx_data(&mut buf) {
@@ -392,13 +393,28 @@ impl<C: Cpu, U> ZxSpectrumEmu<C, U> {
         self.spectrum.ula.load_scr(scr_data)
     }
 
-    pub fn save_screen(&self) -> io::Result<String>
+    pub fn save_screen(&self, basename: &str) -> io::Result<()>
         where U: ScreenDataProvider
     {
-        let name = format!("screen_{}.scr", Utc::now().format("%Y-%m-%d_%H%M%S%.f"));
+        let name = format!("{}.scr", basename);
         let file = std::fs::File::create(&name)?;
         self.spectrum.ula.save_scr(file)?;
-        Ok(name)
+        Ok(())
+    }
+
+    pub fn save_z80(&self, basename: &str) -> io::Result<String>
+        where Self: SnapshotCreator
+    {
+        let name = format!("{}.z80", basename);
+        let file = std::fs::File::create(&name)?;
+        let result = z80::save_z80v3(self, file)?;
+        Ok(if !result.is_empty() {
+            format!("The substantial amount of information has been lost in the selected snapshot format.\n\n {:?}",
+                    result)
+        }
+        else {
+            String::new()
+        })
     }
 
     pub fn load_mdr<R: io::Read>(&mut self, mdr_data: R) -> Result<Option<String>>
