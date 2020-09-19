@@ -32,7 +32,7 @@ features = ["formats", "peripherals"]
 path = ".."
 
 [dependencies.minifb]
-version = "0.16"
+version = "0.19"
 optional = true
 
 [dependencies.sdl2]
