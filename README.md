@@ -28,7 +28,7 @@ Because of the heavy use of static dispatching and due to monomorphisation the s
 How To
 ------
 
-Because the best way to learn new things is through practice, so instead of explaining the core concept behind the library, I'll just point you to the [tutorial] that I'm finishing at the moment.
+Because the best way to learn new things is through practice, so instead of explaining the core concept behind the library, I'll just invite you to look at the [tutorial].
 
 
 Examples
@@ -43,16 +43,18 @@ Contribution and feedback
 Because of ZX Spectrum's popularity, there is a lot of technical information available from various sources. On the other hand, because of the same reason, the certainty of the information has been deluded, because some of the resources are contradicting each other. Unfortunately, my access to the real hardware is very limited - I'm a proud owner of a single TC2048, that is still working today. If you'd find something that is being emulated in the wrong way, please don't hesitate to submit an issue.
 
 
-Features and the roadmap
-------------------------
+Features
+--------
+
+Below you'll find the featured facilities of the library and its roadmap.
 
 ### CPU
 
-The Zilog's Z80 emulation is performed via a separate [z80emu] crate which can emulate `NMOS`/`CMOS`/`BM1` version of the CPU.
+The Zilog's Z80 CPU emulation is performed via a separate [z80emu] crate that can emulate `NMOS`, `CMOS`, and `BM1` variants of the CPU.
 
 ### Core chipset models
 
-The video and contention timings for the Sinclair/Amstrad machines are thoroughly tested and match those of the [Fuse] emulator. The SCLD implementation has no separate timings implemented yet, so for now it can borrow the timings from Sinclair models.
+The video and contention timings for the Sinclair/Amstrad machines are thoroughly tested and at least match those of the [Fuse] emulator. The SCLD implementation has no separate timings implemented yet, so for now it can borrow the timings from Sinclair models.
 
 * [x] - Ferranti ULA (Uncommitted Logic Array) for Sinclair ZX Spectrum 16k/48k (PAL and NTSC timings).
 * [x] - Ferranti ULA 128 for Sinclair ZX Spectrum 128k/+2.
