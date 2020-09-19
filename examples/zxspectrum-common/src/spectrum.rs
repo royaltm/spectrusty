@@ -244,8 +244,44 @@ impl<C: Cpu, U, F> ZxSpectrum<C, U, F>
         Ok(None)
     }
 
+    /// Returns `Ok(Some(bool))` if instant load attempt was made.
+    fn instant_tape_load_from_tape(&mut self) -> Result<Option<bool>> {
+        let state = &mut self.state;
+        if state.instant_tape {
+            let mut chunk_no = 0;
+            // try to instantly load/verify if ROM loader is being used
+            if let Some(read_len) = try_instant_rom_tape_load_or_verify(
+                &mut self.cpu,
+                self.ula.memory_mut(),
+                || {
+                    state.tape.make_reader()?;
+                    let pulse_iter = state.tape.reader_mut().unwrap().get_mut();
+                    let is_lead = pulse_iter.state().is_lead();
+                    let chunk_reader = pulse_iter.get_mut();
+                    chunk_no = chunk_reader.chunk_no();
+                    if is_lead {
+                        chunk_reader.rewind_chunk()?;
+                    }
+                    else {
+                        chunk_reader.forward_chunk()?;
+                    }
+                    Ok(chunk_reader.get_mut())
+                })?
+            {
+                let pulse_iter = state.tape.reader_mut().unwrap().get_mut();
+                pulse_iter.data_from_next();
+                state.prev_ear_in_counter = 0;
+                state.ear_in_zero_counter = 0;
+                return Ok(Some(
+                    read_len != 0 || chunk_no != pulse_iter.get_ref().chunk_no()
+                ));
+            }
+        }
+        Ok(None)
+    }
+
     /// Very simple heuristics for detecting if spectrum needs some TAPE data.
-    /// Returns `Ok(true)` if instant load attempt was made.
+    /// Returns `Ok(true)` if TAPE instantly loaded.
     fn auto_detect_load_from_tape(&mut self) -> Result<bool> {
         const ZERO_FRAMES_THRESHOLD_TS: u32 = 3_600_000;
         let count = self.ula.read_ear_in_count();
@@ -278,35 +314,11 @@ impl<C: Cpu, U, F> ZxSpectrum<C, U, F>
             }
             // if flash loading is enabled and a tape isn't running
             else if state.tape.is_inserted() && !state.tape.running {
-                if state.instant_tape {
-                    let mut chunk_no = 0;
-                    // try to instantly load/verify if ROM loader is being used
-                    if let Some(read_len) = try_instant_rom_tape_load_or_verify(
-                        &mut self.cpu,
-                        self.ula.memory_mut(),
-                        || {
-                            state.tape.make_reader()?;
-                            let pulse_iter = state.tape.reader_mut().unwrap().get_mut();
-                            let is_lead = pulse_iter.state().is_lead();
-                            let chunk_reader = pulse_iter.get_mut();
-                            chunk_no = chunk_reader.chunk_no();
-                            if is_lead {
-                                chunk_reader.rewind_chunk()?;
-                            }
-                            else {
-                                chunk_reader.forward_chunk()?;
-                            }
-                            Ok(chunk_reader.get_mut())
-                        })?
-                    {
-                        let pulse_iter = state.tape.reader_mut().unwrap().get_mut();
-                        pulse_iter.data_from_next();
-                        state.prev_ear_in_counter = 0;
-                        state.ear_in_zero_counter = 0;
-                        return Ok(read_len != 0 || chunk_no != pulse_iter.get_ref().chunk_no());
-                    }
+                if let Some(res) = self.instant_tape_load_from_tape()? {
+                    return Ok(res);
                 }
                 const PROBE_THRESHOLD: u32 = 69888/1000;
+                let state = &mut self.state;
                 // play the tape and speed up
                 // if the EAR IN probing exceeds the threshold
                 if state.flash_tape && count > U::VideoFrame::FRAME_TSTATES_COUNT as u32 / PROBE_THRESHOLD {
@@ -314,8 +326,8 @@ impl<C: Cpu, U, F> ZxSpectrum<C, U, F>
                     state.turbo = true;
                 }
             }
-            state.prev_ear_in_counter = count;
-            state.ear_in_zero_counter = 0;
+            self.state.prev_ear_in_counter = count;
+            self.state.ear_in_zero_counter = 0;
         }
         Ok(false)
     }
