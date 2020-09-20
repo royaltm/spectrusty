@@ -29,7 +29,7 @@ use spectrusty::z80emu::{Z80Any, Cpu};
 use spectrusty::audio::{UlaAudioFrame, host::sdl2::AudioHandle};
 
 use spectrusty::chip::{
-    ThreadSyncTimer, UlaCommon, HostConfig, MemoryAccess,
+    ThreadSyncTimer, UlaCommon, HostConfig, ControlUnit, MemoryAccess,
 };
 
 use spectrusty::bus::{
@@ -41,7 +41,7 @@ use spectrusty::formats::{
     tap::{TapChunkRead, TapReadInfoIter, TapChunkInfo},
     mdr::MicroCartridgeExt,
     scr::{LoadScr, ScreenDataProvider},
-    snapshot::SnapshotCreator,
+    snapshot::{SnapshotCreator, ensure_cpu_is_safe_for_snapshot},
     z80
 };
 use spectrusty::peripherals::{
@@ -402,11 +402,13 @@ impl<C: Cpu, U> ZxSpectrumEmu<C, U> {
         Ok(())
     }
 
-    pub fn save_z80(&self, basename: &str) -> io::Result<String>
-        where Self: SnapshotCreator
+    pub fn save_z80(&mut self, basename: &str) -> io::Result<String>
+        where Self: SnapshotCreator,
+              U: MemoryAccess + ControlUnit + Video
     {
         let name = format!("{}.z80", basename);
         let file = std::fs::File::create(&name)?;
+        ensure_cpu_is_safe_for_snapshot(&mut self.spectrum.cpu, &mut self.spectrum.ula);
         let result = z80::save_z80v3(self, file)?;
         Ok(if !result.is_empty() {
             format!("The substantial amount of information has been lost in the selected snapshot format.\n\n {:?}",

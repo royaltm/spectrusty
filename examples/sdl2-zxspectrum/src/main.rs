@@ -676,10 +676,14 @@ fn run<C, U: 'static>(
                     zx.audio.pause();
                     let basename = format!("spectrusty_{}", now_timestamp_format!());
                     zx.save_screen(&basename)?;
-                    let info = zx.save_z80(&basename)?;
-                    info_window("Snapshot captured",
-                        format!("Screen saved as:\n{}.scr\nSnapshot saved as:\n{}.z80\n\n{}",
-                            basename, basename, info).into());
+                    match zx.save_z80(&basename) {
+                        Ok(info) => info_window("Snapshot captured",
+                            format!("Screen saved as:\n{}.scr\nSnapshot saved as:\n{}.z80\n\n{}",
+                                basename, basename, info).into()),
+                        Err(e) => alert_window(
+                            format!("Screen saved as:\n{}.scr\n\nCouldn't save snapshot:\n{}",
+                                    basename, e).into())
+                    }
                     zx.resume_audio();
                 }
                 Event::KeyDown { keycode: Some(Keycode::Tab), repeat: false, ..} => {
