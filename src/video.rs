@@ -5,7 +5,7 @@
 
     For the full copyright notice, see the lib.rs file.
 */
-//! # Video API
+//! # Video API.
 pub mod frame_cache;
 mod render_pixels;
 mod render_pixels_plus;

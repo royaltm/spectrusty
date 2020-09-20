@@ -24,12 +24,14 @@ pub const HOST_CLOCK_RATIO: FTs = 2;
 ///
 /// These levels are closest to the specs.
 ///
-/// Original comment from Game_Music_Emu:
+/// Original comment from [game-music-emu]:
 /// ```text
 ///    // With channels tied together and 1K resistor to ground (as datasheet recommends),
 ///    // output nearly matches logarithmic curve as claimed. Approx. 1.5 dB per step.
 /// ```
 /// [AyAmps] struct implements `AMPS` for [AmpLevels]. See also [FUSE_AMPS].
+///
+/// [game-music-emu]: https://bitbucket.org/mpyne/game-music-emu/src/013d4676c689dc49f363f99dcfb8b88f22278236/gme/Ay_Apu.cpp#lines-32
 #[allow(clippy::approx_constant,clippy::excessive_precision)]
 pub const AMPS: [f32;16] = [0.000_000, 0.007_813, 0.011_049, 0.015_625,
                             0.022_097, 0.031_250, 0.044_194, 0.062_500,
@@ -46,7 +48,7 @@ pub const AMPS_I16: [i16;16] = [0x0000, 0x0100, 0x016a, 0x01ff,
                                 0x0b50, 0x0fff, 0x16a0, 0x1fff,
                                 0x2d40, 0x3fff, 0x5a81, 0x7fff];
 
-/// These AY-3-891x amplitude levels are being used in the Zx Spectrum Fuse emulator.
+/// These AY-3-891x amplitude levels are being used in the ["Free Unix Spectrum Emulator"] emulator.
 ///
 /// The original comment below:
 /// ```text
@@ -58,6 +60,8 @@ pub const AMPS_I16: [i16;16] = [0x0000, 0x0100, 0x016a, 0x01ff,
 /// ```
 /// These are more linear than [AMPS].
 /// [AyFuseAmps] struct implements `FUSE_AMPS` for [AmpLevels].
+///
+/// ["Free Unix Spectrum Emulator"]: http://fuse-emulator.sourceforge.net/
 #[allow(clippy::unreadable_literal,clippy::excessive_precision)]
 pub const FUSE_AMPS: [f32;16] = [0.000000000, 0.0137483785, 0.020462349, 0.029053178,
                                  0.042343784, 0.0618448150, 0.084718090, 0.136903940,
@@ -69,7 +73,7 @@ pub const FUSE_AMPS_I16: [i16;16] = [0x0000, 0x01c2, 0x029e, 0x03b8,
                                      0x15a6, 0x21e0, 0x2d25, 0x3997,
                                      0x4902, 0x57f8, 0x6c90, 0x7fff];
 
-/// This may be used to calculate other levels, but I would discourage from using it in the player
+/// This may be used to calculate other levels, but I'd discourage from using it in the player
 /// as it uses expensive float calculations.
 pub struct LogAmpLevels16<T>(PhantomData<T>);
 impl<T: Copy + FromSample<f32>> AmpLevels<T> for LogAmpLevels16<T> {
@@ -405,7 +409,7 @@ impl Iterator for Ticker {
     }
 }
 
-/// Use [Default] trait to create instances of this struct.
+/// Use the [Default] trait to create instances of this struct.
 impl Ay3_891xAudio {
     /// Resets the internal state to the one initialized with.
     pub fn reset(&mut self) {
@@ -416,7 +420,7 @@ impl Ay3_891xAudio {
     /// `clock_hz` AY-3-891x clock frequency in Hz. In ZX Spectrum it equals to CPU_HZ / 2.
     /// Amstrad CPC has PSG clocked at 1 MHz. Atari ST at 2 MHz.
     ///
-    /// Returns `None` if the result can't be properly represented by 16 bit unsigned integer or if
+    /// Returns `None` if the result can't be properly represented by 16-bit unsigned integer or if
     /// the result is `0`.
     #[allow(clippy::float_cmp)]
     pub fn freq_to_tone_period(clock_hz: f32, hz: f32) -> Option<NonZeroU16> {
@@ -442,10 +446,10 @@ impl Ay3_891xAudio {
     /// `max_octave` A maximal octave number, 0-based (7 is the maximum).
     /// `note_freqs` An array of tone frequencies (in Hz) in the 5th octave (0-based: 4).
     ///  To generate frequencies you may want to use audio::music::equal_tempered_scale_note_freqs.
-    /// `clock_hz` The AY-3-891x clock frequency in Hz. Usually it's CPU_HZ / 2.
+    /// `clock_hz` The AY-3-891x clock frequency in Hz. Usually, it's CPU_HZ / 2.
     ///
     /// # Panics
-    /// Panics if any period can't be expressed by 16 bit unsigned integer.
+    /// Panics if any period can't be expressed by 16-bit unsigned integer.
     pub fn tone_periods<I>(
                 clock_hz: f32,
                 min_octave: i32,
@@ -463,7 +467,7 @@ impl Ay3_891xAudio {
           })
         })
     }
-    /// Renders square-wave audio pulses via [Blep] interface while mutating the internal state.
+    /// Renders square-wave audio pulses via the [Blep] interface while mutating the internal state.
     ///
     /// The internal state is being altered every [INTERNAL_CLOCK_DIVISOR] * [HOST_CLOCK_RATIO] Cpu
     /// clock cycles until `end_ts` is reached. The internal cycle counter is then decremented by the
@@ -471,8 +475,8 @@ impl Ay3_891xAudio {
     ///
     /// Provide [AmpLevels] that can handle `level` values from 0 to 15 (4-bits).
     ///
-    /// * `changes` should be ordered by `time` and recorded only with `time` < `end_ts`,
-    ///   otherwise some register changes may be lost - the iterator will be drained anyway.
+    /// * `changes` should be ordered by `time` and recorded only with `time` < `end_ts`
+    ///   otherwise, some register changes may be lost - the iterator will be drained anyway.
     /// * `end_ts` should be a value of an end of frame T-state counter value.
     /// * `frame_tstates` should be a duration of a single frame in T-states.
     /// * `channels` - indicate [Blep] audio channels for `[A, B, C]` AY channels.
@@ -594,7 +598,7 @@ impl Ay3_891xAudio {
     }
     /// Returns the current amplitude level of each channel.
     ///
-    /// If the channel volume register's evelope bit is set, it returns the current envelope
+    /// If the channel volume register's envelope bit is set, it returns the current envelope
     /// level for that channel.
     ///
     /// The levels are in the range: [0, 15].

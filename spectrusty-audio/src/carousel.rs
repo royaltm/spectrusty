@@ -5,20 +5,21 @@
 
     For the full copyright notice, see the lib.rs file.
 */
-/*! Tools for assisting audio rendering via audio frameworks that runs on separate threads.
+/*! Tools for assisting audio rendering via audio frameworks that run on separate threads.
 
 # The Carousel
 
-Some audio frameworks require sample generators to be run in a loop on a separate thread 
-while sound is playing or via callbacks just in time when audio buffer need to be refilled.
+Some audio frameworks require sample generators to be run on a separate thread while the sound
+is being played to provide data to fill the audio buffer just in time when it needs to be refilled.
 
-When emulating Spectrum computer we have to synchronize frames with video as well as audio
-and having an independent thread for rendering audio frames makes this task somewhat difficult.
+When emulating a computer we have to synchronize emulation, render video frames, read user input,
+and at the same time to render audio samples asynchronously exactly when some external thread
+tells us to. Having a concurrent thread for rendering audio frames makes it somewhat difficult.
 
-To ease this task here comes the "Carousel". Basically it consists of an [audio producer] and
-an [audio consumer]. The audio producer lives in the same thread where the emulation is run
-and where sound is being produced. The audio consumer is delegated to the audio thread and its
-role is to relay audio samples to the audio framework.
+This module exists solely for the purpose to ease this task. "The Carousel" consists of an 
+[audio producer] and an [audio consumer]. The audio producer lives in the same thread where
+the emulation is run and where the sound is being produced. The audio consumer is delegated 
+to the audio thread and its role is to relay audio samples to the audio framework.
 
 ```text
                                  (new sample data)
@@ -35,8 +36,8 @@ the audio framework with samples from the received [audio buffer] frames and sen
 frame buffers back via another channel to the [audio producer] to be filled again with new
 sample data.
 
-Each [audio buffer] size is determined by the emulated frame duration and is independent from
-the audio framework output buffer size.
+The size of each [audio buffer] is determined only by the emulated frame duration and is
+unrelated to the audio framework output buffer size.
 
 The number of buffers in circulation determines the audio latency. The larger the latency the
 more stable the playback is at the cost of the delay of the sound. Knowing the output buffer
@@ -65,7 +66,7 @@ pub struct AudioFrameError;
 
 /// The audio buffer is a carrier of audio samples generated for every emulated frame.
 ///
-/// The format and number of channels depends on the audio framework requirements.
+/// The format and number of channels depend on the audio framework requirements.
 #[derive(Clone, Debug)]
 pub struct AudioBuffer<T>(pub Vec<T>);
 
@@ -78,7 +79,7 @@ pub struct AudioFrameConsumer<T> {
     rx: Receiver<AudioBuffer<T>>,
 }
 
-/// Allows to relay rendered [AudioBuffer] to the [AudioFrameConsumer].
+/// Allows relaying rendered [AudioBuffer] to the [AudioFrameConsumer].
 #[derive(Debug)]
 pub struct AudioFrameProducer<T> {
     /// The next audio buffer frame to render samples to.
@@ -90,15 +91,15 @@ pub struct AudioFrameProducer<T> {
 /// Creates an inter-connected pair or [AudioFrameProducer] and [AudioFrameConsumer].
 ///
 /// The `latency` + 1 specifies how many buffers will be circulating in the carousel.
-/// The good indicator of how many is needed depends on the size of the target audio
-/// buffers provided by the framework. The size of the target audio buffer / size of
-/// the produced frame buffers is a good approximation.
+/// The good indicator of how many are needed depends on the size of the target audio
+/// buffers provided by the framework. The size of the target audio buffer divided by
+/// the size of the produced frame buffers is a good approximation.
 ///
-/// Basically the larger the `latency` is the more stable the output sound stream will
+/// Basically, the larger the `latency` is the more stable the output sound stream will
 /// be, but at the cost of more delayed playback. Implementations should set a good
 /// default based on experiments but may allow users to adjust this value eventually.
 ///
-/// `sample_frames` and `channels` determines the size of the allocated buffers.
+/// `sample_frames` and `channels` determine the size of the allocated buffers.
 pub fn create_carousel<T>(latency: usize, sample_frames: usize, channels: u8) ->
                                                 (AudioFrameProducer<T>, AudioFrameConsumer<T>)
 where T: 'static + AudioSample + Send
@@ -231,7 +232,7 @@ impl<T: 'static + Copy + Send> AudioFrameConsumer<T> {
     ///
     /// If there is no new buffer waiting in the message queue returns `Ok(false)`.
     ///
-    /// Returns `Err(AudioFrameError)` only when sending or reveiving has failed,
+    /// Returns `Err(AudioFrameError)` only when sending or receiving buffers failed,
     /// which is possible only when the remote end has disconnected.
     #[inline]
     pub fn next_frame(&mut self) -> AudioFrameResult<bool> {
@@ -262,7 +263,7 @@ impl<T: 'static + Copy + Send> AudioFrameConsumer<T> {
             // Err(RecvTimeoutError::Disconnected) => Err(AudioFrameError),
         }
     }
-    /// Exposes last received frame buffer as a slice of samples.
+    /// Exposes the last received frame buffer as a slice of samples.
     #[inline]
     pub fn current_frame(&self) -> &[T] {
         &self.buffer
@@ -273,15 +274,15 @@ impl<T: 'static + Copy + Send> AudioFrameConsumer<T> {
     /// the whole buffer is filled or when there are no more buffers waiting in the incoming
     /// queue.
     ///
-    /// Returns the unfilled part of the target buffer in case there was no more frames to receive
+    /// Returns the unfilled part of the target buffer in case there were no more frames to receive
     /// and `ignore_missing` was `false`.
     ///
-    /// If the whole buffer has been filled returns an empty slice.
+    /// Returns an empty slice if the whole buffer has been filled.
     ///
     /// In case `ignore_missing` is `true` the last audio frame will be rendered again if there are
     /// no more new buffers in the queue.
     ///
-    /// Returns `Err(AudioFrameError)` only when sending or receiving buffers has failed,
+    /// Returns `Err(AudioFrameError)` only when sending or receiving buffers failed,
     /// which is possible only when the remote end has disconnected.
     pub fn fill_buffer<'a>(
                 &mut self,
@@ -332,7 +333,7 @@ impl<T: 'static + Send> AudioFrameProducer<T> {
     ///
     /// This method will block if the recycled buffer queue is empty.
     ///
-    /// Returns `Err(AudioFrameError)` only when sending or receiving buffers has failed,
+    /// Returns `Err(AudioFrameError)` only when sending or receiving buffers failed,
     /// which is possible only when the remote end has disconnected.
     pub fn send_frame(&mut self) -> AudioFrameResult<()> {
         // eprintln!("waiting for buffer");

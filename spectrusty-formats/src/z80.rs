@@ -6,19 +6,22 @@
     For the full copyright notice, see the lib.rs file.
 */
 //! **Z80** snapshot format utilities.
-//! 
+//!
+//! See the specification reference on [World of Spectrum](https://worldofspectrum.org/faq/reference/z80format.htm).
+//!
 //! ## Implementation specifics
 //!
-//! When reading:
+//! When reading from the **Z80** file:
 //!
-//! * "Custom" Joystick is always interpreted as Sinclair Left, regardless of key bindings.
-//! * Handling of MGT +D, DISCiPLE or Multiface is currently not implemented.
-//! * Understands an .xzx extension to the version 3 (additional OUT to port 0x1ffd), but only sends it if
+//! * "Custom" Joystick is always interpreted as Sinclair Left Joystick, regardless of key bindings
+//!   that are being ignored at the moment.
+//! * Handling of MGT +D, DISCiPLE, or Multiface is currently not implemented.
+//! * An `.xzx` extension to version 3 (additional OUT to port 0x1ffd) is being read-only if
 //!   a selected spectrum model would handle it properly.
 //!
-//! When writing:
+//! When writing to the **Z80** file:
 //!
-//! * ROM is not being saved.
+//! * ROMs are not being saved.
 mod common;
 mod compress;
 mod decompress;

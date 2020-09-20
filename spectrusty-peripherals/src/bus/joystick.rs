@@ -192,7 +192,7 @@ impl<P, J, D> BusDevice for JoystickBusDevice<P, J, D>
 
 /// A selectable joystick controller, providing a [BusDevice] implementation.
 ///
-/// This controller allows changing the implementation of joystick device at run time.
+/// This controller allows changing the implementation of the joystick device at run time.
 #[derive(Clone, Copy, Default, Debug)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 pub struct MultiJoystickBusDevice<D> {
@@ -266,7 +266,7 @@ impl From<JoystickSelect> for &str {
     }
 }
 
-/// An error which can be returned when parsing a [JoystickSelect] variant.
+/// An error that can be returned when parsing a [JoystickSelect] variant.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParseJoystickSelectError;
 
@@ -316,7 +316,7 @@ impl JoystickSelect {
     pub const MAX_GLOBAL_INDEX: usize = 4;
     /// Creates a new joystick device variant from a given name.
     ///
-    /// On success returns a tuple with one of the joystick variants and a number of
+    /// On success returns a tuple with one of the joystick variants and the number of
     /// available joysticks in this variant.
     pub fn new_from_name<S: AsRef<str>>(name: S) -> Option<(Self, usize)> {
         let name = name.as_ref();
@@ -349,7 +349,7 @@ impl JoystickSelect {
     /// E.g. `2` and `3` both select `Sinclair` joystick but with a different resulting index.
     ///
     /// On success returns a tuple with one of the joystick variants and an index of
-    /// selected joystick in this variant.
+    /// the selected joystick in this variant.
     ///
     /// See also [JoystickSelect::MAX_GLOBAL_INDEX].
     pub fn new_with_index(global_index: usize) -> Option<(Self, usize)> {
@@ -362,7 +362,7 @@ impl JoystickSelect {
             _ => None
         }
     }
-    /// Returns a number of joysticks in the current variant.
+    /// Returns the number of joysticks in the current variant.
     pub fn len(&self) -> usize {
         if let JoystickSelect::Sinclair(..) = self {
             return 2

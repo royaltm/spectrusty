@@ -19,7 +19,7 @@ use serde::{Serialize, Deserialize};
 /// The ZX Interface 1 memory [extension][MemoryExtension].
 ///
 /// Interface 1 ROM is paged in if the processor executes the instruction at address `0x0008` or `0x1708`,
-/// the error handler and `CLOSE #` routines. It is paged out after the Z80 executes the `RET` at address `0x0700`.
+/// the error handler, and `CLOSE #` routines. It is paged out after the Z80 executes the `RET` at address `0x0700`.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 pub struct ZxInterface1MemExt {
@@ -78,7 +78,7 @@ impl ZxInterface1MemExt {
     /// Maps EX-ROM into `memory` page `0`.
     ///
     /// # Errors
-    /// Returns an error if extension's EX-ROM bank is not populated with ROM data.
+    /// Returns an error if the extension's EX-ROM bank is not populated with ROM data.
     pub fn map_exrom<M: ZxMemory>(&self, memory: &mut M) -> Result<(), ZxMemoryError> {
         memory.map_exrom(Rc::clone(&self.exrom), 0)
     }

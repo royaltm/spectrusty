@@ -41,16 +41,16 @@ pub enum PulseIterState {
 ///
 /// After invoking [ReadEncPulseIter::reset] or [ReadEncPulseIter::new] the first byte is read and checked
 /// to determine the duration of the *LEAD PULSE* signal. If it's less than 128 the number of 
-/// generated lead pulses is [LEAD_PULSES_HEAD]. Otherwise it's [LEAD_PULSES_DATA].
+/// generated lead pulses is [LEAD_PULSES_HEAD]. Otherwise, it's [LEAD_PULSES_DATA].
 ///
-/// After the lead pulses two synchronization pulses are being emitted following by data pulses
+/// After the lead pulses, two synchronization pulses are being emitted following by data pulses
 /// for each byte read including the initial flag byte.
 ///
-/// This iterator may be used to feed pulses to the `EAR in` buffer of the ZX Spectrum emulator
+/// This iterator may be used to feed pulses to the `EAR IN` buffer of the ZX Spectrum emulator
 /// (e.g. via [EarIn::feed_ear_in][spectrusty_core::chip::EarIn::feed_ear_in])
 /// or to produce sound with a help of [Bandwidth-Limited Pulse Buffer][spectrusty_core::audio::Blep].
 ///
-/// Best used with [tap][crate::tap] utilites.
+/// Best used with [tap][crate::tap] utilities.
 #[derive(Debug)]
 pub struct ReadEncPulseIter<R> {
     rd: R,
@@ -59,7 +59,7 @@ pub struct ReadEncPulseIter<R> {
 }
 
 impl PulseIterState {
-    /// Returns an error from the underying reader if there was one.
+    /// Returns an error from the underlying reader if there was one.
     pub fn err(&self) -> Option<&Error> {
         match self {
             PulseIterState::Error(ref error) => Some(error),
@@ -113,7 +113,7 @@ impl<R> ReadEncPulseIter<R> {
     pub fn flag(&self) -> u8 {
         self.flag
     }
-    /// Returns an error from the underying reader if there was one.
+    /// Returns an error from the underlying reader if there was one.
     pub fn err(&self) -> Option<&Error> {
         self.state.err()
     }
@@ -135,7 +135,7 @@ impl<R> ReadEncPulseIter<R> {
         self.rd
     }
     /// Allows to manually assign a `state` and a `flag`.
-    /// Can be used to deseriale ReadEncPulseIter.
+    /// Can be used to deserialize ReadEncPulseIter.
     pub fn with_state_and_flag(mut self, state: PulseIterState, flag: u8) -> Self {
         self.state = state;
         self.flag = flag;
@@ -176,7 +176,7 @@ impl<R: Read> ReadEncPulseIter<R> {
     /// Attempts to set the state of the iterator as [PulseIterState::Data] from the next byte.
     ///
     /// The next byte read from the inner reader is interpreted as a data byte.
-    /// In this instance the `state` becomes [PulseIterState::Data].
+    /// In this instance, the `state` becomes [PulseIterState::Data].
     ///
     /// If there are no more bytes to be read the `state` becomes [PulseIterState::Done].
     ///

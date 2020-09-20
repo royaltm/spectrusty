@@ -7,21 +7,21 @@
 */
 //! An emulator of the family of printers: **ZX Printer** / **Alphacom 32** / **Timex TS2040**.
 //!
-//! **ZX Printer** is an extremely compact, 32 column printer which uses an aluminium coated paper.
-//! The printed image is being burned onto the surface of the paper by two metal pins which travel
-//! across the paper. A voltage is passed through these pins which causes a spark to be produced, leaving
-//! a black-ish (or blue-ish) dot.
+//! **ZX Printer** is an extremely compact, 32 column printer which uses an aluminum-coated paper.
+//! The printed image is being burned onto the surface of the paper by two metal pins that travel
+//! across the paper. A voltage is passed through these pins which cause a spark to be produced,
+//! leaving a black-ish (or blue-ish) dot.
 //!
-//! The Alphacom 32 is compatible with software for the ZX Printer, but uses thermal paper instead
-//! of the ZX Printer's metallised paper.
+//! The Alphacom 32 is compatible with software for the ZX Printer but uses thermal paper instead
+//! of the ZX Printer's metalized paper.
 //!
-//! ZX Printer used special 4" (100 mm) wide black paper which was supplied coated with a thin layer of aluminium.
+//! ZX Printer used special 4" (100 mm) wide black paper which was supplied coated with a thin layer of aluminum.
 //!
 //! Alphacom 32 printer's thermographic paper has 4.33" (110 mm) x 1.9" (48 mm) diameter.
 //! 
 //! TS2040 was a branded version of Alphacom 32 distributed by Timex to the US.
 //!
-//! Also see: [Printers](https://www.worldofspectrum.org/faq/reference/peripherals.htm#Printers).
+//! See [Printers](https://www.worldofspectrum.org/faq/reference/peripherals.htm#Printers).
 use core::fmt::Debug;
 use core::ops::{Deref, DerefMut};
 
@@ -46,13 +46,13 @@ pub trait Spooler: Debug + Default {
     /// Can be implemented to get the notification that the printing has ended.
     fn motor_off(&mut self) {}
     /// After each printed line this method is being called with a reference to a slice containing 
-    /// an information about up to 256 printed dots stored in up to 32 bytes.
+    /// information about up to 256 printed dots stored in up to 32 bytes.
     ///
     /// 8 dots are encoded from the most significant to the least significant bit in each byte.
     /// So the leftmost dot is encoded in the bit 7 of the first byte in a given slice and the
     /// rightmost dot is encoded in the bit 0 of the last byte.
     ///
-    /// A value of 1 in each bit signifies a presence of a dot, a 0 means there is no dot.
+    /// A value of 1 in each bit signifies the presence of a dot, 0 means there is no dot.
     ///
     /// A received slice will never be larger than 32 bytes. If a user presses a `BREAK` key during
     /// `COPY`, the slice may be smaller than 32 bytes but it will never be empty.
@@ -68,7 +68,7 @@ pub struct DebugSpooler;
 ///
 /// A data port is being used with the following bits for reading:
 ///
-/// * bit 6 is 0 if the printer is there, 1 if it is not and is used solely to check if the printer
+/// * bit 6 is 0 if the printer is there, 1 if it is not, and is used solely to check if the printer
 ///   is connected.
 /// * bit 0 is 1 if the printer is ready for the next bit or 0 if it's busy printing.
 /// * bit 7 is 1 if the printer is ready for the new line or 0 if it's not there yet.
@@ -76,12 +76,13 @@ pub struct DebugSpooler;
 /// and for writing:
 ///
 /// * bit 7 - a value of 1 activates a stylus, a dot will be printed in this instance.
-///   When a 0 is written, the stylus is being dactivated.
+///   When a 0 is written, the stylus is being deactivated.
 /// * bit 2 - a value of 1 stops the printer motor and when a 0 is written it starts
 ///   the printer motor.
 /// * bit 1 - a value of 1 slows the printer motor, a value of 0 sets a normal motor speed.
 ///
-/// An implementation of a [Spooler] trait is required as generic `S` to complete this type.
+/// An implementation of a [Spooler] trait is required as a generic parameter `S` to complete
+/// this type.
 ///
 /// There's also a dedicated [bus device][crate::bus::zxprinter::ZxPrinterBusDevice]
 /// implementation to be used solely with the `ZxPrinterDevice`.
@@ -92,7 +93,7 @@ pub struct ZxPrinterDevice<T, S> {
     /// An instance of the [Spooler] trait implementation type.
     #[cfg_attr(feature = "snapshot", serde(skip))]
     pub spooler: S,
-    /// Can be changed to adjust speed. Default is 855 T-states (~16 dot lines / sec.).
+    /// Can be changed to adjust speed. The default is 855 T-states (~16 dot lines / sec.).
     pub bit_delay: u16,
     motor: bool,
     ready: bool,
@@ -146,7 +147,7 @@ impl<T: FrameTimestamp, S: Spooler> ZxPrinterDevice<T, S> {
     pub fn next_frame(&mut self) {
         self.ready_ts = self.ready_ts.saturating_sub_frame();
     }
-    /// This method should be called when device is being reset.
+    /// This method should be called when the device is being reset.
     pub fn reset(&mut self) {
         self.motor = false;
         self.ready = false;

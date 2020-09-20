@@ -54,7 +54,7 @@ serialize = "
     D::Timestamp: Serialize")))]
 pub struct ZxPrinterBusDevice<P, S, D: BusDevice>
 {
-    /// Provides a direct access to the [ZxPrinterDevice].
+    /// Provides direct access to the [ZxPrinterDevice].
     #[cfg_attr(feature = "snapshot", serde(default))]
     pub printer: ZxPrinterDevice<D::Timestamp, S>,
     #[cfg_attr(feature = "snapshot", serde(default))]

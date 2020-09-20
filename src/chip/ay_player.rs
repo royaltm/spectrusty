@@ -249,13 +249,13 @@ impl<P: AyPortDecode> AyPlayer<P> {
         self.tsc = tsc;
         res
     }
-    /// Changes the cpu clock frequency and a duration of frames.
+    /// Changes the cpu clock frequency and the duration of frames.
     pub fn set_host_config<H: HostConfig>(&mut self) {
         self.ensure_next_frame();
         self.cpu_rate = H::CPU_HZ;
         self.frame_tstates = H::FRAME_TSTATES;
     }
-    /// Changes the cpu clock frequency and a duration of frames.
+    /// Changes the cpu clock frequency and the duration of frames.
     pub fn set_config(&mut self, cpu_rate: u32, frame_tstates: FTs) {
         assert!(frame_tstates > 0 && frame_tstates as u32 <= cpu_rate);
         self.ensure_next_frame();
@@ -271,7 +271,7 @@ impl<P: AyPortDecode> AyPlayer<P> {
     /// Sets the clock counter to `timestamp`.
     ///
     /// # Panics
-    /// `timestamp` must be larger than or equal to the current clock counter value.
+    /// The `timestamp` must be larger than or equal to the current clock counter value.
     pub fn write_ay(&mut self, timestamp: FTs, reg: u8, val: u8) {
         assert!(timestamp >= self.tsc.as_timestamp());
         *self.tsc = Wrapping(timestamp);

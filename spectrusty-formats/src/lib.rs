@@ -49,7 +49,7 @@ pub trait ReadExactEx: Read {
         Ok(orig_len - buf.len())
     }
     /// Reads the exact number of bytes required to fill `buf` and returns `Ok(true)` or returns
-    /// `Ok(false)` if exactly zero bytes were read. In this instance `buf` will be left unmodified.
+    /// `Ok(false)` if exactly zero bytes were read. In this instance, `buf` will be left unmodified.
     ///
     /// If at least one byte was read, this function behaves exactly like [Read::read_exact].
     fn read_exact_or_none(&mut self, buf: &mut [u8]) -> io::Result<bool> {

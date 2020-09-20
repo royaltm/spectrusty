@@ -5,7 +5,7 @@
 
     For the full copyright notice, see the lib.rs file.
 */
-//! Spectrum +3 CENTRONICS port bus device for parallel printers and other devices.
+//! ZX Spectrum +3 CENTRONICS port bus device for parallel printers and other devices.
 use core::num::NonZeroU16;
 use core::fmt;
 use core::ops::{Deref, DerefMut};
@@ -55,12 +55,12 @@ impl CentronicsFlags {
 
 /// Connects the [ParallelPortDevice] emulator as a [BusDevice] via +3 Centronics Port.
 ///
-/// Substitute `P` with a type implementing [ParallelPortDevice].
+/// Substitute `P` with the type implementing [ParallelPortDevice].
 #[derive(Clone, Default, Debug)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 pub struct Plus3CentronicsBusDevice<P, D>
 {
-    /// Provides a direct access to the [ParallelPortDevice].
+    /// Provides direct access to the [ParallelPortDevice].
     #[cfg_attr(feature = "snapshot", serde(default))]
     pub parallel: P,
     flags: CentronicsFlags,

@@ -18,7 +18,7 @@ use super::AyIoPort;
 /// of serial port devices.
 ///
 /// The *RS232C*/*MIDI* interface is implemented using the Port `A` Data Store in the sound generator chip IC32.
-/// The data store is a special register which accesses an 8-bit bi-directional port A7-AO.
+/// The data store is a special register that accesses an 8-bit bi-directional port A7-AO.
 /// The port occupies the same I/O space as the sound generator registers and is accessed in much the same way.
 ///
 /// Bits of an I/O port `A` register have the following meaning:
@@ -35,10 +35,10 @@ use super::AyIoPort;
 /// This type implements a single [AyIoPort] as two serial ports of ZX Spectrum 128.
 ///
 /// One of these ports is primarily being used for the extension [keypad][crate::serial::SerialKeypad]
-/// and the other for communicating with a serial printer or other [RS-232][crate::serial::Rs232Io]
+/// and the other for communicating with a serial printer or another [RS-232][crate::serial::Rs232Io]
 /// device in either direction.
 ///
-/// To "connect" something to these ports, provide some types implementing [SerialPortDevice] as
+/// To "connect" something to these ports, provide some types that implement [SerialPortDevice] as
 /// `S1` and `S2`.
 #[derive(Clone, Debug, Default)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]

@@ -63,7 +63,7 @@ pub enum PulseDecodeState {
 /// Provide pulse iterators to [PulseDecodeWriter::write_decoded_pulses] method to write interpreted data
 /// to the underlying writer.
 ///
-/// Best used with [tap][crate::tap] utilites.
+/// Best used with [tap][crate::tap] utilities.
 #[derive(Debug)]
 pub struct PulseDecodeWriter<W> {
     state: PulseDecodeState,
@@ -109,9 +109,9 @@ impl PulseDecodeState {
 }
 
 impl<W> PulseDecodeWriter<W> {
-    /// Resets state of the [PulseDecodeWriter] to `Idle`, discarding any partially received byte.
+    /// Resets the state of the [PulseDecodeWriter] to `Idle`, discarding any partially received byte.
     ///
-    /// The information about number of bytes written so far is lost.
+    /// The information about the number of bytes written so far is lost.
     pub fn reset(&mut self) {
         self.state = PulseDecodeState::Idle;
     }
@@ -146,7 +146,7 @@ impl<W> PulseDecodeWriter<W> {
         })
     }
     /// Allows to manually assign `state`.
-    /// Can be used to deseriale PulseDecodeWriter.
+    /// Can be used to deserialize PulseDecodeWriter.
     pub fn with_state(mut self, state: PulseDecodeState) -> Self {
         self.state = state;
         self
@@ -166,7 +166,7 @@ impl<W: Write> PulseDecodeWriter<W> {
     ///
     /// Returns `Ok(Some(size))` if data has been written, providing the number of written bytes.
     ///
-    /// In case of [std::io::Error] the information about number of bytes written is lost.
+    /// In the case of [std::io::Error] the information about the number of bytes written is lost.
     pub fn end(&mut self) -> Result<Option<NonZeroU32>> {
         let res = if let PulseDecodeState::Data { mut current, pulse, written } = self.state {
             NonZeroU32::new(if pulse <= 1 {
@@ -198,10 +198,10 @@ impl<W: Write> PulseDecodeWriter<W> {
     /// Returns `Ok(None)` if there was no data or more pulses are being expected.
     ///
     /// Returns `Ok(Some(size))` if data block has been written, providing the number of written bytes.
-    /// In this instance there can still be some pulses left in the iterator, e.g. for the next
+    /// In this instance, there can still be some pulses left in the iterator, e.g. for the next
     /// incoming transfer.
     ///
-    /// In case of [std::io::Error] the information about number of bytes written is lost.
+    /// In the case of [std::io::Error] the information about the number of bytes written is lost.
     ///
     /// [MicOut::mic_out_pulse_iter]: spectrusty_core::chip::MicOut::mic_out_pulse_iter
     pub fn write_decoded_pulses<I>(&mut self, iter: I) -> Result<Option<NonZeroU32>>

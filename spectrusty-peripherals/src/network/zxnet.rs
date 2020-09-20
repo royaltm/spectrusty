@@ -28,12 +28,12 @@ pub trait ZxNetSocket {
     /// Should return the index of the next byte to be pushed to the outbound data packet.
     /// This is the same as the byte size of the composed data packet so far.
     fn outbound_index(&self) -> usize;
-    /// Should sent the composed packet to the remote party.
+    /// Should send the composed packet to the remote party.
     fn send_packet(&mut self);
     /// Should optionally wait and get the confirmation from the remote party.
     /// Returns `true` if the remote party confirmed the received packet.
     fn recv_accept(&mut self) -> bool;
-    /// Should receive a data packet from remote party.
+    /// Should receive a data packet from the remote party.
     /// Returns `true` if the remote party has sent the next data packet.
     fn recv_packet(&mut self) -> bool;
     /// Gets the next byte from the last received data packet.
@@ -50,7 +50,7 @@ pub trait ZxNetSocket {
 /// An implementation of [ZxNetSocket] should be provided as its `S` type parameter.
 #[derive(Debug)]
 pub struct ZxNet<T, S> {
-    /// A direct access to the underlying [ZxNetSocket] implementation.
+    /// Direct access to the underlying [ZxNetSocket] implementation.
     pub socket: S,
     event_ts: T,
     dir_io: NetDir,

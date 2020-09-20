@@ -18,7 +18,7 @@
 
     Author contact information: see Cargo.toml file, section [package.authors].
 */
-//! Audio related utilites for the SPECTRUSTY library.
+//! Audio related utilities for the SPECTRUSTY library.
 pub mod carousel;
 pub mod host;
 pub mod music;

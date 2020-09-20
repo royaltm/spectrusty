@@ -41,9 +41,10 @@ pub enum JoyDirection {
 
 /// An interface for providing user input data for a [JoystickDevice] implementation.
 pub trait JoystickInterface {
-    /// Press or release a "fire" button. `btn` is the button number for cases when joystick have more than one button.
+    /// Press or release a "fire" button. `btn` is the button number for cases when the joystick have more
+    /// than one button.
     ///
-    /// Currently `btn` is not being used by any of the implemented devices.
+    /// Currently, `btn` is not being used by any of the implemented devices.
     fn fire(&mut self, btn: u8, pressed: bool);
     /// Returns `true` if an indicated "fire" button is being pressed, otherwise returns `false`.
     fn get_fire(&self, btn: u8) -> bool;
@@ -51,7 +52,7 @@ pub trait JoystickInterface {
     fn set_directions(&mut self, dir: Directions);
     /// Returns the current stick direction.
     fn get_directions(&self) -> Directions;
-    /// Changes the stick direction using an anum.
+    /// Changes the stick direction using an enum.
     #[inline]
     fn direction(&mut self, dir: JoyDirection) {
         self.set_directions(match dir {
@@ -71,41 +72,41 @@ pub trait JoystickInterface {
     fn center(&mut self) {
         self.set_directions(Directions::empty());
     }
-    /// Returns `true` if a joystick is in up (forward) position.
+    /// Returns `true` if a joystick is in the up (forward) position.
     #[inline]
     fn is_up(&self) -> bool {
         self.get_directions().intersects(Directions::UP)
     }
-    /// Returns `true` if a joystick is in right position.
+    /// Returns `true` if a joystick is in the right position.
     #[inline]
     fn is_right(&self) -> bool {
         self.get_directions().intersects(Directions::RIGHT)
     }
-    /// Returns `true` if a joystick is in left position.
+    /// Returns `true` if a joystick is in the left position.
     #[inline]
     fn is_left(&self) -> bool {
         self.get_directions().intersects(Directions::LEFT)
     }
-    /// Returns `true` if a joystick is in down (backward) position.
+    /// Returns `true` if a joystick is in the down (backward) position.
     #[inline]
     fn is_down(&self) -> bool {
         self.get_directions().intersects(Directions::DOWN)
     }
-    /// Returns `true` if a joystick is in a center (neutral) position.
+    /// Returns `true` if a joystick is in the center (neutral) position.
     #[inline]
     fn is_center(&self) -> bool {
         self.get_directions().intersects(Directions::empty())
     }
 }
 
-/// A joystick device interface used by the joystick [bus][crate::bus::joystick] device implementation.
+/// A joystick device interface for the joystick [bus][crate::bus::joystick] device implementations.
 pub trait JoystickDevice: Debug {
     /// Should return the joystick state.
     fn port_read(&self, port: u16) -> u8;
-    /// Allows to implement writing data to a joystick device.
+    /// Writes data to a joystick device.
     ///
     /// If a device does not support writes, this method should return `false`.
-    /// A default implementation does exactly just that.
+    /// The default implementation does exactly just that.
     fn port_write(&mut self, _port: u16, _data: u8) -> bool { false }
 }
 

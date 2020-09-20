@@ -16,7 +16,7 @@ use spectrusty::peripherals::{ZXKeyboardMap,
 
 type ZXk = ZXKeyboardMap;
 
-/// Returns a Spectrum key map flags with a single bit set corresponding to the provided `key` code
+/// Returns Spectrum keymap flags with a single bit set corresponding to the provided `key` code
 /// if the key matches one of the Spectrum's.
 ///
 /// The alphanumeric keys, `ENTER` and `SPACE` are mapped as such.
@@ -70,7 +70,7 @@ pub fn map_direct_key(key: VirtualKeyCode) -> ZXKeyboardMap {
     }
 }
 
-/// Returns a Spectrum key map flags with some bits set corresponding to the provided `key` code
+/// Returns Spectrum keymap flags with some bits set corresponding to the provided `key` code
 /// if the provided key matches one or more of the Spectrum keys.
 ///
 /// The second argument returned is `true` if the [ZXKeyboardMap::CS] should be removed from
@@ -167,9 +167,9 @@ pub fn map_combined_keys(key: VirtualKeyCode, state: ElementState, shift_down: b
     (zxk, removecs)
 }
 
-/// Returns an updated Spectrum key map state from a keyboard input event.
+/// Returns an updated Spectrum keymap state from a keyboard input event.
 ///
-/// * `cur` is the current key map state.
+/// * `cur` is the current keymap state.
 /// * `key` is the key code.
 /// * `pressed` should be `true` if the `key` has been pressed down and `false` if it has been released.
 /// * `shift_down` should be `true` if one of the `SHIFT` key modifiers has been held down and `false` otherwise.
@@ -204,9 +204,9 @@ pub fn update_keymap(
     cur
 }
 
-/// Returns an updated Spectrum key map state from a keyboard input event.
+/// Returns an updated Spectrum keymap state from a keyboard input event.
 ///
-/// * `cur` is the current key map state.
+/// * `cur` is the current keymap state.
 /// * `key` is the key code.
 /// * `pressed` should be `true` if the `key` has been pressed down and `false` if it has been released.
 /// * `modifier` is the `modifiers` property from the `KeyboardInput` events.
@@ -220,7 +220,7 @@ pub fn update_keymap_with_modifier(
     update_keymap(cur, key, state, modifier.shift(), modifier.ctrl())
 }
 
-/// Returns a keypad's key map flags with a single bit set corresponding to the provided `key` code
+/// Returns a keypad's keymap flags with a single bit set corresponding to the provided `key` code
 /// if the key matches one of the Spectrum 128k keypad's.
 ///
 /// The numeric keypad keys, `ENTER`, `PERIOD`, `+`, `-` are mapped as such.
@@ -255,9 +255,9 @@ pub fn map_keypad_key(key: VirtualKeyCode, parens: bool) -> KeypadKeys {
     }
 }
 
-/// Returns an updated keypad's key map state from a keyboard input event.
+/// Returns an updated keypad's keymap state from a keyboard input event.
 ///
-/// * `cur` is the current Spectrum 128k keypad's key map state.
+/// * `cur` is the current Spectrum 128k keypad's keymap state.
 /// * `key` is the key code.
 /// * `pressed` should be `true` if the `key` has been pressed down or `false` if it has been released.
 /// * `parens` should be `true` if `/` and `*` keys should be mapped as [LPAREN] and [RPAREN], `false` otherwise.
@@ -283,7 +283,7 @@ pub fn map_key_to_direction(key: VirtualKeyCode) -> Directions {
     }
 }
 
-/// Updates the state of joystick device via [JoystickInterface] from a keyboard input event.
+/// Updates the state of the joystick device via [JoystickInterface] from a keyboard input event.
 ///
 /// Returns `true` if the state of the joystick device was updated.
 /// Returns `false` if the `key` wasn't any of the ← → ↑ ↓ or `fire_key` keys or if `get_joy`

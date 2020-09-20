@@ -15,14 +15,14 @@ use log::{error, warn, info, debug, trace};
 
 use super::zxnet::{HEAD_SIZE, ZxNetSocket};
 
-/// Implements [ZxNetSocket] sending ZX-NET packets using UDP datagrams in real time.
+/// Implements [ZxNetSocket] sending ZX-NET packets using UDP datagrams in real-time.
 ///
-/// Each ZX-NET data packet is being send as a single datagram. When a packet is being accepted
-/// a special datagram is being sent back that contains only head part of the ZX-NET packet and
-/// a flag indicating that this is the reply packet.
+/// Each ZX-NET data packet is being sent as a single datagram. When a packet is being accepted
+/// a special datagram is being sent back that contains only the head part part of the ZX-NET
+/// packet and a flag indicating that this is the reply packet.
 ///
 /// Duplicate spam messages are being removed before processing incoming data.
-/// Packets that was recently replied to are being auto-replied when incoming again.
+/// Packets that were recently replied to are being auto-replied when incoming again.
 ///
 /// Requires an UDP socket to be "connected" to the remote party in order to send and receive data.
 ///

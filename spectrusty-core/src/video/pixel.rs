@@ -17,21 +17,21 @@ pub trait PixelBuffer<'a> {
     fn from_line(line_buffer: &'a mut [u8]) -> Self;
     /// Puts the next `pixel` into the line buffer and increases an internal cursor position by a single pixel.
     ///
-    /// If the internal buffer boundaries would be overflown, this method must not panic, but instead it
-    /// should just return without writing anything to the underyling buffer.
+    /// If the internal buffer boundaries would be overflown, this method must not panic, but instead, it
+    /// should just return without writing anything to the underlying buffer.
     fn put_pixel(&mut self, pixel: Self::Pixel);
     /// Puts `count` number of `pixel` copies into the line buffer and increases an internal cursor position
     /// accordingly.
     ///
-    /// If the internal buffer boundaries would be overflown, this method must not panic, but instead it
-    /// should just return without writing anything to the underyling buffer.
+    /// If the internal buffer boundaries would be overflown, this method must not panic, but instead, it
+    /// should just return without writing anything to the underlying buffer.
     #[inline]
     fn put_pixels(&mut self, pixel: Self::Pixel, count: usize) {
         for _ in 0..count {
             self.put_pixel(pixel);
         }
     }
-    /// Returns the size of a single pixel in bytes.
+    /// Returns the stride of a single pixel in bytes.
     #[inline]
     fn pixel_stride() -> usize {
         core::mem::size_of::<Self::Pixel>()

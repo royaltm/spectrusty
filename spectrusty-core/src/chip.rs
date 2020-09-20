@@ -43,15 +43,15 @@ pub trait FrameState {
     fn current_frame(&self) -> u64;
     /// Sets the frame counter to the specified value.
     fn set_frame_counter(&mut self, fc: u64);
-    /// Returns a normalized frame counter and a T-state counter values.
+    /// Returns a normalized frame counter and a T-state counter as a tuple.
     ///
     /// T-states are counted from 0 at the start of each frame.
     /// This method never returns the T-state counter value below 0 or past the frame counter limit.
     fn frame_tstate(&self) -> (u64, FTs);
     /// Returns the current value of the T-state counter.
     /// 
-    /// Unlike [FrameState::frame_tstate] values return by this method can sometimes be negative as well as
-    /// exceeding the maximum nuber of T-states per frame.
+    /// Unlike in [FrameState::frame_tstate], values return by this method can sometimes be negative as well as
+    /// exceeding the maximum number of T-states per frame.
     fn current_tstate(&self) -> FTs;
     /// Sets the T-state counter to the specified value modulo `<Self as Video>::FRAME_TSTATES_COUNT`.
     fn set_frame_tstate(&mut self, ts: FTs);
@@ -130,27 +130,27 @@ pub trait MicOut<'a> {
 
 /// A trait for feeding the EAR line input.
 pub trait EarIn {
-    /// Sets `EAR in` bit state after the provided interval in ∆ T-States counted from the last recorded change.
+    /// Sets `EAR IN` bit state after the provided interval in ∆ T-states counted from the last recorded change.
     fn set_ear_in(&mut self, ear_in: bool, delta_fts: u32);
-    /// Feeds the `EAR in` buffer with changes.
+    /// Feeds the `EAR IN` buffer with changes.
     ///
     /// The provided iterator should yield time intervals measured in T-state ∆ differences after which the state
-    /// of the `EAR in` bit should be toggled.
+    /// of the `EAR IN` bit should be toggled.
     ///
     /// `max_frames_threshold` may be optionally provided as a number of frames to limit the buffered changes.
-    /// This is usefull if the given iterator provides data largely exceeding the duration of a single frame.
+    /// This is useful if the given iterator provides data largely exceeding the duration of a single frame.
     fn feed_ear_in<I: Iterator<Item=NonZeroU32>>(&mut self, fts_deltas: I, max_frames_threshold: Option<usize>);
-    /// Removes all buffered so far `EAR in` changes.
+    /// Removes all buffered so far `EAR IN` changes.
     ///
     /// Changes are usually consumed only when a call is made to [crate::chip::ControlUnit::ensure_next_frame].
-    /// Provide the current value of `EAR in` bit as `ear_in`.
+    /// Provide the current value of `EAR IN` bit as `ear_in`.
     ///
-    /// This may be usefull when tape data is already buffered but the user decided to stop the tape playback
+    /// This may be useful when tape data is already buffered but the user decided to stop the tape playback
     /// immediately.
     fn purge_ear_in_changes(&mut self, ear_in: bool);
     /// Returns the counter of how many times the EAR input line was read since the beginning of the current frame.
     ///
-    /// This can be used to help implementing the auto loading of tape data.
+    /// This can be used to help to implement the autoloading of tape data.
     fn read_ear_in_count(&self) -> u32;
     /// Returns the current mode.
     fn read_ear_mode(&self) -> ReadEarMode {
@@ -160,7 +160,7 @@ pub trait EarIn {
     fn set_read_ear_mode(&mut self, _mode: ReadEarMode) {}
 }
 
-/// A helper trait for accessing parameters of well known host configurations.
+/// A helper trait for accessing parameters of well-known host configurations.
 pub trait HostConfig {
     /// The number of CPU cycles (T-states) per second.
     const CPU_HZ: u32;
@@ -197,7 +197,7 @@ pub trait HostConfig {
     }
 }
 
-/// A generic trait, usefull for chipset implementations based on other underlying implementations.
+/// A generic trait, useful for chipset implementations based on other underlying implementations.
 pub trait InnerAccess {
     type Inner;
     /// Returns a reference to the inner chipset.
@@ -214,13 +214,13 @@ pub trait InnerAccess {
 //     std::time::Duration::from_nanos(nanos)
 // }
 
-/// Returns a number of nanoseconds from the number of T-states in a single frame and a cpu clock rate.
+/// Returns the number of nanoseconds from the number of T-states in a single frame and a CPU clock rate.
 pub const fn nanos_from_frame_tc_cpu_hz(frame_ts_count: u32, cpu_hz: u32) -> u64 {
     const NANOS_PER_SEC: u64 = 1_000_000_000;
     frame_ts_count as u64 * NANOS_PER_SEC / cpu_hz as u64
 }
 
-/// Returns a duration from the number of T-states in a single frame and a cpu clock rate.
+/// Returns a duration from the number of T-states in a single frame and a CPU clock rate.
 pub const fn duration_from_frame_tc_cpu_hz(frame_ts_count: u32, cpu_hz: u32) -> Duration {
     let nanos = nanos_from_frame_tc_cpu_hz(frame_ts_count, cpu_hz);
     Duration::from_nanos(nanos)
@@ -247,7 +247,7 @@ impl ThreadSyncTimer {
     pub fn set_frame_duration(&mut self, frame_duration_nanos: u32) {
         self.frame_duration = Duration::from_nanos(frame_duration_nanos as u64);
     }
-    /// Restarts the synchronization period. Usefull e.g. for resuming paused emulation.
+    /// Restarts the synchronization period. Useful e.g. for resuming paused emulation.
     pub fn restart(&mut self) -> Instant {
         core::mem::replace(&mut self.time, Instant::now())
     }
@@ -321,7 +321,7 @@ impl AnimationFrameSyncTimer {
     pub fn set_frame_duration(&mut self, frame_duration_nanos: u32) {
         self.frame_duration_millis = frame_duration_nanos as f64 / NANOS_PER_MILLISEC;
     }
-   /// Restarts the synchronizaiton period. Usefull for e.g. resuming paused emulation.
+   /// Restarts the synchronizaiton period. Useful for e.g. resuming paused emulation.
     ///
     /// Pass the value of `DOMHighResTimeStamp` as the argument.
     pub fn restart(&mut self, time: f64) -> f64 {

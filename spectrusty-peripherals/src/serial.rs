@@ -5,14 +5,14 @@
 
     For the full copyright notice, see the lib.rs file.
 */
-//! Serial port related api and emulation of ZX Spectrum's peripheral devices using serial communication.
+//! Serial port related API and emulation of ZX Spectrum's peripheral devices using serial communication.
 //!
 //! The terminology regarding serial port pins/lines being used in ZX Spectrum's technical documentation:
 //!
 //! * `RxD` (Receive Data) Transmitted data from Spectrum to the remote device.
 //! * `CTS` (Clear to Send) Tells remote station that Spectrum wishes to send data.
 //! * `TxD` (Transmit Data) Received data from the remote device.
-//! * `DTR` (Data Terminal Ready) Tells Spectrum that remote station wishes to send data.
+//! * `DTR` (Data Terminal Ready) Tells Spectrum that the remote station wishes to send data.
 #[cfg(feature = "snapshot")]
 use serde::{Serialize, Deserialize};
 
@@ -56,7 +56,7 @@ pub trait SerialPortDevice {
     /// This method is being called when a `CPU` writes (OUT) to a port and only when the `CTS` line isn't 
     /// changed by the write.
     fn write_data(&mut self, rxd: DataState, timestamp: Self::Timestamp) -> ControlState;
-    /// This method is being called once every frame, near the end of it and should return a `DTR` line state.
+    /// This method is being called once every frame, near the end of it, and should return a `DTR` line state.
     fn poll_ready(&mut self, timestamp: Self::Timestamp) -> ControlState;
     /// Receives an updated `CTS` line state.
     ///

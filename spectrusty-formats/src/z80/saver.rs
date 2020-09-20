@@ -329,7 +329,12 @@ fn get_nmos_cpu(cpu: CpuModel, result: &mut SnapshotResult) -> Z80NMOS {
     }
 }
 
-/// Saves a snapshot in the **Z80** version 1 format from the provided `snapshot` instance into `wr`.
+/// Saves a **Z80** file version 1 into `wr` from the provided reference to a `snapshot` struct
+/// implementing [SnapshotCreator].
+///
+/// # Errors
+/// This function may return an error from attempts to write the file or if for some reason
+/// a snapshot could not be created.
 pub fn save_z80v1<C: SnapshotCreator, W: Write>(
         snapshot: &C,
         mut wr: W
@@ -403,7 +408,12 @@ pub fn save_z80v1<C: SnapshotCreator, W: Write>(
     Ok(result)
 }
 
-/// Saves a snapshot in the **Z80** version 2 format from the provided `snapshot` instance into `wr`.
+/// Saves a **Z80** file version 2 into `wr` from the provided reference to a `snapshot` struct
+/// implementing [SnapshotCreator].
+///
+/// # Errors
+/// This function may return an error from attempts to write the file or if for some reason
+/// a snapshot could not be created.
 pub fn save_z80v2<C: SnapshotCreator, W: Write>(
         snapshot: &C,
         wr: W
@@ -450,7 +460,12 @@ pub fn save_z80v2<C: SnapshotCreator, W: Write>(
     Ok(result)
 }
 
-/// Saves a snapshot in the **Z80** version 3 format from the provided `snapshot` instance into `wr`.
+/// Saves a **Z80** file version 3 into `wr` from the provided reference to a `snapshot` struct
+/// implementing [SnapshotCreator].
+///
+/// # Errors
+/// This function may return an error from attempts to write the file or if for some reason
+/// a snapshot could not be created.
 pub fn save_z80v3<C: SnapshotCreator, W: Write>(
         snapshot: &C,
         wr: W

@@ -7,38 +7,39 @@
 */
 /*! An emulator of the ULAplus enhanced graphics.
 
-This emulator wraps one of ULA chipset emulators that implements [UlaPlusInner] trait, and enhances its graphics
+This emulator wraps one of the ULA chipset emulators that implements [UlaPlusInner] trait and enhances its graphics
 with ULAplus capabilities.
 
 The [UlaPlus] chipset responds to the ports (fully decoded):
 * `0xFF` - the main screen mode port (read and write, has priority),
-* `0xBF3B` - the register port (write only),
+* `0xBF3B` - the register port (write-only),
 * `0xFF3B` - the data port (read and write)
 
 and provides the new graphics capabilities according to the ULAplus version 1.1 [specification](https://faqwiki.zxnet.co.uk/wiki/ULAplus).
 
-Implementation ceveats (may change in the future releases):
+Implementation specifics (may change in the future releases):
 
 * No HSL or CMYK 1.0 support, instead a grayscale mode has been implemented (1.1, see below for details).
 * The new way of multiplexing the 2-bit blue value to obtain a 3-bit blue value (1.1).
-* [SCLD][super::scld] (Timex) modes are also supported: secondary screen, hi-color, hi-res and shadow screen bank.
+* [SCLD][super::scld] (Timex) modes are also supported: secondary screen, hi-color, hi-res, and shadow screen bank.
 * Port `0xFF` has priority over the register port. Bits 0 to 5 written to port `0xBF3B` with mode group set
-  are bitwise ORed with the bits written previously to port `0xFF`. In palette mode bits are not modified.
-* Reading value previously written to port `0xFF` is disabled by default, to not confuse some programs (BBC BASIC)
-  that the chipset supports SCLD MMU paging. This can be enabled with [UlaPlus::enable_reading_scld_mode].
+  are bitwise ORed with the bits written previously to port `0xFF`. When in palette mode, bits are not modified.
+* Reading of the value previously written to port previously written to port `0xFF` is disabled by default,
+  to not confuse some programs (BBC BASIC), that the chipset supports SCLD MMU paging. This can be enabled
+  with [UlaPlus::enable_reading_scld_mode].
 * The ULAplus capabilities can be disabled or enabled in run time with [UlaPlus::enable_ulaplus_modes].
 * Hard reset sets the screen and color mode to the default and sets all palette entries to 0, but doesn't change
   the ULAplus capabilities disable flag.
-* The inner chip features and bugs (e.g. floating bus, keyboard issue, snow interference) are carried through
-  and in case of the snow effect only the primary screens are being affected.
-* The disable bit of Spectrum's 128k memory paging doesn't affect the ULAplus modes, but it makes the shadow memory
+* The inner chip features and bugs (e.g. floating bus, keyboard issue, snow interference) are carried through,
+  and in case of the snow effect, only the primary screens are being affected.
+* The "locking" bit of Spectrum's 128k memory paging doesn't affect the ULAplus modes, but it makes the shadow memory
   inaccessible if it's being paged out when the bit is being enabled.
 * When used with 48k ULA the shadow screen page is the same as the normal screen page.
-* The grayscale mode is applied to all graphic modes: classic spectrum's 15 colors, palette and high resolution.
+* The grayscale mode is applied to all graphic modes: classic spectrum's 15 colors, palette, and high resolution.
 * In grayscale mode with palette enabled, each palette entry describes a grayscale intensity from 0 to 255.
-* In classic 15 color and high resolution modes, each color is converted to a grayscale based on the color intensity.
+* In classic 15 color and high-resolution modes, each color is converted to grayscale based on the color intensity.
 
-In 128k mode there are four available screen memory areas and in this documentation and source code they are 
+In 128k mode, there are four available screen memory areas and in this documentation and source code they are 
 referenced as:
 
 | identifier      | 16kb page | address range¹| aliases     | idx²|
@@ -48,7 +49,7 @@ referenced as:
 | shadow screen 0 |     7     | 0x0000-0x1AFF | pri. shadow |  1  |
 | shadow screen 1 |     7     | 0x2000-0x3AFF | sec. shadow |  3  |
 
-In 48k mode there are two available screen memory areas:
+In 48k mode, there are two available screen memory areas:
 
 | identifier | address range | aliases     | ref²|
 |------------|---------------|-------------|-----|

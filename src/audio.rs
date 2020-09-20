@@ -5,7 +5,7 @@
 
     For the full copyright notice, see the lib.rs file.
 */
-/*! # Audio API
+/*! # Audio API.
 ```text
                      /---- ensure_audio_frame_time ----\
   +----------------------+                         +--------+

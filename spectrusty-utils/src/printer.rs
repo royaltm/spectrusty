@@ -31,7 +31,7 @@ pub trait DotMatrixGfx {
     /// Renders already buffered image data as an SVG image written to the provided `target`.
     /// Returns `Ok(true)` if an image has been rendered. If there was no image data spooled, returns `Ok(false)`.
     fn write_svg_dot_gfx_lines(&self, description: &str, target: &mut dyn io::Write) -> io::Result<bool>;
-    /// Renders already buffered image data as a monochrome 8-bit grascale image data.
+    /// Renders already buffered image data as a monochrome 8-bit greyscale image data.
     /// Returns `Some(width, height)` if an image has been rendered. If there was no image data spooled, returns `None`.
     ///
     /// You may use `image` crate to render an actual image in some popular format:

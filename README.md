@@ -1,6 +1,8 @@
 SPECTRUSTY
 ==========
 
+![SPECTRUSTY img][S P E C T R U S T Y]
+
 [![Crate][Crate img]][Crate Link]
 [![Docs][Docs img]][Docs Link]
 [![Build Status][Build img]][Build Link]
@@ -10,37 +12,39 @@ SPECTRUSTY
 What's this & Why?
 ------------------
 
-There are plenty of [ZX Spectrum] emulators, a large portion of them are open-source, some very advanced, most are done just for fun. But except some examples of Z80 CPU emulators, every one of them is a complete program, with code that is not easy to build upon or port to another system. Most that I found are in C, a lot of them in Java, and even some in javascript.
+There are plenty of [ZX Spectrum] emulators, a large portion of them are open-source, some very advanced, most are done just for fun. But except some examples of Z80 CPU emulators, each of the ones I've seen is a complete program, with code that is not easy to build upon or port to another system. Most that I found is written in C, a lot of them in Java, and even some in javascript.
 
-The notable example is a ZX Spectrum [Fuse] emulator, written in C, with pleasantly readable code. Nevertheless, the components of the emulator are nicely separated, with high cohesion but unfortunately also high coupling, here and there sprinkled with a vast range of global variables. However, I can imagine that with sufficient patience and skill you can build upon this foundation.
+The notable example is [Free Unix Spectrum Emulator][Fuse] written in C with pleasantly readable code. The components of the emulator are nicely separated, with high cohesion but unfortunately, here and there sprinkled with a vast range of global variables. However, I can imagine that with sufficient patience and skill you can build successful projects upon such a foundation.
 
-**SPECTRUSTY** was partly created for fun, but also as a Rust abstraction testing facility. Because Spectrum is so simple, and it was the first computer that I put my hands on, I needed a good reason to dive deep in the Rust OO model for purely educational purposes. From the start, the goal was not to build a complete emulator program, but rather a library upon which you can relatively easy build emulators that suit your particular needs.
+**SPECTRUSTY** was built from scratch, partly for fun, but also as a Rust abstraction testing facility. I needed some theme to dive deep into the Rust OO model for educational purposes, and have chosen [ZX Spectrum] because it's such a simple machine thoroughly reverse-engineered and documented. It was also the first computer that I've owned. From the start, the goal was not to build a complete emulator program, but rather a library, upon which you can relatively easy build emulators that suit your particular needs.
 
-In this library, every component is a separate entity. Most of them defined with generic parameters, that can be completed and complemented with other components using, and perhaps slightly abusing, the Rust trait-based OO model. The interaction between the library's components is realized via Rust's trait system.
+In this library, every component is a separate entity that doesn't know anything about the world and realizes its purpose via trait interfaces. Most of the structs are defined with generic parameters that can be substituted by the complementary components which complete or extend their base functionality.
+
+To create your emulator with **SPECTRUSTY** first, you need to choose the components you need, then choose the way to glue them together, and then realize their functions via trait methods.
 
 
 Caveats
 -------
 
-Because of the heavy use of static dispatching and due to monomorphisation the separate code is being created for every set of spectrum chipset, device set, and the CPU. This may result in a rather large output code if you want all these sets to be available at run time. On the other hand, the produced code is quite efficient.
+Because of the heavy use of polymorphism and static dispatching the separate code is being created due to monomorphisation for every set of spectrum chipset, device set, and the CPU. This may result in a rather large output code if you want all these sets to be available at run time. On the other hand, the produced code is quite efficient.
 
 
 How To
 ------
 
-Because the best way to learn new things is through practice, so instead of explaining the core concept behind the library, I'll just invite you to look at the [tutorial].
+Because the best way to learn new things is by example, I invite you to see the [tutorial].
 
 
 Examples
 --------
 
-Several examples of what can be build with **SPECTRUSTY** can be found in the [examples](examples) directory as separate crates.
+Several examples of what can be built with **SPECTRUSTY** can be found in the [examples](examples) directory, provided as separate crates.
 
 
 Contribution and feedback
 -------------------------
 
-Because of ZX Spectrum's popularity, there is a lot of technical information available from various sources. On the other hand, because of the same reason, the certainty of the information has been deluded, because some of the resources are contradicting each other. Unfortunately, my access to the real hardware is very limited - I'm a proud owner of a single TC2048, that is still working today. If you'd find something that is being emulated in the wrong way, please don't hesitate to submit an issue.
+Because of ZX Spectrum's popularity, there is a lot of technical information available from various sources. On the other hand, the certainty of the information has been deluded because some of the resources are contradicting each other. Unfortunately, my access to the real hardware is very limited - I'm a proud owner of a single [TC2048], that is still working today. If you'd find something that is being emulated incorrectly, please don't hesitate to submit an issue.
 
 
 Features
@@ -110,6 +114,13 @@ The video and contention timings for the Sinclair/Amstrad machines are thoroughl
 * [x] - .AY player format parser
 
 
+Rust Version Requirements
+-------------------------
+
+`spectrusty` requires Rustc version 1.36 or greater due to the usage of some macro features and API that was introduced
+or stabilized in this version.
+
+
 Copyright
 ---------
 
@@ -119,16 +130,18 @@ The **SPECTRUSTY** library is available under the terms of the GNU LGPL version 
 
 `ROM` files found in the [resources](resources/roms) directory are made available under different [terms](resources/README-copyright.md).
 
+[SPECTRUSTY img]: resources/spectrusty.png
 [Crate Link]: https://crates.io/crates/spectrusty
 [Crate img]: https://img.shields.io/crates/v/spectrusty.svg
 [Docs Link]: https://docs.rs/spectrusty
 [Docs img]: https://docs.rs/spectrusty/badge.svg
-[Build Link]: https://travis-ci.org/royaltm/rust-spectrusty
-[Build img]: https://travis-ci.org/royaltm/rust-spectrusty.svg?branch=master
-[rustc version link]: https://github.com/royaltm/rust-spectrusty#rust-version-requirements
+[Build Link]: https://travis-ci.org/royaltm/spectrusty
+[Build img]: https://travis-ci.org/royaltm/spectrusty.svg?branch=master
+[rustc version link]: https://github.com/royaltm/spectrusty#rust-version-requirements
 [rustc version img]: https://img.shields.io/badge/rustc-1.36+-lightgray.svg
 [License Link]: https://www.gnu.org/licenses/#LGPL
 [License img]: https://img.shields.io/crates/l/spectrusty
+[TC2048]: https://en.wikipedia.org/wiki/Timex_Computer_2048
 [ZX Spectrum]: https://en.wikipedia.org/wiki/ZX_Spectrum
 [Fuse]: http://fuse-emulator.sourceforge.net/
 [z80emu]: https://github.com/royaltm/rust-z80emu

@@ -20,7 +20,7 @@ use super::*;
 ///
 /// # Note
 /// This is a very simple implementation, which in reality is able to catch only the output of COPY and COPY EXP
-/// commands found in Spectrum's ROMs: 128k, +2 and +3.
+/// commands found in Spectrum's ROMs: 128k, +2, and +3.
 #[derive(Clone, Default, Debug)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "snapshot", serde(default))]
@@ -69,8 +69,8 @@ impl EpsonPrinterGfx {
     /// In this instance all subsequent writes are being buffered until one of two things happens:
     ///
     /// * Either a collected escape sequence matches the signature of graphic data being sent to the printer.
-    ///   In this instance the image is being spooled and will be available via [DotMatrixGfx] methods.
-    /// * Or a collected escape sequence data does not match the signature. In this instance a reference to
+    ///   In this instance, the image is being spooled and will be available via [DotMatrixGfx] methods.
+    /// * Or a collected escape sequence data does not match the signature. In this instance, a reference to
     ///   the buffered data is being returned so it can be passed back to the upstream.
     pub fn intercept<'a, 'b: 'a>(&'a mut self, ch: &'b u8) -> Option<&'a [u8]> {
         match self.state {

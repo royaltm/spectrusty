@@ -5,7 +5,7 @@
 
     For the full copyright notice, see the lib.rs file.
 */
-//! # Audio API
+//! # Audio API.
 mod sample;
 
 use core::ops::{Deref, DerefMut};
@@ -209,17 +209,17 @@ pub const AMPS_EAR_MIC_I16: [i16; 4] = [0x0bc3, 0x16d5, 0x7b27, 0x7fff];
 pub const AMPS_EAR_OUT_I16: [i16; 4] = [0x0bc3, 0x0bc3, 0x7fff, 0x7fff];
 pub const AMPS_EAR_IN_I16:  [i16; 2] = [0x0bc3, 0x16d5];
 
-/// Implements [AmpLevels] trait, usefull when rendering combined EAR OUT and MIC OUT audio signal.
+/// Implements [AmpLevels] trait, useful when rendering combined EAR OUT and MIC OUT audio signal.
 ///
 /// Uses 2 lowest bits of a given `level`.
 #[derive(Clone, Default, Debug)]
 pub struct EarMicAmps4<T>(PhantomData<T>);
-/// Implements [AmpLevels] trait, usefull when rendering EAR OUT audio ignoring MIC OUT signal.
+/// Implements [AmpLevels] trait, useful when rendering EAR OUT audio ignoring MIC OUT signal.
 ///
 /// Uses 2 lowest bits of a given `level`, but ignores the lowest bit.
 #[derive(Clone, Default, Debug)]
 pub struct EarOutAmps4<T>(PhantomData<T>);
-/// Implements [AmpLevels] trait, usefull when rendering EAR IN audio.
+/// Implements [AmpLevels] trait, useful when rendering EAR IN audio.
 ///
 /// Uses only one bit of a given `level`.
 #[derive(Clone, Default, Debug)]

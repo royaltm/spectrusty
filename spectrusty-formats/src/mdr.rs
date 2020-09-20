@@ -7,32 +7,47 @@
 */
 /*! **MDR** file format utilities.
 
-**MDR** files are data images of formatted sectors of ZX Microdrive tape cartridges.
+[Utilities][MicroCartridgeExt] in this module provide additional methods to the [MicroCartridge] type
+with abilities:
+
+* to inspect and manipulate sector data on the Microdrive file system level
+  (read, create, erase and list files from cartridges);
+* to extract files into and from the [**TAP**][super::tap] format;
+* to write and read [MicroCartridge] data to and from **MDR** file format.
+
+**MDR** files are data images of formatted sectors of [ZX Microdrive tape cartridges].
+
 The number of sectors may vary but it will never be a larger than 254.
+
 The last byte determines the write protection flag: if it's not `0` the cartridge should be protected.
 
-```text
-Offset Length Name    Contents
-------------------------------
-  0      1   HDFLAG   bit 0 = 1, indicates header block
-  1      1   HDNUMB   sector number (values 254 down to 1)
-  2      2            not used (and of undetermined value)
-  4     10   HDNAME   microdrive cartridge name (blank padded)
- 14      1   HDCHK    header checksum (of first 14 bytes)
+The structure of a single cartridge sector saved in the **MDR** file:
 
- 15      1   RECFLG   - bit 0: always 0 to indicate record block
-                      - bit 1: set for the EOF block
-                      - bit 2: reset for a PRINT file
-                      - bits 3-7: not used (value 0)
-                      
- 16      1   RECNUM   data block sequence number (value starts at 0)
- 17      2   RECLEN   data block length (<=512, LSB first)
- 19     10   RECNAM   filename (blank padded)
- 29      1   DESCHK   record descriptor checksum (of previous 14 bytes)
- 30    512            data block
-542      1   DCHK     data block checksum (of all 512 bytes of data
-                      block, even when not all bytes are used)
-```
+| offset | size   | ROM var | description                                                                  |
+|------- |--------|---------|------------------------------------------------------------------------------|
+|      0 |      1 | HDFLAG  | Bit 0 if set indicates a header and should always be set.                    |
+|      1 |      1 | HDNUMB  | Sector number: starts from 254 down to 1.                                    |
+|      2 |      2 | -       | Unknown, probably padding.                                                   |
+|      4 |     10 | HDNAME  | Name of the cartridge with trailing spaces, repeated every formatted sector. |
+|     14 |      1 | HDCHK   | Checksum of the previous 14 bytes.                                           |
+|     15 |      1 | RECFLG  | Record flags, see below. Bit 0 should be always reset.                       |
+|     16 |      1 | RECNUM  | File block record number: starts at 0.                                       |
+|     17 |      2 | RECLEN  | File block data length (LSB first), less than or equal to 512.               |
+|     19 |     10 | RECNAM  | Name of the file with trailing spaces, repeated every record.                |
+|     29 |      1 | DESCHK  | Checksum of the previous 14 bytes.                                           |
+|     30 |    512 | CHDATA  | Record block data: 0..RECLEN.                                                |
+|    542 |      1 | DCHK    | Checksum of the previous 512 bytes, regardless of RECLEN value.              |
+
+Record flags (`RECFLG`):
+
+* Bit 0 is always reset to indicate a record block descriptor.
+* Bit 1 is set for the last record block (End Of File).
+* Bit 2 is set for regular files and reset if the record is part of a PRINT type file (a stream).
+
+The above structure and ROM variable names are from the book by Gianluca Carri
+["Spectrum Shadow ROM Disassembly"](https://spectrumcomputing.co.uk/entry/2000371/Book/Spectrum_Shadow_ROM_Disassembly).
+
+[ZX Microdrive tape cartridges]: https://en.wikipedia.org/wiki/ZX_Microdrive
 !*/
 use core::mem;
 use core::convert::{TryInto, TryFrom};
@@ -44,16 +59,14 @@ use std::borrow::Cow;
 use std::io::{self, Read, Write, Seek};
 use std::collections::{HashMap, HashSet};
 
-// use bitvec::prelude::*;
-
-use spectrusty_peripherals::storage::microdrives::{
-    MAX_USABLE_SECTORS, HEAD_SIZE,
-    Sector, MicroCartridge, MicroCartridgeIdSecIter};
 use crate::ReadExactEx;
 use super::tap::{
     BlockType, Header, TapChunkWriter, TapChunkReader, TapChunkRead, TapChunkInfo,
     DATA_BLOCK_FLAG, array_name
 };
+pub use spectrusty_peripherals::storage::microdrives::{
+    MAX_USABLE_SECTORS, HEAD_SIZE,
+    Sector, MicroCartridge, MicroCartridgeIdSecIter};
 
 /// Checksum calculating routine used by Spectrum for Microdrive data.
 pub fn checksum<I: IntoIterator<Item=B>, B: Borrow<u8>>(iter: I) -> u8 {

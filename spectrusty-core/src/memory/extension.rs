@@ -31,7 +31,7 @@ pub trait MemoryExtension: core::fmt::Debug {
     // }
 }
 
-/// A placeholder memory extension. Usefull as a default.
+/// A placeholder memory extension. Useful as a default.
 #[derive(Clone, Copy, Default, Debug)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 pub struct NoMemoryExtension;

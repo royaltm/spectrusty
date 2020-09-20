@@ -1,6 +1,22 @@
 SPECTRUSTY PERIPHERALS
 ======================
 
-Emulator components of various ZX Spectrum peripheral devices for [SPECTRUSTY]: The ZX Spectrum emulator library in Rust.
+[![Crate][Crate img]][Crate Link]
+[![Docs][Docs img]][Docs Link]
+[![Build Status][Build img]][Build Link]
+[![Minimum rustc version][rustc version img]][rustc version link]
+[![License][License img]][License Link]
+
+Emulator components of ZX Spectrum peripheral devices for [SPECTRUSTY]: ZX Spectrum emulator library in Rust.
 
 [SPECTRUSTY]: https://royaltm.github.io/spectrusty/
+[Crate Link]: https://crates.io/crates/spectrusty-peripherals
+[Crate img]: https://img.shields.io/crates/v/spectrusty-peripherals.svg
+[Docs Link]: https://docs.rs/spectrusty-peripherals
+[Docs img]: https://docs.rs/spectrusty-peripherals/badge.svg
+[Build Link]: https://travis-ci.org/royaltm/spectrusty
+[Build img]: https://travis-ci.org/royaltm/spectrusty.svg?branch=master
+[rustc version link]: https://github.com/royaltm/spectrusty#rust-version-requirements
+[rustc version img]: https://img.shields.io/badge/rustc-1.36+-lightgray.svg
+[License Link]: https://www.gnu.org/licenses/#LGPL
+[License img]: https://img.shields.io/crates/l/spectrusty-peripherals

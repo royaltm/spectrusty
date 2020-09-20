@@ -5,7 +5,7 @@
 
     For the full copyright notice, see the lib.rs file.
 */
-//! Platform dependend audio device streaming implementations.
+//! Platform dependent audio device streaming implementations.
 //!
 //! To make use of this module enable one of the available features to the `spectrusty_audio` entry in `[dependencies]`
 //! section of the Cargo configuration file.
@@ -21,15 +21,15 @@ pub mod sdl2;
 /// A list specifying categories of [AudioHandleError] error.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum AudioHandleErrorKind {
-    /// An error occuring when audio subsystem host or device is not available.
+    /// This error occurs when the audio subsystem host or device is not available.
     AudioSubsystem,
-    /// An error occuring while trying to create or modify an audio stream.
+    /// This error occurs while trying to create or modify an audio stream.
     AudioStream,
-    /// An error occuring due to the invalid specification of the desired audio parameters or other arguments.
+    /// This error occurs due to the invalid specification of the desired audio parameters or other arguments.
     InvalidArguments,
 }
 
-/// A common error type returned by all audio handle implementation methods.
+/// A common error type returned by all audio handle implementation methods in this module.
 #[derive(Debug, Clone)]
 pub struct AudioHandleError {
     description: String,

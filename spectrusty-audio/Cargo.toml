@@ -11,6 +11,9 @@ description = """
 Components of the SPECTRUSTY library for synthesizing audio samples and native audio playback.
 """
 
+[package.metadata.docs.rs]
+all-features = true
+
 [features]
 default = []
 

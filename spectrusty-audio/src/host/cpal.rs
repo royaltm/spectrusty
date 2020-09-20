@@ -41,7 +41,7 @@ pub struct AudioHandle<T: cpal::Sample + AudioSample> {
     pub sample_rate: u32,
     /// The number of audio channels in the output stream.
     pub channels: u8,
-    /// The audio sample producer interconnected with an audio consumer living in the audio thread.
+    /// The audio sample producer, interconnected with an audio consumer living in the audio thread.
     pub producer: AudioFrameProducer<T>,
     stream: Stream
 }

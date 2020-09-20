@@ -9,7 +9,7 @@
 
 /// Provides various methods to primitive types being used as audio samples.
 pub trait AudioSample: Copy + Send + Default + 'static {
-    /// Creates a silence sample value (with zero amplitude). Usefull for filling buffers.
+    /// Creates a silent sample value (with zero amplitude). Useful for filling buffers.
     #[inline(always)]
     fn silence() -> Self {
         Self::default()
@@ -20,13 +20,13 @@ pub trait AudioSample: Copy + Send + Default + 'static {
 
 /// For converting samples between types.
 pub trait FromSample<S> {
-    /// Converts to Self sample type from `other`.
+    /// Converts to Self a sample from the `other`.
     fn from_sample(other: S) -> Self;
 }
 
 /// For converting samples between types.
 pub trait IntoSample<S> {
-    /// Convert to S sample type from `self`.
+    /// Convert to `S` a sample type from `self`.
     fn into_sample(self) -> S;
 }
 
@@ -42,7 +42,7 @@ pub trait MulNorm {
     ///
     /// Float samples operates in range: [-1.0, 1.0], integer: [min, max]
     fn saturating_add(self, other: Self) -> Self;
-    /// Multiplies `self` with `other` in the normalized sample amplitude range.
+    /// Multiplies `self` with the `other` in the normalized sample amplitude range.
     ///
     /// Float samples operates in range: [-1.0, 1.0], integer: [min, max]
     fn mul_norm(self, other: Self) -> Self;

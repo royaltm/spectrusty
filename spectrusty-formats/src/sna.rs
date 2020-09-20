@@ -5,7 +5,45 @@
 
     For the full copyright notice, see the lib.rs file.
 */
-//! **SNA** snapshot format utilities.
+/*! **SNA** snapshot format utilities.
+
+48k `SNA` file (LSB first):
+
+| offset | size  | description                              |
+|--------|-------|------------------------------------------|
+|      0 |     1 | register: I                              |
+|      1 |     6 | registers: HL', DE', BC'                 |
+|      7 |     2 | registers: AF'                           |
+|      9 |     6 | registers: HL, DE, BC                    |
+|     15 |     4 | registers: IY, IX                        |
+|     19 |     1 | interrupt flags: bit 1=IFF1, bit 2=IFF1) |
+|     20 |     1 | register: R                              |
+|     21 |     4 | registers: AF                            |
+|     23 |     4 | register: SP                             |
+|     25 |     1 | interrupt mode: 0=IM0, 1=IM1, 2=IM2      |
+|     26 |     1 | border color: 0..=7                      |
+|     27 | 49152 | bytes: RAM 16384..=65535                 |
+
+Total size: `49179` bytes
+
+128k extended `SNA` file:
+
+| offset | size  | description                                   |
+|--------|-------|-----------------------------------------------|
+|      0 |    27 | 48k `SNA` header                              |
+|     27 | 16384 | bytes: RAM page 1, bank 5                     |
+|  16411 | 16384 | bytes: RAM page 2, bank 2                     |
+|  32795 | 16384 | bytes: RAM page 3, currently paged bank       |
+|  49179 |     2 | register:  PC                                 |
+|  49181 |     1 | byte: last OUT to 0x7ffd                      |
+|  49182 |     1 | byte: TR-DOS ROM 1=paged, 0=not paged         |
+|  49183 |*16384 | bytes: remaining RAM banks in ascending order |
+
+Total size:
+* `131103` bytes if RAM page 3 is not one of bank 5 or bank 2
+* `147487` bytes if RAM page 3 is bank 5 or bank 2 (included twice)
+
+*/
 use core::mem::size_of;
 use std::convert::TryInto;
 use std::io::{self, ErrorKind, Error, Read, Write, Seek, SeekFrom, Result};
@@ -19,36 +57,7 @@ use spectrusty_core::{
 
 use crate::{StructRead, StructWrite};
 use super::snapshot::*;
-/*
-   Offset   Size   Description
-   ------------------------------------------------------------------------
-   0        1      byte   I
-   1        8      word   HL', DE', BC', AF'
-   9        10     word   HL, DE, BC, IY, IX
-   19       1      byte   Interrupt (bit 2 = IFF2, bit 1 = IFF1)
-   20       1      byte   R
-   21       4      word   AF
-   23       4      word   SP
-   25       1      byte   IntMode (0=IM0|1=IM1|2=IM2)
-   26       1      byte   BorderColor (0..=7)
-   27       49152  bytes  RAM 16384..=65535
-   ------------------------------------------------------------------------
-   Size: 49179 bytes
 
-   Offset   Size   Description
-   ------------------------------------------------------------------------
-   0        27     bytes  SNA header (see above)
-   27       16Kb   bytes  RAM bank 5
-   16411    16Kb   bytes  RAM bank 2
-   32795    16Kb   bytes  RAM bank n / (currently paged bank)
-   49179    2      word   PC
-   49181    1      byte   port OUT 0x7ffd
-   49182    1      byte   TR-DOS rom paged (1) or not (0)
-   49183    16Kb   bytes  remaining RAM banks in ascending order
-   ...
-   ------------------------------------------------------------------------
-   Size: 131103 or 147487 bytes
-*/
 #[derive(Clone, Copy, Debug, Default)]
 #[repr(C)]
 #[repr(packed)]
@@ -125,7 +134,11 @@ fn read_header<R: Read, C: Cpu>(rd: R, cpu: &mut C) -> Result<BorderColor> {
 /// Returns a border color on success.
 ///
 /// # Note
-/// This function handles only the 48k *SNA* file, that is the one with the size of 49179 bytes.
+/// This function handles only the 48k **SNA** files.
+///
+/// # Errors
+/// This function will return an error if the file is too small.
+/// Other errors may also be returned from attempts to read the file.
 pub fn read_sna48<R: Read, M: ZxMemory, C: Cpu>(
         mut rd: R,
         cpu: &mut C,
@@ -144,9 +157,14 @@ pub fn read_sna48<R: Read, M: ZxMemory, C: Cpu>(
     Ok(border)
 }
 
-/// Loads a **SNA** file into the provided snapshot `loader` from a source.
+/// Loads an **SNA** file from `rd` into the provided snapshot `loader` implementing [SnapshotLoader].
 ///
-/// Requres both [Read] and [Seek] source to determine file version.
+/// Requires both [Read] and [Seek] implementations to determine the file version.
+///
+/// # Errors
+/// This function will return an error if the file size is incorrect or there is something wrong
+/// with the format.
+/// Other errors may also be returned from attempts to read the file.
 pub fn load_sna<R: Read + Seek, S: SnapshotLoader>(
         mut rd: R,
         loader: &mut S
@@ -207,10 +225,14 @@ pub fn load_sna<R: Read + Seek, S: SnapshotLoader>(
     Ok(())
 }
 
-/// Loads a 48k **SNA** file into the provided snapshot `loader` from a source.
+/// Loads a 48k **SNA** file from `rd` into the provided snapshot `loader` implementing [SnapshotLoader].
 ///
 /// # Note
-/// This method assumes the provided stream contains the 48k **SNA** version.
+/// This function handles only the 48k **SNA** files.
+///
+/// # Errors
+/// This function will return an error if the file is too small or the `SP` register points into the ROM page.
+/// Other errors may also be returned from attempts to read the file.
 pub fn load_sna48<R: Read, S: SnapshotLoader>(
         mut rd: R,
         loader: &mut S
@@ -272,7 +294,12 @@ fn make_header<C: Cpu>(cpu: &C) -> SnaHeader {
     sna
 }
 
-/// Saves a **SNA** file from the provided `snapshot` instance into `wr`.
+/// Saves an **SNA** file into `wr` from the provided reference to a `snapshot` struct
+/// implementing [SnapshotCreator].
+///
+/// # Errors
+/// This function may return an error from attempts to write the file or if for some reason
+/// a snapshot could not be created.
 pub fn save_sna<C: SnapshotCreator, W: Write>(
         snapshot: &C,
         mut wr: W

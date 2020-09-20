@@ -34,17 +34,17 @@ Components of the library can also be used to implement chiptune players, format
 Because of its vast scope, **SPECTRUSTY** has been split into several dependent crates and one extra crate
 with complementary utilities. The additional crates can be used separately or through this library.
 
-* `"spectrusty"` - this library.
+* `spectrusty` - this library.
 * [spectrusty-core] - defines basic traits and structs.
 * [spectrusty-audio] - tools for synthesizing and playing audio samples.
 * [spectrusty-formats] - file formats and related utilities.
 * [spectrusty-peripherals] - emulators of various peripheral devices.
 * [z80emu] - Zilog's Z80 CPU family emulator, re-exported as `z80emu`.
 
-The separate but a complementary crate [spectrusty-utils] provides additional utilities, like 
-TAPe organizers, tape ROM auto-loader, printer utilities and keyboard helpers for various platforms.
+The separate crate [spectrusty-utils], provides additional utilities, like TAPe
+organizers, tape ROM auto-loader, printer utilities, and keyboard helpers for various platforms.
 
-Several dependency features control which components will be included:
+Several features control which components will be included:
 
 * `"audio"` - includes [spectrusty-audio] which is re-exported as [audio].
 * `"formats"` - includes [spectrusty-formats] which is re-exported as [formats].
@@ -68,15 +68,15 @@ default = ["formats", "peripherals", "snapshot", "compression"]
 
 Implemented by ZX Spectrum's core chipset emulators.
 
-Responsible for code execution, keyboard input, video and accessing peripheral devices:
+Responsible for code execution, keyboard input, video, and accessing peripheral devices:
 
 | trait | function |
 |-------|----------|
 | [UlaCommon][chip::UlaCommon]       | A grouping trait that includes all of the traits listed below in this table |
 | [ControlUnit][chip::ControlUnit]   | Code execution, reset/nmi, access to [BusDevice] peripherals |
-| [FrameState][chip::FrameState]     | Provides access to frame and T-state counters |
+| [FrameState][chip::FrameState]     | Provides access to the frame and T-state counters |
 | [MemoryAccess][chip::MemoryAccess] | Provides access to onboard memory [ZxMemory] and memory extensions [MemoryExtension] |
-| [Video][video::Video]              | Rendering video frame into pixel buffer, border color control |
+| [Video][video::Video]              | Rendering video frame into pixel buffer, border-color control |
 | [KeyboardInterface][peripherals::KeyboardInterface] | Keyboard input control |
 | [EarIn][chip::EarIn]               | EAR line input access |
 | [MicOut][chip::MicOut]             | MIC line output access |
@@ -114,7 +114,7 @@ Implemented by other components:
 | [ZxMemory] | System memory | An access to memory banks, pages, screens, attaching external ROM's |
 | [PagedMemory16k][memory::PagedMemory16k] | Memory group | Groups memory implementations with 16k paging capability |
 | [PagedMemory8k][memory::PagedMemory8k] | Memory group | Groups memory implementations with 8k paging capability |
-| [MemoryExtension] | Memory extensions | Installs memory TRAPS to switch in and out external banks of memory |
+| [MemoryExtension] | Memory extensions | Installs program counter traps to switch in and out external banks of memory |
 | [BusDevice] | I/O peripheral devices | Establishes address and data BUS communication between CPU and peripherals |
 | [Blep] | Bandwidth-Limited Pulse Buffer | An intermediate amplitude differences buffer for rendering square-waves |
 

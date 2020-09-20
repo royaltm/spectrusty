@@ -176,12 +176,12 @@ pub trait ZxMemory {
     ///
     /// The screen banks are different from memory banks.
     /// E.g. for Spectrum 128k then screen bank `0` resides in a memory bank 5 and screen bank `1`
-    /// resides in a memory bank 7. For 16k/48k Spectrum there is only one screen bank: `0`.
+    /// resides in a memory bank 7. For 16k/48k Spectrum, there is only one screen bank: `0`.
     ///
     /// `addr` is in screen address space (0 addresses the first byte of screen memory).
     ///
     /// # Panics
-    /// If `addr` is above upper limit of screen memory address space the function should panic.
+    /// If `addr` is above the upper limit of screen memory address space the function should panic.
     /// If `screen_bank` doesn't exist the function should also panic.
     fn read_screen(&self, screen_bank: usize, addr: u16) -> u8;
     /// If `addr` is above `RAMTOP` the function should do nothing.
@@ -212,8 +212,8 @@ pub trait ZxMemory {
     ///
     /// # Note
     /// Unlike [ZxMemory::page_kind] this method ignores if an EX-ROM bank is currently mapped at the
-    /// specified `page`. In this instance the returned value corresponds to a memory bank that would
-    /// be mapped at `page` if the EX-ROM bank wasn't mapped.
+    /// specified `page`. In this instance, the returned value corresponds to a memory bank that would
+    /// be mapped at the `page` if the EX-ROM bank wasn't mapped.
     ///
     /// `page` should be less or equal to PAGES_MAX.
     fn page_bank(&self, page: u8) -> Result<(MemoryKind, usize)>;
@@ -236,7 +236,7 @@ pub trait ZxMemory {
     /// `exrom_bank` should be one of the attachable EX-ROMS and `page` should be less or equal to PAGES_MAX.
     ///
     /// Only one EX-ROM can be mapped at the same time. If an EX-ROM bank is already mapped when calling
-    /// this function it will be unmapped first, regardless of the page the previous EX-ROM bank has been
+    /// this function it will be unmapped first, regardless of the page, the previous EX-ROM bank has been
     /// mapped at.
     ///
     /// Not all types of memory support attaching external ROMs.
@@ -267,21 +267,21 @@ pub trait ZxMemory {
     fn rom_mut(&mut self) -> &mut [u8] {
         &mut self.mem_mut()[0..Self::ROM_SIZE]
     }
-    /// Provides a continuous view into the RAM memory (all banks).
+    /// Provides a continuous view into RAM (all banks).
     fn ram_ref(&self) -> &[u8] {
         &self.mem_ref()[Self::ROM_SIZE..]
     }
-    /// Provides a continuous mutable view into the RAM memory (all banks).
+    /// Provides a continuous mutable view into RAM (all banks).
     fn ram_mut(&mut self) -> &mut [u8] {
         &mut self.mem_mut()[Self::ROM_SIZE..]
     }
     /// The data read depends on how big ROM is [ZxMemory::ROM_SIZE].
-    /// Results in an error when the rom data size is less than the `ROM_SIZE`.
+    /// Results in an error when the ROM data size is less than the `ROM_SIZE`.
     fn load_into_rom<R: Read>(&mut self, mut rd: R) -> Result<()> {
         let slice = self.rom_mut();
         rd.read_exact(slice).map_err(ZxMemoryError::Io)
     }
-    /// Results in an error when the rom data size is less than the rom bank's size.
+    /// Results in an error when the ROM data size is less than the ROM bank's size.
     fn load_into_rom_bank<R: Read>(&mut self, rom_bank: usize, mut rd: R) -> Result<()> {
         let slice = self.rom_bank_mut(rom_bank)?;
         rd.read_exact(slice).map_err(ZxMemoryError::Io)
@@ -334,7 +334,7 @@ pub trait ZxMemory {
     }
     /// Fills currently paged-in pages with the data produced by the closure F.
     ///
-    /// Usefull to fill RAM with random bytes.
+    /// Useful to fill RAM with random bytes.
     ///
     /// Provide the address range.
     ///

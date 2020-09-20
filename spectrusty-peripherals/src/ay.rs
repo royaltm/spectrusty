@@ -7,9 +7,9 @@
 */
 //! The **AY-3-8910** programmable sound generator chipset family.
 //!
-//! This module contains chipset I/O interface protocol traits and heler types.
+//! This module contains chipset I/O interface protocol traits and helper types.
 //!
-//! The sound emulation is in a separate module, please see: [audio].
+//! The sound emulation is in a separate module, please see [audio].
 use core::fmt;
 use core::ops::{Deref, DerefMut};
 use core::marker::PhantomData;
@@ -220,7 +220,7 @@ pub struct Ay3_891xIo<T, R, A, B> {
 
 /// A recorder for [Ay3_891xIo] that records nothing.
 ///
-/// Usefull when no sound will be generated.
+/// Useful when no sound will be generated.
 #[derive(Default, Clone, Debug)]
 pub struct AyRegNullRecorder<T>(PhantomData<T>);
 
@@ -233,7 +233,7 @@ where A: AyIoPort<Timestamp=T>,
       B: AyIoPort<Timestamp=T>,
       R: AyRegRecorder<Timestamp=T>
 {
-    /// Resets the state of internal registers, port devices and which register is being
+    /// Resets the state of internal registers, port devices, and which register is being
     /// currently selected for reading and writing.
     ///
     /// *NOTE*: does nothing to the recorded register changes.
@@ -261,12 +261,13 @@ where A: AyIoPort<Timestamp=T>,
     pub fn registers(&self) -> &[u8;16] {
         &self.regs
     }
-    /// Returns an iterator of `(register, value)` pairs over all current registers.
+    /// Returns an iterator of `(register, value)` pairs over current registers.
     #[inline]
     pub fn iter_regs<'a>(&'a self) -> impl Iterator<Item=(AyRegister, u8)> + 'a {
         self.regs.iter().enumerate().map(|(n, val)| ((n as u8).into(), *val))
     }
-    /// Returns an iterator of `(register, value)` pairs over current registers used by sound generator.
+    /// Returns an iterator of `(register, value)` pairs over current registers used by the
+    /// sound generator.
     #[inline]
     pub fn iter_sound_gen_regs<'a>(&'a self) -> impl Iterator<Item=(AyRegister, u8)> + 'a {
         self.iter_regs().take(NUM_SOUND_GEN_REGISTERS)

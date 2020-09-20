@@ -30,7 +30,7 @@ pub use crate::ay::{
 };
 
 /// Implement this empty trait for [BusDevice] so methods from [AyAudioBusDevice]
-/// will get auto implemented to pass method call to next devices.
+/// will get auto-implemented to pass method calls to the downstream devices.
 pub trait PassByAyAudioBusDevice {}
 
 /// A convenient [Ay3_891xBusDevice] type emulating a device with a `Melodik` port configuration.
@@ -87,9 +87,9 @@ pub trait AyAudioBusDevice: BusDevice {
 #[cfg_attr(feature = "snapshot", derive(Serialize))]
 #[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]
 pub struct Ay3_891xBusDevice<P, A, B, D: BusDevice> {
-    /// Provides a direct access to the sound generator.
+    /// Provides direct access to the sound generator.
     pub ay_sound: Ay3_891xAudio,
-    /// Provides a direct access to the I/O ports.
+    /// Provides direct access to the I/O ports.
     pub ay_io: Ay3_8910Io<D::Timestamp, A, B>,
         bus: D,
         #[cfg_attr(feature = "snapshot", serde(skip))]

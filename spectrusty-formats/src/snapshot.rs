@@ -248,21 +248,21 @@ pub trait SnapshotLoader {
     fn tr_dos_rom_paged_in(&mut self) { unimplemented!() }
 }
 
-/// Returns `true` if a `cpu` is safe for snapshotting using lossy formats.
+/// Returns `true` if a `cpu` is safe for a snapshot using lossy formats.
 pub fn is_cpu_safe_for_snapshot<C: Cpu>(cpu: &C) -> bool {
     !cpu.is_after_prefix()
 }
 
 /// Makes sure CPU is in a state that is safe for a snapshot, otherwise executes instructions until it's safe.
 ///
-/// In some rare cases CPU will be in a state that most snapshot formats are unable to preserve it correctly.
+/// In some rare cases, a CPU will be in a state that most snapshot formats are unable to preserve it correctly.
 ///
 /// That is while CPU is in a state after: 
 /// * Executing one of the `0xFD` or `0xDD` prefixes before executing the prefixed instruction,
-///   in this instance the "after prefix" state is being lost, which will end up executing the next instruction
-///   in the wrong way.
+///   in this instance the "after the prefix" state is being lost, which will end up executing the next
+///   instruction in the wrong way.
 /// * Executing the `EI` instruction which temporarily prevents interrupts until the next instruction is executed,
-///   in this instance the "after ei" state is lost and an interrupt may be accepted while it shouldn't be just yet.
+///   in this instance the "after EI" state is lost and an interrupt may be accepted while it shouldn't be just yet.
 pub fn ensure_cpu_is_safe_for_snapshot<C: Cpu, M: ControlUnit + Video + MemoryAccess>(
         cpu: &mut C,
         chip: &mut M

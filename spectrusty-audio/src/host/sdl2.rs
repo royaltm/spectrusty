@@ -64,7 +64,7 @@ pub struct AudioHandle<T: AudioFormatNum + AudioSample> {
     pub channels: u8,
     /// The number of samples in the output audio buffer.
     pub samples: u16,
-    /// The audio sample producer interconnected with an audio consumer living in the audio thread.
+    /// The audio sample producer, interconnected with an audio consumer living in the audio thread.
     pub producer: AudioFrameProducer<T>,
     device: AudioDevice<AudioCb<T>>,
 }
@@ -92,11 +92,11 @@ impl<T: AudioFormatNum + AudioSample> AudioHandle<T> {
     }
     /// Creates an instance of the [AudioHandle] from the provided **SDL2** context.
     ///
-    /// The audio parameters used by default are the sample rate of 44100, 2 channels and the
+    /// The audio parameters used by default are the sample rate of 44100, 2 channels, and the
     /// output buffer size adjusted to the requested latency.
     ///
     /// * `frame_duration_nanos` is the duration in nanoseconds of the standard emulation frame.
-    /// * `latency` is the requested audio latency; the actual `latency` agrument passed to the
+    /// * `latency` is the requested audio latency; the actual `latency` argument passed to the
     ///   [create_carousel] may be larger but never smaller than the provided one.
     pub fn create(
                 sdl_context: &Sdl,
@@ -114,11 +114,11 @@ impl<T: AudioFormatNum + AudioSample> AudioHandle<T> {
     /// Creates an instance of the [AudioHandle] from the provided **SDL2** context with the
     /// desired audio parameters.
     ///
-    /// The audio parameters used by default are the sample rate of 44100, 2 channels and the
+    /// The audio parameters used by default are the sample rate of 44100, 2 channels, and the
     /// output buffer size adjusted to the requested latency.
     ///
     /// * `frame_duration_nanos` is the duration in nanoseconds of the standard emulation frame.
-    /// * `latency` is the requested audio latency; the actual `latency` agrument passed to the
+    /// * `latency` is the requested audio latency; the actual `latency` argument passed to the
     ///   [create_carousel] may be larger but never smaller than the provided one.
     /// * `desired_spec` can be populated with the desired audio parameters.
     pub fn create_with_specs(

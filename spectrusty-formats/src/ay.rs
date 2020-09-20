@@ -37,8 +37,8 @@ pub type PinAyFile = Pin<Box<AyFile>>;
 
 /// This type is being ever created only as [PinAyFile] to prevent destructing and moving data out.
 ///
-/// The `AyFile` struct uses pointers referencing self owned data under the hood.
-/// Users may inspect its content safely and initialize player with it.
+/// The `AyFile` struct uses pointers referencing self-owned data under the hood.
+/// Users may inspect its content safely and initialize the player with it.
 /// See: [AyFile::initialize_player].
 ///
 /// This struct can't be used to construct *AY* files.
@@ -57,7 +57,7 @@ pub struct AyFile {
 pub struct AyMeta {
     /// *AY* file version.
     pub file_version:   u8,
-    /// Player minimum version required.
+    /// Required player minimum version.
     pub player_version: u8,
     /// Does the *AY* file require a special player written in MC68k code?
     pub special_player: bool,
@@ -74,13 +74,13 @@ pub struct AyMeta {
 pub struct AySong {
     /// The name of the song.
     pub name:        AyString,
-    /// Mapping of AY-3-891x channel A to Amiga channel.
+    /// Mapping of AY-3-891x channel A to the Amiga channel.
     pub chan_a:      u8,
-    /// Mapping of AY-3-891x channel B to Amiga channel.
+    /// Mapping of AY-3-891x channel B to the Amiga channel.
     pub chan_b:      u8,
-    /// Mapping of AY-3-891x channel C to Amiga channel.
+    /// Mapping of AY-3-891x channel C to the Amiga channel.
     pub chan_c:      u8,
-    /// Mapping of AY-3-891x noise to Amiga channel.
+    /// Mapping of AY-3-891x noise to the Amiga channel.
     pub noise:       u8,
     /// The duration of the song in frames.
     pub song_duration: u16,
@@ -173,7 +173,7 @@ impl AyString {
         AyString(NonNull::from(slice))
     }
 
-    /// Returns a reference to the string as array of bytes.
+    /// Returns a reference to the string as an array of bytes.
     pub fn as_slice(&self) -> &[u8] {
         unsafe { self.0.as_ref() } // creating of this type is private so it will be only made pinned
     }
@@ -183,8 +183,8 @@ impl AyString {
         core::str::from_utf8(self.as_slice())
     }
 
-    /// Returns a `str` reference if the underlying bytes can form a proper UTF-8 string.
-    /// Returns a string, including invalid characters.
+    /// Returns a reference to a `str` if the underlying bytes can form a proper UTF-8 string.
+    /// Otherwise, returns a [String], including invalid characters.
     pub fn to_str_lossy(&self) -> Cow<str> {
         String::from_utf8_lossy(self.as_slice())
     }
@@ -211,15 +211,15 @@ const PLAYER_INIT_OFFSET: usize = 2;
 const PLAYER_TWO_INTERRUPT_OFFSET: usize = 9;
 
 impl AyFile {
-    /// Initializes memory and cpu registers, creates a player routine and loads song data into memory.
+    /// Initializes `memory` and the `cpu` registers, creates a player routine, and loads song data into `memory`.
     /// Provide `song_index` of the desired song from this file to be played.
     ///
     /// # Panics
     /// * If `song_index` is larger or equal to the number of contained songs.
     ///   You may get the number of songs by invoking `.songs.len()` method.
-    /// * If special player is required. See [AyMeta].
-    /// * If a capacity of provided memory is less than 64kb.
-    pub fn initialize_player<C, M>(&self, cpu: &mut C, mem: &mut M, song_index: usize)
+    /// * If a special player is required. See [AyMeta].
+    /// * If the capacity of provided memory is less than 64kb.
+    pub fn initialize_player<C, M>(&self, cpu: &mut C, memory: &mut M, song_index: usize)
     where C: Cpu, M: ZxMemory
     {
         if self.meta.special_player {
@@ -227,7 +227,7 @@ impl AyFile {
         }
         let song = &self.songs[song_index];
         debug!("loading song: ({}) {}", song_index, song.name.to_str_lossy());
-        let rawmem = mem.mem_mut();
+        let rawmem = memory.mem_mut();
         for p in rawmem[0x0000..0x0100].iter_mut() { *p = 0xC9 };
         for p in rawmem[0x0100..0x4000].iter_mut() { *p = 0xFF };
         for p in rawmem[0x4000..].iter_mut() { *p = 0x00 };
@@ -564,7 +564,7 @@ fn parse_ay_raw<'a, E: Clone + ParseError<&'a [u8]>>(
     Ok((meta, songs))
 }
 
-/// The type of the error returned by the *AY* file parser.
+/// The type of error returned by the *AY* file parser.
 #[derive(Clone, Debug, PartialEq)]
 pub struct AyParseError {
     /// Data parsed.
@@ -588,6 +588,8 @@ impl From<(Box<[u8]>, String)> for AyParseError {
 
 
 /// Parses given `data` and returns a pinned [AyFile] owning `data`.
+///
+/// # Errors
 /// On error returns the `data` wrapped in [AyParseError].
 pub fn parse_ay<B: Into<Box<[u8]>>>(
         data: B
@@ -610,10 +612,12 @@ pub fn parse_ay<B: Into<Box<[u8]>>>(
     }))
 }
 
-/// Reads data from `rd`, parses data and returns a pinned [AyFile] owning `data` on success.
+/// Reads data from `rd` parses data and returns a pinned [AyFile] owning data on success.
+///
+/// # Errors
 /// When there was a parse error returns `Err` with [AyParseError] wrapped in [io::Error]
 /// with [io::ErrorKind::InvalidData]. To get to the inner [AyParseError] you need either
-/// to downcast it yourself or use one of convenient [IoErrorExt] methods.
+/// to downcast it yourself or use one of the convenient [IoErrorExt] methods.
 pub fn read_ay<R: io::Read>(
         mut rd: R
     ) -> io::Result<PinAyFile>
@@ -665,7 +669,7 @@ impl IoErrorExt for io::Error {
     }
 }
 /*
-Kudos to Sergey Bulba.
+Kudos to Sergey Bulba for reverse engeneering the format.
 
 There is but one bug in Bulba's specification, all offsets are U16 not I16.
 E.g. ProjectAY/Spectrum/Demos/SMC1.AY

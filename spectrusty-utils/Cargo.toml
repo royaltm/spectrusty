@@ -11,6 +11,9 @@ description = """
 Complementary utilities for the SPECTRUSTY library.
 """
 
+[package.metadata.docs.rs]
+all-features = true
+
 [features]
 default = ["snapshot", "compression"]
 snapshot = ["serde", "spectrusty/snapshot"]

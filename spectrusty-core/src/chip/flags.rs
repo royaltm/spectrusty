@@ -18,9 +18,9 @@ use bitflags::bitflags;
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReadEarMode {
-    /// Issue 3 keyboard behaviour - EAR input is 1 when EAR output is 1
+    /// Issue 3 keyboard behavior - EAR input is 1 when EAR output is 1
     Issue3,
-    /// Issue 2 keyboard behaviour - EAR input is 1 when either EAR or MIC output is 1
+    /// Issue 2 keyboard behavior - EAR input is 1 when either EAR or MIC output is 1
     Issue2,
     /// Always clear - EAR input is always 0
     Clear,

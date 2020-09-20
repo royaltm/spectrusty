@@ -11,13 +11,13 @@ use std::io::{self, Read};
 use spectrusty::z80emu::{Cpu, CpuFlags, Prefix, StkReg16, Reg8};
 use spectrusty::memory::ZxMemory;
 
-/// Detects if a loading routine in Spectrum's ROM has been called, and if so, attempts to
-/// instantly load (or verify) data directly into emulator's memory, reading from the provided
-/// data source.
+/// Detects if a loading routine in Spectrum's ROM has been called and if so, attempts to
+/// instantly load (or verify) data directly into the emulator's memory, reading from the
+/// provided data source.
 ///
 /// Provide a mutable reference to a `cpu` and `memory` instances of your emulator.
 ///
-/// Provide a closure which will be called only if loading or verifying will be performed.
+/// Provide a closure that will be called only if loading or verifying will be performed.
 /// The closure should return a source of **TAPE** data as an implementation of a [Read] trait.
 ///
 /// If at least one byte has been read from a data source, the state of the `cpu` will be
@@ -27,10 +27,10 @@ use spectrusty::memory::ZxMemory;
 /// * On missing data or reading error, the loading routine will resume from address `0x05CD`
 ///   with only `Z` and `H` flags set and other flags reset.
 ///
-/// In all above cases the registers `HL`, `IX`, `DE`, `BC`, `AF` and `A'F'` will be set
+/// In all the above cases the registers `HL`, `IX`, `DE`, `BC`, `AF`, and `A'F'` will be set
 /// accordingly to match the normal loading procedure outcome.
 ///
-/// If a detection of the loading routine has been positive but reading from data stream
+/// If detection of the loading routine has been positive but reading from the data stream
 /// provided no bytes, the state of the `cpu` will remain unmodified.
 ///
 /// Return values:
@@ -38,17 +38,17 @@ use spectrusty::memory::ZxMemory;
 ///   of `cpu` and `memory` have not been altered.
 /// * `Ok(Some(0))` - The closure was called but data was empty, the state of `cpu` and `memory`
 ///   have not been altered.
-/// * `Ok(Some(1))` - The closure was called but header flag byte was mismatched or there was
-///   only a total of a single byte read from a stream.
-/// * `Ok(Some(n))` - Otherwise `n` is the number of bytes read from a data stream. Note that
-///   the first byte read is a flag byte being used to match the requested TAPE block type and
+/// * `Ok(Some(1))` - The closure was called but the header flag byte was mismatched or there
+///   was only a total of a single byte read from a stream.
+/// * `Ok(Some(n))` - Otherwise `n` is the number of bytes, read from a data stream. Note that
+///   the first byte is a flag byte being used to match the requested TAPE block type and
 ///   the last byte is a validation check-xor-sum.
 ///
 /// # Errors
 /// Any error returned from the closure or while reading data from the source will be returned
-/// from this method. The state of the `cpu` and `memory` will be modified or not, depending on
-/// how many bytes have been read before reading error occured. In any case the emulator's state
-/// will be left in a coherent state.
+/// from this method. The state of the `cpu` and `memory` will be modified or not, depending
+/// on how many bytes have been read before the reading error occurred. In any case,
+/// the emulator's state will be left in a coherent state.
 pub fn try_instant_rom_tape_load_or_verify<C: Cpu, M: ZxMemory, R: Read, F: FnOnce() -> io::Result<R>>(
         cpu: &mut C,
         memory: &mut M,

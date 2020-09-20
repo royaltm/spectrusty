@@ -47,15 +47,15 @@ pub trait MouseInterface {
     fn move_mouse(&mut self, mov: MouseMovement);
 }
 
-/// A mouse device interface used by the mouse [bus][crate::bus::mouse] device implementation.
+/// A mouse device interface for the mouse [bus][crate::bus::mouse] device implementations.
 pub trait MouseDevice: Debug {
     /// Should return a current mouse state. The `port` argument can be used to decide which
     /// information will be returned - one of the axes or a button state.
     fn port_read(&self, port: u16) -> u8;
-    /// Allows to implement writing data to a mouse device.
+    /// Writes data to a mouse device.
     ///
     /// If a device does not support writes, this method should return `false`.
-    /// A default implementation does exactly just that.
+    /// The default implementation does exactly just that.
     fn port_write(&mut self, _port: u16, _data: u8) -> bool { false }
 }
 

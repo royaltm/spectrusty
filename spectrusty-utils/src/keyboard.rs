@@ -5,9 +5,9 @@
 
     For the full copyright notice, see the lib.rs file.
 */
-//! Keyboard related utils.
+//! Keyboard related utilities.
 //!
-//! To make use of one of the event loop dependend implmentation of the keyboard utilities add one of the
+//! To make use of one of the event loop dependent implementation of the keyboard utilities add one of the
 //! available features to the `[dependencies]` section in the Cargo configuration file.
 use spectrusty::peripherals::{
     joystick::{JoystickInterface, Directions}
@@ -25,7 +25,7 @@ pub mod winit;
 #[cfg(feature = "web-sys")]
 pub mod web_sys;
 
-/// Updates the state of joystick device via [JoystickInterface] from a key down or up event.
+/// Updates the state of the joystick device via [JoystickInterface] from a key down or up event.
 ///
 /// Returns `true` if the state of the joystick device was updated.
 /// Returns `false` if the `key` didn't correspond to any of the keys mapped to joystick directions

@@ -98,17 +98,17 @@ pub trait FrameTimestamp: Copy
     fn from_tstates(ts: FTs) -> Self;
     /// Returns the number of T-states measured from the start of the frame.
     ///
-    /// A frame starts when the horizontal and vertical counter are both 0.
+    /// The frame starts when the horizontal and vertical counter are both 0.
     ///
     /// The returned value can be negative as well as exceeding the [VideoFrame::FRAME_TSTATES_COUNT].
     ///
-    /// This function should be used to ensure that a single frame events, timestamped with T-states,
+    /// This function should be used to ensure that a single frame event, timestamped with T-states,
     /// will be always in the ascending order.
     fn into_tstates(self) -> FTs;
     /// Returns a tuple with an adjusted frame counter and with the frame-normalized timestamp as
-    /// a number of T-states measured from the start of the frame.
+    /// the number of T-states measured from the start of the frame.
     ///
-    /// A frame starts when the horizontal and vertical counter are both 0.
+    /// The frame starts when the horizontal and vertical counter are both 0.
     ///
     /// The returned timestamp value is in the range [0, [VideoFrame::FRAME_TSTATES_COUNT]).
     fn into_frame_tstates(self, frames: u64) -> (u64, FTs);
@@ -118,7 +118,7 @@ pub trait FrameTimestamp: Copy
     fn min_value() -> Self;
     /// Returns `true` if the counter value is past or near the end of a frame. Otherwise returns `false`.
     ///
-    /// Specifically the condition is met if the vertical counter is equal or greater than [VideoFrame::VSL_COUNT].
+    /// Specifically, the condition is met if the vertical counter is equal to or greater than [VideoFrame::VSL_COUNT].
     fn is_eof(self) -> bool;
     /// Returns the difference between `self` and `vts_from` video timestamps in T-states.
     fn diff_from(self, vts_from: Self) -> FTs;
@@ -133,16 +133,16 @@ pub trait FrameTimestamp: Copy
     ///
     /// Saturates at [FrameTimestamp::min_value] or [FrameTimestamp::max_value].
     fn saturating_add(self, other: Self) -> Self;
-    /// Ensures the verical counter is in the range: `(-VSL_COUNT, VSL_COUNT)` by calculating
+    /// Ensures the vertical counter is in the range: `(-VSL_COUNT, VSL_COUNT)` by calculating
     /// a remainder of the division of the vertical counter by [VideoFrame::VSL_COUNT].
     fn wrap_frame(&mut self);
     /// Returns the smallest value that can be represented by a normalized timestamp
-    /// as a number of T-states.
+    /// as the number of T-states.
     fn min_tstates() -> FTs {
         Self::min_value().into_tstates()
     }
     /// Returns the largest value that can be represented by a normalized timestamp
-    /// as a number of T-states.
+    /// as the number of T-states.
     fn max_tstates() -> FTs {
         Self::max_value().into_tstates()
     }
@@ -173,7 +173,7 @@ impl <V: VideoFrame> VFrameTs<V> {
     /// counter adjusted accordingly.
     ///
     /// # Panics
-    /// Panics when normalizing leads to an overflow of the capacity of [VideoTs].
+    /// Panics when an attempt to normalize leads to an overflow of the capacity of [VideoTs].
     #[inline]
     pub fn normalized(self) -> Self {
         let VideoTs { mut vc, mut hc } = self.ts;
@@ -348,7 +348,7 @@ impl<V, C> VFrameTsCounter<V, C>
     /// Constructs a new and normalized `VFrameTsCounter` from the given vertical and horizontal counter values.
     ///
     /// # Panics
-    /// Panics when values given lead to an overflow of the capacity of [VideoTs].
+    /// Panics when the given values lead to an overflow of the capacity of [VideoTs].
     #[inline]
     pub fn new(vc: Ts, hc: Ts, contention: C) -> Self {
         let vts = VFrameTs::new(vc, hc).normalized();
@@ -403,7 +403,7 @@ impl<V: VideoFrame, C> SubAssign<u32> for VFrameTsCounter<V, C> {
     }
 }
 
-/// A macro being used to implement the ULA I/O contention scheme, for [z80emu::Clock::add_io] method of
+/// This macro is used to implement the ULA I/O contention scheme, for [z80emu::Clock::add_io] method of
 /// [VFrameTsCounter].
 /// It's being exported for the purpose of performing FUSE tests.
 ///

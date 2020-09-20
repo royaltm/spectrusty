@@ -5,7 +5,7 @@
 
     For the full copyright notice, see the lib.rs file.
 */
-//! # Video API
+//! # Video API.
 pub mod pixel;
 
 use core::str::FromStr;
@@ -27,10 +27,10 @@ pub use pixel::{Palette, PixelBuffer};
 pub const PAL_VC: u32 = 576/2;
 /// A halved count of PAL `pixel columns` (low resolution).
 pub const PAL_HC: u32 = 704/2;
-/// Maximum border size measured in low resolution pixels.
+/// Maximum border size measured in low-resolution pixels.
 pub const MAX_BORDER_SIZE: u32 = 6*8;
 
-/// An enum used to select border size when rendering video frames.
+/// This enum is used to select border size when rendering video frames.
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "snapshot", serde(try_from = "u8", into = "u8"))]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -51,7 +51,7 @@ pub struct TryFromUIntBorderSizeError(pub u8);
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ParseBorderSizeError;
 
-/// General purpose coordinates, used by various video related methods as a return or an argument type.
+/// General-purpose coordinates, used by various video related methods as a return or an argument type.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CellCoords {
     /// 5 lowest bits: 0 - 31 indicates cell column
@@ -80,16 +80,16 @@ bitflags! {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TryFromU8BorderColorError(pub u8);
 
-/// An interface for renderering Spectrum's pixel data to frame buffers.
+/// An interface for rendering Spectrum's pixel data to frame buffers.
 pub trait Video {
     /// The horizontal pixel density.
     ///
-    /// It's 1 for chipsets that can render only low resolution modes and 2 for chipsets that
-    /// are high resolution capable.
+    /// This is: 1 for chipsets that can render only low-resolution modes, and 2 for chipsets that
+    /// are capable of displaying high-resolution screen modes.
     const PIXEL_DENSITY: u32 = 1;
-    /// The [VideoFrame] implementation used by the chipset emulator.
+    /// The type implementing [VideoFrame], that is being used by the chipset emulator.
     type VideoFrame: VideoFrame;
-    /// The [MemoryContention] implementation used by the chipset emulator.
+    /// The type implementing [MemoryContention], that is being used by the chipset emulator.
     type Contention: MemoryContention;
     /// Returns the current border color.
     fn border_color(&self) -> BorderColor;
@@ -98,12 +98,12 @@ pub trait Video {
     /// Renders last emulated frame's video data into the provided pixel `buffer`.
     ///
     /// * `pitch` is the number of bytes in a single row of pixel data, including padding between lines.
-    /// * `border_size` determines the size of border rendered around the INK and PAPER area.
+    /// * `border_size` determines the size of the border rendered around the INK and PAPER area.
     ///
-    /// Note that different [BorderSize]s will result in a different size of the rendered `buffer` area.
+    /// Note that different [BorderSize]s will result in different sizes of the rendered `buffer` area.
     ///
     /// To predetermine the size of the rendered buffer area use [Video::render_size_pixels].
-    /// To get the size of the video screen in low resolution pixels only use [VideoFrame::screen_size_pixels]
+    /// To get the size of the video screen in low-resolution pixels only, call [VideoFrame::screen_size_pixels]
     /// e.g. for an aspect ratio calculation.
     ///
     /// * [PixelBuffer] implementation is used to write pixels into the `buffer`.
@@ -134,7 +134,7 @@ pub trait Video {
     ///
     /// The screen banks are different from memory banks.
     /// E.g. Spectrum 128k returns `0` for the screen bank which resides in a memory bank 5 and `1`
-    /// for the screen bank which resides in a memory bank 7. For 16k/48k Spectrum this method always
+    /// for the screen bank which resides in a memory bank 7. For 16k/48k Spectrum, this method always
     /// returns `0`.
     fn visible_screen_bank(&self) -> usize { 0 }
     /// Returns the current value of the video T-state counter.
@@ -146,7 +146,7 @@ pub trait Video {
     /// Returns the temporary video flash attribute state.
     fn flash_state(&self) -> bool;
 }
-/// A collection of static methods and constants raleted to video parameters.
+/// A collection of static methods and constants related to video parameters.
 /// ```text
 ///                               - 0
 ///     +-------------------------+ VSL_BORDER_TOP
@@ -195,7 +195,7 @@ pub trait VideoFrame: Copy + Debug {
         }
     }
     /// Returns output screen pixel size (horizontal, vertical), including the border area, measured
-    /// in low resolution pixels.
+    /// in low-resolution pixels.
     ///
     /// The size depends on the given `border_size`.
     fn screen_size_pixels(border_size: BorderSize) -> (u32, u32) {
@@ -205,20 +205,20 @@ pub trait VideoFrame: Copy + Debug {
                 .min((Self::VSL_BORDER_BOT + 1 - Self::VSL_BORDER_TOP) as u32);
         (w, h)
     }
-    /// Returns an iterator of the top border low resolution scan line indexes.
+    /// Returns an iterator of the top border low-resolution scan line indexes.
     fn border_top_vsl_iter(border_size: BorderSize) -> Range<Ts> {
         let border = Self::border_size_pixels(border_size) as Ts;
         let top = (Self::VSL_PIXELS.start - border).max(Self::VSL_BORDER_TOP);
         top..Self::VSL_PIXELS.start
     }
-    /// Returns an iterator of the bottom border low resolution scan line indexes.
+    /// Returns an iterator of the bottom border low-resolution scan line indexes.
     fn border_bot_vsl_iter(border_size: BorderSize) -> Range<Ts> {
         let border = Self::border_size_pixels(border_size) as Ts;
         let bot = (Self::VSL_PIXELS.end + border).min(Self::VSL_BORDER_BOT);
         Self::VSL_PIXELS.end..bot
     }
 
-    /// Used for rendering border.
+    /// An iterator for rendering borders.
     type BorderHtsIter: Iterator<Item=Ts>;
     /// Returns an iterator of border latch horizontal T-states.
     fn border_whole_line_hts_iter(border_size: BorderSize) -> Self::BorderHtsIter;

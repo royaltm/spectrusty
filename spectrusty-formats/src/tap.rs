@@ -9,12 +9,10 @@
 
 # TAP format
 
-See also [faqwiki.zxnet.co.uk](https://faqwiki.zxnet.co.uk/wiki/TAP_format):
-
-A **TAP** file consist of blocks of data each prepended by a 2 byte (LSB) block length indicator.
+A **TAP** file consists of blocks of data each prepended by a 2 byte (LSB) block length indicator.
 Those blocks will be referenced here as *TAP chunks*.
 
-The standard Spectrum's ROM *TAPE* routine produces 2 kind of blocks:
+The standard Spectrum's ROM *TAPE* routine produces 2 kinds of blocks:
 
 * a [header][Header] block
 * a data block
@@ -22,29 +20,29 @@ The standard Spectrum's ROM *TAPE* routine produces 2 kind of blocks:
 This is determined by the first byte of each block, here called a `flag` byte.
 
 A flag byte is `0x00` for header blocks and `0xff` for data blocks.
-After the flag byte the actual data follows, after which a checksum byte, calculated such that
+After the flag byte, the actual data follows, after which a checksum byte, calculated such that
 XORing all the data bytes together (including the flag byte) produces `0`.
 
 The structure of the 17 byte header is as follows.
 
-```text
-Byte    Length  Description
----------------------------
-0       1       Type (0,1,2 or 3)
-1       10      Filename (padded with blanks)
-11      2       Length of data block
-13      2       Parameter 1
-15      2       Parameter 2
-```
+| offset | size | description                      |
+|--------|------|----------------------------------|
+|    0   |    1 | type (0,1,2,3)                   |
+|    1   |   10 | filename (padded with space)     |
+|   11   |    2 | length of data block (LSB first) |
+|   13   |    2 | parameter 1 (LSB first)          |
+|   15   |    2 | parameter 2 (LSB first)          |
+
 These 17 bytes are prefixed by the flag byte (0x00) and suffixed by the checksum byte to produce
-the 19 byte block seen on tape. The type is 0,1,2 or 3 for a `PROGRAM`, `Number array`, `Character array` or
-`CODE` file. A `SCREEN$` file is regarded as a `CODE` file with start address 16384 and length 6912 decimal.
+the 19-byte block seen on tape. The type is 0,1,2 or 3 for a `PROGRAM`, `Number array`, `Character array`,
+or `CODE` file. A `SCREEN$` file is regarded as a `CODE` file with start address 16384 and length 6912 decimal.
 If the file is a `PROGRAM` file, parameter 1 holds the autostart line number (or a number >=32768 if
 no LINE parameter was given) and parameter 2 holds the start of the variable area relative to the start
 of the program. If it's a `CODE` file, parameter 1 holds the start of the code block when saved, and
 parameter 2 holds 32768. For array files finally, the byte at position 14 decimal holds the variable name.
 
 For example, SAVE "ROM" CODE 0,2 will produce the following data on tape:
+
 ```text
       |-------------- TAP chunk -------------|       |TAP chunk|
 13 00 00 03 52 4f 4d 7x20 02 00 00 00 00 80 f1 04 00 ff f3 af a3
@@ -59,6 +57,11 @@ flag byte ...........................................^^
 first two bytes of rom .................................^^^^^
 checksum (checkbittoggle would be a better name!).............^^
 ```
+
+The above text uses material from the ["TAP format"](https://faqwiki.zxnet.co.uk/wiki/TAP_format) article
+on the [Sinclair FAQ wiki](https://faqwiki.zxnet.co.uk/) and is released under the
+[Creative Commons Attribution-Share Alike License](https://creativecommons.org/licenses/by-sa/3.0/).
+
 
 ## Interpreting *TAP* files
 
@@ -108,7 +111,7 @@ while let Some(size) = tap_reader.next_chunk()? {
 ### Browsing *TAP* chunks
 
 A [TapChunkInfo] is an enum providing information about the chunk and can be created from both
-byte containers as well as from [std::io::Take] readers using [TryFrom] interface.
+byte containers as well as from [std::io::Take] readers using the [TryFrom] interface.
 
 An [iterator][TapReadInfoIter] producing [TapChunkInfo] can be created [from][From] [TapChunkReader].
 
@@ -126,13 +129,13 @@ for info in TapReadInfoIter::from(&mut tap_reader) {
 ### *TAPE* pulses
 
 To provide a *TAPE* signal for the Spectrum emulator a pulse interval [encoder][pulse::ReadEncPulseIter]
-is provided. It encodes data as *TAPE* pulse intervals providing results via [Iterator] interface, while
-reading bytes from the underlying [reader][std::io::Read].
+is provided. It encodes data as *TAPE* pulse intervals providing results via the [Iterator] interface
+while reading bytes from the underlying [reader][std::io::Read].
 
 [pulse::ReadEncPulseIter] emits lead pulses following the sync and data pulses for the bytes read 
-until the reader reaches end of file or the [pulse::ReadEncPulseIter::reset] method is called.
+until the reader reaches the end of file or the [pulse::ReadEncPulseIter::reset] method is called.
 
-For a more convenient way to encode *TAP* data which contain many chunks the [TapChunkPulseIter] is provided.
+For a more convenient way to encode *TAP* data which contains many chunks, the [TapChunkPulseIter] is provided.
 It wraps [pulse::ReadEncPulseIter] providing it with the chunk data resetting it before each next chunk.
 
 ```no_run
@@ -155,9 +158,9 @@ ula.feed_ear_in(pulse_iter, None);
 
 ## Writing data to *TAP* files
 
-The structure of *TAP* files allows to easily append more blocks to them.
+The structure of *TAP* files allows us to easily append more blocks to them.
 
-[TapChunkWriter] allows to write *TAP chunks* to streams implementing [Write] and [Seek] interfaces.
+[TapChunkWriter] provides methods to write *TAP chunks* to streams implementing [Write] and [Seek] interfaces.
 
 ```no_run
 use std::io::Write;
@@ -225,13 +228,13 @@ pub const HEAD_BLOCK_FLAG: u8 = 0x00;
 pub const DATA_BLOCK_FLAG: u8 = 0xFF;
 pub const HEADER_SIZE: usize = 19;
 
-/// Calculates bittoggle checksum from the given iterator of `u8`.
+/// Calculates bit toggle checksum from the given iterator of `u8`.
 pub fn checksum<I: IntoIterator<Item=B>, B: Borrow<u8>>(iter: I) -> u8 {
     iter.into_iter().fold(0, |acc, x| acc ^ x.borrow())
 }
 
-/// Calculates bittoggle checksum from the given iterator of result of `u8`.
-/// Usefull with [std::io::Bytes].
+/// Calculates bit toggle checksum from the given iterator of the result of `u8`.
+/// Useful with [std::io::Bytes].
 pub fn try_checksum<I: IntoIterator<Item=Result<u8>>>(iter: I) -> Result<u8> {
     iter.into_iter().try_fold(0, |acc, x| {
         match x {

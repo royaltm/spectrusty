@@ -5,13 +5,13 @@
 
     For the full copyright notice, see the lib.rs file.
 */
-//! Music related functions.
+//! Music-related functions.
 use core::convert::TryInto;
-/// Returns an iterator of equal tempered scale frequencies (in a single octave) obtained from a given base frequency.
+/// Returns an iterator of equal-tempered scale frequencies (in a single octave) obtained from a given base frequency.
 ///
 /// `hz` base frequency is in Hz (use 440.0 as a good default).
 /// `n0` an index from the base frequency to the first note in the table: 0 is for "A" note, -9 for "C".
-/// `steps` determines how many half tones will be rendered, (12 is the usual number).
+/// `steps` determines how many halftones will be rendered, (12 is the usual number).
 pub fn equal_tempered_scale_note_freqs(hz: f32, n0: i16, steps: i16)
                                          -> impl IntoIterator<Item=f32> + Clone + ExactSizeIterator
 {
@@ -20,11 +20,11 @@ pub fn equal_tempered_scale_note_freqs(hz: f32, n0: i16, steps: i16)
     })
 }
 
-/// Renders an array of equal tempered scale frequencies (in a single octave) obtained from a given base frequency.
+/// Renders an array of equal-tempered scale frequencies (in a single octave) obtained from a given base frequency.
 ///
 /// `hz` base frequency is in Hz (use 440.0 as a good default).
 /// `n0` an index from the base frequency to the first note in the table: 0 is for "A" note, -9 for "C".
-/// The size of `target` determines how many half tones will be rendered, (12 is the usual number).
+/// The size of the `target` determines how many halftones will be rendered, (12 is the usual number).
 pub fn render_equal_tempered_scale_note_freqs(hz: f32, n0: i16, target: &mut [f32]) {
     let steps = target.len().try_into().expect("target is too large");
     for (t, hz) in target.iter_mut()

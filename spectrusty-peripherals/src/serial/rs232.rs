@@ -21,7 +21,7 @@ const CPU_HZ: u32 = 3_500_000;
 /// The RS-232 serial port remote device.
 ///
 /// Both ZX Spectrum's Interface 1 and 128k for communication via RS-232 use `DTR` and `CTS` lines to signal
-/// readiness and transmit or receive data using one `START` bit, 8 data bits and 2 `STOP` bits without parity.
+/// readiness and transmit or receive data using one `START` bit, 8 data bits, and 2 `STOP` bits without parity.
 ///
 /// Spectrum's 128k ROM routines can send and transmit data with the following baud rates:
 /// 50, 110, 300, 600, 1200, 2400, 4800, 9600 (default). The ZX Interface 1 allows additionally for 19200.
@@ -35,7 +35,7 @@ const CPU_HZ: u32 = 3_500_000;
 /// Both `reader` and `writer` need to be implemented by the user and its types should be provided as
 /// generics `R` and `W` accordingly.
 ///
-/// An implementaion of [FrameTimestamp] is required to be provided as `T` for timestamp calculations.
+/// An implementation of [FrameTimestamp] is required to be provided as `T` for timestamp calculations.
 ///
 /// The baud rate is not needed to be set up, as it is being auto-detected.
 ///

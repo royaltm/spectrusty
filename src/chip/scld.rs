@@ -7,12 +7,12 @@
 */
 /*! An emulator of the Timex's SCLD chip used in TC2048 / TC2068 and TS2068 models.
 
-Implementation ceveats:
+Implementation specifics:
 
-* Currently there are no dedicated [VideoFrame] implementations for TC2048 / TC2068 / TS2068 models,
-  in the meantime you may use the [UlaVideoFrame] and [UlaNTSCVidFrame] with [Scld].
+* Currently, there are no dedicated [VideoFrame] implementations for TC2048 / TC2068 / TS2068 models,
+  in the meantime, you may use the [UlaVideoFrame] and [UlaNTSCVidFrame] with [Scld].
 * SCLD ports: `0xFF` and `0xF4` as well as ULA `0xFE` port are decoded on all 8 lowest address bits as per original machines.
-* The hard reset defaults the screen mode and memory paging but leaves the border color unmodified.
+* The hard reset defaults the screen mode and memory paging but leaves the border-color unmodified.
 * The DOCK and EX-ROM memory pages are mapped from ROM banks as follows and depend on [ZxMemory::ROM_BANKS_MAX]:
 
 ```text
@@ -21,8 +21,8 @@ Implementation ceveats:
 16k ROM: [ROM_BANKS_MAX - 1, ROM_BANKS_MAX]
 ```
 
-In case of TC2048 the 16k ROM should be loaded to rom banks: `[ROM_BANKS_MAX - 1, ROM_BANKS_MAX]`.
-In case of Tx2068 the 24k ROM should be loaded to rom banks: `[ROM_BANKS_MAX - 1, ROM_BANKS_MAX, 8]`.
+In case of TC2048 the 16k ROM should be loaded to ROM banks: `[ROM_BANKS_MAX - 1, ROM_BANKS_MAX]`.
+In case of Tx2068 the 24k ROM should be loaded to ROM banks: `[ROM_BANKS_MAX - 1, ROM_BANKS_MAX, 8]`.
 
 [UlaVideoFrame]: crate::chip::ula::UlaVideoFrame
 [UlaNTSCVidFrame]: crate::chip::ula::UlaNTSCVidFrame

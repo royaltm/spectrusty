@@ -20,10 +20,10 @@ the Spectrum hangs. This is the famous 'IN 0 crash'.
 
 Bits *DTR* and *CTS* are used by the RS-232 interface.
 
-The *WAIT* bit is used by the ZX Network to synchronise incoming bytes.
+The *WAIT* bit is used by the ZX Network to synchronize incoming bytes.
 It is being activated just before reading bits of each incoming byte.
 
-*GAP*, *SYNC*, *WR_PROT*, *ERASE*, *R/W*, *COMMS CLK* and *COMMS DATA* are used by the microdrive system.
+*GAP*, *SYNC*, *WR_PROT*, *ERASE*, *R/W*, *COMMS CLK*, and *COMMS DATA* are used by the microdrive system.
 
 ```text
        Bit    7   6    5    4    3    2    1     0
@@ -80,7 +80,7 @@ impl<R, W, N, D: BusDevice> fmt::Display for ZxInterface1BusDevice<R, W, N, D> {
 /// Connects the ZX Interface 1 I/O port emulator as a [BusDevice].
 ///
 /// [Rs232Io]'s [io::Read] as `R` and [io::Write] as `W` implementations are needed to complete this type.
-/// [ZxNetSocket] implmentation is needed as `N` for the underlying [ZxNet].
+/// [ZxNetSocket] implementation is needed as `N` for the underlying [ZxNet].
 #[derive(Default, Debug)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "snapshot", serde(bound(deserialize = "
@@ -97,13 +97,13 @@ serialize = "
 #[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]
 pub struct ZxInterface1BusDevice<R, W, N, D: BusDevice>
 {
-    /// A direct access to the **Microdrives**.
+    /// Direct access to the **Microdrives**.
     #[cfg_attr(feature = "snapshot", serde(default))]
     pub microdrives: ZxMicrodrives<D::Timestamp>,
-    /// A direct access to the **RS-232** implementation.
+    /// Direct access to the **RS-232** implementation.
     #[cfg_attr(feature = "snapshot", serde(default))]
     pub serial: Rs232Io<D::Timestamp, R, W>,
-    /// A direct access to the **ZX NET** implementation.
+    /// Direct access to the **ZX NET** implementation.
     #[cfg_attr(feature = "snapshot", serde(skip))]
     pub network: ZxNet<D::Timestamp, N>,
     sernet: If1SerNetIo,

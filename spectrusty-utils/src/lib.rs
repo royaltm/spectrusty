@@ -18,7 +18,7 @@
 
     Author contact information: see Cargo.toml file, section [package.authors].
 */
-//! Various complementary utilities for emulators based on the SPECTRUSTY library.
+//! Additional utilities for the emulators, based on the SPECTRUSTY library.
 // pub mod dynamic;
 pub mod keyboard;
 pub mod io;

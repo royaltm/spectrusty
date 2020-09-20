@@ -38,13 +38,13 @@ pub trait BandLimOpt {
 pub struct BandLimWide;
 impl BandLimOpt for BandLimWide {}
 
-/// A low frequency pass filter limits for [BandLimited].
+/// A low-frequency pass filter limits for [BandLimited].
 pub struct BandLimLowTreb;
 impl BandLimOpt for BandLimLowTreb {
     const LOW_PASS: f64 = 0.899;
 }
 
-/// A high frequency pass filter limits for [BandLimited].
+/// A high-frequency pass filter limits for [BandLimited].
 pub struct BandLimLowBass;
 impl BandLimOpt for BandLimLowBass {
     const HIGH_PASS: f32 = 0.899;
@@ -60,8 +60,8 @@ impl BandLimOpt for BandLimNarrow {
 /// Bandwidth-Limited Pulse Buffer implementation with high-pass and low-pass filtering,
 /// for an efficient band-limited synthesis.
 ///
-/// `T` specifies pulse step amplitude unit types. Currently implementions are provided for:
-///  `f32`, `i16` and `i32`.
+/// `T` specifies pulse step amplitude unit types. Currently, implementations are provided for:
+///  `f32`, `i16`, and `i32`.
 pub struct BandLimited<T, O=BandLimWide> {
     steps: [[T; STEP_WIDTH]; PHASE_COUNT],
     diffs: Vec<T>,
@@ -92,7 +92,7 @@ impl<T: Copy + Default, O> BandLimited<T, O> {
     /// Sets the duration of the average frame to `frame_time` which should be specified with as much
     /// precision as possible.
     ///
-    /// `margin_time` specifies a frame duration fluctuation margin and should be significanlty smaller
+    /// `margin_time` specifies a frame duration fluctuation margin and should be significantly smaller
     /// than `frame_time`.
     ///
     /// Both `frame_time` and `margin_time` are specified in the sample time units (1.0 = 1 audio sample).
@@ -113,7 +113,7 @@ impl<T: Copy + Default, O> BandLimited<T, O> {
     }
     /// Finalizes audio frame.
     ///
-    /// Returns the number of audio samples, single channel wise, which are ready to be produced from
+    /// Returns the number of audio samples, single channel-wise, which are ready to be produced from
     /// the frame.
     ///
     /// `time_end` is specified in the sample time units (1.0 = 1 audio sample).
@@ -148,13 +148,13 @@ where T: Copy + Default + AddAssign + MulNorm + FromSample<f32>,
 {
     /// Returns a new instance of `BandLimited` buffer.
     ///
-    /// `channels` specifies the maximum number of audio channels that the sound can be rendered for.
+    /// * `channels` - specifies the maximum number of audio channels that the sound can be rendered for.
     ///
     /// Before any pulse steps are added to the buffer the method [BandLimited::set_frame_time] or
     /// [Blep::ensure_frame_time] must be called first.
     ///
     /// # Panics
-    /// Panics if channels is `0`.
+    /// Panics if `channels` equals to `0`.
     pub fn new(channels: usize) -> Self {
         let channels = NonZeroUsize::new(channels).expect("BandLimited: channels should be 1 or more");
         // Generate master band-limited step by adding sine components of a square wave

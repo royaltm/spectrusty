@@ -117,7 +117,7 @@ use intervals::*;
 ///
 /// The extension keypad communicates with Spectrum using a unique protocol over the computer's serial connector.
 ///
-/// This type implements [SerialPortDevice] bringing the extension keypad to it's virtual existence.
+/// This type implements [SerialPortDevice] bringing the extension keypad to its virtual existence.
 ///
 /// To change the keypad state use methods directly on the implementation of this type.
 #[derive(Clone, Debug)]

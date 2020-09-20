@@ -140,7 +140,12 @@ fn create_cpu(head: &Header) -> Result<Z80NMOS> {
     Ok(cpu)
 }
 
-/// Loads a **Z80** file into the provided snapshot `loader` from a source.
+/// Loads a **Z80** file from `rd` into the provided snapshot `loader` implementing [SnapshotLoader].
+///
+/// # Errors
+/// This function will return an error if the file size is incorrect or there is something wrong
+/// with the format.
+/// Other errors may also be returned from attempts to read the file.
 pub fn load_z80<R: Read, S: SnapshotLoader>(
         mut rd: R,
         loader: &mut S

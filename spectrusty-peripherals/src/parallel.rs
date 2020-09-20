@@ -28,10 +28,10 @@ pub trait ParallelPortDevice {
     /// `strobe` is `true` if the `STROBE` went high, `false` when it went low.
     ///
     /// Should return the `BUSY` status signal:
-    /// * `true` if the `BUSY` singal is high,
+    /// * `true` if the `BUSY` signal is high,
     /// * `false` when it's low.
     fn write_strobe(&mut self, strobe: bool, timestamp: Self::Timestamp) -> bool;
-    /// This method is being called once every frame, near the end of it and should return a `BUSY` signal state.
+    /// This method is being called once every frame, near the end of it, and should return a `BUSY` signal state.
     /// Returns `true` if the `BUSY` signal is high, and `false` when it's low.
     fn poll_busy(&mut self) -> bool;
     /// Called when the current frame ends to allow emulators to wrap stored timestamps.

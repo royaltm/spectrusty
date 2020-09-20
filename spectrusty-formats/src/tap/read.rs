@@ -21,7 +21,7 @@ use super::{Header, TapChunkInfo, HEAD_BLOCK_FLAG, DATA_BLOCK_FLAG, HEADER_SIZE,
 /// Implements reader that reads only up to the size of the current *TAP* chunk.
 #[derive(Debug)]
 pub struct TapChunkReader<R> {
-    /// Checksum is being updated when reading via [Read] methods from a [TapChunkReader].
+    /// The `checksum` is being updated when reading via [Read] methods from a [TapChunkReader].
     pub checksum: u8,
     next_pos: u64,
     chunk_index: u32,
@@ -52,8 +52,8 @@ pub struct TapChunkPulseIter<R> {
     ///
     /// * `false` to start iterating over pulses of the next chunk a [TapChunkRead::next_chunk]
     ///   method should be called first. Until then the [Iterator::next] will return `None`.
-    /// * `true` the next chunk will be processed automatically and a single pulse of interval of
-    ///   [PAUSE_PULSE_LENGTH] T-states is emitted before lead pulses of the next chunk.
+    /// * `true` the next chunk will be processed automatically and a single pulse of the interval
+    ///   of [PAUSE_PULSE_LENGTH] T-states is emitted before lead pulses of the next chunk.
     pub auto_next: bool,
     ep_iter: ReadEncPulseIter<TapChunkReader<R>>
 }
@@ -67,18 +67,18 @@ pub trait TapChunkRead {
     fn chunk_no(&self) -> u32;
     /// Returns this chunk's remaining bytes to be read.
     fn chunk_limit(&self) -> u16;
-    /// Repositions the inner reader to the start of a file and sets inner limit to 0.
+    /// Repositions the inner reader to the start of a file and sets the inner limit to 0.
     /// To read the first chunk you need to call [TapChunkRead::next_chunk] first.
     fn rewind(&mut self);
     /// Forwards the inner reader to the position of the next *TAP* chunk.
     ///
-    /// Returns `Ok(None)` if end of file has been reached.
+    /// Returns `Ok(None)` if the end of the file has been reached.
     ///
     /// On success returns `Ok(size)` in bytes of the next *TAP* chunk
     /// and limits the inner [Take] reader to that size.
     fn next_chunk(&mut self) -> Result<Option<u16>>;
     /// Forwards the inner reader to the position of a next `skip` + 1 *TAP* chunks.
-    /// Returns `Ok(None)` if end of file has been reached.
+    /// Returns `Ok(None)` if the end of the file has been reached.
     /// On success returns `Ok(size)` in bytes of the next *TAP* chunk
     /// and limits the inner [Take] reader to that size.
     ///
@@ -409,7 +409,7 @@ impl<R> TapChunkPulseIter<R>
     /// was an error while reading bytes.
     ///
     /// If [TapChunkPulseIter::auto_next] is `false` returns `true` after processing each chunk.
-    /// Otherwise returns `true` after all chunks has been processed.
+    /// Otherwise returns `true` after all chunks have been processed.
     pub fn is_done(&self) -> bool {
         self.ep_iter.is_done()
     }

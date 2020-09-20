@@ -37,7 +37,7 @@ pub struct Tape<F> {
     /// `true` if the tape is playing, depending on the [Tap] variant it may indicate tape playback or recording.
     /// `false` then the tape has stopped.
     pub running: bool,
-    /// `Some(tap)` indicates the tape casette is inserted, `None` - there is no tape.
+    /// `Some(tap)` indicates the tape cassette is inserted, `None` - there is no tape.
     pub tap: Option<Tap<F>>
 }
 
@@ -244,7 +244,7 @@ impl<F: Write + Read + Seek> Tape<F> {
 
     /// Transforms the inserted [Tap] into the [Tap::Reader] on success.
     ///
-    /// Returns `Ok(true)` if the inserted [Tap] was a [Tap::Writer]. In this instance the cursor
+    /// Returns `Ok(true)` if the inserted [Tap] was a [Tap::Writer]. In this instance, the cursor
     /// position of the reader is set to the beginning of a file and this method ensures that
     /// the chunk being currently written is comitted thus ensuring the integrity of the TAP
     /// file and also calls the [Write::flush] on the file before transforming it.
