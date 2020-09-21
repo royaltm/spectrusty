@@ -1,0 +1,269 @@
+html, body {
+  margin: 0px;
+  padding: 0px;
+  min-height: 100%;
+}
+
+body {
+  background-color: #111111;
+  overflow: hidden;
+  height: 100%;
+  width: 100%;
+  position: absolute;
+}
+
+#menu-hover {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 10px;
+  height: 100%;
+}
+
+#tape-progress {
+  display: block;
+  width: 100%;
+}
+
+.emulator {
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: center;
+  /*align-items: center;*/
+  height: 100%;
+}
+
+.emulator .control-panel {
+  box-sizing: border-box;
+  padding: 0;
+  flex: 1 1 auto;
+  background-color: #eeeeee;
+  overflow: auto;
+  height: 100%;
+}
+
+.control-panel .menu-title {
+  cursor: pointer;
+  background-color: black;
+  color: white;
+  padding: 2px 8px;
+  text-align: center;
+  background-image: url(spectrum.svg);
+  background-repeat: no-repeat;
+  background-origin: padding-box;
+  background-position: right top;
+  background-size: contain;
+  background-attachment: local;
+}
+
+.emulator .spectrum {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+}
+
+.emulator .monitor {
+  box-sizing: border-box;
+  display: block;
+  object-fit: contain;
+  min-width: 352px;
+  min-height: 288px;
+  width: 100%;
+  max-height: 100%;
+}
+
+.emulator .keyboard {
+  box-sizing: border-box;
+  display: block;
+  object-fit: contain;
+  min-width: 352px;
+  /*width: 100%;*/
+  /*flex: 1 1 30%;*/
+}
+
+.show-panel.emulator {
+  animation-duration: 0.25s;
+  animation-name: emulator-slidein;
+  flex-wrap: wrap;
+}
+
+.show-panel.emulator .control-panel {
+  animation-duration: 0.25s;
+  animation-name: panel-slidein;
+  animation-timing-function: ease-in;
+  /*padding: 1em;*/
+  /*width: auto;*/
+  width: 40%;
+  visibility: visible;
+}
+
+:not(.show-panel).emulator .control-panel {
+  animation-duration: 0.25s;
+  animation-name: panel-slideout;
+  animation-timing-function: ease-in;
+  /*padding: 0;*/
+  width: 0;
+  visibility: hidden;
+} 
+
+.show-panel.emulator .spectrum {
+  animation-duration: 0.25s;
+  animation-name: spectrum-slidein;
+  animation-timing-function: ease-in;
+  flex: 1 1 60%;
+}
+
+:not(.show-panel).emulator .spectrum {
+  animation-duration: 0.25s;
+  animation-name: spectrum-slideout;
+  animation-timing-function: ease-in;
+  flex: 1 1 100%;
+}
+
+.show-keyboard.spectrum .monitor {
+  animation-duration: 0.25s;
+  animation-name: monitor-keyboard-slidein;
+  animation-timing-function: ease-out;
+  flex: 1 1 70%;
+}
+
+:not(.show-keyboard).spectrum .monitor {
+  animation-duration: 0.25s;
+  animation-name: monitor-keyboard-slideout;
+  animation-timing-function: ease-in;
+  flex: 1 1 100%;
+}
+
+.show-keyboard.spectrum .keyboard {
+  animation-duration: 0.25s;
+  animation-name: keyboard-slidein;
+  animation-timing-function: ease-out;
+  height: 30%;
+  visibility: visible;
+}
+
+:not(.show-keyboard).spectrum .keyboard {
+  animation-duration: 0.25s;
+  animation-name: keyboard-slideout;
+  animation-timing-function: ease-in;
+  height: 0;
+  visibility: hidden;
+}
+
+@keyframes emulator-slidein {
+  from {
+    flex-wrap: nowrap;
+  }
+  to {
+    flex-wrap: wrap;
+  }
+}
+
+@keyframes panel-slidein {
+  from {
+    /*padding: 0;*/
+    width: 0;
+    opacity: 0;
+  }
+
+  40% {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+    /*padding: 2em;*/
+    width: 40%;
+  }
+}
+
+@keyframes panel-slideout {
+  from {
+    /*padding: 2em;*/
+    width: 40%;
+    opacity: 1;
+    visibility: visible;
+  }
+
+  60% {
+    opacity: 0;
+  }
+
+  to {
+    /*padding: 0;*/
+    width: 0;
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+@keyframes spectrum-slidein {
+  from {
+    flex-basis: 100%;
+  }
+
+  to {
+    flex-basis: 60%;
+  }
+}
+
+@keyframes spectrum-slideout {
+  from {
+    flex-basis: 60%;
+  }
+
+  to {
+    flex-basis: 100%;
+  }
+}
+
+@keyframes keyboard-slidein {
+  from {
+    height: 0;
+    opacity: 0;
+  }
+
+  to {
+    height: 30%;
+    opacity: 1;
+  }
+}
+
+@keyframes keyboard-slideout {
+  from {
+    height: 30%;
+    visibility: visible;
+    opacity: 1;
+  }
+
+  90% {
+    opacity: 0;
+  }
+
+  to {
+    height: 0;
+    visibility: hidden;
+  }
+}
+
+@keyframes monitor-keyboard-slidein {
+  from {
+    flex-basis: 100%;
+  }
+
+  to {
+    flex-basis: 70%;
+  }
+}
+
+@keyframes monitor-keyboard-slideout {
+  from {
+    flex-basis: 70%;
+  }
+
+  to {
+    flex-basis: 100%;
+  }
+}
