@@ -1,3 +1,5 @@
 theme: jekyll-theme-minimal
 title: SPECTRUSTY
-exclude: web-zxspectrum
+exclude:
+  - web-zxspectrum
+  - web-ay-player
