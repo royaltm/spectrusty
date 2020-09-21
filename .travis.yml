@@ -7,11 +7,14 @@ addons:
             - libssl-dev
             - libasound2-dev
 rust:
-  - 1.43.0
-  - 1.44.0
-  - stable
-  - beta
-  - nightly
+  - 1.39.0
+  - 1.40.0
+  - 1.41.0
+  - 1.42.0
+  # - 1.43.0
+  # - stable
+  # - beta
+  # - nightly
 cache: cargo
 script:
   - cargo build --verbose
