@@ -1,4 +1,4 @@
-[![S P E C T R U S T Y]][SPECTRUSTY img][SPECTRUSTY link]
+[![S P E C T R U S T Y][SPECTRUSTY img]][SPECTRUSTY link]
 
 [![Crate][Crate img]][Crate Link]
 [![Docs][Docs img]][Docs Link]
