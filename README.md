@@ -34,11 +34,7 @@ How To
 
 Because the best way to learn new things is by example, I invite you to see the [tutorial].
 
-
-Examples
---------
-
-Several examples of what can be built with **SPECTRUSTY** can be found in the [examples](examples) directory, provided as separate crates.
+Several examples of what can be built with **SPECTRUSTY** can be also found in the [examples](examples) directory, provided as separate crates.
 
 
 Contribution and feedback
@@ -147,9 +143,4 @@ The **SPECTRUSTY** library is available under the terms of the GNU LGPL version 
 [z80emu]: https://github.com/royaltm/rust-z80emu
 [IO cycle]: https://docs.rs/z80emu/0.6.0/z80emu/host/cycles/index.html#inputoutput
 [tutorial]: https://royaltm.github.io/spectrusty-tutorial
-[audio]: https://github.com/royaltm/spectrusty/examples/audio
-[sdl2-spectrum]: examples/sdl2-spectrum
-[web-spectrum]: examples/web-spectrum
-[web-ay-player]: examples/web-ay-player
-[spectrum-common]: examples/spectrum-common
 [128k keypad]: http://www.fruitcake.plus.com/Sinclair/Spectrum128/Keypad/Spectrum128Keypad.htm

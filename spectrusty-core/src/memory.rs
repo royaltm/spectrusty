@@ -289,7 +289,7 @@ pub trait ZxMemory {
     /// Returns an iterator of memory page slice references intersecting with a given address range.
     ///
     /// # Errors
-    /// May return an [ZxMemoryError::UnsupportedAddressRange].
+    /// May return an [ZxMemoryError::UnsupportedAddressRange] error.
     fn iter_pages<A: RangeBounds<u16>>(
             &self,
             address_range: A,
@@ -304,7 +304,7 @@ pub trait ZxMemory {
     /// passing the slices to the closure `f`.
     ///
     /// # Errors
-    /// May return an [ZxMemoryError::UnsupportedAddressRange] or an error returned by the provided closure.
+    /// May return an [ZxMemoryError::UnsupportedAddressRange] error or an error returned by the provided closure.
     fn for_each_page_mut<A: RangeBounds<u16>, F>(
             &mut self,
             address_range: A,

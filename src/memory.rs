@@ -9,9 +9,9 @@
 # Memory banks and pages.
 
 * [ZxMemory] ROM and RAM is a continuous slice of memory divided into logical banks.
-* 16 bit memory addresses are mapped to memory banks depending on the implementation.
-* Each page can have any fitting bank of ROM or RAM memory switched in.
-* Some implementations allow to attach an external ROM bank to any of the pages.
+* 16-bit memory addresses are mapped to memory banks depending on the implementation.
+* Each page can have any fitting bank of ROM or RAM switched in.
+* Some implementations allow attaching an external ROM bank to any of the pages.
 
 Below are examples of continuous memory: all ROM banks followed by RAM banks.
 [ZxMemory::mem_ref] and [ZxMemory::mem_mut] both give access to the whole area.
