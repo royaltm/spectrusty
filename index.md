@@ -6,7 +6,7 @@ The [Rust] language allows you to easily compile your programs to [WebAssembly],
 
 As an emulator builder, here you find the main core components, such as:
 
-* [Z80](//crates.io/crates/z80emu) CPU - An emulator of Central Processing Unit in a few variations: NMOS, CMOS, and BM1 (dubbed "flavours").
+* [Z80](//crates.io/crates/z80emu) CPU - An emulator of the Central Processing Unit in a few variations: NMOS, CMOS, and BM1 (dubbed "flavours").
 * Sinclair Ferranti ULA (Uncommitted Logic Array) - 16k/48k and 128k version of ZX Spectrum core chipset emulator.
 * Amstrad Gate Array ULA (or AGA) - +3/+2A version of ZX Spectrum core chipset emulator.
 * ULAplus core chipset extension as a wrapper of any of the above chipsets.
@@ -23,6 +23,9 @@ You build an emulator around one of the chipset implementations by providing the
 The interaction between the components, as well as the way of interfacing them from your emulator, is realized via the trait system. Most of the traits are defined in the [spectrusty-core] crate and are separated by the context of the provided facility. Hence it's possible to build your own components or extend the existing ones by implementing those traits yourself. This however might require some low-level knowledge of the inner workings of SPECTRUSTY, but shouldn't be very hard. It would be easier though if any kind of [specialization](https://github.com/rust-lang/rust/issues/31844) was already stabilized in Rust
 
 If you want to see a step by step introduction on how to build your Spectrum emulator, please see the [tutorial]. Otherwise, if you like to jump straight into the deep end, here are [examples] of fully functional emulator programs and also an example of a [high-level] emulator library, providing a selection of a few packaged computer models with a bow on top.
+
+<script>var clicky_site_ids = clicky_site_ids || []; clicky_site_ids.push(101270192);</script>
+<script async src="//static.getclicky.com/js"></script>
 
 [SPECTRUSTY img]: spectrusty.png
 [Rust]: https://www.rust-lang.org/
