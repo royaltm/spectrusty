@@ -1,37 +1,28 @@
-## Welcome to GitHub Pages
+![S P E C T R U S T Y][SPECTRUSTY img]
 
-You can use the [editor on GitHub](https://github.com/royaltm/spectrusty/edit/gh-pages/index.md) to maintain and preview the content for your website in Markdown files.
+SPECTRUSTY is a [Rust] library for building highly customizable emulators of several ZX Spectrum computer models and clones.
 
-Whenever you commit to this repository, GitHub Pages will run [Jekyll](https://jekyllrb.com/) to rebuild the pages in your site, from the content in your Markdown files.
+The [Rust] language allows you to easily compile your programs to WebAssembly, and make your applications available on a thousand different devices. One such a compiled example of a complete emulator program is available [here](web-zxspectrum/) and runs pretty well on mobile devices too.
 
-### Markdown
+As an emulator builder, here you find the main core components, such as:
 
-Markdown is a lightweight and easy-to-use syntax for styling your writing. It includes conventions for
+* [Z80](//crates.io/crates/z80emu) CPU - An emulator of Central Processing Unit in a few variations: NMOS, CMOS, and BM1 (dubbed "flavours").
+* Sinclair Ferranti ULA (Uncommitted Logic Array) - 16k/48k and 128k version of ZX Spectrum core chipset emulator.
+* Amstrad Gate Array ULA (or AGA) - +3/+2A version of ZX Spectrum core chipset emulator.
+* ULAplus core chipset extension as a wrapper of any of the above chipsets.
+* SCLD by NCR Corporation for Timex TC2048/TC2068/TS2068 series core chipset emulator.
 
-```markdown
-Syntax highlighted code block
+as well as peripheral device components, file format utilities, and more.
 
-# Header 1
-## Header 2
-### Header 3
+See this [full list](https://github.com/royaltm/spectrusty/#Features) of available features.
 
-- Bulleted
-- List
+Core chipset components drive the emulation and give the ability to render video and audio output, created as side effects of the emulated frames. They are also responsible for organizing and interfacing computer memory and I/O of peripheral devices.
 
-1. Numbered
-2. List
+You build an emulator around one of the chipset implementations by providing the proper specializations in place of its generic type parameters. To run the emulation, you need an instance of a CPU emulator.
 
-**Bold** and _Italic_ and `Code` text
+The interaction between the components, as well as the way of interfacing them from your emulator, is realized via the trait system. Most of the traits are defined in the [spectrusty-core] and are separated by the context of the provided facility. Hence it's possible to build your own components or extend the existing ones by implementing those traits yourself. This however might require some low-level knowledge of the inner workings of SPECTRUSTY, but shouldn't be very hard. It would be easier though if any kind of [specialization](https://github.com/rust-lang/rust/issues/31844) was already stabilized in Rust
 
-[Link](url) and ![Image](src)
-```
+If you want to see a step by step introduction on how to build your Spectrum emulator, please see the [tutorial]. Otherwise, if you like to jump straight into the deep end, here are [examples] of fully functional emulator programs and also an example of a high-level emulator library, providing a selection of a few packaged computer models with a bow on top.
 
-For more details see [GitHub Flavored Markdown](https://guides.github.com/features/mastering-markdown/).
-
-### Jekyll Themes
-
-Your Pages site will use the layout and styles from the Jekyll theme you have selected in your [repository settings](https://github.com/royaltm/spectrusty/settings). The name of this theme is saved in the Jekyll `_config.yml` configuration file.
-
-### Support or Contact
-
-Having trouble with Pages? Check out our [documentation](https://docs.github.com/categories/github-pages-basics/) or [contact support](https://github.com/contact) and we’ll help you sort it out.
+[Rust]: https://www.rust-lang.org/
+[SPECTRUSTY img]: images/spectrusty.png
