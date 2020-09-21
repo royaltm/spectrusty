@@ -1,0 +1,28 @@
+language: rust
+os: linux
+dist: bionic
+addons:
+    apt:
+        packages:
+            - libssl-dev
+            - libasound2-dev
+rust:
+  - 1.36.0
+  - 1.37.0
+  - stable
+  - beta
+  - nightly
+cache: cargo
+script:
+  - cargo build --verbose
+  - cargo test --verbose
+  - |
+  if [[ "$TRAVIS_RUST_VERSION" == stable ]]; then
+    cargo test --verbose -- --ignored
+    cargo build -p zxspectrum-common --verbose
+    cargo test -p zxspectrum-common --verbose
+    cargo build -p audio --bins --verbose
+    cargo test -p audio --verbose
+    cargo build -p sdl2-zxspectrum --verbose
+    cargo test -p sdl2-zxspectrum --verbose
+  fi
