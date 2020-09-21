@@ -1,7 +1,7 @@
 SPECTRUSTY
 ==========
 
-![SPECTRUSTY img][S P E C T R U S T Y]
+![S P E C T R U S T Y][SPECTRUSTY img]
 
 [![Crate][Crate img]][Crate Link]
 [![Docs][Docs img]][Docs Link]
