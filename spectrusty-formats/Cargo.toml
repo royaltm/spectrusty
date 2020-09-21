@@ -28,4 +28,4 @@ path = "../spectrusty-peripherals"
 [dev-dependencies]
 smallvec = "1.1"
 rand = "0.7"
-spectrusty = { path = "..", version = "0.1" }
+# spectrusty = { path = "..", version = "0.1" }
