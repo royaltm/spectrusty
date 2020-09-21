@@ -842,6 +842,7 @@ impl<T: FrameTimestamp> ZxMicrodrives<T> {
 
 #[cfg(test)]
 mod tests {
+/*
     use spectrusty::clock::{VFrameTs, FrameTimestamp, VFrameTsCounter};
     use spectrusty::chip::ula::{UlaVideoFrame, UlaMemoryContention};
     use super::*;
@@ -1127,4 +1128,5 @@ mod tests {
         }
         assert_eq!(drive.motor_on_drive, None);
     }
+*/
 }

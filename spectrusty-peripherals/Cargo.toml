@@ -40,5 +40,5 @@ default-features = false
 path = "../spectrusty-core"
 
 [dev-dependencies]
-spectrusty = { path = "..", version = "0.1" }
+# spectrusty = { path = "..", version = "0.1" }
 spectrusty-audio = { path = "../spectrusty-audio", version = "0.1" }
