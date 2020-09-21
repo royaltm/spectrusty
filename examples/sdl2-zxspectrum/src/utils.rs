@@ -5,9 +5,9 @@
     For the full copyright notice, see the main.rs file.
 */
 #![allow(unused_macros)]
+#![allow(unused_imports)]
 use std::{borrow::Cow, error::Error, ptr};
 
-#[allow(unused_imports)]
 use log::{error, warn, info, debug, trace};
 
 use sdl2::{VideoSubsystem,
