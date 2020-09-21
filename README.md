@@ -1,4 +1,4 @@
-![S P E C T R U S T Y][SPECTRUSTY img]
+[![S P E C T R U S T Y]][SPECTRUSTY img][SPECTRUSTY link]
 
 [![Crate][Crate img]][Crate Link]
 [![Docs][Docs img]][Docs Link]
@@ -124,6 +124,7 @@ The **SPECTRUSTY** library is available under the terms of the GNU LGPL version 
 `ROM` files found in the [resources](resources/roms) directory are made available under different [terms](resources/README.md).
 
 [SPECTRUSTY img]: resources/spectrusty.png
+[SPECTRUSTY link]: https://royaltm.github.io/spectrusty/
 [Crate Link]: https://crates.io/crates/spectrusty
 [Crate img]: https://img.shields.io/crates/v/spectrusty.svg
 [Docs Link]: https://docs.rs/spectrusty
