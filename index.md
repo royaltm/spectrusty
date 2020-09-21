@@ -20,9 +20,13 @@ Core chipset components drive the emulation and give the ability to render video
 
 You build an emulator around one of the chipset implementations by providing the proper specializations in place of its generic type parameters. To run the emulation, you need an instance of a CPU emulator.
 
-The interaction between the components, as well as the way of interfacing them from your emulator, is realized via the trait system. Most of the traits are defined in the [spectrusty-core] and are separated by the context of the provided facility. Hence it's possible to build your own components or extend the existing ones by implementing those traits yourself. This however might require some low-level knowledge of the inner workings of SPECTRUSTY, but shouldn't be very hard. It would be easier though if any kind of [specialization](https://github.com/rust-lang/rust/issues/31844) was already stabilized in Rust
+The interaction between the components, as well as the way of interfacing them from your emulator, is realized via the trait system. Most of the traits are defined in the [spectrusty-core] crate and are separated by the context of the provided facility. Hence it's possible to build your own components or extend the existing ones by implementing those traits yourself. This however might require some low-level knowledge of the inner workings of SPECTRUSTY, but shouldn't be very hard. It would be easier though if any kind of [specialization](https://github.com/rust-lang/rust/issues/31844) was already stabilized in Rust
 
-If you want to see a step by step introduction on how to build your Spectrum emulator, please see the [tutorial]. Otherwise, if you like to jump straight into the deep end, here are [examples] of fully functional emulator programs and also an example of a high-level emulator library, providing a selection of a few packaged computer models with a bow on top.
+If you want to see a step by step introduction on how to build your Spectrum emulator, please see the [tutorial]. Otherwise, if you like to jump straight into the deep end, here are [examples] of fully functional emulator programs and also an example of a [high-level] emulator library, providing a selection of a few packaged computer models with a bow on top.
 
-[Rust]: https://www.rust-lang.org/
 [SPECTRUSTY img]: spectrusty.png
+[Rust]: https://www.rust-lang.org/
+[spectrusty-core]: https://crates.io/crates/spectrusty-core
+[tutorial]: https://royaltm.github.io/spectrusty-tutorial/
+[examples]: https://github.com/royaltm/spectrusty/tree/master/examples
+[high-level]: https://github.com/royaltm/spectrusty/tree/master/examples/zxspectrum-common
