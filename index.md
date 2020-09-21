@@ -2,7 +2,7 @@
 
 SPECTRUSTY is a [Rust] library for building highly customizable emulators of several ZX Spectrum computer models and clones.
 
-The [Rust] language allows you to easily compile your programs to WebAssembly, and make your applications available on a thousand different devices. One such a compiled example of a complete emulator program is available [here](web-zxspectrum/) and runs pretty well on mobile devices too.
+The [Rust] language allows you to easily compile your programs to [WebAssembly], and make your applications available on a thousand different devices. One such a compiled example of a complete emulator program is available [here](web-zxspectrum/) and runs pretty well on mobile devices too.
 
 As an emulator builder, here you find the main core components, such as:
 
@@ -26,6 +26,7 @@ If you want to see a step by step introduction on how to build your Spectrum emu
 
 [SPECTRUSTY img]: spectrusty.png
 [Rust]: https://www.rust-lang.org/
+[WebAssembly]: https://webassembly.org/
 [spectrusty-core]: https://crates.io/crates/spectrusty-core
 [tutorial]: https://royaltm.github.io/spectrusty-tutorial/
 [examples]: https://github.com/royaltm/spectrusty/tree/master/examples
