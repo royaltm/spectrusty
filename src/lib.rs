@@ -110,7 +110,7 @@ Implemented by other components:
 
 | trait | implemented by | function |
 |-------|----------------|----------|
-| [Cpu][z80emu::Cpu] | Z80 CPU | Central processing unit |
+| [Cpu][spectrusty_core::z80emu::Cpu] | Z80 CPU | Central processing unit |
 | [ZxMemory] | System memory | An access to memory banks, pages, screens, attaching external ROM's |
 | [PagedMemory16k][memory::PagedMemory16k] | Memory group | Groups memory implementations with 16k paging capability |
 | [PagedMemory8k][memory::PagedMemory8k] | Memory group | Groups memory implementations with 8k paging capability |
@@ -146,7 +146,8 @@ These are the most commonly used:
 [spectrusty-audio]: spectrusty_audio
 [spectrusty-formats]: spectrusty_formats
 [spectrusty-peripherals]: spectrusty_peripherals
-[spectrusty-utils]: ../spectrusty_utils
+[spectrusty-utils]: /spectrusty_utils
+[z80emu]: /z80emu
 [SDL2]: https://crates.io/crates/sdl2
 [cpal]: https://crates.io/crates/cpal
 [BusDevice]: bus::BusDevice
