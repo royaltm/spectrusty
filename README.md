@@ -121,7 +121,7 @@ The **SPECTRUSTY** library is available under the terms of the GNU LGPL version 
 
 [Examples](examples/), [tests](tests/), and [benchmarks](benches/) are available under the terms of the GNU GPL version 3 or later.
 
-`ROM` files found in the [resources](resources/roms) directory are made available under different [terms](resources/README-copyright.md).
+`ROM` files found in the [resources](resources/roms) directory are made available under different [terms](resources/README.md).
 
 [SPECTRUSTY img]: resources/spectrusty.png
 [Crate Link]: https://crates.io/crates/spectrusty
