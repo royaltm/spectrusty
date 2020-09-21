@@ -17,12 +17,12 @@ script:
   - cargo build --verbose
   - cargo test --verbose
   - |
-  if [[ "$TRAVIS_RUST_VERSION" == stable ]]; then
-    cargo test --verbose -- --ignored
-    cargo build -p zxspectrum-common --verbose
-    cargo test -p zxspectrum-common --verbose
-    cargo build -p audio --bins --verbose
-    cargo test -p audio --verbose
-    cargo build -p sdl2-zxspectrum --verbose
-    cargo test -p sdl2-zxspectrum --verbose
-  fi
+    if [[ "$TRAVIS_RUST_VERSION" == stable ]]; then
+      cargo test --verbose -- --ignored
+      cargo build -p zxspectrum-common --verbose
+      cargo test -p zxspectrum-common --verbose
+      cargo build -p audio --bins --verbose
+      cargo test -p audio --verbose
+      cargo build -p sdl2-zxspectrum --verbose
+      cargo test -p sdl2-zxspectrum --verbose
+    fi
