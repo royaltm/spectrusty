@@ -25,4 +25,4 @@ The interaction between the components, as well as the way of interfacing them f
 If you want to see a step by step introduction on how to build your Spectrum emulator, please see the [tutorial]. Otherwise, if you like to jump straight into the deep end, here are [examples] of fully functional emulator programs and also an example of a high-level emulator library, providing a selection of a few packaged computer models with a bow on top.
 
 [Rust]: https://www.rust-lang.org/
-[SPECTRUSTY img]: images/spectrusty.png
+[SPECTRUSTY img]: spectrusty.png
