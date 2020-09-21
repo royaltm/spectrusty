@@ -4,7 +4,7 @@ SPECTRUSTY is a [Rust] library for building highly customizable emulators of sev
 
 The [Rust] language allows you to easily compile your programs to [WebAssembly], and make your applications available on a thousand different devices. One such a compiled example of a complete emulator program is available [here](web-zxspectrum/) and runs pretty well on mobile devices too.
 
-As an emulator builder, here you find the main core components, such as:
+Here you'll find:
 
 * [Z80](//crates.io/crates/z80emu) CPU - An emulator of the Central Processing Unit in a few variations: NMOS, CMOS, and BM1 (dubbed "flavours").
 * Sinclair Ferranti ULA (Uncommitted Logic Array) - 16k/48k and 128k version of ZX Spectrum core chipset emulator.
