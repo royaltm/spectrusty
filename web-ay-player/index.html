@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css" integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO" crossorigin="anonymous">
+    <title>AY-3-891x Chiptune Player!</title>
+  </head>
+  <body>
+    <div class="container">
+      <div class="row">
+        <div class="col-sm">
+          <h4>ZX Spectrum AY-3-891x Chiptune Player</h4>
+          <div class="form-row align-items-center">
+            <div class="col">
+              <label for="gainControl">Gain:</label>
+              <input type="range" class="custom-range" min="0" max="100" value="100" id="gainControl"/>
+            </div>
+            <div class="col-auto">
+              <label for="clocks">Clocking:</label>
+              <select class="form-control form-control-sm" id="clocks">
+                <option value="ZXSpectrum128k" selected>128k</option>
+                <option value="ZXSpectrum48k">48k</option>
+              </select>
+           </div>
+            <div class="col-auto">
+              <label for="amps">AY D→A amps:</label>
+              <select class="form-control form-control-sm" id="amps">
+                <option value="Spec" selected>Specs.</option>
+                <option value="Fuse">Fuse</option>
+              </select>
+           </div>
+          </div>
+          <div class="form-row align-items-center">
+            <div class="col">
+              <label for="songs">Song:</label>
+              <select class="form-control" id="songs"></select>
+            </div>
+            <div class="col-auto">
+              <label for="channels">AY channels:</label>
+              <select class="form-control" id="channels">
+                <option value="ABC">ABC</option>
+                <option value="ACB" selected>ACB</option>
+                <option value="BAC">BAC</option>
+                <option value="BCA">BCA</option>
+                <option value="CAB">CAB</option>
+                <option value="CBA">CBA</option>
+                <option value="Mono">Mono</option>
+             </select>
+           </div>
+          </div>
+          <div class="form-group">
+            <label for="music">Music file:</label>
+            <select class="form-control" id="music" size="10"></select>
+          </div>
+          <div class="form-row align-items-center">
+            <div class="col-auto">
+              <input class="btn btn-primary" id="pause" type="button" value="Pause ⏯"/>
+            </div>
+            <div class="col-auto">
+              <input class="btn btn-outline-success" id="replay" type="button" value="Replay ▶️"/>
+            </div>
+           <div class="col">
+              <input class="btn btn-outline-danger float-right" id="eject" type="button" value="Eject ⏏️"/>
+           </div>
+          </div>
+          <div class="form-group">
+            <small class="form-text"><b>Headphone users</b>, please make sure your volume is not too loud!</small>
+          </div>
+          <div class="custom-file">
+            <input type="file" class="custom-file-input"  id="files" multiple accept=".ay,.sna"/>
+            <label class="custom-file-label" for="customFile">Add .AY/.SNA files from disk</label>
+            <small class="form-text text-muted">
+              If you don't have any <var>.ay</var> or <var>.sna</var> files, you can download plenty from <a href="https://www.worldofspectrum.org/projectay/gdmusic.htm" target="_blank">here</a>.
+            </small>
+          </div>
+        </div>
+        <div class="col-md-auto">
+          <table class="table">
+            <tbody>
+              <tr>
+                <th scope="row">File:</th>
+                <td id="info-file"></td>
+              </tr>
+              <tr>
+                <th scope="row">Author:</th>
+                <td id="info-author"></td>
+              </tr>
+              <tr>
+                <th scope="row">Misc:</th>
+                <td id="info-misc"></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  <script type="text/javascript" src="index.js"></script></body>
+</html>
