@@ -83,6 +83,9 @@ pub type Ula3Ay<D,
                                         Ay3_8912Rs232<Ula3VidFrame, D, R, W>
                                     >,
                                 X>;
+/// ULAplus with ULA 48k.
+pub type Plus48<D, X=NoMemoryExtension> = UlaPlus<UlaPAL<Memory48kEx, D, X>>;
+
 /// ULAplus with ULA 128k.
 pub type Plus128<D,
                  X=NoMemoryExtension,
@@ -99,6 +102,7 @@ pub type Plus3<D,
 
 pub type ZxSpectrum16k<C, D, X=NoMemoryExtension, F=MemTap> = ZxSpectrum<C, UlaPAL<Memory16kEx, D, X>, F>;
 pub type ZxSpectrum48k<C, D, X=NoMemoryExtension, F=MemTap> = ZxSpectrum<C, UlaPAL<Memory48kEx, D, X>, F>;
+pub type ZxSpectrum48kPlus<C, D, X=NoMemoryExtension, F=MemTap> = ZxSpectrum<C, Plus48<D, X>, F>;
 pub type ZxSpectrumNTSC<C, D, X=NoMemoryExtension, F=MemTap> = ZxSpectrum<C, UlaNTSC<Memory48kEx, D, X>, F>;
 pub type TimexTC2048<C, D, X=NoMemoryExtension, F=MemTap> = ZxSpectrum<C, TC2048<D, X>, F>;
 pub type ZxSpectrum128k<C, D, X=NoMemoryExtension,
@@ -132,6 +136,7 @@ pub enum ModelRequest {
     SpectrumPlus2A,
     SpectrumPlus3,
     TimexTC2048,
+    Spectrum48Plus,
     SpectrumPlusPlus2,
     SpectrumPlus2B,
 }
@@ -184,6 +189,8 @@ pub enum ZxSpectrumModel<C: Cpu,
     // SpectrumPlus3(ZxSpectrum3<C, D, X, F>),
     #[serde(rename = "Timex TC2048")]
     TimexTC2048(TimexTC2048<C, PluggableJoystickDynamicBus<S, UlaVideoFrame>, X, F>),
+    #[serde(rename = "ZX Spectrum 48k+")]
+    Spectrum48Plus(ZxSpectrum48kPlus<C, PluggableJoystickDynamicBus<S, UlaVideoFrame>, X, F>),
     #[serde(rename = "ZX Spectrum ++2")]
     SpectrumPlusPlus2(ZxSpectrum128kPlus<C, PluggableJoystickDynamicBus<S, Ula128VidFrame>, X, F, R, W>),
     #[serde(rename = "ZX Spectrum +2B")]
@@ -249,13 +256,14 @@ macro_rules! spectrum_model_dispatch {
         match $model {
             $crate::ZxSpectrumModel::Spectrum16($($spec)*) => $expr,
             $crate::ZxSpectrumModel::Spectrum48($($spec)*) => $expr,
+            $crate::ZxSpectrumModel::Spectrum48Plus($($spec)*) => $expr,
             $crate::ZxSpectrumModel::SpectrumNTSC($($spec)*) => $expr,
             $crate::ZxSpectrumModel::Spectrum128($($spec)*)|
             $crate::ZxSpectrumModel::SpectrumPlus2($($spec)*)=> $expr,
-            $crate::ZxSpectrumModel::SpectrumPlus2A($($spec)*) => $expr,
-            $crate::ZxSpectrumModel::TimexTC2048($($spec)*) => $expr,
             $crate::ZxSpectrumModel::SpectrumPlusPlus2($($spec)*) => $expr,
+            $crate::ZxSpectrumModel::SpectrumPlus2A($($spec)*) => $expr,
             $crate::ZxSpectrumModel::SpectrumPlus2B($($spec)*) => $expr,
+            $crate::ZxSpectrumModel::TimexTC2048($($spec)*) => $expr,
         }
     };
 }
@@ -311,6 +319,9 @@ macro_rules! spectrum_model_ula_static_dispatch {
                 $crate::ZxSpectrumModel::Spectrum48(..) => {
                     $crate::UlaPAL::<memory::Memory48kEx, $crate::PluggableJoystickDynamicBus<$sdd, ula::UlaVideoFrame>, $ext>::$($expr)*
                 }
+                $crate::ZxSpectrumModel::Spectrum48Plus(..) => {
+                    $crate::Plus48::<$crate::PluggableJoystickDynamicBus<$sdd, ula::UlaVideoFrame>, $ext>::$($expr)*
+                }
                 $crate::ZxSpectrumModel::SpectrumNTSC(..) => {
                     $crate::UlaNTSC::<memory::Memory48kEx, $crate::PluggableJoystickDynamicBus<$sdd, ula::UlaNTSCVidFrame>, $ext>::$($expr)*
                 }
@@ -348,17 +359,18 @@ impl Iterator for ModelRequestIter {
         use ModelRequest::*;
         let res = self.0;
         self.0 = match self.0 {
-            Some(Spectrum16)     => Some(Spectrum48),
-            Some(Spectrum48)     => Some(SpectrumNTSC),
-            Some(SpectrumNTSC)   => Some(Spectrum128),
-            Some(Spectrum128)    => Some(SpectrumPlus2),
-            Some(SpectrumPlus2)  => Some(SpectrumPlus2A),
-            Some(SpectrumPlus2A) => Some(SpectrumPlus3),
-            Some(SpectrumPlus3)  => Some(TimexTC2048),
-            Some(TimexTC2048)    => Some(SpectrumPlusPlus2),
+            Some(Spectrum16)        => Some(Spectrum48),
+            Some(Spectrum48)        => Some(SpectrumNTSC),
+            Some(SpectrumNTSC)      => Some(Spectrum128),
+            Some(Spectrum128)       => Some(SpectrumPlus2),
+            Some(SpectrumPlus2)     => Some(SpectrumPlus2A),
+            Some(SpectrumPlus2A)    => Some(SpectrumPlus3),
+            Some(SpectrumPlus3)     => Some(TimexTC2048),
+            Some(TimexTC2048)       => Some(Spectrum48Plus),
+            Some(Spectrum48Plus)    => Some(SpectrumPlusPlus2),
             Some(SpectrumPlusPlus2) => Some(SpectrumPlus2B),
-            Some(SpectrumPlus2B) => None,
-            None                 => None
+            Some(SpectrumPlus2B)    => None,
+            None                    => None
         };
         res
     }
@@ -380,6 +392,7 @@ impl From<ModelRequest> for &str {
             TimexTC2048    => "Timex TC2048",
             // TimexTC2068    => "Timex TC2068",
             // TimexTS2068    => "Timex TS2068",
+            Spectrum48Plus => "ZX Spectrum 48k+",
             SpectrumPlusPlus2 => "ZX Spectrum ++2",
             SpectrumPlus2B => "ZX Spectrum +2B",
         }
@@ -420,14 +433,15 @@ impl From<ModelRequest> for ComputerModel {
         match req {
             Spectrum16 => ComputerModel::Spectrum16,
             Spectrum48 => ComputerModel::Spectrum48,
+            Spectrum48Plus => ComputerModel::Spectrum48,
             SpectrumNTSC => ComputerModel::SpectrumNTSC,
             Spectrum128 => ComputerModel::Spectrum128,
             SpectrumPlus2 => ComputerModel::SpectrumPlus2,
+            SpectrumPlusPlus2 => ComputerModel::SpectrumPlus2,
             SpectrumPlus2A => ComputerModel::SpectrumPlus2A,
+            SpectrumPlus2B => ComputerModel::SpectrumPlus2A,
             SpectrumPlus3 => ComputerModel::SpectrumPlus3,
             TimexTC2048 => ComputerModel::TimexTC2048,
-            SpectrumPlusPlus2 => ComputerModel::SpectrumPlus2,
-            SpectrumPlus2B => ComputerModel::SpectrumPlus2A,
         }
     }
 }
@@ -453,6 +467,7 @@ impl FromStr for ModelRequest {
         match model {
             "16k"    => Ok(ModelRequest::Spectrum16),
             "48k"    => Ok(ModelRequest::Spectrum48),
+            "48k+"   => Ok(ModelRequest::Spectrum48Plus),
             "NTSC"   => Ok(ModelRequest::SpectrumNTSC),
             "128k"   => Ok(ModelRequest::Spectrum128),
             "+2"     => Ok(ModelRequest::SpectrumPlus2),
@@ -476,6 +491,7 @@ impl<C: Cpu, S, X, F, R, W> From<&ZxSpectrumModel<C, S, X, F, R, W>> for ModelRe
             ZxSpectrumModel::SpectrumPlus2(..) => ModelRequest::SpectrumPlus2,
             ZxSpectrumModel::SpectrumPlus2A(..) => ModelRequest::SpectrumPlus2A,
             ZxSpectrumModel::TimexTC2048(..) => ModelRequest::TimexTC2048,
+            ZxSpectrumModel::Spectrum48Plus(..) => ModelRequest::Spectrum48Plus,
             ZxSpectrumModel::SpectrumPlusPlus2(..) => ModelRequest::SpectrumPlusPlus2,
             ZxSpectrumModel::SpectrumPlus2B(..) => ModelRequest::SpectrumPlus2B,
         }
@@ -501,6 +517,7 @@ impl<C, S, X, F, R, W> ZxSpectrumModel<C, S, X, F, R, W>
             SpectrumPlus2 => ZxSpectrumModel::SpectrumPlus2(ZxSpectrum::default().with_roms(ROM_PLUS2, 0)),
             SpectrumPlus2A => ZxSpectrumModel::SpectrumPlus2A(ZxSpectrum::default().with_roms(ROM_PLUS3, 0)),
             TimexTC2048 => ZxSpectrumModel::TimexTC2048(ZxSpectrum::default().with_roms(ROM_TC2048, 9)),
+            Spectrum48Plus => ZxSpectrumModel::Spectrum48Plus(ZxSpectrum::default().with_roms(ROM48, 0)),
             SpectrumPlusPlus2 => ZxSpectrumModel::SpectrumPlusPlus2(ZxSpectrum::default().with_roms(ROM_PLUS2, 0)),
             SpectrumPlus2B => ZxSpectrumModel::SpectrumPlus2B(ZxSpectrum::default().with_roms(ROM_PLUS2B, 0)),
             SpectrumPlus3 => {
@@ -562,6 +579,28 @@ impl<C: Cpu, M, D, X, V, F> ZxSpectrum<C, Ula<M, D, X, V>, F>
     }
 }
 
+impl<C: Cpu, D, X, F> ZxSpectrum<C, Plus48<D, X>, F>
+    where X: MemoryExtension
+{
+    /// Copies the paged in RAM memory, the border color, the CPU state and the emulator 
+    /// state into `self` from the provided `model`.
+    pub fn copy_from<S, R, W>(&mut self, model: ZxSpectrumModel<C, S, X, F, R, W>)
+        where <Self as SpectrumUla>::Chipset: DeviceAccess,
+              R: io::Read + fmt::Debug + Default,
+              W: io::Write + fmt::Debug + Default,
+              D: 'static, X: 'static
+    {
+        let border = model.border_color();
+        let mem_rd = model.read_ram();
+        let _ = self.ula.memory_mut().load_into_mem(
+            <<Self as SpectrumUla>::Chipset as MemoryAccess>::Memory::PAGE_SIZE as u16.., mem_rd);
+        let (cpu, state) = model.into_cpu_and_state();
+        self.cpu = cpu;
+        self.set_state(state);
+        self.ula.set_border_color(border);
+    }
+}
+
 impl<C: Cpu, D, X, V, F> ZxSpectrum<C, Scld<Memory48kDock64kEx, D, X, V>, F>
     where X: MemoryExtension,
           V: VideoFrame,
@@ -600,7 +639,7 @@ impl<C: Cpu, D, X, F, R, W> ZxSpectrum128k<C, D, X, F, R, W>
         let border = model.border_color();
         let mem_rd = model.read_ram();
         let _ = self.ula.memory_mut().load_into_mem(
-                <Ula128 as MemoryAccess>::Memory::PAGE_SIZE as u16..,
+                <<Self as SpectrumUla>::Chipset as MemoryAccess>::Memory::PAGE_SIZE as u16..,
                 mem_rd);
         let (cpu, state) = model.into_cpu_and_state();
         self.cpu = cpu;
@@ -633,7 +672,7 @@ impl<C: Cpu, D, X, F, R, W> ZxSpectrum128kPlus<C, D, X, F, R, W>
         let border = model.border_color();
         let mem_rd = model.read_ram();
         let _ = self.ula.memory_mut().load_into_mem(
-                <Ula128 as MemoryAccess>::Memory::PAGE_SIZE as u16..,
+                <<Self as SpectrumUla>::Chipset as MemoryAccess>::Memory::PAGE_SIZE as u16..,
                 mem_rd);
         let (cpu, state) = model.into_cpu_and_state();
         self.cpu = cpu;
@@ -665,7 +704,7 @@ impl<C: Cpu, D, X, F, R, W> ZxSpectrum2A<C, D, X, F, R, W>
         let border = model.border_color();
         let mem_rd = model.read_ram();
         let _ = self.ula.memory_mut().load_into_mem(
-                <Ula3 as MemoryAccess>::Memory::PAGE_SIZE as u16..,
+                <<Self as SpectrumUla>::Chipset as MemoryAccess>::Memory::PAGE_SIZE as u16..,
                 mem_rd);
         let (cpu, state) = model.into_cpu_and_state();
         self.cpu = cpu;
@@ -699,7 +738,7 @@ impl<C: Cpu, D, X, F, R, W> ZxSpectrum2B<C, D, X, F, R, W>
         let border = model.border_color();
         let mem_rd = model.read_ram();
         let _ = self.ula.memory_mut().load_into_mem(
-                <Ula3 as MemoryAccess>::Memory::PAGE_SIZE as u16..,
+                <<Self as SpectrumUla>::Chipset as MemoryAccess>::Memory::PAGE_SIZE as u16..,
                 mem_rd);
         let (cpu, state) = model.into_cpu_and_state();
         self.cpu = cpu;
@@ -791,7 +830,9 @@ impl<C, S, X, F, R, W> ZxSpectrumModel<C, S, X, F, R, W>
             ZxSpectrumModel::Spectrum16(spec16) => Box::new(spec16.ula.memory_ref().ram_ref()
                                                                       .chain(std::io::repeat(!0))),
             ZxSpectrumModel::Spectrum48(spec48) => Box::new(spec48.ula.memory_ref().ram_ref()),
+            ZxSpectrumModel::Spectrum48Plus(plus48) => Box::new(plus48.ula.memory_ref().ram_ref()),
             ZxSpectrumModel::SpectrumNTSC(spec48) => Box::new(spec48.ula.memory_ref().ram_ref()),
+            ZxSpectrumModel::TimexTC2048(timex) => Box::new(timex.ula.memory_ref().ram_ref()),
             ZxSpectrumModel::Spectrum128(spec128)|
             ZxSpectrumModel::SpectrumPlus2(spec128) => {
                 let mem = spec128.ula.memory_ref();
@@ -800,16 +841,15 @@ impl<C, S, X, F, R, W> ZxSpectrumModel<C, S, X, F, R, W>
                     .chain(mem.page_ref(2).unwrap())
                     .chain(mem.page_ref(3).unwrap()))
             }
-            ZxSpectrumModel::SpectrumPlus2A(spec3) => {
-                let mem = spec3.ula.memory_ref();
+            ZxSpectrumModel::SpectrumPlusPlus2(spec128) => {
+                let mem = spec128.ula.memory_ref();
                 // returns paged in RAM banks as a chained reader
                 Box::new(mem.page_ref(1).unwrap()
                     .chain(mem.page_ref(2).unwrap())
                     .chain(mem.page_ref(3).unwrap()))
             }
-            ZxSpectrumModel::TimexTC2048(timex) => Box::new(timex.ula.memory_ref().ram_ref()),
-            ZxSpectrumModel::SpectrumPlusPlus2(spec128) => {
-                let mem = spec128.ula.memory_ref();
+            ZxSpectrumModel::SpectrumPlus2A(spec3) => {
+                let mem = spec3.ula.memory_ref();
                 // returns paged in RAM banks as a chained reader
                 Box::new(mem.page_ref(1).unwrap()
                     .chain(mem.page_ref(2).unwrap())
@@ -857,6 +897,7 @@ impl<C, S, X, F, R, W> ZxSpectrumModel<C, S, X, F, R, W>
             (SpectrumPlus2(..), ModelRequest::SpectrumPlus2)|
             (SpectrumPlus2A(..), ModelRequest::SpectrumPlus2A)|
             (TimexTC2048(..), ModelRequest::TimexTC2048)|
+            (Spectrum48Plus(..), ModelRequest::Spectrum48Plus)|
             (SpectrumPlusPlus2(..), ModelRequest::SpectrumPlusPlus2)|
             (SpectrumPlus2B(..), ModelRequest::SpectrumPlus2B) => {
                 return
@@ -864,16 +905,7 @@ impl<C, S, X, F, R, W> ZxSpectrumModel<C, S, X, F, R, W>
             _ => {}
         }
         let prev_model = core::mem::replace(self, Self::new(request));
-        match self {
-            Spectrum16(spec16) => spec16.copy_from(prev_model),
-            Spectrum48(spec48) => spec48.copy_from(prev_model),
-            SpectrumNTSC(spec48) => spec48.copy_from(prev_model),
-            Spectrum128(spec128)|SpectrumPlus2(spec128) => spec128.copy_from(prev_model),
-            SpectrumPlus2A(spec3) => spec3.copy_from(prev_model),
-            TimexTC2048(timex) => timex.copy_from(prev_model),
-            SpectrumPlusPlus2(plus128) => plus128.copy_from(prev_model),
-            SpectrumPlus2B(plus128) => plus128.copy_from(prev_model),
-        }
+        spectrum_model_dispatch!(self(spec) => spec.copy_from(prev_model))
     }
 
     pub fn set_frame_tstate(&mut self, ts: FTs) {
@@ -910,7 +942,7 @@ impl<C: Cpu, U, F> ZxSpectrum<C, U, F>
         const LOAD_QQ_EN_SE: &[(Zk, u32)] = &[(Zk::EN, 1), (Zk::empty(), 17), (LOAD_SE, 1), (QUOTE, 1), (Zk::SS, 4), (QUOTE, 1), (Zk::EN, 1)];
         match model {
             Spectrum16 => self.run_with_auto_type(48, LOAD_QQ_EN),
-            Spectrum48|TimexTC2048 => self.run_with_auto_type(87, LOAD_QQ_EN),
+            Spectrum48|Spectrum48Plus|TimexTC2048 => self.run_with_auto_type(87, LOAD_QQ_EN),
             SpectrumNTSC => self.run_with_auto_type(103, LOAD_QQ_EN),
             Spectrum128|SpectrumPlus2|SpectrumPlusPlus2 => {
                 self.run_with_auto_type(67, iter::once(&(Zk::EN, 1)))

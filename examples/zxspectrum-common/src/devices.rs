@@ -26,7 +26,7 @@ use spectrusty::bus::{
 };
 use spectrusty::chip::{
     ControlUnit,
-    ula::Ula,
+    ula::{Ula, UlaVideoFrame},
     ula128::Ula128VidFrame,
     ula3::Ula3VidFrame,
     scld::Scld
@@ -106,35 +106,46 @@ pub trait DynamicDevices<V: VideoFrame> {
 }
 
 macro_rules! impl_device_access_ula {
+    (@impl) => {
+        type JoystickBusDevice = PluggableJoystickDynamicBus<SD, Self::VideoFrame>;
+        type Ay128Serial1 = NullSerialPort<VFrameTs<Self::VideoFrame>>;
+        type CommRd = Empty;
+        type CommWr = Sink;
+
+        fn dyn_bus_device_mut(&mut self) -> Option<&mut DynamicVBus<Self::VideoFrame>> {
+            Some(self.bus_device_mut().next_device_mut())
+        }
+
+        fn dyn_bus_device_ref(&self) -> Option<&DynamicVBus<Self::VideoFrame>> {
+            Some(self.bus_device_ref().next_device_ref())
+        }
+
+        fn joystick_bus_device_mut(&mut self) -> Option<&mut Self::JoystickBusDevice> {
+            Some(self.bus_device_mut())
+        }
+
+        fn joystick_bus_device_ref(&self) -> Option<&Self::JoystickBusDevice> {
+            Some(&mut self.bus_device_ref())
+        }
+    };
     ($ula:ident<M:$membound:ident>) => {
         impl<M, X, V, SD> DeviceAccess for $ula<M, PluggableJoystickDynamicBus<SD, V>, X, V>
             where M: $membound, X: MemoryExtension, V: VideoFrame
         {
-            type JoystickBusDevice = PluggableJoystickDynamicBus<SD, Self::VideoFrame>;
-            type Ay128Serial1 = NullSerialPort<VFrameTs<Self::VideoFrame>>;
-            type CommRd = Empty;
-            type CommWr = Sink;
-
-            fn dyn_bus_device_mut(&mut self) -> Option<&mut DynamicVBus<Self::VideoFrame>> {
-                Some(self.bus_device_mut().next_device_mut())
-            }
-
-            fn dyn_bus_device_ref(&self) -> Option<&DynamicVBus<Self::VideoFrame>> {
-                Some(self.bus_device_ref().next_device_ref())
-            }
-
-            fn joystick_bus_device_mut(&mut self) -> Option<&mut Self::JoystickBusDevice> {
-                Some(self.bus_device_mut())
-            }
-
-            fn joystick_bus_device_ref(&self) -> Option<&Self::JoystickBusDevice> {
-                Some(&mut self.bus_device_ref())
-            }
+            impl_device_access_ula! { @impl }
+        }
+    };
+    ($ula:ident<$vidfrm:ty>) => {
+        impl<X, SD> DeviceAccess for $ula<PluggableJoystickDynamicBus<SD, $vidfrm>, X>
+            where X: MemoryExtension
+        {
+            impl_device_access_ula! { @impl }
         }
     };
 }
 
 impl_device_access_ula!(Ula<M: ZxMemory>);
+impl_device_access_ula!(Plus48<UlaVideoFrame>);
 impl_device_access_ula!(Scld<M: PagedMemory8k>);
 
 macro_rules! impl_device_access_ula128 {

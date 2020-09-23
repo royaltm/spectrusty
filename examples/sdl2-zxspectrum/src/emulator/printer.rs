@@ -27,7 +27,7 @@ use spectrusty::memory::PagedMemory8k;
 use spectrusty::video::Video;
 use zxspectrum_common::{
     DynamicDevices, DeviceAccess,
-    Ula3Ay, Plus128, Plus3, Ula128AyKeypad
+    Ula3Ay, Plus48, Plus128, Plus3, Ula128AyKeypad
 };
 use spectrusty_utils::printer::{EpsonPrinterGfx, ImageSpooler};
 
@@ -129,7 +129,7 @@ impl_spooler_access_ula128!(Plus3<Ula3VidFrame>);
 impl_spooler_access_ula128!(Plus128<Ula128VidFrame>);
 
 impl<M, D, X, V> SpoolerAccess for Ula<M, D, X, V> where Self: DeviceAccess {}
-
+impl<D, X> SpoolerAccess for Plus48<D, X> where Self: DeviceAccess {}
 impl<M: PagedMemory8k, D, X, V> SpoolerAccess for Scld<M, D, X, V>
     where Self: DeviceAccess {}
 
