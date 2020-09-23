@@ -70,7 +70,7 @@ impl<T: Debug + 'static> dyn NamedBusDevice<T> + 'static {
 
 /// An interface for emulating devices that communicate with the emulated `CPU` via I/O requests.
 ///
-/// This trait allows one to attach many, different devices to form a so-called "daisy chain".
+/// This trait allows attaching many, different devices to form a so-called "daisy chain".
 ///
 /// Implementations of this trait should be provided as an associated type of [ControlUnit::BusDevice].
 ///
