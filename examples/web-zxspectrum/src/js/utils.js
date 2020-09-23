@@ -220,6 +220,7 @@ export function loadRemote(uri, asText) {
 }
 
 const FRESH_TEST = /#fresh(?:#|$)/;
+const STORAGE_PREFIX = 'SPECTRUSTY:';
 
 export function stateGuard(spectrum, urlparams) {
   const storage = window.localStorage,
@@ -229,14 +230,19 @@ export function stateGuard(spectrum, urlparams) {
     var timeStamp = event.timeStamp;
     if (storage != null && timeStamp > lastTimeStamp + GRACE_TIME) {
       lastTimeStamp = timeStamp;
-      let key = urlparams.cache;
-      if (FRESH_TEST.test(key)) {
-        storage.clear();
+      const ident = urlparams.cache,
+            key = window.location.pathname,
+            keyId = STORAGE_PREFIX + 'i' + key,
+            keyVal = STORAGE_PREFIX + 'v' + key;
+
+      if (FRESH_TEST.test(ident)) {
+        storage.removeItem(keyId);
+        storage.removeItem(keyVal);
       }
       else {
         let value = spectrum.toJSON();
-        storage.clear();
-        storage.setItem(key, value);
+        storage.setItem(keyId, ident);
+        storage.setItem(keyVal, value);
       }
     }
   }
@@ -244,9 +250,13 @@ export function stateGuard(spectrum, urlparams) {
 
 export function restoreState(spectrum, urlparams) {
   const storage = window.localStorage,
-        key = urlparams.cache;
-  if (storage != null && !FRESH_TEST.test(key)) {
-    let json = storage.getItem(key);
+        ident = urlparams.cache,
+        key = window.location.pathname,
+        keyId = STORAGE_PREFIX + 'i' + key,
+        keyVal = STORAGE_PREFIX + 'v' + key;
+
+  if (storage != null && !FRESH_TEST.test(ident) && ident === storage.getItem(keyId)) {
+    let json = storage.getItem(keyVal);
     if (json != null) {
       try {
         spectrum.parseJSON(json);
