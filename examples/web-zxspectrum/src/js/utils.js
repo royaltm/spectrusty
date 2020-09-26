@@ -270,6 +270,31 @@ export function restoreState(spectrum, urlparams) {
   return false;
 }
 
+export function splash(canvas) {
+    const { width, height } = canvas;
+    const ctx = canvas.getContext("2d");
+    const w8 = width / 8, h8 = height / 8;
+    for (let [i, color] of ["#D80000", "#D8D800", "#00D800", "#00D8D8"].entries()) {
+      ctx.beginPath();
+      ctx.moveTo((4+i)*w8, height);
+      ctx.lineTo(width, (4+i)*h8);
+      ctx.lineTo(width, (5+i)*h8);
+      ctx.lineTo((5+i)*w8, height);
+      ctx.fillStyle = color;
+      ctx.strokeStyle = color;
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.font = "48px sans-serif";
+    ctx.textBaseline = "middle";
+    ctx.textAlign = "end";
+    ctx.fillStyle = "#D8D8D8";
+    ctx.fillText("S P E C T ", width/2, height/2);
+    ctx.textAlign = "start";
+    ctx.fillStyle = "#880000";
+    ctx.fillText("R U S T Y", width/2, height/2);
+}
+
 export function checkBrowserCapacity() {
   var alert = $id("alert");
   try {

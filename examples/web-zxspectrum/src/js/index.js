@@ -20,6 +20,7 @@
 import { $id,
          $on,
          $off,
+         splash,
          onSwipe,
          UserInterface,
          cpuFactor,
@@ -39,6 +40,8 @@ import { UrlParameters } from "./urlparams";
 import { SpectrumKeyboard } from "./keyboard";
 
 checkBrowserCapacity();
+
+splash($id("main-screen"));
 
 /* Tooltips */
 
