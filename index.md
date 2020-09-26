@@ -2,7 +2,7 @@
 
 SPECTRUSTY is a [Rust] library for building highly customizable emulators of several ZX Spectrum computer models and clones.
 
-The [Rust] language allows you to easily compile your programs to [WebAssembly], and make your applications available on a thousand different devices. One such a compiled example of a complete emulator program is available [here](web-zxspectrum/) and runs pretty well on mobile devices too.
+The [Rust] language allows you to easily compile your programs to [WebAssembly], and make your applications available on a thousand different devices. Check out this [WebAssembly emulator example](web-zxspectrum/). It runs pretty well on mobile devices too.
 
 Here you'll find:
 
@@ -16,13 +16,9 @@ as well as peripheral device components, file format utilities, and more.
 
 See this [full list](https://github.com/royaltm/spectrusty/#Features) of available features.
 
-Core chipset components drive the emulation and give the ability to render video and audio output, created as side effects of the emulated frames. They are also responsible for organizing and interfacing computer memory and I/O of peripheral devices.
+If you want to see a step by step introduction on how to build your emulator using SPECTRUSTY, see the [tutorial].
 
-You build an emulator around one of the chipset implementations by providing the proper specializations in place of its generic type parameters. To run the emulation, you need an instance of a CPU emulator.
-
-The interaction between the components, as well as the way of interfacing them from your emulator, is realized via the trait system. Most of the traits are defined in the [spectrusty-core] crate and are separated by the context of the provided facility. Hence it's possible to build your own components or extend the existing ones by implementing those traits yourself. This however might require some low-level knowledge of the inner workings of SPECTRUSTY, but shouldn't be very hard. It would be easier though if any kind of [specialization](https://github.com/rust-lang/rust/issues/31844) was already stabilized in Rust
-
-If you want to see a step by step introduction on how to build your Spectrum emulator, please see the [tutorial]. Otherwise, if you like to jump straight into the deep end, here are [examples] of fully functional emulator programs and also an example of a [high-level] emulator library, providing a selection of a few packaged computer models with a bow on top.
+Otherwise, if you like to jump straight into the deep end, here are [examples] of fully functional emulator programs. There is also an example of a [high-level] emulator library, providing a selection of a few packaged computer models with a bow on top.
 
 <script>var clicky_site_ids = clicky_site_ids || []; clicky_site_ids.push(101270192);</script>
 <script async src="//static.getclicky.com/js"></script>
