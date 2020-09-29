@@ -2,9 +2,9 @@
 
 SPECTRUSTY is a [Rust] library for building highly customizable emulators of several ZX Spectrum computer models and clones. Perhaps even [more](https://royaltm.github.io/rust-ym-file-parser/).
 
-The [Rust] language allows you to easily compile your programs to [WebAssembly], and make your applications available on a thousand different devices. Check out this [WebAssembly emulator example](web-zxspectrum/). It runs pretty well on mobile devices too.
+The [Rust] language allows you to easily compile your programs on many different [platforms]. Besides the native environments, Rust supports [WebAssembly] out of the box and can make your applications available on a thousand different devices. Check out this [WebAssembly emulator example](web-zxspectrum/). It runs pretty well on mobile too.
 
-Here you'll find:
+[Here](https://docs.rs/spectrusty/) you'll find:
 
 * [Z80](//crates.io/crates/z80emu) CPU - An emulator of the Central Processing Unit in a few variations: NMOS, CMOS, and BM1 (dubbed "flavours").
 * Sinclair Ferranti ULA (Uncommitted Logic Array) - [16k/48k][Ula] and [128k][Ula128] version of ZX Spectrum core chipset emulator.
@@ -32,6 +32,7 @@ Otherwise, if you like to jump straight into the deep end, here are [examples] o
 [high-level]: https://github.com/royaltm/spectrusty/tree/master/examples/zxspectrum-common
 [format]: https://docs.rs/spectrusty-formats/
 [peripheral]: https://docs.rs/spectrusty/*/spectrusty/peripherals/index.html
+[platforms]: https://doc.rust-lang.org/nightly/rustc/platform-support.html
 [spectrusty-utils]: https://docs.rs/spectrusty-utils/
 [Ula]: https://docs.rs/spectrusty/*/spectrusty/chip/ula/struct.Ula.html
 [Ula128]: https://docs.rs/spectrusty/*/spectrusty/chip/ula128/struct.Ula128.html
