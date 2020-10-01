@@ -126,9 +126,9 @@ impl<P, D> BusDevice for Plus3CentronicsBusDevice<P, D>
     }
 
     #[inline]
-    fn next_frame(&mut self, timestamp: Self::Timestamp) {
-        self.parallel.next_frame();
-        self.bus.next_frame(timestamp)
+    fn next_frame(&mut self, eof_timestamp: Self::Timestamp) {
+        self.parallel.next_frame(eof_timestamp);
+        self.bus.next_frame(eof_timestamp)
     }
 
     #[inline]

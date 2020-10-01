@@ -232,7 +232,7 @@ impl<P: AyPortDecode> AyPlayer<P> {
     fn ensure_next_frame_tsc(&mut self) -> TsCounter<FTs> {
         let ts = self.tsc.as_timestamp();
         if ts >= self.frame_tstates {
-            self.bus.next_frame(ts);
+            self.bus.next_frame(self.frame_tstates);
             self.frames += Wrapping(1);
             self.ay_io.recorder.clear();
             self.earmic_changes.clear();

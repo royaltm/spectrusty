@@ -5,7 +5,7 @@
 
     For the full copyright notice, see the lib.rs file.
 */
-use crate::clock::{FrameTimestamp, Ts, VFrameTs, VideoTs, VideoTsData2};
+use crate::clock::{Ts, VFrameTs, VideoTs, VideoTsData2};
 use crate::video::{
     VideoFrame,
     frame_cache::PlusVidFrameDataIterator

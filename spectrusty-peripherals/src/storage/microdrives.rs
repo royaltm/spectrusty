@@ -18,7 +18,7 @@ use std::vec;
 use ::serde::{Serialize, Deserialize};
 use bitvec::prelude::*;
 
-use spectrusty_core::clock::{FTs, FrameTimestamp};
+use spectrusty_core::clock::{FTs, TimestampOps};
 
 /// The maximum additional T-states the Interface 1 will halt Z80 during IN/OUT with DATA port.
 ///
@@ -699,7 +699,7 @@ impl<T> ZxMicrodrives<T> {
     }
 }
 
-impl<T: FrameTimestamp> ZxMicrodrives<T> {
+impl<T: TimestampOps> ZxMicrodrives<T> {
     fn vts_diff_update(&mut self, timestamp: T) -> u32 {
         let delta_ts = timestamp.diff_from(self.last_ts);
         self.last_ts = timestamp;
@@ -715,8 +715,7 @@ impl<T: FrameTimestamp> ZxMicrodrives<T> {
         self.comms_clk = false;
     }
 
-    /// This method should be called after each emulated frame.
-    pub(crate) fn next_frame(&mut self, timestamp: T) {
+    pub(crate) fn update_timestamp(&mut self, timestamp: T) {
         let delta_ts = self.vts_diff_update(timestamp);
         let (erase, write) = (self.erase, self.write);
         if let Some(cartridge) = self.current_drive() {
@@ -727,7 +726,10 @@ impl<T: FrameTimestamp> ZxMicrodrives<T> {
                 cartridge.forward(delta_ts);
             }
         }
-        self.last_ts = self.last_ts.saturating_sub_frame();
+    }
+    /// This method should be called after each emulated frame.
+    pub(crate) fn next_frame(&mut self, eof_timestamp: T) {
+        self.last_ts = self.last_ts.saturating_sub(eof_timestamp);
     }
 
     pub(crate) fn read_state(&mut self, timestamp: T) -> CartridgeState {
@@ -842,10 +844,11 @@ impl<T: FrameTimestamp> ZxMicrodrives<T> {
 
 #[cfg(test)]
 mod tests {
-    use spectrusty::clock::{VFrameTs, FrameTimestamp, VFrameTsCounter};
+    use spectrusty::clock::{VFrameTs, VFrameTsCounter};
     use spectrusty::chip::ula::{UlaVideoFrame, UlaMemoryContention};
     use super::*;
     type UlaTsCounter = VFrameTsCounter<UlaVideoFrame, UlaMemoryContention>;
+    type TestTimestamp = VFrameTs<UlaVideoFrame>;
     type TestMicrodrives = ZxMicrodrives<VFrameTs<UlaVideoFrame>>;
 
     #[test]
@@ -944,7 +947,8 @@ mod tests {
         }
         for i in 1..630u16 { // format block
             if utsc.is_eof() {
-                drive.next_frame(utsc.into());
+                drive.update_timestamp(utsc.into());
+                drive.next_frame(TestTimestamp::EOF);
                 utsc.wrap_frame();
             }
             let delay = drive.write_data(!(i as u8), utsc.into());
@@ -985,7 +989,8 @@ mod tests {
                 counter += 1;
                 utsc += 108;
                 if utsc.is_eof() {
-                    drive.next_frame(utsc.into());
+                    drive.update_timestamp(utsc.into());
+                    drive.next_frame(TestTimestamp::EOF);
                     utsc.wrap_frame();
                 }
             }
@@ -1039,7 +1044,8 @@ mod tests {
             assert_eq!(!i as u8, data);
             utsc += delay.unwrap().get() as u32 + 21 + 16;
             if utsc.is_eof() {
-                drive.next_frame(utsc.into());
+                drive.update_timestamp(utsc.into());
+                drive.next_frame(TestTimestamp::EOF);
                 utsc.wrap_frame();
             }
         }
@@ -1081,7 +1087,8 @@ mod tests {
         }
         for i in 0..531u16 { // format block
             if utsc.is_eof() {
-                drive.next_frame(utsc.into());
+                drive.update_timestamp(utsc.into());
+                drive.next_frame(TestTimestamp::EOF);
                 utsc.wrap_frame();
             }
             let delay = drive.write_data(0xA5^(i as u8), utsc.into());
@@ -1115,7 +1122,8 @@ mod tests {
         // turn all motors off
         utsc += 1000;
         if utsc.is_eof() {
-            drive.next_frame(utsc.into());
+            drive.update_timestamp(utsc.into());
+            drive.next_frame(TestTimestamp::EOF);
             utsc.wrap_frame();
         }
         for i in 0..7 {

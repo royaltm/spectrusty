@@ -11,7 +11,7 @@ use serde::{Serialize, Deserialize};
 use rand::{Rng, SeedableRng};
 use rand::rngs::SmallRng;
 
-use spectrusty_core::{clock::{FTs, FrameTimestamp}};
+use spectrusty_core::clock::{FTs, TimestampOps};
 use super::{SerialPortDevice, DataState, ControlState};
 
 bitflags! {
@@ -66,21 +66,22 @@ bitflags! {
 }
 
 mod intervals {
-    pub const PRESENT_MAX_INTERVAL   : u32 = 3593;
-    pub const PRESENT_MIN_INTERVAL   : u32 = PRESENT_MAX_INTERVAL/10;
-    pub const CORRECT_MAX_INTERVAL   : u32 = 3917;
-    pub const CORRECT_MIN_INTERVAL   : u32 = CORRECT_MAX_INTERVAL/10;
-    pub const WAITING_MAX_INTERVAL   : u32 = 4121;
-    pub const WAITING_MIN_INTERVAL   : u32 = WAITING_MAX_INTERVAL/2;
-    pub const BITLOOP_MAX_INTERVAL   : u32 = 570;
-    pub const BITLOOP_MIN_INTERVAL   : u32 = BITLOOP_MAX_INTERVAL/4;
-    pub const READY_MAX_INTERVAL     : u32 = 250;
-    pub const READY_MIN_INTERVAL     : u32 = 50;
-    pub const RESET_MIN_INTERVAL     : u32 = 2_000_000;
-    pub const RESET_MAX_INTERVAL     : u32 = 7_000_000;
-    pub const SET_GO_TIMEOUT         : u32 = 2128; // 0.6 ms
-    pub const READY_START_TIMEOUT    : u32 = 709;  // 0.2 ms
-    pub const STOP_STAND_EASY_TIMEOUT: u32 = 4610; // 1.3 ms
+    use super::FTs;
+    pub const PRESENT_MAX_INTERVAL   : FTs = 3593;
+    pub const PRESENT_MIN_INTERVAL   : FTs = PRESENT_MAX_INTERVAL/10;
+    pub const CORRECT_MAX_INTERVAL   : FTs = 3917;
+    pub const CORRECT_MIN_INTERVAL   : FTs = CORRECT_MAX_INTERVAL/10;
+    pub const WAITING_MAX_INTERVAL   : FTs = 4121;
+    pub const WAITING_MIN_INTERVAL   : FTs = WAITING_MAX_INTERVAL/2;
+    pub const BITLOOP_MAX_INTERVAL   : FTs = 570;
+    pub const BITLOOP_MIN_INTERVAL   : FTs = BITLOOP_MAX_INTERVAL/4;
+    pub const READY_MAX_INTERVAL     : FTs = 250;
+    pub const READY_MIN_INTERVAL     : FTs = 50;
+    pub const RESET_MIN_INTERVAL     : FTs = 2_000_000;
+    pub const RESET_MAX_INTERVAL     : FTs = 7_000_000;
+    pub const SET_GO_TIMEOUT         : FTs = 2128; // 0.6 ms
+    pub const READY_START_TIMEOUT    : FTs = 709;  // 0.2 ms
+    pub const STOP_STAND_EASY_TIMEOUT: FTs = 4610; // 1.3 ms
 }
 use intervals::*;
 /// The ZX Spectrum 128 extension keypad.
@@ -158,7 +159,7 @@ enum KeypadIoStatus {
     Stopped,
 }
 
-impl<T: Default + FrameTimestamp> Default for SerialKeypad<T> {
+impl<T: Default + TimestampOps> Default for SerialKeypad<T> {
     fn default() -> Self {
         let keys = KeypadKeys::default();
         let keys_changed = 0;
@@ -174,7 +175,7 @@ impl<T: Default + FrameTimestamp> Default for SerialKeypad<T> {
     }
 }
 
-impl<T: FrameTimestamp> SerialPortDevice for SerialKeypad<T> {
+impl<T: TimestampOps> SerialPortDevice for SerialKeypad<T> {
     type Timestamp = T;
     #[inline(always)]
     fn write_data(&mut self, _rxd: DataState, _timestamp: Self::Timestamp) -> ControlState {
@@ -193,18 +194,18 @@ impl<T: FrameTimestamp> SerialPortDevice for SerialKeypad<T> {
         self.read_state(timestamp)   
     }
     #[inline]
-    fn next_frame(&mut self, timestamp: Self::Timestamp) {
+    fn next_frame(&mut self, eof_timestamp: Self::Timestamp) {
         if self.keypad_io != KeypadIoStatus::Reset {
             // timeout everything other than reset state
-            if timestamp.diff_from(self.keypad_event_ts) > RESET_MIN_INTERVAL as FTs {
-                self.reset_status(timestamp);
+            if eof_timestamp.diff_from(self.keypad_event_ts) > RESET_MIN_INTERVAL as FTs {
+                self.reset_status(eof_timestamp);
             }
         }
-        self.keypad_event_ts = self.keypad_event_ts.saturating_sub_frame();
+        self.keypad_event_ts = self.keypad_event_ts.saturating_sub(eof_timestamp);
     }
 }
 
-impl<T: FrameTimestamp> SerialKeypad<T> {
+impl<T: TimestampOps> SerialKeypad<T> {
     /// Reads the current state of the keypad.
     #[inline]
     pub fn get_key_state(&self) -> KeypadKeys {
@@ -218,7 +219,7 @@ impl<T: FrameTimestamp> SerialKeypad<T> {
     }
 
     #[inline]
-    fn gen_range_ts(&mut self, ts: T, lo: u32, hi: u32) -> T {
+    fn gen_range_ts(&mut self, ts: T, lo: FTs, hi: FTs) -> T {
         let delta = self.rng.gen_range(lo, hi);
         ts + delta
     }

@@ -11,7 +11,7 @@ use core::convert::TryInto;
 use core::fmt::Debug;
 use core::marker::PhantomData;
 use core::num::{NonZeroU8, NonZeroU16};
-use core::ops::{Add, Sub, AddAssign, SubAssign, Deref, DerefMut};
+use core::ops::{Deref, DerefMut};
 
 use z80emu::{Clock, host::cycles::*};
 #[cfg(feature = "snapshot")]
@@ -20,7 +20,9 @@ use serde::{Serialize, Deserialize};
 use crate::video::VideoFrame;
 
 mod packed;
+mod ops;
 pub use packed::*;
+pub use ops::*;
 
 /// A linear T-state timestamp type.
 pub type FTs = i32;
@@ -69,84 +71,9 @@ pub struct VFrameTsCounter<V, C>  {
     pub contention: C,
 }
 
-/// If a vertical counter of [VideoTs] exceeds this value, signals the control unit to emulate hanging
-/// CPU indefinitely.
+/// If a vertical counter of [VideoTs] exceeds this value, it signals the control unit
+/// to emulate hanging CPU indefinitely.
 pub const HALT_VC_THRESHOLD: i16 = i16::max_value() >> 1;
-
-/// A trait providing simple calculation methods for frame-aware timestamps.
-///
-/// This allows [BusDevice][crate::bus::BusDevice] implementations to depend on a generic timestamp type
-/// avoiding unnecessary [VideoFrame] dependency.
-pub trait FrameTimestamp: Copy
-                         + PartialEq
-                         + Eq
-                         + PartialOrd
-                         + Ord
-                         + Debug
-                         + Add<u32, Output=Self>
-                         + Sub<u32, Output=Self>
-                         + AddAssign<u32>
-                         + SubAssign<u32>
-                         + Into<FTs>
-                         + From<FTs>
-{
-    /// Returns a normalized timestamp from the given count of T-states.
-    ///
-    /// # Panics
-    ///
-    /// Panics when the given `ts` overflows the capacity of the timestamp.
-    fn from_tstates(ts: FTs) -> Self;
-    /// Returns the number of T-states measured from the start of the frame.
-    ///
-    /// The frame starts when the horizontal and vertical counter are both 0.
-    ///
-    /// The returned value can be negative as well as exceeding the [VideoFrame::FRAME_TSTATES_COUNT].
-    ///
-    /// This function should be used to ensure that a single frame event, timestamped with T-states,
-    /// will be always in the ascending order.
-    fn into_tstates(self) -> FTs;
-    /// Returns a tuple with an adjusted frame counter and with the frame-normalized timestamp as
-    /// the number of T-states measured from the start of the frame.
-    ///
-    /// The frame starts when the horizontal and vertical counter are both 0.
-    ///
-    /// The returned timestamp value is in the range [0, [VideoFrame::FRAME_TSTATES_COUNT]).
-    fn into_frame_tstates(self, frames: u64) -> (u64, FTs);
-    /// Returns the largest value that can be represented by a normalized timestamp.
-    fn max_value() -> Self;
-    /// Returns the smallest value that can be represented by a normalized timestamp.
-    fn min_value() -> Self;
-    /// Returns `true` if the counter value is past or near the end of a frame. Otherwise returns `false`.
-    ///
-    /// Specifically, the condition is met if the vertical counter is equal to or greater than [VideoFrame::VSL_COUNT].
-    fn is_eof(self) -> bool;
-    /// Returns the difference between `self` and `vts_from` video timestamps in T-states.
-    fn diff_from(self, vts_from: Self) -> FTs;
-    /// Returns a video timestamp after subtracting the total number of frame video scanlines
-    /// from the scan line counter.
-    fn saturating_sub_frame(self) -> Self;
-    /// Returns a normalized video timestamp after subtracting an `other` from it.
-    ///
-    /// Saturates at [FrameTimestamp::min_value] or [FrameTimestamp::max_value].
-    fn saturating_sub(self, other: Self) -> Self;
-    /// Returns a normalized video timestamp after adding an `other` to it.
-    ///
-    /// Saturates at [FrameTimestamp::min_value] or [FrameTimestamp::max_value].
-    fn saturating_add(self, other: Self) -> Self;
-    /// Ensures the vertical counter is in the range: `(-VSL_COUNT, VSL_COUNT)` by calculating
-    /// a remainder of the division of the vertical counter by [VideoFrame::VSL_COUNT].
-    fn wrap_frame(&mut self);
-    /// Returns the smallest value that can be represented by a normalized timestamp
-    /// as the number of T-states.
-    fn min_tstates() -> FTs {
-        Self::min_value().into_tstates()
-    }
-    /// Returns the largest value that can be represented by a normalized timestamp
-    /// as the number of T-states.
-    fn max_tstates() -> FTs {
-        Self::max_value().into_tstates()
-    }
-}
 
 const WAIT_STATES_THRESHOLD: u16 = i16::max_value() as u16 - 256;
 
@@ -158,6 +85,12 @@ impl VideoTs {
 }
 
 impl <V: VideoFrame> VFrameTs<V> {
+    /// The end-of-frame timestamp, equal to the total number of T-states per frame.
+    pub const EOF: VFrameTs<V> = VFrameTs { ts: VideoTs {
+                                                vc: V::VSL_COUNT,
+                                                hc: 0
+                                            },
+                                             _vframe: PhantomData };
     /// Constructs a new `VFrameTs` from the given vertical and horizontal counter values.
     /// A returned `VFrameTs` is not being normalized.
     #[inline]
@@ -212,20 +145,45 @@ impl <V: VideoFrame> VFrameTs<V> {
         }
         VFrameTs::new(vc, hc)
     }
-
-    #[inline]
-    fn set_hc_after_small_increment(&mut self, mut hc: Ts) {
-        if hc >= V::HTS_RANGE.end {
-            hc -= V::HTS_COUNT as Ts;
-            self.ts.vc += 1;
-        }
-        self.ts.hc = hc;
+    /// Returns the largest value that can be represented by a normalized timestamp.
+    #[inline(always)]
+    pub fn max_value() -> Self {
+        VFrameTs { ts: VideoTs { vc: Ts::max_value(), hc: V::HTS_RANGE.end - 1 },
+                   _vframe: PhantomData }
     }
-}
-
-impl <V: VideoFrame> FrameTimestamp for VFrameTs<V> {
+    /// Returns the smallest value that can be represented by a normalized timestamp.
+    #[inline(always)]
+    pub fn min_value() -> Self {
+        VFrameTs { ts: VideoTs { vc: Ts::min_value(), hc: V::HTS_RANGE.start },
+                   _vframe: PhantomData }
+    }
+    /// Returns `true` if the counter value is past or near the end of a frame. Otherwise returns `false`.
+    ///
+    /// Specifically, the condition is met if the vertical counter is equal to or greater than [VideoFrame::VSL_COUNT].
+    #[inline(always)]
+    pub fn is_eof(self) -> bool {
+        self.vc >= V::VSL_COUNT
+    }
+    /// Ensures the vertical counter is in the range: `(-VSL_COUNT, VSL_COUNT)` by calculating
+    /// a remainder of the division of the vertical counter by [VideoFrame::VSL_COUNT].
+    #[inline(always)]
+    pub fn wrap_frame(&mut self) {
+        self.ts.vc %= V::VSL_COUNT
+    }
+    /// Returns a video timestamp after subtracting the total number of frame video scanlines
+    /// from the scan line counter.
     #[inline]
-    fn from_tstates(ts: FTs) -> Self {
+    pub fn saturating_sub_frame(self) -> Self {
+        let VideoTs { vc, hc } = self.ts;
+        let vc = vc.saturating_sub(V::VSL_COUNT);
+        VFrameTs::new(vc, hc)
+    }
+    /// Returns a normalized timestamp from the given number of T-states.
+    ///
+    /// # Panics
+    /// Panics when the given `ts` overflows the capacity of the timestamp.
+    #[inline]
+    pub fn from_tstates(ts: FTs) -> Self {
         let mut vc = (ts / V::HTS_COUNT as FTs).try_into().expect("video ts overflow");
         let mut hc: Ts = (ts % V::HTS_COUNT as FTs).try_into().unwrap();
         if hc >= V::HTS_RANGE.end {
@@ -238,106 +196,38 @@ impl <V: VideoFrame> FrameTimestamp for VFrameTs<V> {
         }
         VFrameTs::new(vc, hc)
     }
+    /// Converts the timestamp to FTs.
+    ///
+    /// # Panics
+    /// Panics when `self` overflows the capacity of the result type.
     #[inline]
-    fn into_tstates(self) -> FTs {
+    pub fn into_tstates(self) -> FTs {
         let VideoTs { vc, hc } = self.ts;
         V::vc_hc_to_tstates(vc, hc)
     }
+    /// Returns a tuple with an adjusted frame counter and with the frame-normalized timestamp as
+    /// the number of T-states measured from the start of the frame.
+    ///
+    /// The frame starts when the horizontal and vertical counter are both 0.
+    ///
+    /// The returned timestamp value is in the range [0, [VideoFrame::FRAME_TSTATES_COUNT]).
     #[inline]
-    fn into_frame_tstates(self, frames: u64) -> (u64, FTs) {
-        let ts = self.into_tstates();
+    pub fn into_frame_tstates(self, frames: u64) -> (u64, FTs) {
+        let ts = TimestampOps::into_tstates(self);
         let frmdlt = ts / V::FRAME_TSTATES_COUNT;
         let ufrmdlt = if ts < 0 { frmdlt - 1 } else { frmdlt } as u64;
         let frames = frames.wrapping_add(ufrmdlt);
         let ts = ts.rem_euclid(V::FRAME_TSTATES_COUNT);
         (frames, ts)
     }
-    #[inline(always)]
-    fn max_value() -> Self {
-        VFrameTs { ts: VideoTs { vc: Ts::max_value(), hc: V::HTS_RANGE.end - 1 },
-                   _vframe: PhantomData }
-    }
-    #[inline(always)]
-    fn min_value() -> Self {
-        VFrameTs { ts: VideoTs { vc: Ts::min_value(), hc: V::HTS_RANGE.start },
-                   _vframe: PhantomData }
-    }
-    #[inline(always)]
-    fn is_eof(self) -> bool {
-        self.vc >= V::VSL_COUNT
-    }
-    #[inline]
-    fn diff_from(self, vts_from: Self) -> FTs {
-        (self.vc as FTs - vts_from.vc as FTs) * V::HTS_COUNT as FTs +
-        (self.hc as FTs - vts_from.hc as FTs)
-    }
-    #[inline]
-    fn saturating_sub_frame(self) -> Self {
-        let VideoTs { vc, hc } = self.ts;
-        let vc = vc.saturating_sub(V::VSL_COUNT);
-        VFrameTs::new(vc, hc)
-    }
-    fn saturating_sub(self, other: Self) -> Self {
-        let VideoTs { vc, hc } = self.ts;
-        let vc = vc.saturating_sub(other.vc);
-        let hc = hc - other.hc;
-        VFrameTs::new(vc, hc).saturating_normalized()
-    }
-    fn saturating_add(self, other: Self) -> Self {
-        let VideoTs { vc, hc } = self.ts;
-        let vc = vc.saturating_add(other.vc);
-        let hc = hc + other.hc;
-        VFrameTs::new(vc, hc).saturating_normalized()
-    }
-    #[inline(always)]
-    fn wrap_frame(&mut self) {
-        self.ts.vc %= V::VSL_COUNT
-    }
-}
 
-impl<V: VideoFrame> Add<u32> for VFrameTs<V> {
-    type Output = Self;
-    /// Returns a normalized video timestamp after adding a `delta` T-state count.
-    ///
-    /// # Panics
-    /// Panics when normalized timestamp after addition leads to an overflow of the capacity of [VideoTs].
     #[inline]
-    fn add(self, delta: u32) -> Self {
-        let VideoTs { vc, hc } = self.ts;
-        let dvc = (delta / V::HTS_COUNT as u32).try_into().expect("delta too large");
-        let dhc = (delta % V::HTS_COUNT as u32) as Ts;
-        let vc = vc.checked_add(dvc).expect("delta too large");
-        VFrameTs::new(vc, hc + dhc).normalized()
-    }
-}
-
-impl<V: VideoFrame> AddAssign<u32> for VFrameTs<V> {
-    #[inline(always)]
-    fn add_assign(&mut self, delta: u32) {
-        *self = *self + delta
-    }
-}
-
-impl<V: VideoFrame> Sub<u32> for VFrameTs<V> {
-    type Output = Self;
-    /// Returns a normalized video timestamp after adding a `delta` T-state count.
-    ///
-    /// # Panics
-    /// Panics when normalized timestamp after addition leads to an overflow of the capacity of [VideoTs].
-    #[inline]
-    fn sub(self, delta: u32) -> Self {
-        let VideoTs { vc, hc } = self.ts;
-        let dvc = (delta / V::HTS_COUNT as u32).try_into().expect("delta too large");
-        let dhc = (delta % V::HTS_COUNT as u32) as Ts;
-        let vc = vc.checked_sub(dvc).expect("delta too large");
-        VFrameTs::new(vc, hc - dhc).normalized()
-    }
-}
-
-impl<V: VideoFrame> SubAssign<u32> for VFrameTs<V> {
-    #[inline(always)]
-    fn sub_assign(&mut self, delta: u32) {
-        *self = *self - delta
+    fn set_hc_after_small_increment(&mut self, mut hc: Ts) {
+        if hc >= V::HTS_RANGE.end {
+            hc -= V::HTS_COUNT as Ts;
+            self.ts.vc += 1;
+        }
+        self.ts.hc = hc;
     }
 }
 
@@ -361,7 +251,7 @@ impl<V, C> VFrameTsCounter<V, C>
     /// Panics when the given `ts` overflows the capacity of [VideoTs].
     #[inline]
     pub fn from_tstates(ts: FTs, contention: C) -> Self {
-        let vts = VFrameTs::from_tstates(ts);
+        let vts = TimestampOps::from_tstates(ts);
         VFrameTsCounter { vts, contention }
     }
     /// Builds a normalized [VFrameTsCounter] from the given count of T-states.
@@ -388,18 +278,6 @@ impl<V, C> VFrameTsCounter<V, C>
     #[inline]
     pub fn is_contended_address(self, address: u16) -> bool {
         self.contention.is_contended_address(address)
-    }
-}
-
-impl<V: VideoFrame, C> AddAssign<u32> for VFrameTsCounter<V, C> {
-    fn add_assign(&mut self, delta: u32) {
-        self.vts += delta;
-    }
-}
-
-impl<V: VideoFrame, C> SubAssign<u32> for VFrameTsCounter<V, C> {
-    fn sub_assign(&mut self, delta: u32) {
-        self.vts -= delta;
     }
 }
 
@@ -690,14 +568,14 @@ impl<V> PartialOrd for VFrameTs<V> {
 impl<V: VideoFrame> From<VFrameTs<V>> for FTs {
     #[inline(always)]
     fn from(vfts: VFrameTs<V>) -> FTs {
-        vfts.into_tstates()
+        TimestampOps::into_tstates(vfts)
     }
 }
 
 impl<V: VideoFrame> From<FTs> for VFrameTs<V> {
     #[inline(always)]
     fn from(ts: FTs) -> VFrameTs<V> {
-        VFrameTs::from_tstates(ts)
+        TimestampOps::from_tstates(ts)
     }
 }
 

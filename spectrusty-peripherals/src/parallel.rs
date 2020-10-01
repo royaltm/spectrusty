@@ -9,7 +9,7 @@
 //!
 use std::io;
 
-use spectrusty_core::clock::{FrameTimestamp, FTs};
+use spectrusty_core::clock::{TimestampOps, FTs};
 
 #[cfg(feature = "snapshot")]
 use serde::{Serialize, Deserialize};
@@ -35,7 +35,7 @@ pub trait ParallelPortDevice {
     /// Returns `true` if the `BUSY` signal is high, and `false` when it's low.
     fn poll_busy(&mut self) -> bool;
     /// Called when the current frame ends to allow emulators to wrap stored timestamps.
-    fn next_frame(&mut self);
+    fn next_frame(&mut self, eof_timestamp: Self::Timestamp);
 }
 
 /// Emulates a parallel port device with a custom writer.
@@ -71,7 +71,7 @@ impl<V, W: io::Write> ParallelPortWriter<V, W> {
     }
 }
 
-impl<T: FrameTimestamp, W: io::Write> ParallelPortDevice for ParallelPortWriter<T, W> {
+impl<T: TimestampOps, W: io::Write> ParallelPortDevice for ParallelPortWriter<T, W> {
     type Timestamp = T;
 
     fn write_data(&mut self, data: u8, timestamp: Self::Timestamp) {
@@ -98,8 +98,8 @@ impl<T: FrameTimestamp, W: io::Write> ParallelPortDevice for ParallelPortWriter<
         self.busy
     }
 
-    fn next_frame(&mut self) {
-        self.last_ts = self.last_ts.saturating_sub_frame();
+    fn next_frame(&mut self, eof_timestamp: T) {
+        self.last_ts = self.last_ts.saturating_sub(eof_timestamp);
     }
 }
 
@@ -117,5 +117,5 @@ impl<T> ParallelPortDevice for NullParallelPort<T> {
         false
     }
     #[inline(always)]
-    fn next_frame(&mut self) {}
+    fn next_frame(&mut self, _eof_timestamp: Self::Timestamp) {}
 }

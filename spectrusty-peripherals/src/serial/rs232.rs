@@ -6,6 +6,7 @@
     For the full copyright notice, see the lib.rs file.
 */
 use core::slice;
+use core::convert::TryFrom;
 use std::io::{Read, Write, ErrorKind};
 
 #[cfg(feature = "snapshot")]
@@ -13,7 +14,7 @@ use serde::{Serialize, Deserialize};
 #[allow(unused_imports)]
 use log::{error, warn, info, debug, trace};
 
-use spectrusty_core::clock::FrameTimestamp;
+use spectrusty_core::clock::{FTs, TimestampOps};
 use super::{SerialPortDevice, DataState, ControlState};
 
 const CPU_HZ: u32 = 3_500_000;
@@ -35,7 +36,7 @@ const CPU_HZ: u32 = 3_500_000;
 /// Both `reader` and `writer` need to be implemented by the user and its types should be provided as
 /// generics `R` and `W` accordingly.
 ///
-/// An implementation of [FrameTimestamp] is required to be provided as `T` for timestamp calculations.
+/// An implementation of [TimestampOps] is required to be provided as `T` for timestamp calculations.
 ///
 /// The baud rate is not needed to be set up, as it is being auto-detected.
 ///
@@ -56,10 +57,10 @@ pub struct Rs232Io<T, R, W> {
     pub writer: W,
     // bit_interval: u32, // CPU_HZ / BAUDS
     read_io: ReadStatus,
-    read_max_delay: u32,
+    read_max_delay: FTs,
     read_event_ts: T,
     write_io: WriteStatus,
-    write_max_delay: u32,
+    write_max_delay: FTs,
     write_event_ts: T
 }
 
@@ -69,10 +70,10 @@ pub const BAUD_RATES: &[u32;9] = &[50, 110, 300, 600, 1200, 2400, 4800, 9600, 19
 /// A default *BAUD RATE* used by Spectrum.
 pub const DEFAULT_BAUD_RATE: u32 = 9600;
 
-const MIN_STOP_BIT_DELAY: u32 = CPU_HZ / 19200;
-const MAX_STOP_BIT_DELAY: u32 = CPU_HZ / 49;
-const STOP_BIT_GRACE_DELAY: u32 = 50;
-const ERROR_GRACE_DELAY: u32 = MAX_STOP_BIT_DELAY * 11;
+const MIN_STOP_BIT_DELAY: FTs = CPU_HZ as FTs / 19200;
+const MAX_STOP_BIT_DELAY: FTs = CPU_HZ as FTs / 49;
+const STOP_BIT_GRACE_DELAY: FTs = 50;
+const ERROR_GRACE_DELAY: FTs = MAX_STOP_BIT_DELAY * 11;
 
 impl<T: Default, R: Default, W: Default> Default for Rs232Io<T, R, W> {
     fn default() -> Self {
@@ -96,7 +97,7 @@ impl<T: Default, R: Default, W: Default> Default for Rs232Io<T, R, W> {
     }
 }
 
-impl<T: FrameTimestamp, R: Read, W: Write> SerialPortDevice for Rs232Io<T, R, W> {
+impl<T: TimestampOps, R: Read, W: Write> SerialPortDevice for Rs232Io<T, R, W> {
     type Timestamp = T;
     #[inline]
     fn write_data(&mut self, rxd: DataState, timestamp: Self::Timestamp) -> ControlState {
@@ -115,9 +116,9 @@ impl<T: FrameTimestamp, R: Read, W: Write> SerialPortDevice for Rs232Io<T, R, W>
         self.process_read(timestamp) 
     }
     #[inline]
-    fn next_frame(&mut self, _timestamp: Self::Timestamp) {
-        self.read_event_ts = self.read_event_ts.saturating_sub_frame();
-        self.write_event_ts = self.write_event_ts.saturating_sub_frame();
+    fn next_frame(&mut self, end_timestamp: Self::Timestamp) {
+        self.read_event_ts = self.read_event_ts.saturating_sub(end_timestamp);
+        self.write_event_ts = self.write_event_ts.saturating_sub(end_timestamp);
     }
 }
 
@@ -140,7 +141,7 @@ enum ReadStatus {
     SendingData(u8),
 }
 
-impl<T: FrameTimestamp, R: Read, W: Write> Rs232Io<T, R, W> {
+impl<T: TimestampOps, R: Read, W: Write> Rs232Io<T, R, W> {
     /// Returns the detected *BAUD RATE* of the current or the last transmission.
     ///
     /// If there was no transmission since the start of the emulator, returns the default.
@@ -155,7 +156,7 @@ impl<T: FrameTimestamp, R: Read, W: Write> Rs232Io<T, R, W> {
             return DEFAULT_BAUD_RATE;
         }
 
-        let rate = CPU_HZ / bit_period;
+        let rate = CPU_HZ / u32::try_from(bit_period).unwrap();
         match BAUD_RATES.binary_search(&rate) {
             Ok(index) => BAUD_RATES[index],
             Err(0) => BAUD_RATES[0],
@@ -219,7 +220,7 @@ impl<T: FrameTimestamp, R: Read, W: Write> Rs232Io<T, R, W> {
             }
             ReadStatus::Synchronize(byte) => {
                 if timestamp >= self.read_event_ts {
-                    let delay_fts = timestamp.diff_from(self.read_event_ts) as u32;
+                    let delay_fts = timestamp.diff_from(self.read_event_ts) as FTs;
                     if delay_fts < MAX_STOP_BIT_DELAY * 3 / 2 {
                         self.read_max_delay = delay_fts + MIN_STOP_BIT_DELAY;
                         self.read_event_ts = timestamp + self.read_max_delay;
@@ -300,7 +301,7 @@ impl<T: FrameTimestamp, R: Read, W: Write> Rs232Io<T, R, W> {
             }
             WriteStatus::StartBit => {
                 if timestamp >= self.write_event_ts {
-                    let delta_fts = timestamp.diff_from(self.write_event_ts) as u32;
+                    let delta_fts = timestamp.diff_from(self.write_event_ts) as FTs;
                     if delta_fts < MAX_STOP_BIT_DELAY {
                         let bit: u8 = rxd.into();
                         self.write_max_delay = (delta_fts + MIN_STOP_BIT_DELAY) * 3 / 2;

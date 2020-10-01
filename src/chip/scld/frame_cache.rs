@@ -10,7 +10,7 @@ use core::convert::TryFrom;
 
 use bitflags::bitflags;
 
-use crate::clock::{FrameTimestamp, Ts, VFrameTs, VideoTsData2};
+use crate::clock::{Ts, VFrameTs, VideoTsData2};
 use crate::chip::{
     ScldCtrlFlags, UlaPlusRegFlags,
     ula::{

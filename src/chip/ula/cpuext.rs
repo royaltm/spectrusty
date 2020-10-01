@@ -18,7 +18,7 @@ use crate::bus::BusDevice;
 use crate::chip::{MemoryAccess, ControlUnit};
 use crate::clock::{
     HALT_VC_THRESHOLD,
-    FrameTimestamp, VideoTs, VFrameTs, Ts, VFrameTsCounter, MemoryContention
+    VideoTs, VFrameTs, Ts, VFrameTsCounter, MemoryContention
 };
 use crate::memory::MemoryExtension;
 use crate::video::{Video, VideoFrame};

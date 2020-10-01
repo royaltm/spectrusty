@@ -37,7 +37,7 @@ use crate::video::{BorderColor, VideoFrame};
 use crate::memory::{ZxMemory, MemoryExtension, NoMemoryExtension};
 use crate::peripherals::ZXKeyboardMap;
 use crate::clock::{
-    FrameTimestamp, FTs, VFrameTs, VFrameTsCounter, MemoryContention,
+    FTs, VFrameTs, VFrameTsCounter, MemoryContention,
     VideoTsData1, VideoTsData2, VideoTsData3
 };
 use frame_cache::UlaFrameCache;
@@ -298,7 +298,7 @@ impl<M, B, X, V> UlaControlExt for Ula<M, B, X, V>
             mut vtsc: VFrameTsCounter<V, C>
         ) -> VFrameTsCounter<V, C>
     {
-        self.bus.next_frame(vtsc.into());
+        self.bus.next_frame(VFrameTs::<V>::EOF);
         self.frames += Wrapping(1);
         self.cleanup_video_frame_data();
         self.cleanup_earmic_frame_data();

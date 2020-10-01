@@ -11,7 +11,7 @@ use crate::audio::*;
 use crate::peripherals::ay::audio::AyAudioFrame;
 #[cfg(feature = "peripherals")]
 use crate::peripherals::bus::ay::AyAudioBusDevice;
-use crate::clock::{VFrameTs, FrameTimestamp};
+use crate::clock::VFrameTs;
 use crate::bus::BusDevice;
 use crate::video::VideoFrame;
 use super::Ula;

@@ -8,7 +8,7 @@
 use core::num::Wrapping;
 
 use crate::chip::{EarIn, MicOut, EarMic, ReadEarMode};
-use crate::clock::{FrameTimestamp, FTs};
+use crate::clock::FTs;
 use crate::video::VideoFrame;
 use super::Ula;
 

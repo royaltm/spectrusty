@@ -100,12 +100,14 @@ pub trait BusDevice: Debug {
     fn reset(&mut self, timestamp: Self::Timestamp) {
         self.next_device_mut().reset(timestamp)
     }
-    /// This method should be called at the end of each frame by [ControlUnit::execute_next_frame][crate::chip::ControlUnit::execute_next_frame].
+    /// This method should be called near the end of each frame.
     ///
     /// Default implementation forwards this call to the next device.
     ///
     /// **NOTE**: Implementations should always forward this call down the chain after optionally applying it
     /// to `self`.
+    ///
+    /// [ControlUnit::execute_next_frame]: crate::chip::ControlUnit::execute_next_frame
     #[inline(always)]
     fn update_timestamp(&mut self, timestamp: Self::Timestamp) {
         self.next_device_mut().update_timestamp(timestamp)
@@ -113,18 +115,19 @@ pub trait BusDevice: Debug {
     /// This method should be called just before the T-state counter of the control unit is wrapped when preparing
     /// for the next frame.
     ///
-    /// It allows the devices that are tracking time to adjust stored timestamps accordingly by subtracting the
-    /// total number of T-states per frame from the stored ones.
+    /// It allows the devices that are tracking time to adjust stored timestamps accordingly by subtracting
+    /// the total number of T-states per frame from the stored ones. The `eof_timestamp` argument indicates
+    /// the total number of T-states in a single frame.
     ///
-    /// Optionally enables implementations to perform an end-of-frame action using the provided `timestamp`.
+    /// Optionally enables implementations to perform an end-of-frame action.
     ///
     /// Default implementation forwards this call to the next device.
     ///
     /// **NOTE**: Implementations should always forward this call down the chain after optionally applying it
     /// to `self`.
     #[inline(always)]
-    fn next_frame(&mut self, timestamp: Self::Timestamp) {
-        self.next_device_mut().next_frame(timestamp)
+    fn next_frame(&mut self, eof_timestamp: Self::Timestamp) {
+        self.next_device_mut().next_frame(eof_timestamp)
     }
     /// This method is called by the control unit during an I/O read cycle.
     ///
