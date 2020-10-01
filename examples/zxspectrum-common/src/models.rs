@@ -73,14 +73,14 @@ pub type TC2048<D, X=NoMemoryExtension> = Scld<Memory48kDock64kEx, D, X, UlaVide
 pub type Ula128AyKeypad<D,
                         X=NoMemoryExtension,
                         R=Empty,
-                        W=Sink> = Ula128<Ay3_8912KeypadRs232<Ula128VidFrame, D, R, W>, X>;
+                        W=Sink> = Ula128<Ay3_8912KeypadRs232<VFrameTs<Ula128VidFrame>, D, R, W>, X>;
 /// ULA +3 with +3 Centronics Port and with a AY-3-8912 sound processor + RS232 in its I/O port A.
 pub type Ula3Ay<D,
                 X=NoMemoryExtension,
                 R=Empty,
                 W=Sink> = Ula3<Plus3CentronicsBusDevice<
                                         ParallelPortWriter<VFrameTs<Ula3VidFrame>, W>,
-                                        Ay3_8912Rs232<Ula3VidFrame, D, R, W>
+                                        Ay3_8912Rs232<VFrameTs<Ula3VidFrame>, D, R, W>
                                     >,
                                 X>;
 /// ULAplus with ULA 48k.
