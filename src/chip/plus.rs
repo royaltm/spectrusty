@@ -488,7 +488,8 @@ impl<U, B, X> ControlUnit for UlaPlus<U>
              + MemoryAccess<MemoryExt=X>
              + Memory<Timestamp=VideoTs>
              + Io<Timestamp=VideoTs, WrIoBreak=(), RetiBreak=()>,
-          B: BusDevice<Timestamp=VFrameTs<U::VideoFrame>>,
+          B: BusDevice,
+          B::Timestamp: From<VFrameTs<U::VideoFrame>>,
           X: MemoryExtension
 {
     type BusDevice = U::BusDevice;

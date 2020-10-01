@@ -74,14 +74,15 @@ impl<U, B, X> UlaCpuExt for U
              MemoryAccess<MemoryExt=X> +
              Memory<Timestamp=VideoTs> +
              Io<Timestamp=VideoTs, WrIoBreak=(), RetiBreak=()>,
-          B: BusDevice<Timestamp=VFrameTs<U::VideoFrame>>,
+          B: BusDevice,
+          B::Timestamp: From<VFrameTs<U::VideoFrame>>,
           X: MemoryExtension
 {
     fn ula_nmi<C: Cpu>(&mut self, cpu: &mut C) -> bool {
         let mut vtsc = self.ensure_next_frame_vtsc();
         let res = cpu.nmi(self, &mut vtsc);
         self.set_video_ts(vtsc.into());
-        self.bus_device_mut().update_timestamp(vtsc.into());
+        self.bus_device_mut().update_timestamp(vtsc.vts.into());
         res
     }
 
@@ -121,7 +122,7 @@ impl<U, B, X> UlaCpuExt for U
             }
         }
         self.set_video_ts(vtsc.into());
-        self.bus_device_mut().update_timestamp(vtsc.into());
+        self.bus_device_mut().update_timestamp(vtsc.vts.into());
         true
     }
 
@@ -136,7 +137,7 @@ impl<U, B, X> UlaCpuExt for U
         let res = cpu.execute_next(self, &mut vtsc, debug);
         **vtsc = Self::ula_check_halt(vtsc.into(), cpu);
         self.set_video_ts(vtsc.into());
-        self.bus_device_mut().update_timestamp(vtsc.into());
+        self.bus_device_mut().update_timestamp(vtsc.vts.into());
         res
     }
 
@@ -151,7 +152,7 @@ impl<U, B, X> UlaCpuExt for U
         let res = cpu.execute_instruction(self, &mut vtsc, DEBUG, code);
         **vtsc = Self::ula_check_halt(vtsc.into(), cpu);
         self.set_video_ts(vtsc.into());
-        self.bus_device_mut().update_timestamp(vtsc.into());
+        self.bus_device_mut().update_timestamp(vtsc.vts.into());
         res
     }
 }

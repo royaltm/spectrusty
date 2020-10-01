@@ -9,7 +9,7 @@ use core::num::NonZeroU16;
 
 use crate::z80emu::{Io, Memory};
 use crate::bus::BusDevice;
-use crate::clock::{Ts, VideoTs};
+use crate::clock::{Ts, VideoTs, VFrameTs};
 use crate::chip::{EarMic, UlaPortFlags};
 use crate::peripherals::{KeyboardInterface, ZXKeyboardMap};
 use crate::memory::{ZxMemory, MemoryExtension};
@@ -19,7 +19,7 @@ use super::Ula;
 impl<M, B, X, V> Io for Ula<M, B, X, V>
     where M: ZxMemory,
           B: BusDevice,
-          B::Timestamp: From<VideoTs>,
+          B::Timestamp: From<VFrameTs<V>>,
           V: VideoFrame
 {
     type Timestamp = VideoTs;
@@ -47,7 +47,7 @@ impl<M, B, X, V> Io for Ula<M, B, X, V>
             self.ula_write_earmic(flags, ts);
         }
         else {
-            if let Some(ws) = self.bus.write_io(port, data, ts.into()) {
+            if let Some(ws) = self.bus.write_io(port, data, VFrameTs::from(ts).into()) {
                 return (None, NonZeroU16::new(ws))
             }
         }
@@ -120,9 +120,9 @@ impl<M, B, X, V> Ula<M, B, X, V>
     #[inline(always)]
     pub(crate) fn ula_read_io(&mut self, port: u16, ts: VideoTs) -> Option<(u8, Option<NonZeroU16>)>
         where B: BusDevice,
-              B::Timestamp: From<VideoTs>
+              B::Timestamp: From<VFrameTs<V>>
     {
-        let bus_data = self.bus.read_io(port, ts.into());
+        let bus_data = self.bus.read_io(port, VFrameTs::from(ts).into());
         if port & 1 == 0 {
             let ula_data = self.ula_io_data(port, ts);
             if let Some((data, ws)) = bus_data {

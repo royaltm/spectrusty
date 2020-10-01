@@ -304,7 +304,8 @@ impl<M, B, X, V> MemoryAccess for Scld<M, B, X, V>
 
 impl<M, B, X, V> ControlUnit for Scld<M, B, X, V>
     where M: PagedMemory8k,
-          B: BusDevice<Timestamp=VFrameTs<V>>,
+          B: BusDevice,
+          B::Timestamp: From<VFrameTs<V>>,
           X: MemoryExtension,
           V: VideoFrame
 {
@@ -355,7 +356,8 @@ impl<M, B, X, V> ControlUnit for Scld<M, B, X, V>
 
 impl<M, B, X, V> UlaControlExt for Scld<M, B, X, V>
     where M: PagedMemory8k,
-          B: BusDevice<Timestamp=VFrameTs<V>>,
+          B: BusDevice,
+          B::Timestamp: From<VFrameTs<V>>,
           V: VideoFrame
 {
     fn prepare_next_frame<C: MemoryContention>(

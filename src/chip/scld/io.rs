@@ -10,7 +10,7 @@ use core::num::NonZeroU16;
 use crate::z80emu::{Io, Memory};
 use crate::chip::{UlaPortFlags, ScldCtrlFlags};
 use crate::bus::{BusDevice, PortAddress};
-use crate::clock::VideoTs;
+use crate::clock::{VideoTs, VFrameTs};
 use crate::peripherals::{KeyboardInterface, ZXKeyboardMap};
 use crate::memory::{PagedMemory8k, MemoryExtension};
 use crate::video::{VideoFrame, BorderColor};
@@ -40,7 +40,7 @@ impl PortAddress for ScldMmuPortAddress {
 impl<M, B, X, V> Io for Scld<M, B, X, V>
     where M: PagedMemory8k,
           B: BusDevice,
-          B::Timestamp: From<VideoTs>,
+          B::Timestamp: From<VFrameTs<V>>,
           V: VideoFrame
 {
     type Timestamp = VideoTs;
@@ -60,7 +60,7 @@ impl<M, B, X, V> Io for Scld<M, B, X, V>
             (self.mem_paged, None)
         }
         else {
-            let bus_data = self.ula.bus.read_io(port, ts.into());
+            let bus_data = self.ula.bus.read_io(port, VFrameTs::from(ts).into());
             if UlaPortAddress::match_port(port) {
                 let ula_data = self.ula.ula_io_data(port, ts) & 0b0101_1111;
                 if let Some((data, ws)) = bus_data {
@@ -69,7 +69,7 @@ impl<M, B, X, V> Io for Scld<M, B, X, V>
                 (ula_data, None)
             }
             else {
-                self.ula.bus.read_io(port, ts.into())
+                self.ula.bus.read_io(port, VFrameTs::from(ts).into())
                             .unwrap_or_else(|| (!0, None) )
             }
         }
@@ -90,7 +90,7 @@ impl<M, B, X, V> Io for Scld<M, B, X, V>
             self.set_mmu_flags_value(data);
         }
         else {
-            if let Some(ws) = self.ula.bus.write_io(port, data, ts.into()) {
+            if let Some(ws) = self.ula.bus.write_io(port, data, VFrameTs::from(ts).into()) {
                 return (None, NonZeroU16::new(ws))
             }
         }

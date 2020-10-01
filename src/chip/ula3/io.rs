@@ -9,11 +9,11 @@ use core::num::NonZeroU16;
 
 use crate::z80emu::{Io, Memory};
 use crate::bus::{BusDevice, PortAddress};
-use crate::clock::VideoTs;
+use crate::clock::{VideoTs, VFrameTs};
 use crate::chip::{Ula128MemFlags, Ula3CtrlFlags};
 use crate::peripherals::{KeyboardInterface, ZXKeyboardMap};
 use crate::memory::{ZxMemory, MemoryExtension};
-use super::Ula3;
+use super::{Ula3, Ula3VidFrame};
 
 #[derive(Clone, Copy, Default, Debug)]
 struct Ula3Mem1PortAddress;
@@ -52,7 +52,7 @@ impl PortAddress for Ula3Mem2PortAddress {
 
 impl<B, X> Io for Ula3<B, X>
     where B: BusDevice,
-          B::Timestamp: From<VideoTs>,
+          B::Timestamp: From<VFrameTs<Ula3VidFrame>>
 {
     type Timestamp = VideoTs;
     type WrIoBreak = ();
@@ -95,7 +95,7 @@ impl<B, X> Io for Ula3<B, X>
 
 impl<B, X> Memory for Ula3<B, X>
     where B: BusDevice,
-          B::Timestamp: From<VideoTs>,
+          B::Timestamp: From<VFrameTs<Ula3VidFrame>>,
           X: MemoryExtension
 {
     type Timestamp = VideoTs;

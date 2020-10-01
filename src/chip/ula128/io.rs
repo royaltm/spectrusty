@@ -10,7 +10,7 @@ use core::num::NonZeroU16;
 use crate::z80emu::{Io, Memory};
 use crate::chip::Ula128MemFlags;
 use crate::bus::{BusDevice, PortAddress};
-use crate::clock::VideoTs;
+use crate::clock::{VideoTs, VFrameTs};
 use crate::peripherals::{KeyboardInterface, ZXKeyboardMap};
 use crate::memory::{ZxMemory, MemoryExtension};
 use crate::video::VideoFrame;
@@ -25,7 +25,7 @@ impl PortAddress for Ula128MemPortAddress {
 
 impl<B, X> Io for Ula128<B, X>
     where B: BusDevice,
-          B::Timestamp: From<VideoTs>
+          B::Timestamp: From<VFrameTs<Ula128VidFrame>>,
 {
     type Timestamp = VideoTs;
     type WrIoBreak = ();

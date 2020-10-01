@@ -58,7 +58,7 @@ pub struct UlaMemoryContention;
 /// Generic 16k/48k Ferranti ULA (Uncommitted Logic Array).
 ///
 /// * `M` - [ZxMemory]
-/// * `B` - [`BusDevice<Timestamp=VFrameTs<V>>`][BusDevice]
+/// * `B` - [BusDevice]
 /// * `X` - [MemoryExtension]
 /// * `V` - [VideoFrame]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
@@ -235,7 +235,8 @@ impl<M, B, X, V> MemoryAccess for Ula<M, B, X, V>
 
 impl<M, B, X, V> ControlUnit for Ula<M, B, X, V>
     where M: ZxMemory,
-          B: BusDevice<Timestamp=VFrameTs<V>>,
+          B: BusDevice,
+          B::Timestamp: From<VFrameTs<V>>,
           X: MemoryExtension,
           V: VideoFrame
 {
@@ -256,7 +257,7 @@ impl<M, B, X, V> ControlUnit for Ula<M, B, X, V>
     fn reset<C: Cpu>(&mut self, cpu: &mut C, hard: bool) {
         if hard {
             cpu.reset();
-            self.bus.reset(self.tsc);
+            self.bus.reset(self.tsc.into());
             self.memory.reset();
         }
         else {
@@ -290,7 +291,8 @@ impl<M, B, X, V> ControlUnit for Ula<M, B, X, V>
 
 impl<M, B, X, V> UlaControlExt for Ula<M, B, X, V>
     where M: ZxMemory,
-          B: BusDevice<Timestamp=VFrameTs<V>>,
+          B: BusDevice,
+          B::Timestamp: From<VFrameTs<V>>,
           V: VideoFrame
 {
     fn prepare_next_frame<C: MemoryContention>(
@@ -298,7 +300,7 @@ impl<M, B, X, V> UlaControlExt for Ula<M, B, X, V>
             mut vtsc: VFrameTsCounter<V, C>
         ) -> VFrameTsCounter<V, C>
     {
-        self.bus.next_frame(VFrameTs::<V>::EOF);
+        self.bus.next_frame(VFrameTs::<V>::EOF.into());
         self.frames += Wrapping(1);
         self.cleanup_video_frame_data();
         self.cleanup_earmic_frame_data();
