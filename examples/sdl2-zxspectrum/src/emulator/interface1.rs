@@ -4,6 +4,8 @@
 
     For the full copyright notice, see the main.rs file.
 */
+use spectrusty::clock::TimestampOps;
+// use spectrusty::chip::ControlUnit;
 use spectrusty::z80emu::Cpu;
 use spectrusty::bus::{
     NullDevice,
@@ -11,9 +13,7 @@ use spectrusty::bus::{
         ZxInterface1BusDevice, ZxNetUdpSyncSocket, ZxMicrodrives, ZxNet, Rs232Io
     }
 };
-use spectrusty::clock::VFrameTs;
-use spectrusty::video::Video;
-use zxspectrum_common::DynamicDevices;
+use zxspectrum_common::{BusTs, SpecBusTs, DeviceAccess, SpectrumUla, DynamicDevices};
 use super::{ZxSpectrum, NonBlockingStdinReader};
 use super::printer::EpsonGfxFilteredStdoutWriter;
 
@@ -23,44 +23,44 @@ pub type ZxInterface1<T> = ZxInterface1BusDevice<
                                         ZxNetUdpSyncSocket,
                                         NullDevice<T>>;
 
-pub type If1Rs232Io<V> = Rs232Io<VFrameTs<V>, NonBlockingStdinReader, EpsonGfxFilteredStdoutWriter>;
-pub type If1ZxNet<V> = ZxNet<VFrameTs<V>, ZxNetUdpSyncSocket>;
-pub type If1Microdrives<V> = ZxMicrodrives<VFrameTs<V>>;
+pub type If1Rs232Io<T> = Rs232Io<T, NonBlockingStdinReader, EpsonGfxFilteredStdoutWriter>;
+pub type If1ZxNet<T> = ZxNet<T, ZxNetUdpSyncSocket>;
+pub type If1Microdrives<T> = ZxMicrodrives<T>;
 
-pub trait ZxInterface1Access<U: Video + 'static> {
+pub trait ZxInterface1Access: SpectrumUla {
     // ZX Interface 1 microdrive access
-    fn zxinterface1_ref(&self) -> Option<&ZxInterface1<VFrameTs<U::VideoFrame>>>;
-    fn zxinterface1_mut(&mut self) -> Option<&mut ZxInterface1<VFrameTs<U::VideoFrame>>>;
+    fn zxinterface1_ref(&self) -> Option<&ZxInterface1<SpecBusTs<Self>>>;
+    fn zxinterface1_mut(&mut self) -> Option<&mut ZxInterface1<SpecBusTs<Self>>>;
 
-    fn microdrives_ref(&self) -> Option<&If1Microdrives<U::VideoFrame>> {
+    fn microdrives_ref(&self) -> Option<&If1Microdrives<SpecBusTs<Self>>> {
         self.zxinterface1_ref().map(|zif1| &zif1.microdrives)
     }
-    fn microdrives_mut(&mut self) -> Option<&mut If1Microdrives<U::VideoFrame>> {
+    fn microdrives_mut(&mut self) -> Option<&mut If1Microdrives<SpecBusTs<Self>>> {
         self.zxinterface1_mut().map(|zif1| &mut zif1.microdrives)
     }
-    fn zxif1_serial_ref(&self) -> Option<&If1Rs232Io<U::VideoFrame>> {
+    fn zxif1_serial_ref(&self) -> Option<&If1Rs232Io<SpecBusTs<Self>>> {
         self.zxinterface1_ref().map(|zif1| &zif1.serial)
     }
-    fn zxif1_serial_mut(&mut self) -> Option<&mut If1Rs232Io<U::VideoFrame>> {
+    fn zxif1_serial_mut(&mut self) -> Option<&mut If1Rs232Io<SpecBusTs<Self>>> {
         self.zxinterface1_mut().map(|zif1| &mut zif1.serial)
     }
-    fn zxif1_network_ref(&self) -> Option<&If1ZxNet<U::VideoFrame>> {
+    fn zxif1_network_ref(&self) -> Option<&If1ZxNet<SpecBusTs<Self>>> {
         self.zxinterface1_ref().map(|zif1| &zif1.network)
     }
-    fn zxif1_network_mut(&mut self) -> Option<&mut If1ZxNet<U::VideoFrame>> {
+    fn zxif1_network_mut(&mut self) -> Option<&mut If1ZxNet<SpecBusTs<Self>>> {
         self.zxinterface1_mut().map(|zif1| &mut zif1.network)
     }
 }
 
-impl<C: Cpu, U> ZxInterface1Access<U> for ZxSpectrum<C, U>
-    where ZxSpectrum<C, U>: DynamicDevices<U::VideoFrame>,
-          U: Video +  'static
+impl<C: Cpu, U> ZxInterface1Access for ZxSpectrum<C, U>
+    where U: DeviceAccess,
+          BusTs<U>: TimestampOps + 'static
 {
-    fn zxinterface1_ref(&self) -> Option<&ZxInterface1<VFrameTs<U::VideoFrame>>> {
-        self.device_ref::<ZxInterface1<VFrameTs<U::VideoFrame>>>()
+    fn zxinterface1_ref(&self) -> Option<&ZxInterface1<BusTs<U>>> {
+        self.device_ref::<ZxInterface1<BusTs<U>>>()
     }
 
-    fn zxinterface1_mut(&mut self) -> Option<&mut ZxInterface1<VFrameTs<U::VideoFrame>>> {
-        self.device_mut::<ZxInterface1<VFrameTs<U::VideoFrame>>>()
+    fn zxinterface1_mut(&mut self) -> Option<&mut ZxInterface1<BusTs<U>>> {
+        self.device_mut::<ZxInterface1<BusTs<U>>>()
     }
 }

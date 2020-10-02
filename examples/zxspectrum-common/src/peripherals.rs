@@ -7,11 +7,11 @@
 use core::fmt;
 use std::io;
 use spectrusty::bus::BoxNamedDynDevice;
+use spectrusty::clock::TimestampOps;
 use spectrusty::z80emu::Cpu;
-use spectrusty::clock::VFrameTs;
 use spectrusty::memory::{MemoryExtension, ZxMemory, ZxMemoryError};
 use spectrusty::bus::{
-    OptionalBusDevice, VFNullDevice,
+    NullDevice, BusDevice,
     ay::{
         AyRegister, AyIoPort, Ay3_891xAudio, Ay3_8910Io
     },
@@ -19,10 +19,9 @@ use spectrusty::bus::{
     mouse::{KempstonMouse, MouseInterface}
 };
 use spectrusty::formats::snapshot::{MemoryRange, JoystickModel, Ay3_891xDevice};
-use spectrusty::video::Video;
 
 use super::spectrum::ZxSpectrum;
-use super::devices::{DeviceAccess, DynamicDevices};
+use super::devices::{BusTs, DeviceAccess, DynamicDevices, PluggableJoystick};
 use super::models::*;
 
 /// A helper method returning a joystick index for [JoystickSelect] enum from optional [JoystickModel].
@@ -51,14 +50,14 @@ pub fn joystick_model_from_name(name: &str, sub_joy: usize) -> Option<JoystickMo
 }
 
 /// A helper method for updating the AY-3-8910 PSG registers from `reg_selected` and `reg_values`.
-pub fn update_ay_state<V, A, B>(
+pub fn update_ay_state<T, A, B>(
         ay_sound: &mut Ay3_891xAudio,
-        ay_io: &mut Ay3_8910Io<VFrameTs<V>, A, B>,
+        ay_io: &mut Ay3_8910Io<T, A, B>,
         reg_selected: AyRegister,
         reg_values: &[u8]
     )
-    where A: AyIoPort<Timestamp=VFrameTs<V>>,
-          B: AyIoPort<Timestamp=VFrameTs<V>>
+    where A: AyIoPort<Timestamp=T>,
+          B: AyIoPort<Timestamp=T>
 {
     ay_io.select_port_write(reg_selected.into());
     for (reg, val) in AyRegister::enumerate().zip(reg_values) {
@@ -71,21 +70,22 @@ pub fn update_ay_state<V, A, B>(
 
 /// Returns the current state of AY-3-891x PSG registers from one of
 /// the dynamically added devices, indicated by [Ay3_891xDevice].
-pub fn get_ay_state_from_dyn_device<C: Cpu, U: Video + 'static, F>(
+pub fn get_ay_state_from_dyn_device<C: Cpu, U, F>(
         spec: &ZxSpectrum<C, U, F>,
         choice: Ay3_891xDevice
     ) -> Option<(AyRegister, &[u8;16])>
-    where U: DeviceAccess
+    where U: DeviceAccess,
+          BusTs<U>: fmt::Debug + Copy + 'static
 {
     match choice {
         Ay3_891xDevice::Melodik => {
-            spec.device_ref::<super::Ay3_891xMelodik<VFrameTs<U::VideoFrame>>>().map(|ay_dev| {
+            spec.device_ref::<super::Ay3_891xMelodik<BusTs<U>>>().map(|ay_dev| {
                 (ay_dev.ay_io.selected_register(),
                  ay_dev.ay_io.registers())
             })
         }
         Ay3_891xDevice::FullerBox => {
-            spec.device_ref::<super::Ay3_891xFullerBox<VFrameTs<U::VideoFrame>>>().map(|ay_dev| {
+            spec.device_ref::<super::Ay3_891xFullerBox<BusTs<U>>>().map(|ay_dev| {
                 (ay_dev.ay_io.selected_register(),
                  ay_dev.ay_io.registers())
             })
@@ -101,22 +101,23 @@ pub fn get_ay_state_from_dyn_device<C: Cpu, U: Video + 'static, F>(
 /// currently selected register to `reg_selected`.
 ///
 /// Returns `true` if a device has been attached. Otherwise returns `false`.
-pub fn create_ay_dyn_device<C: Cpu, U: Video + 'static, F>(
+pub fn create_ay_dyn_device<C: Cpu, U, F>(
         spec: &mut ZxSpectrum<C, U, F>,
         choice: Ay3_891xDevice,
         reg_selected: AyRegister,
         reg_values: &[u8;16]
     ) -> bool
-    where ZxSpectrum<C, U, F>: DynamicDevices<U::VideoFrame>
+    where U: DeviceAccess,
+          BusTs<U>: fmt::Debug + Copy + Default + 'static
 {
-    let device: BoxNamedDynDevice<VFrameTs<U::VideoFrame>> = match choice {
+    let device: BoxNamedDynDevice<BusTs<U>> = match choice {
         Ay3_891xDevice::Melodik => {
-            let mut ay_dev = super::Ay3_891xMelodik::<VFrameTs<U::VideoFrame>>::default();
+            let mut ay_dev = super::Ay3_891xMelodik::<BusTs<U>>::default();
             update_ay_state(&mut ay_dev.ay_sound, &mut ay_dev.ay_io, reg_selected, reg_values);
             ay_dev.into()
         },
         Ay3_891xDevice::FullerBox => {
-            let mut ay_dev = super::Ay3_891xFullerBox::<VFrameTs<U::VideoFrame>>::default();
+            let mut ay_dev = super::Ay3_891xFullerBox::<BusTs<U>>::default();
             update_ay_state(&mut ay_dev.ay_sound, &mut ay_dev.ay_io, reg_selected, reg_values);
             ay_dev.into()
         }
@@ -172,10 +173,9 @@ pub trait MouseAccess {
     }
 }
 
-impl<C: Cpu, U, F, D: 'static> JoystickAccess for ZxSpectrum<C, U, F>
-    where U: DeviceAccess<JoystickBusDevice = OptionalBusDevice<
-                                                MultiJoystickBusDevice<VFNullDevice<<U as Video>::VideoFrame>>,
-                                                D>>
+impl<C: Cpu, U, F, D> JoystickAccess for ZxSpectrum<C, U, F>
+    where D: BusDevice<Timestamp=BusTs<U>> + 'static,
+          U: DeviceAccess<JoystickBusDevice = PluggableJoystick<D>>
 {
     fn joystick_interface(&mut self) -> Option<&mut (dyn JoystickInterface + 'static)> {
         let sub_joy = self.state.sub_joy;
@@ -222,17 +222,19 @@ impl<C: Cpu, U, F, D: 'static> JoystickAccess for ZxSpectrum<C, U, F>
 
 impl<C, U, F> MouseAccess for ZxSpectrum<C, U, F>
     where C: Cpu,
-          U: Video,
-          U::VideoFrame: 'static,
-          Self: DynamicDevices<U::VideoFrame>
+          U: DeviceAccess,
+          BusTs<U>: 'static,
 {
     fn mouse_interface(&mut self) -> Option<&mut (dyn MouseInterface + 'static)> {
-        self.device_mut::<KempstonMouse<VFNullDevice<U::VideoFrame>>>()
+        self.device_mut::<KempstonMouse<NullDevice<BusTs<U>>>>()
             .map(|m| -> &mut (dyn MouseInterface) { &mut **m })
     }
 }
 
-impl<C: Cpu, U: DeviceAccess, F> ZxSpectrum<C, U, F> {
+impl<C: Cpu, U, F> ZxSpectrum<C, U, F>
+    where U: DeviceAccess,
+          BusTs<U>: TimestampOps
+{
     /// Returns a current view of AY-3-8910 registers if a PSG is attached.
     pub fn ay128k_state(&self) -> Option<(AyRegister, &[u8;16])> {
         self.ula.ay128_ref().map(|(_, ay_io)| (ay_io.selected_register(), ay_io.registers()))

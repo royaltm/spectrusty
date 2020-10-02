@@ -341,8 +341,8 @@ impl<C: Cpu, U> ZxSpectrumEmu<C, U> {
     }
 
     pub fn handle_file<P: AsRef<Path>>(&mut self, path: P) -> Result<Option<String>>
-        where U: 'static + Video + MemoryAccess + ScreenDataProvider,
-              ZxSpectrum<C, U>: ZxInterface1Access<U>
+        where U: ScreenDataProvider,
+              ZxSpectrum<C, U>: ZxInterface1Access
     {
         let path = path.as_ref();
         let file = fs::File::open(path)?;
@@ -420,7 +420,7 @@ impl<C: Cpu, U> ZxSpectrumEmu<C, U> {
     }
 
     pub fn load_mdr<R: io::Read>(&mut self, mdr_data: R) -> Result<Option<String>>
-        where U: 'static + Video, ZxSpectrum<C, U>: ZxInterface1Access<U>
+        where ZxSpectrum<C, U>: ZxInterface1Access
     {
         if let Some(mdrives) = self.spectrum.microdrives_mut() {
             let cartridge = MicroCartridge::from_mdr(mdr_data, 180)?;
@@ -443,8 +443,8 @@ impl<C: Cpu, U> ZxSpectrumEmu<C, U> {
     }
 
     pub fn short_info(&mut self) -> Result<&str>
-        where U: SpoolerAccess + UlaPlusMode + 'static,
-              ZxSpectrum<C, U>: JoystickAccess + ZxInterface1Access<U>
+        where U: SpoolerAccess + UlaPlusMode,
+              ZxSpectrum<C, U>: JoystickAccess + DynSpoolerAccess + ZxInterface1Access
     {
         use fmt::Write;
         let info = &mut self.info_text;
@@ -502,8 +502,8 @@ impl<C: Cpu, U> ZxSpectrumEmu<C, U> {
     }
 
     pub fn update_dynamic_info(&mut self) -> Result<Option<&str>>
-        where U: SpoolerAccess + 'static,
-            ZxSpectrum<C, U>: ZxInterface1Access<U>
+        where U: SpoolerAccess,
+              ZxSpectrum<C, U>: DynSpoolerAccess + ZxInterface1Access
     {
         let mut dynbuf: ArrayString<[_;64]> = ArrayString::new();
         dynamic_info(&self.spectrum, &mut dynbuf)?;
@@ -516,8 +516,8 @@ impl<C: Cpu, U> ZxSpectrumEmu<C, U> {
     }
 
     pub fn device_info(&self) -> Result<String>
-        where U: SpoolerAccess + UlaPlusMode + 'static,
-              ZxSpectrum<C, U>: JoystickAccess + ZxInterface1Access<U>,
+        where U: SpoolerAccess + UlaPlusMode,
+              ZxSpectrum<C, U>: JoystickAccess + ZxInterface1Access,
               C: fmt::Display
     {
         use fmt::Write;
@@ -562,8 +562,8 @@ impl<C: Cpu, U> ZxSpectrumEmu<C, U> {
 
 fn dynamic_info<C, U, W: fmt::Write>(spec: &ZxSpectrum<C, U>, info: &mut W) -> Result<()>
     where C: Cpu,
-          U: SpoolerAccess + 'static,
-          ZxSpectrum<C, U>: ZxInterface1Access<U>
+          U: SpoolerAccess,
+          ZxSpectrum<C, U>: DynSpoolerAccess + ZxInterface1Access
 {
     if let Some(microdrives) = spec.microdrives_ref() {
         if let Some((index, md)) = microdrives.cartridge_in_use() {

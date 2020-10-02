@@ -69,9 +69,9 @@ pub trait SpectrumControl<B: Blep>: VideoControl +
 
 impl<C: Cpu, U, B> SpectrumControl<B> for ZxSpectrum<C, U, MemTap>
     where U: UlaCommon + DeviceAccess + UlaAudioFrame<B> + ScreenDataProvider,
-          U::VideoFrame: 'static,
           B: Blep<SampleDelta=f32>,
-          Self: JoystickAccess
+          Self: JoystickAccess,
+          Self: MouseAccess
 {
     fn run_frames_accelerated(&mut self, time_sync: &mut AnimationFrameSyncTimer) -> Result<(FTs, bool)> {
         self.run_frames_accelerated(time_sync, || utils::now())

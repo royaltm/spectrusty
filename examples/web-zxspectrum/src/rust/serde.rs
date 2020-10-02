@@ -14,15 +14,15 @@ use serde::{
     ser
 };
 use spectrusty::z80emu::Cpu;
-use spectrusty::clock::VFrameTs;
+use spectrusty::chip::ControlUnit;
 use spectrusty::bus::{
     NamedBusDevice, SerializeDynDevice, DeserializeDynDevice,
     NamedDynDevice, BoxNamedDynDevice,
 };
-use spectrusty::video::{Video, VideoFrame};
 use zxspectrum_common::{
     Ay3_891xMelodik, Ay3_891xFullerBox, KempstonMouse,
     ZxSpectrum, DeviceAccess, DynamicDevices,
+    BusTs,
     spectrum_model_dispatch
 };
 
@@ -60,7 +60,9 @@ macro_rules! device_type_dispatch {
 }
 
 impl DeviceType {
-    pub fn create_device<V: 'static + VideoFrame>(self) -> BoxNamedDynDevice<VFrameTs<V>> {
+    pub fn create_device<T>(self) -> BoxNamedDynDevice<T>
+        where T: fmt::Debug + Copy + Default + 'static
+    {
         match self {
             DeviceType::Ay3_891xMelodik => Ay3_891xMelodik::default().into(),
             DeviceType::Ay3_891xFullerBox => Ay3_891xFullerBox::default().into(),
@@ -73,9 +75,10 @@ impl DeviceType {
     }
 
     pub fn detach_device<C: Cpu, U, F>(self, spec: &mut ZxSpectrum<C, U, F>)
-        where U: DeviceAccess + Video + 'static
+        where U: DeviceAccess + 'static,
+              BusTs<U>: fmt::Debug + Copy
     {
-        device_type_dispatch!((self) => (spec)(detach_device::@device<VFrameTs<U::VideoFrame>>);)
+        device_type_dispatch!((self) => (spec)(detach_device::@device<BusTs<U>>);)
     }
 
     pub fn detach_device_from_model(self, model: &mut ZxSpectrumEmuModel) {
@@ -83,16 +86,14 @@ impl DeviceType {
     }
 
     pub fn has_device<C: Cpu, U, F>(self, spec: &ZxSpectrum<C, U, F>) -> bool
-        where U: Video + 'static
+        where U: ControlUnit + 'static
     {
-        device_type_dispatch!((self) => (spec.state.devices)(has_device::@device<VFrameTs<U::VideoFrame>>))
+        device_type_dispatch!((self) => (spec.state.devices)(has_device::@device<BusTs<U>>))
     }
 
     pub fn has_device_in_model(self, model: &ZxSpectrumEmuModel) -> bool {
         spectrum_model_dispatch!(model(spec) => self.has_device(spec))
     }
-
-
 }
 
 pub fn recreate_model_dynamic_devices(
@@ -109,8 +110,10 @@ fn recreate_dynamic_devices<C: Cpu, U1, U2, F>(
         src_spec: &ZxSpectrum<C, U1, F>,
         dst_spec: &mut ZxSpectrum<C, U2, F>
     ) -> Result<(), &'static str>
-    where U1: DeviceAccess + Video + 'static,
-          U2: DeviceAccess + Video + 'static
+    where U1: DeviceAccess,
+          BusTs<U1>: fmt::Debug + Copy + 'static,
+          U2: DeviceAccess,
+          BusTs<U2>: fmt::Debug + Copy + Default + 'static,
 {
     if let Some(dynbus) = src_spec.ula.dyn_bus_device_ref() {
         for device in dynbus {
@@ -122,18 +125,19 @@ fn recreate_dynamic_devices<C: Cpu, U1, U2, F>(
 }
 
 #[inline(never)]
-fn recreate_dynamic_device<V1: VideoFrame + 'static, V2: VideoFrame + 'static>(
-        device: &NamedDynDevice<VFrameTs<V1>>
-    ) -> Result<BoxNamedDynDevice<VFrameTs<V2>>, &'static str>
+fn recreate_dynamic_device<T1: fmt::Debug + Copy + 'static,
+                           T2: fmt::Debug + Default + Copy + 'static>(
+        device: &NamedDynDevice<T1>
+    ) -> Result<BoxNamedDynDevice<T2>, &'static str>
 {
-    if device.is::<Ay3_891xMelodik<VFrameTs<V1>>>() {
-        Ok(Ay3_891xMelodik::<VFrameTs<V2>>::default().into())
+    if device.is::<Ay3_891xMelodik<T1>>() {
+        Ok(Ay3_891xMelodik::<T2>::default().into())
     }
-    else if device.is::<Ay3_891xFullerBox<VFrameTs<V1>>>() {
-        Ok(Ay3_891xFullerBox::<VFrameTs<V2>>::default().into())
+    else if device.is::<Ay3_891xFullerBox<T1>>() {
+        Ok(Ay3_891xFullerBox::<T2>::default().into())
     }
-    else if device.is::<KempstonMouse<VFrameTs<V1>>>() {
-        Ok(KempstonMouse::<VFrameTs<V2>>::default().into())
+    else if device.is::<KempstonMouse<T1>>() {
+        Ok(KempstonMouse::<T2>::default().into())
     }
     else {
         Err("unknown device")

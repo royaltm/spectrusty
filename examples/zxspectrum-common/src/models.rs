@@ -15,7 +15,7 @@ use serde::{Serialize, Deserialize};
 
 use spectrusty::z80emu::{Cpu, Z80, Z80Any, {z80::Flavour}, host::Io};
 use spectrusty::audio::Blep;
-use spectrusty::clock::{FTs, VFrameTs};
+#[allow(unused_imports)] use spectrusty::clock::{FTs, VFrameTs};
 use spectrusty::formats::snapshot::ComputerModel;
 use spectrusty::memory::{
     ZxMemory, PagedMemory8k,
@@ -32,6 +32,7 @@ use spectrusty::bus::{
     parallel::{Plus3CentronicsBusDevice, ParallelPortWriter}
     // parallel::Plus3CentronicsWriterBusDevice
 };
+#[allow(unused_imports)]
 use spectrusty::chip::{
     FrameState, UlaControl,
     MemoryAccess, HostConfig, UlaCommon,
@@ -46,7 +47,7 @@ use spectrusty::formats::snapshot::ensure_cpu_is_safe_for_snapshot;
 use spectrusty::video::{Video, VideoFrame, BorderColor};
 use spectrusty_utils::io::{Empty, Sink};
 
-use super::devices::{DeviceAccess, DynamicDevices, PluggableJoystickDynamicBus};
+use super::devices::{DynamicDevices, PluggableJoystickDynamicBus};
 use super::spectrum::{MemTap, EmulatorState, ZxSpectrum, SpectrumUla};
 
 pub static ROM48: &[&[u8]] = &[include_bytes!("../../../resources/roms/48.rom")];
@@ -73,14 +74,14 @@ pub type TC2048<D, X=NoMemoryExtension> = Scld<Memory48kDock64kEx, D, X, UlaVide
 pub type Ula128AyKeypad<D,
                         X=NoMemoryExtension,
                         R=Empty,
-                        W=Sink> = Ula128<Ay3_8912KeypadRs232<VFrameTs<Ula128VidFrame>, D, R, W>, X>;
+                        W=Sink> = Ula128<Ay3_8912KeypadRs232<D, R, W>, X>;
 /// ULA +3 with +3 Centronics Port and with a AY-3-8912 sound processor + RS232 in its I/O port A.
 pub type Ula3Ay<D,
                 X=NoMemoryExtension,
                 R=Empty,
                 W=Sink> = Ula3<Plus3CentronicsBusDevice<
-                                        ParallelPortWriter<VFrameTs<Ula3VidFrame>, W>,
-                                        Ay3_8912Rs232<VFrameTs<Ula3VidFrame>, D, R, W>
+                                        ParallelPortWriter<<D as BusDevice>::Timestamp, W>,
+                                        Ay3_8912Rs232<D, R, W>
                                     >,
                                 X>;
 /// ULAplus with ULA 48k.
@@ -122,6 +123,28 @@ pub type ZxSpectrum2B<C, D, X=NoMemoryExtension,
                             F=MemTap,
                             R=Empty,
                             W=Sink> = ZxSpectrum<C, Plus3<D, X, R, W>, F>;
+
+/*   The device types used in ZxSpectrumModel.  */
+/*
+// Alternatively the definitions below can be swapped with the ones below to use VFrameTs timestamps instead.
+// This will however result in a larger executable size.
+// Some tests also demonstrated that emulators perform slightly slower with these.
+pub type UlaPALDevice<S> = PluggableJoystickDynamicBus<S, VFrameTs<UlaVideoFrame>>;
+pub type TC2048Device<S> = PluggableJoystickDynamicBus<S, VFrameTs<UlaVideoFrame>>;
+pub type UlaNTSCDevice<S> = PluggableJoystickDynamicBus<S, VFrameTs<UlaNTSCVidFrame>>;
+pub type Ula128Device<S> = PluggableJoystickDynamicBus<S, VFrameTs<Ula128VidFrame>>;
+pub type Ula3Device<S> = PluggableJoystickDynamicBus<S, VFrameTs<Ula3VidFrame>>;
+*/
+/// The device type used by models with [UlaPAL] in [ZxSpectrumModel].
+pub type UlaPALDevice<S> = PluggableJoystickDynamicBus<S, FTs>;
+/// The device type used by models with [TC2048] in [ZxSpectrumModel].
+pub type TC2048Device<S> = PluggableJoystickDynamicBus<S, FTs>;
+/// The device type used by models with [UlaNTSC] in [ZxSpectrumModel].
+pub type UlaNTSCDevice<S> = PluggableJoystickDynamicBus<S, FTs>;
+/// The device type used by models with [Ula128AyKeypad] in [ZxSpectrumModel].
+pub type Ula128Device<S> = PluggableJoystickDynamicBus<S, FTs>;
+/// The device type used by models with [Ula3Ay] in [ZxSpectrumModel].
+pub type Ula3Device<S> = PluggableJoystickDynamicBus<S, FTs>;
 
 /// This enum is being used for querying or creating a new [ZxSpectrumModel].
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -174,27 +197,27 @@ pub enum ZxSpectrumModel<C: Cpu,
                          W=Sink>
 {
     #[serde(rename = "ZX Spectrum 16k")]
-    Spectrum16(ZxSpectrum16k<C, PluggableJoystickDynamicBus<S, UlaVideoFrame>, X, F>),
+    Spectrum16(ZxSpectrum16k<C, UlaPALDevice<S>, X, F>),
     #[serde(rename = "ZX Spectrum 48k")]
-    Spectrum48(ZxSpectrum48k<C, PluggableJoystickDynamicBus<S, UlaVideoFrame>, X, F>),
+    Spectrum48(ZxSpectrum48k<C, UlaPALDevice<S>, X, F>),
     #[serde(rename = "ZX Spectrum NTSC")]
-    SpectrumNTSC(ZxSpectrumNTSC<C, PluggableJoystickDynamicBus<S, UlaNTSCVidFrame>, X, F>),
+    SpectrumNTSC(ZxSpectrumNTSC<C, UlaNTSCDevice<S>, X, F>),
     #[serde(rename = "ZX Spectrum 128k")]
-    Spectrum128(ZxSpectrum128k<C, PluggableJoystickDynamicBus<S, Ula128VidFrame>, X, F, R, W>),
+    Spectrum128(ZxSpectrum128k<C, Ula128Device<S>, X, F, R, W>),
     #[serde(rename = "ZX Spectrum +2")]
-    SpectrumPlus2(ZxSpectrum128k<C, PluggableJoystickDynamicBus<S, Ula128VidFrame>, X, F, R, W>),
+    SpectrumPlus2(ZxSpectrum128k<C, Ula128Device<S>, X, F, R, W>),
     #[serde(rename = "ZX Spectrum +2A")]
-    SpectrumPlus2A(ZxSpectrum2A<C, PluggableJoystickDynamicBus<S, Ula3VidFrame>, X, F, R, W>),
+    SpectrumPlus2A(ZxSpectrum2A<C, Ula3Device<S>, X, F, R, W>),
     // #[serde(rename = "ZX Spectrum +3")]
     // SpectrumPlus3(ZxSpectrum3<C, D, X, F>),
     #[serde(rename = "Timex TC2048")]
-    TimexTC2048(TimexTC2048<C, PluggableJoystickDynamicBus<S, UlaVideoFrame>, X, F>),
+    TimexTC2048(TimexTC2048<C, TC2048Device<S>, X, F>),
     #[serde(rename = "ZX Spectrum 48k+")]
-    Spectrum48Plus(ZxSpectrum48kPlus<C, PluggableJoystickDynamicBus<S, UlaVideoFrame>, X, F>),
+    Spectrum48Plus(ZxSpectrum48kPlus<C, UlaPALDevice<S>, X, F>),
     #[serde(rename = "ZX Spectrum ++2")]
-    SpectrumPlusPlus2(ZxSpectrum128kPlus<C, PluggableJoystickDynamicBus<S, Ula128VidFrame>, X, F, R, W>),
+    SpectrumPlusPlus2(ZxSpectrum128kPlus<C, Ula128Device<S>, X, F, R, W>),
     #[serde(rename = "ZX Spectrum +2B")]
-    SpectrumPlus2B(ZxSpectrum2B<C, PluggableJoystickDynamicBus<S, Ula3VidFrame>, X, F, R, W>)
+    SpectrumPlus2B(ZxSpectrum2B<C, Ula3Device<S>, X, F, R, W>)
 }
 
 /// A helper trait for controling ULAplus mode availability.
@@ -310,36 +333,35 @@ macro_rules! spectrum_model_ula_static_dispatch {
     };
     (($model:expr)($sdd:ty, $ext:ty)::$($expr:tt)*) => {
         {
-            use spectrusty::chip::{ula, ula128, ula3};
             use spectrusty::memory;
             match $model {
                 $crate::ZxSpectrumModel::Spectrum16(..) => {
-                    $crate::UlaPAL::<memory::Memory16kEx, $crate::PluggableJoystickDynamicBus<$sdd, ula::UlaVideoFrame>, $ext>::$($expr)*
+                    $crate::UlaPAL::<memory::Memory16kEx, $crate::UlaPALDevice<$sdd>, $ext>::$($expr)*
                 }
                 $crate::ZxSpectrumModel::Spectrum48(..) => {
-                    $crate::UlaPAL::<memory::Memory48kEx, $crate::PluggableJoystickDynamicBus<$sdd, ula::UlaVideoFrame>, $ext>::$($expr)*
+                    $crate::UlaPAL::<memory::Memory48kEx, $crate::UlaPALDevice<$sdd>, $ext>::$($expr)*
                 }
                 $crate::ZxSpectrumModel::Spectrum48Plus(..) => {
-                    $crate::Plus48::<$crate::PluggableJoystickDynamicBus<$sdd, ula::UlaVideoFrame>, $ext>::$($expr)*
+                    $crate::Plus48::<$crate::UlaPALDevice<$sdd>, $ext>::$($expr)*
                 }
                 $crate::ZxSpectrumModel::SpectrumNTSC(..) => {
-                    $crate::UlaNTSC::<memory::Memory48kEx, $crate::PluggableJoystickDynamicBus<$sdd, ula::UlaNTSCVidFrame>, $ext>::$($expr)*
+                    $crate::UlaNTSC::<memory::Memory48kEx, $crate::UlaNTSCDevice<$sdd>, $ext>::$($expr)*
                 }
                 $crate::ZxSpectrumModel::Spectrum128(..)|
                 $crate::ZxSpectrumModel::SpectrumPlus2(..) => {
-                    $crate::Ula128AyKeypad::<$crate::PluggableJoystickDynamicBus<$sdd, ula128::Ula128VidFrame>, $ext>::$($expr)*
+                    $crate::Ula128AyKeypad::<$crate::Ula128Device<$sdd>, $ext>::$($expr)*
                 }
                 $crate::ZxSpectrumModel::SpectrumPlusPlus2(..) => {
-                    $crate::Plus128::<$crate::PluggableJoystickDynamicBus<$sdd, ula128::Ula128VidFrame>, $ext>::$($expr)*
+                    $crate::Plus128::<$crate::Ula128Device<$sdd>, $ext>::$($expr)*
                 }
                 $crate::ZxSpectrumModel::SpectrumPlus2A(..) => {
-                    $crate::Ula3Ay::<$crate::PluggableJoystickDynamicBus<$sdd, ula3::Ula3VidFrame>, $ext>::$($expr)*
+                    $crate::Ula3Ay::<$crate::Ula3Device<$sdd>, $ext>::$($expr)*
                 }
                 $crate::ZxSpectrumModel::SpectrumPlus2B(..) => {
-                    $crate::Plus3::<$crate::PluggableJoystickDynamicBus<$sdd, ula3::Ula3VidFrame>, $ext>::$($expr)*
+                    $crate::Plus3::<$crate::Ula3Device<$sdd>, $ext>::$($expr)*
                 }
                 $crate::ZxSpectrumModel::TimexTC2048(..) => {
-                    $crate::TC2048::<$crate::PluggableJoystickDynamicBus<$sdd, ula::UlaVideoFrame>, $ext>::$($expr)*
+                    $crate::TC2048::<$crate::UlaPALDevice<$sdd>, $ext>::$($expr)*
                 }
             }
         }
@@ -543,8 +565,7 @@ impl<C: Cpu, U, F> ZxSpectrum<C, U, F>
 }
 
 impl<C: Cpu, U, F> ZxSpectrum<C, U, F>
-    where U: DeviceAccess,
-          U::VideoFrame: 'static
+    where Self: DynamicDevices
 {
     /// Overrides the state of the emulator from the provided `state` value.
     ///
@@ -563,11 +584,9 @@ impl<C: Cpu, M, D, X, V, F> ZxSpectrum<C, Ula<M, D, X, V>, F>
     /// Copies the paged in RAM memory, the border color, the CPU state and the emulator 
     /// state into `self` from the provided `model`.
     pub fn copy_from<S, R, W>(&mut self, model: ZxSpectrumModel<C, S, X, F, R, W>)
-        where <Self as SpectrumUla>::Chipset: DeviceAccess,
+        where Self: DynamicDevices,
               R: io::Read + fmt::Debug + Default,
               W: io::Write + fmt::Debug + Default,
-              D: 'static, M: 'static, X: 'static, V: 'static
-              
     {
         let border = model.border_color();
         let mem_rd = model.read_ram();
@@ -585,10 +604,10 @@ impl<C: Cpu, D, X, F> ZxSpectrum<C, Plus48<D, X>, F>
     /// Copies the paged in RAM memory, the border color, the CPU state and the emulator 
     /// state into `self` from the provided `model`.
     pub fn copy_from<S, R, W>(&mut self, model: ZxSpectrumModel<C, S, X, F, R, W>)
-        where <Self as SpectrumUla>::Chipset: DeviceAccess,
+        where Self: DynamicDevices,
+              <Self as SpectrumUla>::Chipset: MemoryAccess,
               R: io::Read + fmt::Debug + Default,
               W: io::Write + fmt::Debug + Default,
-              D: 'static, X: 'static
     {
         let border = model.border_color();
         let mem_rd = model.read_ram();
@@ -608,10 +627,9 @@ impl<C: Cpu, D, X, V, F> ZxSpectrum<C, Scld<Memory48kDock64kEx, D, X, V>, F>
     /// Copies the paged in RAM memory, the border color, the CPU state and the emulator 
     /// state into `self` from the provided `model`.
     pub fn copy_from<S, R, W>(&mut self, model: ZxSpectrumModel<C, S, X, F, R, W>)
-        where <Self as SpectrumUla>::Chipset: DeviceAccess,
+        where Self: DynamicDevices,
               R: io::Read + fmt::Debug + Default,
-              W: io::Write + fmt::Debug + Default,
-              D: 'static, X: 'static, V: 'static
+              W: io::Write + fmt::Debug + Default
     {
         let border = model.border_color();
         let mem_rd = model.read_ram();
@@ -631,10 +649,10 @@ impl<C: Cpu, D, X, F, R, W> ZxSpectrum128k<C, D, X, F, R, W>
     /// Copies the paged in RAM memory, the border color, the CPU state and the emulator 
     /// state into `self` from the provided `model`. Locks `self` into 48k mode.
     pub fn copy_from<S>(&mut self, model: ZxSpectrumModel<C, S, X, F, R, W>)
-        where <Self as SpectrumUla>::Chipset: DeviceAccess,
-              R: io::Read + fmt::Debug + 'static,
-              W: io::Write + fmt::Debug + 'static,
-              D: 'static, X: 'static
+        where Self: DynamicDevices,
+              <Self as SpectrumUla>::Chipset: MemoryAccess,
+              R: io::Read + fmt::Debug,
+              W: io::Write + fmt::Debug
     {
         let border = model.border_color();
         let mem_rd = model.read_ram();
@@ -658,16 +676,15 @@ impl<C: Cpu, D, X, F, R, W> ZxSpectrum128k<C, D, X, F, R, W>
 
 impl<C: Cpu, D, X, F, R, W> ZxSpectrum128kPlus<C, D, X, F, R, W>
     where D: BusDevice,
-          X: MemoryExtension,
-          <Self as SpectrumUla>::Chipset: UlaControl
+          X: MemoryExtension
 {
     /// Copies the paged in RAM memory, the border color, the CPU state and the emulator 
     /// state into `self` from the provided `model`. Locks `self` into 48k mode.
     pub fn copy_from<S>(&mut self, model: ZxSpectrumModel<C, S, X, F, R, W>)
-        where <Self as SpectrumUla>::Chipset: DeviceAccess,
-              R: io::Read + fmt::Debug + 'static,
-              W: io::Write + fmt::Debug + 'static,
-              D: 'static, X: 'static
+        where Self: DynamicDevices,
+              <Self as SpectrumUla>::Chipset: MemoryAccess,
+              R: io::Read + fmt::Debug,
+              W: io::Write + fmt::Debug
     {
         let border = model.border_color();
         let mem_rd = model.read_ram();
@@ -690,7 +707,7 @@ impl<C: Cpu, D, X, F, R, W> ZxSpectrum128kPlus<C, D, X, F, R, W>
 }
 
 impl<C: Cpu, D, X, F, R, W> ZxSpectrum2A<C, D, X, F, R, W>
-    where D: BusDevice<Timestamp=VFrameTs<Ula3VidFrame>>,
+    where D: BusDevice,
           X: MemoryExtension,
           R: io::Read + fmt::Debug,
           W: io::Write + fmt::Debug,
@@ -698,8 +715,8 @@ impl<C: Cpu, D, X, F, R, W> ZxSpectrum2A<C, D, X, F, R, W>
     /// Copies the paged in RAM memory, the border color, the CPU state and the emulator 
     /// state into `self` from the provided `model`. Locks `self` into 48k mode.
     pub fn copy_from<S>(&mut self, model: ZxSpectrumModel<C, S, X, F, R, W>)
-        where <Self as SpectrumUla>::Chipset: DeviceAccess,
-              D: 'static, R: 'static,  W: 'static, X: 'static
+        where Self: DynamicDevices,
+              <Self as SpectrumUla>::Chipset: MemoryAccess
     {
         let border = model.border_color();
         let mem_rd = model.read_ram();
@@ -724,7 +741,7 @@ impl<C: Cpu, D, X, F, R, W> ZxSpectrum2A<C, D, X, F, R, W>
 }
 
 impl<C: Cpu, D, X, F, R, W> ZxSpectrum2B<C, D, X, F, R, W>
-    where D: BusDevice<Timestamp=VFrameTs<Ula3VidFrame>>,
+    where D: BusDevice,
           X: MemoryExtension,
           R: io::Read + fmt::Debug,
           W: io::Write + fmt::Debug,
@@ -732,8 +749,8 @@ impl<C: Cpu, D, X, F, R, W> ZxSpectrum2B<C, D, X, F, R, W>
     /// Copies the paged in RAM memory, the border color, the CPU state and the emulator 
     /// state into `self` from the provided `model`. Locks `self` into 48k mode.
     pub fn copy_from<S>(&mut self, model: ZxSpectrumModel<C, S, X, F, R, W>)
-        where <Self as SpectrumUla>::Chipset: DeviceAccess,
-              D: 'static, R: 'static, W: 'static, X: 'static
+        where Self: DynamicDevices,
+              <Self as SpectrumUla>::Chipset: MemoryAccess
      {
         let border = model.border_color();
         let mem_rd = model.read_ram();
@@ -771,8 +788,7 @@ impl<C, S, X, F, R, W> ZxSpectrumModel<C, S, X, F, R, W>
         spectrum_model_dispatch!(self(spec) => &spec.state)
     }
 
-    pub fn set_emulator_state(&mut self, state: EmulatorState<F>)
-    {
+    pub fn set_emulator_state(&mut self, state: EmulatorState<F>) {
         spectrum_model_dispatch!(self(spec) => spec.set_state(state))
     }
 
@@ -883,10 +899,7 @@ impl<C, S, X, F, R, W> ZxSpectrumModel<C, S, X, F, R, W>
 
     /// Hot-swaps hardware model.
     pub fn change_model(&mut self, request: ModelRequest)
-        where X: Default + 'static,
-              R: Default + 'static,
-              W: Default + 'static,
-              S: 'static
+        where X: Default, R: Default, W: Default,
     {
         use ZxSpectrumModel::*;
         match (&*self, request) {
@@ -922,8 +935,7 @@ impl<C, S, X, F, R, W> ZxSpectrumModel<C, S, X, F, R, W>
 }
 
 impl<C: Cpu, U, F> ZxSpectrum<C, U, F>
-    where C: Cpu,
-          F: io::Read + io::Write + io::Seek,
+    where F: io::Read + io::Write + io::Seek,
           U: UlaCommon
 {
     /// Resets Spectrum as a specified `model`, waits for the boot sequence to end and performs auto-type
@@ -949,7 +961,7 @@ impl<C: Cpu, U, F> ZxSpectrum<C, U, F>
             }
             SpectrumPlus2A => self.run_with_auto_type(87, iter::once(&(Zk::EN, 1))),
             SpectrumPlus2B => self.run_with_auto_type(63, LOAD_QQ_EN_SE),
-            _ => unimplemented!("reset_and_load unimplemented for specifed model")
+            _ => unimplemented!("reset_and_load unimplemented for specified model")
         }
     }
 }
@@ -969,7 +981,7 @@ impl<C, S, X, F, R, W> ZxSpectrumModel<C, S, X, F, R, W>
     ///
     /// Returns the tuple from [ZxSpectrum::run_with_auto_type].
     pub fn reset_and_load(&mut self) -> crate::spectrum::Result<(FTs, bool)> {
-        let model = (&*self).into();
+        let model = ModelRequest::from(&*self);
         spectrum_model_dispatch!(self(spec) => spec.reset_and_load(model))
     }
 }
