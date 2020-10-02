@@ -56,41 +56,6 @@ pub trait TimestampOps: Copy
     fn saturating_sub(self, other: Self) -> Self;
 }
 
-/// A trait providing simple calculation methods for frame-aware timestamps.
-#[deprecated(since = "0.2.0",
-    note = "Do not use. Instead use TimestampOps to decouple timestamps from frames")]
-pub trait FrameTimestamp: Copy
-                         + PartialEq
-                         + Eq
-                         + PartialOrd
-                         + Ord
-                         + Debug
-                         + Add<u32, Output=Self>
-                         + Sub<u32, Output=Self>
-                         + AddAssign<u32>
-                         + SubAssign<u32>
-                         + Into<FTs>
-                         + From<FTs>
-{
-    fn from_tstates(ts: FTs) -> Self;
-    fn into_tstates(self) -> FTs;
-    fn into_frame_tstates(self, frames: u64) -> (u64, FTs);
-    fn max_value() -> Self;
-    fn min_value() -> Self;
-    fn is_eof(self) -> bool;
-    fn diff_from(self, vts_from: Self) -> FTs;
-    fn saturating_sub_frame(self) -> Self;
-    fn saturating_sub(self, other: Self) -> Self;
-    fn saturating_add(self, other: Self) -> Self;
-    fn wrap_frame(&mut self);
-    fn min_tstates() -> FTs {
-        Self::min_value().into_tstates()
-    }
-    fn max_tstates() -> FTs {
-        Self::max_value().into_tstates()
-    }
-}
-
 impl TimestampOps for FTs {
     #[inline(always)]
     fn from_tstates(ts: FTs) -> Self {
@@ -205,52 +170,6 @@ impl<V: VideoFrame> SubAssign<FTs> for VFrameTs<V> {
     #[inline(always)]
     fn sub_assign(&mut self, delta: FTs) {
         *self = *self - delta
-    }
-}
-
-#[allow(deprecated)]
-impl <V: VideoFrame> FrameTimestamp for VFrameTs<V> {
-    #[inline]
-    fn from_tstates(ts: FTs) -> Self {
-        TimestampOps::from_tstates(ts)
-    }
-    #[inline]
-    fn into_tstates(self) -> FTs {
-        TimestampOps::into_tstates(self)
-    }
-    #[inline]
-    fn into_frame_tstates(self, frames: u64) -> (u64, FTs) {
-        VFrameTs::into_frame_tstates(self, frames)
-    }
-    #[inline(always)]
-    fn max_value() -> Self {
-        VFrameTs::max_value()
-    }
-    #[inline(always)]
-    fn min_value() -> Self {
-        VFrameTs::min_value()
-    }
-    #[inline(always)]
-    fn is_eof(self) -> bool {
-        VFrameTs::is_eof(self)
-    }
-    #[inline]
-    fn diff_from(self, vts_from: Self) -> FTs {
-        TimestampOps::diff_from(self, vts_from)
-    }
-    #[inline]
-    fn saturating_sub_frame(self) -> Self {
-        VFrameTs::saturating_sub_frame(self)
-    }
-    fn saturating_sub(self, other: Self) -> Self {
-        TimestampOps::saturating_sub(self, other)
-    }
-    fn saturating_add(self, other: Self) -> Self {
-        TimestampOps::saturating_add(self, other)
-    }
-    #[inline(always)]
-    fn wrap_frame(&mut self) {
-        VFrameTs::wrap_frame(self)
     }
 }
 
