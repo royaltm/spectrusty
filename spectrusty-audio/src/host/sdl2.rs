@@ -35,7 +35,7 @@ impl<T: AudioFormatNum + AudioSample> AudioCallback for AudioCb<T> {
     fn callback(&mut self, out: &mut [T]) {
         match self.0.fill_buffer(out, false) {
             Ok(unfilled) => {
-                if unfilled.len() != 0 {
+                if !unfilled.is_empty() {
                     for t in unfilled {
                         *t = T::SILENCE
                     }

@@ -132,7 +132,7 @@ pub fn memory_range_ref<M: ZxMemory>(memory: &M, range: MemoryRange) -> Result<&
     match range {
         MemoryRange::Rom(range) => memory.rom_ref().get(range),
         MemoryRange::Ram(range) => memory.ram_ref().get(range),
-        _ => Err(ZxMemoryError::UnsupportedExRomPaging)?
+        _ => return Err(ZxMemoryError::UnsupportedExRomPaging)
     }.ok_or_else(|| ZxMemoryError::UnsupportedAddressRange)
 }
 
@@ -147,7 +147,7 @@ pub fn read_into_memory_range<R: io::Read, M: ZxMemory>(
     let mem_slice = match range {
         MemoryRange::Rom(range) => memory.rom_mut().get_mut(range),
         MemoryRange::Ram(range) => memory.ram_mut().get_mut(range),
-        _ => Err(ZxMemoryError::UnsupportedExRomPaging)?
+        _ => return Err(ZxMemoryError::UnsupportedExRomPaging)
     }.ok_or_else(|| ZxMemoryError::UnsupportedAddressRange)?;
 
     reader.read_exact(mem_slice).map_err(ZxMemoryError::Io)

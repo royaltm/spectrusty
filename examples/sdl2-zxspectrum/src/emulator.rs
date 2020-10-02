@@ -353,7 +353,7 @@ impl<C: Cpu, U> ZxSpectrumEmu<C, U> {
                 let old_tape = tape.insert_as_reader(file);
                 if let Err(e) = self.tape_info() {
                     self.spectrum.state.tape.tap = old_tape;
-                    Err(e)?
+                    return Err(e)
                 }
                 self.spectrum.state.tape.rewind_nth_chunk(1)?;
                 Ok(Some(String::new()))
@@ -436,10 +436,10 @@ impl<C: Cpu, U> ZxSpectrumEmu<C, U> {
                 }))
             }
             else {
-                Err(io::Error::new(io::ErrorKind::Other, "No free drives"))?
+                return Err(io::Error::new(io::ErrorKind::Other, "No free drives").into())
             }
         }
-        Err(io::Error::new(io::ErrorKind::Other, "ZX Interface 1 not installed"))?
+        Err(io::Error::new(io::ErrorKind::Other, "ZX Interface 1 not installed").into())
     }
 
     pub fn short_info(&mut self) -> Result<&str>

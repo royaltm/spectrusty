@@ -581,7 +581,7 @@ fn run<C, U: 'static>(
                                 break;
                             }
                             Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => continue,
-                            Err(e) => Err(e)?
+                            Err(e) => return Err(e.into())
                         }
                     }
                     update_info = true;

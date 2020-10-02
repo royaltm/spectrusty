@@ -194,8 +194,7 @@ impl<F: BandLimOpt> AyFilePlayer<F> {
         self.player.execute_next_frame(&mut self.cpu);
         self.player.render_ay_audio_frame::<V>(&mut self.bandlim, self.channels);
         self.player.render_earmic_out_audio_frame::<EarOutAmps4<f32>>(&mut self.bandlim, 2);
-        let frame_sample_count = self.player.end_audio_frame(&mut self.bandlim);
-        frame_sample_count
+        self.player.end_audio_frame(&mut self.bandlim)
     }
 
     pub fn render_audio_channel(&self, channel: usize, target: &mut [f32]) {

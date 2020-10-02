@@ -74,6 +74,7 @@ pub type SpecBusTs<S> = BusTs<<S as SpectrumUla>::Chipset>;
 ///
 /// All trait methods return optional values depending if a device is present in the static BUS configuration.
 /// Thus it's easier to write re-usable code which accesses certain devices.
+#[allow(clippy::type_complexity)]
 pub trait DeviceAccess: ControlUnit {
     /// A device used as a joystick bus device.
     type JoystickBusDevice;
@@ -136,7 +137,7 @@ macro_rules! impl_device_access_ula {
         }
 
         fn joystick_bus_device_ref(&self) -> Option<&Self::JoystickBusDevice> {
-            Some(&mut self.bus_device_ref())
+            Some(self.bus_device_ref())
         }
     };
     (@impl_nodyn) => {
@@ -150,7 +151,7 @@ macro_rules! impl_device_access_ula {
         }
 
         fn joystick_bus_device_ref(&self) -> Option<&Self::JoystickBusDevice> {
-            Some(&mut self.bus_device_ref())
+            Some(self.bus_device_ref())
         }
     };
     ($ula:ident<M:$membound:ident>) => {

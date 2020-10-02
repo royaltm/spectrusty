@@ -235,7 +235,7 @@ impl<C: Cpu, U, F> ZxSpectrum<C, U, F>
             let pulses_iter = self.ula.mic_out_pulse_iter();
             // decode the pulses as TAPE data and write it as a TAP chunk fragment
             let chunks = writer.write_pulses_as_tap_chunks(pulses_iter)?;
-            if self.state.flash_tape && !self.state.turbo || self.state.turbo {
+            if self.state.turbo || self.state.flash_tape {
                 // is the state of the pulse decoder idle?
                 self.state.turbo = !writer.get_ref().is_idle();
             }
@@ -384,10 +384,8 @@ impl<C: Cpu, U, F> ZxSpectrum<C, U, F>
             info!("Auto STOP: End of TAPE");
         }
 
-        if self.nmi_request {
-            if self.ula.nmi(&mut self.cpu) {
-                self.nmi_request = false;
-            }
+        if self.nmi_request && self.ula.nmi(&mut self.cpu) {
+            self.nmi_request = false;
         }
         if let Some(hard) = self.reset_request.take() {
             self.ula.reset(&mut self.cpu, hard);

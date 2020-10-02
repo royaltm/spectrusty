@@ -74,7 +74,7 @@ impl<C: Cpu, U, B> SpectrumControl<B> for ZxSpectrum<C, U, MemTap>
           Self: MouseAccess
 {
     fn run_frames_accelerated(&mut self, time_sync: &mut AnimationFrameSyncTimer) -> Result<(FTs, bool)> {
-        self.run_frames_accelerated(time_sync, || utils::now())
+        self.run_frames_accelerated(time_sync, utils::now)
     }
 
     fn run_frame(&mut self) -> Result<(FTs, bool)> {

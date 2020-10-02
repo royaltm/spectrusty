@@ -122,7 +122,7 @@ impl AudioHandleAnyFormat {
         ) -> Result<Self, AudioHandleError>
     {
         let device = host.default_output_device()
-                     .ok_or_else(|| (format!("no default output device"),
+                     .ok_or_else(|| ("no default output device".to_string(),
                                     AudioHandleErrorKind::AudioSubsystem))?;
         Self::create_with_device(&device, frame_duration_nanos, latency)
     }
@@ -209,7 +209,7 @@ impl<T: cpal::Sample + AudioSample> AudioHandle<T> {
 
         let data_fn = move |out: &mut [T], _: &_| match consumer.fill_buffer(out, false) {
             Ok(unfilled) => {
-                if unfilled.len() != 0 {
+                if !unfilled.is_empty() {
                     for t in unfilled {
                         *t = T::silence()
                     }

@@ -76,7 +76,7 @@ impl AudioStream {
     /// Any values between `0.02` and `1.0` are being accepted, otherwise returns an error.
     pub fn new(max_buffer_duration: f32) -> Result<Self> {
         if max_buffer_duration < 0.02 || max_buffer_duration > 1.0 {
-            Err("requested buffer duration should be between 0.02 and 1.0")?;
+            return Err("requested buffer duration should be between 0.02 and 1.0".into());
         }
 
         let ctx = AudioContext::new()?;
@@ -124,7 +124,7 @@ impl AudioStream {
         let nsamples = self.render_audio_frame(bandlim);
         let duration = nsamples as f64 / self.sample_rate as f64;
         if duration > self.buffer_duration {
-            Err("frame duration exceeds the maximum buffer duration")?;
+            return Err("frame duration exceeds the maximum buffer duration".into());
         }
 
         let current_time = self.ctx.current_time();
