@@ -15,7 +15,10 @@ use crate::video::{
         pixel_address_coords, color_address_coords
     }
 };
-use super::{UlaPlus, UlaPlusInner, frame_cache::PlusFrameProducer};
+use super::{
+    UlaPlus, UlaPlusInner, VideoRenderDataView,
+    frame_cache::PlusFrameProducer
+};
 
 impl<U> Video for UlaPlus<U>
     where U: for<'a> UlaPlusInner<'a>
@@ -126,7 +129,7 @@ impl<'a, U> UlaPlus<U>
     //         }
     //     }
     // }
-
+    #[allow(clippy::type_complexity)]
     fn create_renderer(
             &'a mut self,
             border_size: BorderSize,
@@ -142,11 +145,12 @@ impl<'a, U> UlaPlus<U>
         let render_mode = self.beg_render_mode;
         let source_mode = self.beg_source_mode;
         let swap_screens = source_mode.is_shadow_bank() ^ self.ula.beg_screen_shadow();
-        let (screen_changes,
+        let VideoRenderDataView {
+            screen_changes,
             memory,
-            frame_cache0,
-            frame_cache_shadow0
-            ) = self.ula.video_render_data_view();
+            frame_cache: frame_cache0,
+            frame_cache_shadow: frame_cache_shadow0
+        } = self.ula.video_render_data_view();
         let (s0p0, s0p1, s1p0, s1p1) = match U::Memory::SCR_BANKS_MAX {
             3 => (0, 1, 2, 3),
             1 => (0, 0, 1, 1),

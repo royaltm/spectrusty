@@ -25,7 +25,8 @@ use super::Scld;
 impl<A, M, B, X, V> AyAudioFrame<A> for Scld<M, B, X, V>
     where A: Blep,
           M: PagedMemory8k,
-          B: AyAudioBusDevice + BusDevice<Timestamp=VFrameTs<V>>,
+          B: AyAudioBusDevice + BusDevice,
+          B::Timestamp: From<VFrameTs<V>>,
           V: VideoFrame
 {
     #[inline]

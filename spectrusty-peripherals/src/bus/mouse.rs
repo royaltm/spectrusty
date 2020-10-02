@@ -111,10 +111,8 @@ impl<P, M, D> BusDevice for MouseBusDevice<P, M, D>
 
     #[inline]
     fn write_io(&mut self, port: u16, data: u8, timestamp: Self::Timestamp) -> Option<u16> {
-        if P::match_port(port) {
-            if self.mouse.port_write(port, data) {
-                return Some(0);
-            }
+        if P::match_port(port) && self.mouse.port_write(port, data) {
+            return Some(0);
         }
         self.bus.write_io(port, data, timestamp)
     }

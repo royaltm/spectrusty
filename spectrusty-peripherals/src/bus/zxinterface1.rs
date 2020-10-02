@@ -59,7 +59,7 @@ use std::io;
 use serde::{Serialize, Deserialize};
 
 use spectrusty_core::{
-    clock::FrameTimestamp,
+    clock::TimestampOps,
     bus::BusDevice
 };
 
@@ -244,7 +244,7 @@ impl<R, W, N, D> BusDevice for ZxInterface1BusDevice<R, W, N, D>
           W: io::Write + fmt::Debug,
           N: ZxNetSocket + fmt::Debug,
           D: BusDevice,
-          D::Timestamp: FrameTimestamp
+          D::Timestamp: TimestampOps
 {
     type Timestamp = D::Timestamp;
     type NextDevice = D;
@@ -271,13 +271,18 @@ impl<R, W, N, D> BusDevice for ZxInterface1BusDevice<R, W, N, D>
     }
 
     #[inline]
-    fn next_frame(&mut self, timestamp: Self::Timestamp) {
-        // println!("frame ends");
-        self.microdrives.next_frame(timestamp);
+    fn update_timestamp(&mut self, timestamp: Self::Timestamp) {
+        self.microdrives.update_timestamp(timestamp);
         self.ctrl_in.set_dtr(self.serial.poll_ready(timestamp));
-        self.serial.next_frame(timestamp);
-        self.network.next_frame(timestamp);
-        self.bus.next_frame(timestamp)
+    }
+
+    #[inline]
+    fn next_frame(&mut self, eof_timestamp: Self::Timestamp) {
+        // println!("frame ends");
+        self.microdrives.next_frame(eof_timestamp);
+        self.serial.next_frame(eof_timestamp);
+        self.network.next_frame(eof_timestamp);
+        self.bus.next_frame(eof_timestamp)
     }
 
     #[inline]

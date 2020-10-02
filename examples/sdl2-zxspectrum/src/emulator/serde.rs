@@ -14,7 +14,7 @@ use serde::{
     ser
 };
 
-use spectrusty::clock::FrameTimestamp;
+use spectrusty::clock::TimestampOps;
 use spectrusty::bus::{
     NamedBusDevice, SerializeDynDevice, DeserializeDynDevice
 };
@@ -68,7 +68,7 @@ impl SerializeDynDevice for SerdeDynDevice {
             device: &Box<dyn NamedBusDevice<T>>,
             serializer: S
         ) -> Result<S::Ok, S::Error>
-        where T: FrameTimestamp + Serialize + 'static
+        where T: TimestampOps + Serialize + 'static
     {
         serialize_dyn_devices!(device, serializer, @device<T>)
     }
@@ -78,11 +78,11 @@ impl<'de> DeserializeDynDevice<'de> for SerdeDynDevice {
     fn deserialize_dyn_device<T, D: Deserializer<'de>>(
             deserializer: D
         ) -> Result<Box<dyn NamedBusDevice<T>>, D::Error>
-        where T: Default + FrameTimestamp + Deserialize<'de> + 'static
+        where T: Default + TimestampOps + Deserialize<'de> + 'static
     {
         struct DeviceVisitor<T>(PhantomData<T>);
 
-        impl<'de, T: Default + FrameTimestamp + Deserialize<'de> + 'static> Visitor<'de> for DeviceVisitor<T> {
+        impl<'de, T: Default + TimestampOps + Deserialize<'de> + 'static> Visitor<'de> for DeviceVisitor<T> {
             type Value = Box<dyn NamedBusDevice<T>>;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {

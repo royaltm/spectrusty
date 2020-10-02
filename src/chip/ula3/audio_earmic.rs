@@ -19,7 +19,8 @@ use super::{Ula3, InnerUla, Ula3VidFrame};
 #[cfg(feature = "peripherals")]
 impl<B, D, X> AyAudioFrame<B> for Ula3<D, X>
     where B: Blep,
-          D: AyAudioBusDevice + BusDevice<Timestamp=VFrameTs<Ula3VidFrame>>
+          D: AyAudioBusDevice + BusDevice,
+          D::Timestamp: From<VFrameTs<Ula3VidFrame>>
 {
     #[inline]
     fn render_ay_audio_frame<L: AmpLevels<B::SampleDelta>>(&mut self, blep: &mut B, chans: [usize; 3]) {

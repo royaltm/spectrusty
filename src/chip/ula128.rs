@@ -67,6 +67,8 @@ pub enum MemPage8 {
 pub struct TryFromU8MemPage8Error(pub u8);
 
 /// 128k ULA (Uncommitted Logic Array).
+///
+/// See [Ula] for description of generic parameters.
 #[derive(Clone)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]
@@ -290,7 +292,8 @@ impl<B, X> MemoryAccess for Ula128<B, X>
 }
 
 impl<B, X> ControlUnit for Ula128<B, X>
-    where B: BusDevice<Timestamp=VFrameTs<Ula128VidFrame>>,
+    where B: BusDevice,
+          B::Timestamp: From<VFrameTs<Ula128VidFrame>>,
           X: MemoryExtension
 {
     type BusDevice = B;
@@ -343,7 +346,8 @@ impl<B, X> ControlUnit for Ula128<B, X>
 }
 
 impl<B, X> UlaControlExt for Ula128<B, X>
-    where B: BusDevice<Timestamp=VFrameTs<Ula128VidFrame>>
+    where B: BusDevice,
+          B::Timestamp: From<VFrameTs<Ula128VidFrame>>,
 {
     fn prepare_next_frame<C: MemoryContention>(
             &mut self,

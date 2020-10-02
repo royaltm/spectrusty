@@ -11,7 +11,7 @@ use core::convert::TryFrom;
 use log::{error, warn, info, debug, trace};
 
 use spectrusty::z80emu::Cpu;
-use spectrusty::clock::FTs;
+use spectrusty::clock::{FTs, TimestampOps};
 use spectrusty::chip::{
     UlaCommon,
     ReadEarMode, EarIn,
@@ -22,7 +22,7 @@ use spectrusty::peripherals::ay::AyRegister;
 use spectrusty::memory::ZxMemoryError;
 use spectrusty::video::{Video, BorderColor};
 use zxspectrum_common::{
-    ModelRequest, JoystickAccess, DeviceAccess,
+    BusTs, ModelRequest, JoystickAccess, DeviceAccess,
     create_ay_dyn_device, get_ay_state_from_dyn_device,
     joy_index_from_joystick_model, joystick_model_from_name,
     memory_range_ref, read_into_memory_range,
@@ -42,6 +42,7 @@ pub struct ZxSpectrumModelSnap {
 impl<C, U: 'static> SnapshotCreator for ZxSpectrumEmu<C, U>
     where C: Cpu + Into<CpuModel>,
           U: UlaCommon + DeviceAccess + MemoryAccess<MemoryExt=ZxInterface1MemExt>,
+          BusTs<U>: TimestampOps,
           ZxSpectrum<C, U>: JoystickAccess
 {
     fn model(&self) -> ComputerModel {

@@ -583,10 +583,10 @@ impl SectorExt for Sector {
         if self.data[DESCHK] != checksum(&self.data[0..DESCHK]) {
             return Err("bad data block: DESCHK invalid header checksum");
         }
-        if !self.is_free() {
-            if self.data[DCHK] != checksum(&self.data[DESCHK+1..DCHK]) {
-                return Err("bad data block: DESCHK invalid data checksum");
-            }
+        if !self.is_free() &&
+           self.data[DCHK] != checksum(&self.data[DESCHK+1..DCHK])
+        {
+            return Err("bad data block: DESCHK invalid data checksum");
         }
         Ok(())
     }
@@ -617,11 +617,11 @@ impl Default for CatFileType {
 
 impl fmt::Display for Catalog {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:10}:\n", self.name)?;
+        writeln!(f, "{:10}:", self.name)?;
         for (name, file) in self.files.iter() {
-            write!(f, "  {:10} {}\n", String::from_utf8_lossy(name), file)?;
+            writeln!(f, "  {:10} {}", String::from_utf8_lossy(name), file)?;
         }
-        write!(f, "free: {} sec. {} bytes\n",
+        writeln!(f, "free: {} sec. {} bytes",
                         self.sectors_free,
                         self.sectors_free as u32 * BLOCK_DATA_MAX as u32)
     }
@@ -667,18 +667,18 @@ impl<'a> Iterator for FileSectorIter<'a> {
             }
             else {
                 self.counter -= 1;
-                if !sector.is_free() && sector.file_name() == &self.name {
-                    if sector.file_block_seq() == self.block_seq {
-                        if sector.is_last_file_block() {
-                            self.counter = 0;
-                        }
-                        else {
-                            self.stop = index;
-                            self.counter = !0;
-                            self.block_seq += 1;
-                        }
-                        return Some(Ok(sector))
+                if !sector.is_free() && sector.file_name() == &self.name
+                   && sector.file_block_seq() == self.block_seq
+                {
+                    if sector.is_last_file_block() {
+                        self.counter = 0;
                     }
+                    else {
+                        self.stop = index;
+                        self.counter = !0;
+                        self.block_seq += 1;
+                    }
+                    return Some(Ok(sector))
                 }
             }
             if self.counter == 0 {
@@ -757,11 +757,13 @@ impl MicroCartridgeExt for MicroCartridge {
         ) -> io::Result<bool>
     {
         let mut sector_iter = self.file_sectors(file_name);
-        let mut tran = loop { 
+        #[allow(clippy::never_loop)]
+        let mut tran = loop {
             if let Some(sector) = sector_iter.next() {
                 let sector = sector.unwrap();
                 if let Some(header) = sector.tap_header()
-                                      .map_err(|e| io::Error::new(io::ErrorKind::Other, e))? {
+                                      .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?
+                {
                     wr.write_header(&header)?;
                     let mut tran = wr.begin()?;
                     tran.write_all(slice::from_ref(&DATA_BLOCK_FLAG))?;
@@ -1017,7 +1019,7 @@ impl MicroCartridgeExt for MicroCartridge {
             rd.read_exact(&mut sector.data)?;
             sectors.push(sector);
         }
-        if sectors.len() == 0 {
+        if sectors.is_empty() {
             return Err(io::Error::new(io::ErrorKind::InvalidData, "no sectors read"));
         }
         let max_sectors = max_sectors.max(sectors.len());

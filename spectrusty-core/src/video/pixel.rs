@@ -139,6 +139,7 @@ pub struct GrayscalePalR3G3B2;
 
 #[inline]
 fn index_to_grb(index: u8) -> u8 {
+    #[allow(clippy::inconsistent_digit_grouping)]
     match index & 15 {
          0 => 0b000_000_00,
          1 => 0b000_000_10,

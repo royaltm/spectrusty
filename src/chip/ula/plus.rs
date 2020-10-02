@@ -7,17 +7,14 @@
 */
 use core::iter::Empty;
 
-use crate::bus::BusDevice;
 use crate::clock::VideoTs;
 use crate::chip::{UlaPortFlags, ula::frame_cache::UlaFrameCache};
 use crate::memory::{ZxMemory, MemoryExtension};
 use crate::video::{BorderColor, VideoFrame};
-use super::Ula;
-use super::super::plus::UlaPlusInner;
+use super::{Ula, super::plus::{UlaPlusInner, VideoRenderDataView}};
 
 impl<'a, M, B, X, V> UlaPlusInner<'a> for Ula<M, B, X, V>
     where M: ZxMemory,
-          B: BusDevice,
           X: MemoryExtension,
           V: VideoFrame
 {
@@ -75,18 +72,13 @@ impl<'a, M, B, X, V> UlaPlusInner<'a> for Ula<M, B, X, V>
 
     fn video_render_data_view(
         &mut self
-    ) -> (
-            Self::ScreenSwapIter,
-            &Self::Memory,
-            &UlaFrameCache<Self::VideoFrame>,
-            &UlaFrameCache<Self::VideoFrame>
-        )
+    ) -> VideoRenderDataView<'_, Self::ScreenSwapIter, Self::Memory, Self::VideoFrame>
     {
-        (
-            core::iter::empty(),
-            &self.memory,
-            &self.frame_cache,
-            &self.frame_cache
-        )
+        VideoRenderDataView {
+            screen_changes: core::iter::empty(),
+            memory: &self.memory,
+            frame_cache: &self.frame_cache,
+            frame_cache_shadow: &self.frame_cache
+        }
     }
 }

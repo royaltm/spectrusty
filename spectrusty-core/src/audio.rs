@@ -11,7 +11,7 @@ mod sample;
 use core::ops::{Deref, DerefMut};
 use core::marker::PhantomData;
 
-use crate::clock::{FrameTimestamp, VFrameTs, VideoTs};
+use crate::clock::{VFrameTs, VideoTs};
 use crate::video::VideoFrame;
 pub use sample::{
     AudioSample,
@@ -197,8 +197,8 @@ Value output to bit: 4  3  |  Iss 2  Iss 3   Iss 2 V    Iss 3 V
                      0  1  |    1      0       0.73       0.66
                      0  0  |    0      0       0.39       0.34
 */
-pub const AMPS_EAR_MIC: [f32; 4] = [0.34/3.70, 0.66/3.70, 3.56/3.70, 3.70/3.70];
-pub const AMPS_EAR_OUT: [f32; 4] = [0.34/3.70, 0.34/3.70, 3.70/3.70, 3.70/3.70];
+pub const AMPS_EAR_MIC: [f32; 4] = [0.34/3.70, 0.66/3.70, 3.56/3.70, 1.0];
+pub const AMPS_EAR_OUT: [f32; 4] = [0.34/3.70, 0.34/3.70, 1.0, 1.0];
 pub const AMPS_EAR_IN:  [f32; 2] = [0.34/3.70, 0.66/3.70];
 
 pub const AMPS_EAR_MIC_I32: [i32; 4] = [0x0bc3_1d10, 0x16d5_1a60, 0x7b28_20ff, 0x7fff_ffff];

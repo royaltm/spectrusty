@@ -63,7 +63,9 @@ use frame_cache::SourceMode;
 
 /// This is the emulator of SCLD chip used with Timex's TC2048 / TC2068 / TS2068 models.
 ///
-/// The memory implementation must implement [PagedMemory8k] trait in addition to [ZxMemory].
+/// The generic type `M` must implement [PagedMemory8k] trait in addition to [ZxMemory].
+///
+/// See [Ula] for description of other generic parameters.
 ///
 /// [ZxMemory]: crate::memory::ZxMemory
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
@@ -176,7 +178,6 @@ impl<M, B, X, V> UlaControl for Scld<M, B, X, V>
 
 impl<M, B, X, V> Scld<M, B, X, V>
     where M: PagedMemory8k,
-          V: VideoFrame
 {
     #[inline]
     fn push_mode_change(&mut self, ts: VideoTs, render_mode: RenderMode) {
@@ -304,7 +305,8 @@ impl<M, B, X, V> MemoryAccess for Scld<M, B, X, V>
 
 impl<M, B, X, V> ControlUnit for Scld<M, B, X, V>
     where M: PagedMemory8k,
-          B: BusDevice<Timestamp=VFrameTs<V>>,
+          B: BusDevice,
+          B::Timestamp: From<VFrameTs<V>>,
           X: MemoryExtension,
           V: VideoFrame
 {
@@ -355,7 +357,8 @@ impl<M, B, X, V> ControlUnit for Scld<M, B, X, V>
 
 impl<M, B, X, V> UlaControlExt for Scld<M, B, X, V>
     where M: PagedMemory8k,
-          B: BusDevice<Timestamp=VFrameTs<V>>,
+          B: BusDevice,
+          B::Timestamp: From<VFrameTs<V>>,
           V: VideoFrame
 {
     fn prepare_next_frame<C: MemoryContention>(

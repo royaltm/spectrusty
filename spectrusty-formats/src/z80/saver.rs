@@ -191,15 +191,17 @@ fn select_hw_model_v3<S: SnapshotCreator>(
     })
 }
 
+type HwModelSelector<S> = fn(
+        ComputerModel, Extensions, &S, &mut SnapshotResult
+    ) -> Result<(u8, bool)>;
+
 fn init_z80_header_ex<S: SnapshotCreator, C: Cpu>(
         head_ex: &mut HeaderEx,
         cpu: C,
         model: ComputerModel,
         ext: Extensions,
         snapshot: &S,
-        select_hw_model: fn(
-            ComputerModel, Extensions, &S, &mut SnapshotResult
-        ) -> Result<(u8, bool)>,
+        select_hw_model: HwModelSelector<S>,
         mut result: &mut SnapshotResult
     ) -> Result<()>
 {
@@ -317,14 +319,14 @@ fn save_all_v2v3<W: Write, S: SnapshotCreator>(
 
 fn get_nmos_cpu(cpu: CpuModel, result: &mut SnapshotResult) -> Z80NMOS {
     match cpu {
-        CpuModel::NMOS(cpu) => cpu.clone(),
+        CpuModel::NMOS(cpu) => cpu,
         CpuModel::CMOS(cpu) => {
             result.insert(SnapshotResult::CPU_MODEL_NSUP);
-            cpu.clone().into_flavour()
+            cpu.into_flavour()
         },
         CpuModel::BM1(cpu) => {
             result.insert(SnapshotResult::CPU_MODEL_NSUP);
-            cpu.clone().into_flavour()
+            cpu.into_flavour()
         }
     }
 }
@@ -519,8 +521,8 @@ pub fn save_z80v3<C: SnapshotCreator, W: Write>(
     }
 
     if let Some(JoystickModel::Sinclair2) = joystick {
-        head_ex.joy_bindings = [03,01,03,02,03,04,03,08,03,10];
-        head_ex.joy_ascii    = [31,00,32,00,33,00,34,00,35,00];
+        head_ex.joy_bindings = [ 3, 1, 3, 2, 3, 4, 3, 8, 3,10];
+        head_ex.joy_ascii    = [31, 0,32, 0,33, 0,34, 0,35, 0];
     }
 
     match model {

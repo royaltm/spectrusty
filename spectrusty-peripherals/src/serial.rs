@@ -67,7 +67,7 @@ pub trait SerialPortDevice {
     /// This method is being called when a `CPU` reads (IN) from a port.
     fn read_data(&mut self, timestamp: Self::Timestamp) -> DataState;
     /// Called when the current frame ends to allow emulators to wrap stored timestamps.
-    fn next_frame(&mut self, timestamp: Self::Timestamp);
+    fn next_frame(&mut self, eof_timestamp: Self::Timestamp);
 }
 
 impl DataState {
@@ -167,5 +167,5 @@ impl<T> SerialPortDevice for NullSerialPort<T> {
         DataState::Mark
     }
     #[inline(always)]
-    fn next_frame(&mut self, _timestamp: Self::Timestamp) {}
+    fn next_frame(&mut self, _eof_timestamp: Self::Timestamp) {}
 }

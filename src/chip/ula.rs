@@ -37,7 +37,7 @@ use crate::video::{BorderColor, VideoFrame};
 use crate::memory::{ZxMemory, MemoryExtension, NoMemoryExtension};
 use crate::peripherals::ZXKeyboardMap;
 use crate::clock::{
-    FrameTimestamp, FTs, VFrameTs, VFrameTsCounter, MemoryContention,
+    FTs, VFrameTs, VFrameTsCounter, MemoryContention,
     VideoTsData1, VideoTsData2, VideoTsData3
 };
 use frame_cache::UlaFrameCache;
@@ -58,9 +58,12 @@ pub struct UlaMemoryContention;
 /// Generic 16k/48k Ferranti ULA (Uncommitted Logic Array).
 ///
 /// * `M` - [ZxMemory]
-/// * `B` - [`BusDevice<Timestamp=VFrameTs<V>>`][BusDevice]
+/// * `B` - [BusDevice]
 /// * `X` - [MemoryExtension]
 /// * `V` - [VideoFrame]
+///
+/// The type used for [`<B as BusDevice>::Timestamp`][BusDevice::Timestamp] should at least
+/// satisfy the condition: `From<VFrameTs<V>>`.
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]
 #[derive(Clone)]
@@ -131,7 +134,7 @@ impl<M, B, X, V: VideoFrame> FrameState for Ula<M, B, X, V> {
     }
 }
 
-impl<M, B, X, V: VideoFrame> UlaControl for Ula<M, B, X, V> {
+impl<M, B, X, V> UlaControl for Ula<M, B, X, V> {
     fn has_late_timings(&self) -> bool {
         self.late_timings
     }
@@ -235,7 +238,8 @@ impl<M, B, X, V> MemoryAccess for Ula<M, B, X, V>
 
 impl<M, B, X, V> ControlUnit for Ula<M, B, X, V>
     where M: ZxMemory,
-          B: BusDevice<Timestamp=VFrameTs<V>>,
+          B: BusDevice,
+          B::Timestamp: From<VFrameTs<V>>,
           X: MemoryExtension,
           V: VideoFrame
 {
@@ -256,7 +260,7 @@ impl<M, B, X, V> ControlUnit for Ula<M, B, X, V>
     fn reset<C: Cpu>(&mut self, cpu: &mut C, hard: bool) {
         if hard {
             cpu.reset();
-            self.bus.reset(self.tsc);
+            self.bus.reset(self.tsc.into());
             self.memory.reset();
         }
         else {
@@ -290,7 +294,8 @@ impl<M, B, X, V> ControlUnit for Ula<M, B, X, V>
 
 impl<M, B, X, V> UlaControlExt for Ula<M, B, X, V>
     where M: ZxMemory,
-          B: BusDevice<Timestamp=VFrameTs<V>>,
+          B: BusDevice,
+          B::Timestamp: From<VFrameTs<V>>,
           V: VideoFrame
 {
     fn prepare_next_frame<C: MemoryContention>(
@@ -298,7 +303,7 @@ impl<M, B, X, V> UlaControlExt for Ula<M, B, X, V>
             mut vtsc: VFrameTsCounter<V, C>
         ) -> VFrameTsCounter<V, C>
     {
-        self.bus.next_frame(vtsc.into());
+        self.bus.next_frame(VFrameTs::<V>::EOF.into());
         self.frames += Wrapping(1);
         self.cleanup_video_frame_data();
         self.cleanup_earmic_frame_data();

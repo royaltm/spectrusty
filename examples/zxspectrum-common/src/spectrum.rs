@@ -21,6 +21,7 @@ use spectrusty::clock::FTs;
 use spectrusty::chip::{
     HostConfig,
     UlaCommon,
+    ControlUnit
 };
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -53,7 +54,7 @@ pub type Result<T> = core::result::Result<T, Box<dyn std::error::Error>>;
 /// A helper trait for defining contraints on the chipset type from the specialized [ZxSpectrum] types.
 pub trait SpectrumUla {
     /// The type of the [ZxSpectrum] chipset.
-    type Chipset;
+    type Chipset: ControlUnit;
 }
 
 /// The main struct representing a generic ZX Spectrum model and the status of the emulator.
@@ -138,7 +139,7 @@ pub struct EmulatorState<F=MemTap> {
 
 fn default_instant_tape() -> bool { true }
 
-impl<C: Cpu, U, F> SpectrumUla for ZxSpectrum<C, U, F> {
+impl<C: Cpu, U: ControlUnit, F> SpectrumUla for ZxSpectrum<C, U, F> {
     type Chipset = U;
 }
 
@@ -208,7 +209,6 @@ impl<C: Cpu, U, F> ZxSpectrum<C, U, F>
     pub fn update_keyboard<FN: FnOnce(ZXKeyboardMap) -> ZXKeyboardMap>(
             &mut self,
             update_keys: FN)
-        where U: DeviceAccess
     {
         let keymap = update_keys( self.ula.get_key_state() );
         self.ula.set_key_state(keymap);
@@ -235,7 +235,7 @@ impl<C: Cpu, U, F> ZxSpectrum<C, U, F>
             let pulses_iter = self.ula.mic_out_pulse_iter();
             // decode the pulses as TAPE data and write it as a TAP chunk fragment
             let chunks = writer.write_pulses_as_tap_chunks(pulses_iter)?;
-            if self.state.flash_tape && !self.state.turbo || self.state.turbo {
+            if self.state.turbo || self.state.flash_tape {
                 // is the state of the pulse decoder idle?
                 self.state.turbo = !writer.get_ref().is_idle();
             }
@@ -384,10 +384,8 @@ impl<C: Cpu, U, F> ZxSpectrum<C, U, F>
             info!("Auto STOP: End of TAPE");
         }
 
-        if self.nmi_request {
-            if self.ula.nmi(&mut self.cpu) {
-                self.nmi_request = false;
-            }
+        if self.nmi_request && self.ula.nmi(&mut self.cpu) {
+            self.nmi_request = false;
         }
         if let Some(hard) = self.reset_request.take() {
             self.ula.reset(&mut self.cpu, hard);

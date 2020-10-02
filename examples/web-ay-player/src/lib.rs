@@ -114,7 +114,7 @@ impl AyPlayerHandle {
     #[wasm_bindgen]
     pub fn play(&mut self, song_index: u32) -> Result<JsValue, JsValue> {
         if let PlayerStatus::Playing = self.status {
-            Err("Playing already.")?;
+            return Err("Playing already.".into());
         }
         let song_info;
         let (time, duration) = {
@@ -278,7 +278,7 @@ impl AyPlayerHandle {
                     ctx.resume()?
                 }
                 AudioContextState::Running => ctx.suspend()?,
-                _ => Err("Audio context closed")?
+                _ => return Err("Audio context closed".into())
             }
         };
 
@@ -328,7 +328,7 @@ fn nothing() -> Result<(), JsValue> { Ok(()) }
 impl AyWebPlayer {
     fn new(buffer_duration: f32) -> Result<Self, JsValue> {
         if buffer_duration < 0.1 || buffer_duration > 1.0 {
-            Err("requested buffer duration should be between 0.1 and 1.0")?;
+            return Err("requested buffer duration should be between 0.1 and 1.0".into());
         }
         let ctx = web_sys::AudioContext::new()?;
         let sample_rate = ctx.sample_rate();

@@ -5,7 +5,7 @@
 
     For the full copyright notice, see the lib.rs file.
 */
-use crate::clock::{FrameTimestamp, Ts, VFrameTs, VideoTs, VideoTsData2};
+use crate::clock::{Ts, VFrameTs, VideoTs, VideoTsData2};
 use crate::video::{
     VideoFrame,
     frame_cache::PlusVidFrameDataIterator
@@ -43,6 +43,7 @@ impl<'a, V, IM, IS> PlusFrameProducer<'a, V, IM, IS>
           IM: Iterator<Item=VideoTsData2>,
           IS: Iterator<Item=VideoTs>
 {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
             swap_screens: bool,
             source: SourceMode,

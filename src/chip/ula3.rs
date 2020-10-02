@@ -65,6 +65,8 @@ pub enum MemPage4 {
 pub struct TryFromU8MemPage4Error(pub u8);
 
 /// +2A/+3 Amstrad "ULA" (or AGA - Amstrad gate array).
+///
+/// See [Ula] for description of generic parameters.
 #[derive(Clone)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]
@@ -370,7 +372,8 @@ impl<B, X> MemoryAccess for Ula3<B, X>
 }
 
 impl<B, X> ControlUnit for Ula3<B, X>
-    where B: BusDevice<Timestamp=VFrameTs<Ula3VidFrame>>,
+    where B: BusDevice,
+          B::Timestamp: From<VFrameTs<Ula3VidFrame>>,
           X: MemoryExtension
 {
     type BusDevice = B;
@@ -425,7 +428,8 @@ impl<B, X> ControlUnit for Ula3<B, X>
 }
 
 impl<B, X> UlaControlExt for Ula3<B, X>
-    where B: BusDevice<Timestamp=VFrameTs<Ula3VidFrame>>
+    where B: BusDevice,
+          B::Timestamp: From<VFrameTs<Ula3VidFrame>>
 {
     fn prepare_next_frame<C: MemoryContention>(
             &mut self,

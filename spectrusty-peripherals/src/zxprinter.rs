@@ -28,7 +28,7 @@ use core::ops::{Deref, DerefMut};
 #[cfg(feature = "snapshot")]
 use serde::{Serialize, Deserialize};
 
-use spectrusty_core::clock::*;
+use spectrusty_core::clock::{FTs, TimestampOps};
 
 /// A number of printed dots in each line.
 pub const DOTS_PER_LINE: u32 = 256;
@@ -142,10 +142,10 @@ impl<T, S> DerefMut for ZxPrinterDevice<T, S> {
 }
 
 // 2 lines / sec
-impl<T: FrameTimestamp, S: Spooler> ZxPrinterDevice<T, S> {
+impl<T: TimestampOps, S: Spooler> ZxPrinterDevice<T, S> {
     /// This method should be called after each emulated frame.
-    pub fn next_frame(&mut self) {
-        self.ready_ts = self.ready_ts.saturating_sub_frame();
+    pub fn next_frame(&mut self, eof_timestamp: T) {
+        self.ready_ts = self.ready_ts.saturating_sub(eof_timestamp);
     }
     /// This method should be called when the device is being reset.
     pub fn reset(&mut self) {
@@ -216,7 +216,7 @@ impl<T: FrameTimestamp, S: Spooler> ZxPrinterDevice<T, S> {
 
     #[inline]
     fn set_delay(&mut self, timestamp: T, data: u8) {
-        let mut delay: u32 = self.bit_delay.into();
+        let mut delay: FTs = self.bit_delay.into();
         if data & SLOW_MASK == SLOW_MASK {
             delay *= 2;
         }

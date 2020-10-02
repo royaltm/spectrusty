@@ -16,7 +16,7 @@ use serde::{Serialize, Deserialize};
 
 use spectrusty_core::{
     bus::{BusDevice, PortAddress},
-    clock::FrameTimestamp
+    clock::TimestampOps
 };
 use super::ay::PassByAyAudioBusDevice;
 
@@ -103,7 +103,7 @@ impl<P, S, D> BusDevice for ZxPrinterBusDevice<P, S, D>
     where P: PortAddress,
           S: Spooler,
           D: BusDevice,
-          D::Timestamp: FrameTimestamp
+          D::Timestamp: TimestampOps
 {
     type Timestamp = D::Timestamp;
     type NextDevice = D;
@@ -130,9 +130,9 @@ impl<P, S, D> BusDevice for ZxPrinterBusDevice<P, S, D>
     }
 
     #[inline]
-    fn next_frame(&mut self, timestamp: Self::Timestamp) {
-        self.printer.next_frame();
-        self.bus.next_frame(timestamp)
+    fn next_frame(&mut self, eof_timestamp: Self::Timestamp) {
+        self.printer.next_frame(eof_timestamp);
+        self.bus.next_frame(eof_timestamp)
     }
 
     #[inline]

@@ -21,7 +21,7 @@ use crate::clock::VFrameTs;
 
 pub use dynbus::*;
 
-impl<T: Debug + 'static> dyn NamedBusDevice<T> {
+impl<T: 'static> dyn NamedBusDevice<T> {
     /// Attempts to downcast the box to a concrete type.
     #[inline]
     pub fn downcast<D: 'static>(self: Box<Self>) -> Result<Box<D>, Box<dyn NamedBusDevice<T>>>
@@ -38,7 +38,7 @@ impl<T: Debug + 'static> dyn NamedBusDevice<T> {
     }
 }
 
-impl<T: Debug + 'static> dyn NamedBusDevice<T> + 'static {
+impl<T: 'static> dyn NamedBusDevice<T> + 'static {
     /// Returns `true` if the boxed type is the same as `D`
     #[inline]
     pub fn is<D: NamedBusDevice<T> + 'static>(&self) -> bool {
@@ -100,12 +100,14 @@ pub trait BusDevice: Debug {
     fn reset(&mut self, timestamp: Self::Timestamp) {
         self.next_device_mut().reset(timestamp)
     }
-    /// This method should be called at the end of each frame by [ControlUnit::execute_next_frame][crate::chip::ControlUnit::execute_next_frame].
+    /// This method should be called near the end of each frame.
     ///
     /// Default implementation forwards this call to the next device.
     ///
     /// **NOTE**: Implementations should always forward this call down the chain after optionally applying it
     /// to `self`.
+    ///
+    /// [ControlUnit::execute_next_frame]: crate::chip::ControlUnit::execute_next_frame
     #[inline(always)]
     fn update_timestamp(&mut self, timestamp: Self::Timestamp) {
         self.next_device_mut().update_timestamp(timestamp)
@@ -113,18 +115,19 @@ pub trait BusDevice: Debug {
     /// This method should be called just before the T-state counter of the control unit is wrapped when preparing
     /// for the next frame.
     ///
-    /// It allows the devices that are tracking time to adjust stored timestamps accordingly by subtracting the
-    /// total number of T-states per frame from the stored ones.
+    /// It allows the devices that are tracking time to adjust stored timestamps accordingly by subtracting
+    /// the total number of T-states per frame from the stored ones. The `eof_timestamp` argument indicates
+    /// the total number of T-states in a single frame.
     ///
-    /// Optionally enables implementations to perform an end-of-frame action using the provided `timestamp`.
+    /// Optionally enables implementations to perform an end-of-frame action.
     ///
     /// Default implementation forwards this call to the next device.
     ///
     /// **NOTE**: Implementations should always forward this call down the chain after optionally applying it
     /// to `self`.
     #[inline(always)]
-    fn next_frame(&mut self, timestamp: Self::Timestamp) {
-        self.next_device_mut().next_frame(timestamp)
+    fn next_frame(&mut self, eof_timestamp: Self::Timestamp) {
+        self.next_device_mut().next_frame(eof_timestamp)
     }
     /// This method is called by the control unit during an I/O read cycle.
     ///
@@ -182,13 +185,20 @@ pub trait PortAddress: Debug {
 /// A daisy-chain terminator device. Use it as the last device in a chain.
 ///
 /// Substitute `T` with a timestamp type.
-#[derive(Clone, Default, Debug, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 pub struct NullDevice<T>(PhantomData<T>);
 
 pub type VFNullDevice<V> = NullDevice<VFrameTs<V>>;
 
-impl<T: Debug> BusDevice for NullDevice<T> {
+impl<T> Default for NullDevice<T> {
+    #[inline(always)]
+    fn default() -> Self {
+        NullDevice(PhantomData)
+    }
+}
+
+impl<T> BusDevice for NullDevice<T> {
     type Timestamp = T;
     type NextDevice = Self;
 
@@ -221,6 +231,12 @@ impl<T: Debug> BusDevice for NullDevice<T> {
     #[inline(always)]
     fn write_io(&mut self, _port: u16, _data: u8, _timestamp: Self::Timestamp) -> Option<u16> {
         None
+    }
+}
+
+impl<T> fmt::Debug for NullDevice<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("NullDevice").finish()
     }
 }
 

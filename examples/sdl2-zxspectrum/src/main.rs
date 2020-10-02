@@ -43,7 +43,7 @@ use sdl2::{Sdl,
 
 use spectrusty::z80emu::{Z80Any, Cpu};
 use spectrusty::audio::UlaAudioFrame;
-use spectrusty::clock::VFrameTs;
+use spectrusty::clock::TimestampOps;
 use spectrusty::chip::{MemoryAccess, UlaCommon, HostConfig};
 
 use spectrusty::peripherals::memory::ZxInterface1MemExt;
@@ -61,6 +61,7 @@ use spectrusty::formats::{
 };
 use spectrusty::video::{BorderSize, pixel};
 use zxspectrum_common::{
+    BusTs,
     ModelRequest,
     DynamicDevices,
     JoystickAccess,
@@ -251,6 +252,7 @@ fn config_and_run<U: 'static>(
            + UlaPlusMode
            + MemoryAccess<MemoryExt = ZxInterface1MemExt>
            + serde::Serialize,
+          BusTs<U>: TimestampOps + Default,
           ZxSpectrum<Z80Any, U>: JoystickAccess
 {
     let sdl_context = sdl2::init()?;
@@ -282,7 +284,7 @@ fn config_and_run<U: 'static>(
         if request_if1 != Some(false) {
             let rom_file = File::open(rom_path)?;
             spec.ula.memory_ext_mut().load_if1_rom(rom_file)?;
-            spec.attach_device(ZxInterface1::<VFrameTs<U::VideoFrame>>::default());
+            spec.attach_device(ZxInterface1::<BusTs<U>>::default());
             info!("Interface 1 installed");
             let network = spec.zxif1_network_mut().unwrap();
             if let Some(bind) = matches.value_of("zxnet_bind") {
@@ -313,7 +315,7 @@ fn config_and_run<U: 'static>(
     }
 
     if matches.is_present("printer") {
-        spec.attach_device(ZxPrinter::<VFrameTs<U::VideoFrame>>::default());
+        spec.attach_device(ZxPrinter::<BusTs<U>>::default());
         info!("ZX Printer installed");
     }
 
@@ -392,6 +394,7 @@ fn run<C, U: 'static>(
            + SpoolerAccess
            + ScreenDataProvider
            + UlaPlusMode,
+          BusTs<U>: TimestampOps,
           ZxSpectrumEmu<C, U>: SnapshotCreator,
           ZxSpectrum<C, U>: JoystickAccess
 {
@@ -578,7 +581,7 @@ fn run<C, U: 'static>(
                                 break;
                             }
                             Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => continue,
-                            Err(e) => Err(e)?
+                            Err(e) => return Err(e.into())
                         }
                     }
                     update_info = true;

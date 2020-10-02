@@ -64,10 +64,10 @@ impl VideoFrame for UlaNTSCVidFrame {
 
 #[cfg(test)]
 mod tests {
-    use crate::clock::{FrameTimestamp, VFrameTs};
+    use crate::clock::{TimestampOps, VFrameTs};
     use super::*;
     type TestVideoFrame = UlaNTSCVidFrame;
-    type TestVFTs = VFrameTs<UlaNTSCVidFrame>;
+    type TestVFTs = VFrameTs<TestVideoFrame>;
 
     #[test]
     fn test_contention() {
@@ -82,7 +82,7 @@ mod tests {
                        (8966, 8966)];
         for offset in (0..16).map(|x| x * 8i32) {
             for (testing, target) in tstates.iter().copied() {
-                let mut vts = vts0 + testing + offset as u32;
+                let mut vts: TestVFTs = vts0 + testing + offset as u32;
                 vts.hc = TestVideoFrame::contention(vts.hc);
                 assert_eq!(vts.normalized(),
                            TestVFTs::from_tstates(target + offset));
@@ -98,6 +98,7 @@ mod tests {
 
     #[test]
     fn test_video_frame_vts_utils() {
+        assert_eq!(TestVFTs::EOF, TestVFTs::from_tstates(TestVideoFrame::FRAME_TSTATES_COUNT));
         let items = [((  0, -69),   -69, ( 0, 59067), false, true , (  0, -69)),
                      ((  0,   0),     0, ( 1,     0), false, true , (  0,   0)),
                      ((  0,  -1),    -1, ( 0, 59135), false, true , (  0,  -1)),

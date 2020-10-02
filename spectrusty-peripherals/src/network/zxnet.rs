@@ -12,7 +12,7 @@ use std::time::{Instant};
 #[allow(unused_imports)]
 use log::{error, warn, info, debug, trace};
 
-use spectrusty_core::clock::FrameTimestamp;
+use spectrusty_core::clock::{FTs, TimestampOps};
 pub use super::zxnet_udp::*;
 
 const CPU_HZ: f32 = 3_500_000.0;
@@ -97,13 +97,13 @@ impl DataAsZxNetHead for [u8] {
 
 // const REST_DELAY: u32 = 6912 + 250; // input
 // const SCOUT_WAIT_MAX: u32 = 47250;
-const INPAK_WAIT_MAX: u32 = 8925;
-const OUTPAK_START_DELAY: u32 = 110;
-const BIT_DELAY: u32 = 60;
-const REST_DELAY_THRESHOLD: u32 = 64;
-const PROBE_DELAY_MIN: u32 = 65;
-const PROBE_DELAY_MAX: u32 = 130;
-const BYTE_DELAY: u32 = 120;
+const INPAK_WAIT_MAX: FTs = 8925;
+const OUTPAK_START_DELAY: FTs = 110;
+const BIT_DELAY: FTs = 60;
+const REST_DELAY_THRESHOLD: FTs = 64;
+const PROBE_DELAY_MIN: FTs = 65;
+const PROBE_DELAY_MAX: FTs = 130;
+const BYTE_DELAY: FTs = 120;
 const BROADCAST_DATA_DELAY: i32 = 530;
 
 // const MAX_PACKET_SIZE: usize = 256 + BODY_INDEX;
@@ -129,7 +129,7 @@ enum NetState {
 // https://scratchpad.fandom.com/wiki/ZX_Net
 // scout: 1 x x x x x x x 0 
 //(2.5ms) 1 [ 0 x x x x x x x x 1 * bytes ] 0
-impl<T: FrameTimestamp, S: ZxNetSocket> ZxNet<T, S> {
+impl<T: TimestampOps, S: ZxNetSocket> ZxNet<T, S> {
     pub fn send_state(&mut self, net: bool, timestamp: T) {
         match self.io {
             NetState::Idle(..) => {
@@ -259,7 +259,7 @@ impl<T: FrameTimestamp, S: ZxNetSocket> ZxNet<T, S> {
         match self.io {
             NetState::Idle(cnt) => {
                 if timestamp >= self.event_ts {
-                    match timestamp.diff_from(self.event_ts) as u32 {
+                    match timestamp.diff_from(self.event_ts) as FTs {
                         0..=REST_DELAY_THRESHOLD => {
                             // println!("IDLE REST: {} {}", V::vts_diff(self.event_ts, timestamp), cnt);
                             self.event_ts = timestamp;
@@ -373,13 +373,13 @@ impl<T: FrameTimestamp, S: ZxNetSocket> ZxNet<T, S> {
         }
     }
 
-    pub fn next_frame(&mut self, _timestamp: T) {
-        self.event_ts = self.event_ts.saturating_sub_frame();
+    pub fn next_frame(&mut self, eof_timestamp: T) {
+        self.event_ts = self.event_ts.saturating_sub(eof_timestamp);
     }
 
     fn setup_event_time(&mut self, timestamp: T, start: Instant) {
         let elapsed = start.elapsed().as_secs_f32();
-        let elapsed_ts = (elapsed * CPU_HZ).round() as u32;
+        let elapsed_ts = (elapsed * CPU_HZ).round() as FTs;
         // println!("waited: {} {}", elapsed_ts, elapsed);
         self.event_ts = timestamp + elapsed_ts;
     }

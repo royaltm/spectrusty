@@ -31,7 +31,7 @@ pub fn serialize_mem<T, S>(mem: &T, serializer: S) -> Result<S::Ok, S::Error>
     }
     #[cfg(feature = "compression")]
     {
-        let compr = mem.as_slice().into_iter().copied()
+        let compr = mem.as_slice().iter().copied()
             .encode(&mut GZipEncoder::new(), Action::Finish)
             .collect::<Result<Vec<_>, _>>()
             .map_err(ser::Error::custom)?;
@@ -235,7 +235,7 @@ fn is_compressed(data: &[u8]) -> bool {
 
 #[cfg(feature = "compression")]
 fn decompress<T: FromIterator<u8>, E: de::Error>(data: &[u8]) -> Result<T, E> {
-    data.into_iter().copied()
+    data.iter().copied()
         .decode(&mut GZipDecoder::new())
         .collect::<Result<T, _>>()
         .map_err(de::Error::custom)

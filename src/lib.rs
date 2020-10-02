@@ -110,7 +110,7 @@ Implemented by other components:
 
 | trait | implemented by | function |
 |-------|----------------|----------|
-| [Cpu][spectrusty_core::z80emu::Cpu] | Z80 CPU | Central processing unit |
+| [Cpu] | Z80 CPU | Central processing unit |
 | [ZxMemory] | System memory | An access to memory banks, pages, screens, attaching external ROM's |
 | [PagedMemory16k][memory::PagedMemory16k] | Memory group | Groups memory implementations with 16k paging capability |
 | [PagedMemory8k][memory::PagedMemory8k] | Memory group | Groups memory implementations with 8k paging capability |
@@ -142,10 +142,10 @@ These are the most commonly used:
 * `C`: A unit struct that implements [MemoryContention][clock::MemoryContention].
 * `U`: An underlying chipset implementing [UlaPlusInner][chip::plus::UlaPlusInner].
 
-[spectrusty-core]: spectrusty_core
-[spectrusty-audio]: spectrusty_audio
-[spectrusty-formats]: spectrusty_formats
-[spectrusty-peripherals]: spectrusty_peripherals
+[spectrusty-core]: /spectrusty_core
+[spectrusty-audio]: /spectrusty_audio
+[spectrusty-formats]: /spectrusty_formats
+[spectrusty-peripherals]: /spectrusty_peripherals
 [spectrusty-utils]: /spectrusty_utils
 [z80emu]: /z80emu
 [SDL2]: https://crates.io/crates/sdl2
@@ -156,6 +156,7 @@ These are the most commonly used:
 [MemoryExtension]: memory::MemoryExtension
 [VideoFrame]: video::VideoFrame
 [VideoTs]: clock::VideoTs
+[Cpu]: /z80emu/%2A/z80emu/trait.Cpu.html
 */
 pub use spectrusty_core::z80emu;
 pub use spectrusty_core::clock;

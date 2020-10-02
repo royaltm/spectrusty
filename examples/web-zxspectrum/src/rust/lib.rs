@@ -477,7 +477,7 @@ impl ZxSpectrumEmu {
                        .map(|tap| tap.try_into_file()
                            .and_then(|mut crs| {
                                 old_pos = crs.seek(SeekFrom::End(0))?;
-                                crs.write(&tape_data)?;
+                                crs.write_all(&tape_data)?;
                                 Ok(crs)
                             })
                        ).transpose().js_err()?
@@ -556,7 +556,7 @@ impl ZxSpectrumEmu {
             1 => save_z80v1(self, &mut buf).js_err()?,
             2 => save_z80v2(self, &mut buf).js_err()?,
             3 => save_z80v3(self, &mut buf).js_err()?,
-            _ => Err("Z80 version should be: 1,2 or 3")?
+            _ => return Err("Z80 version should be: 1,2 or 3".into())
         };
         report_result(result);
         Ok(buf)

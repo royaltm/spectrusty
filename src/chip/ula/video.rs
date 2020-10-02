@@ -188,7 +188,7 @@ impl<M: ZxMemory, B, X, V> Ula<M, B, X, V> {
         ) -> Renderer<UlaFrameProducer<'_, V>, std::vec::Drain<'_, VideoTsData3>>
         where V: VideoFrame
     {
-        let border = self.border.into();
+        let border = self.border;
         let invert_flash = self.flash_state();
         let screen = self.memory.screen_ref(0).unwrap();
         // print!("render: {} {:?}", screen_bank, screen.as_ptr());
@@ -204,10 +204,10 @@ impl<M: ZxMemory, B, X, V> Ula<M, B, X, V> {
 
 #[cfg(test)]
 mod tests {
-    use crate::clock::{FrameTimestamp, VFrameTs};
+    use crate::clock::{TimestampOps, VFrameTs};
     use super::*;
     type TestVideoFrame = UlaVideoFrame;
-    type TestVFTs = VFrameTs<UlaVideoFrame>;
+    type TestVFTs = VFrameTs<TestVideoFrame>;
 
     #[test]
     fn test_contention() {
@@ -222,7 +222,7 @@ mod tests {
                        (14342, 14342)];
         for offset in (0..16).map(|x| x * 8i32) {
             for (testing, target) in tstates.iter().copied() {
-                let mut vts = vts0 + testing + offset as u32;
+                let mut vts: TestVFTs = vts0 + testing + offset as u32;
                 vts.hc = TestVideoFrame::contention(vts.hc);
                 assert_eq!(vts.normalized(),
                            TestVFTs::from_tstates(target + offset));
@@ -238,6 +238,7 @@ mod tests {
 
     #[test]
     fn test_video_frame_vts_utils() {
+        assert_eq!(TestVFTs::EOF, TestVFTs::from_tstates(TestVideoFrame::FRAME_TSTATES_COUNT));
         let items = [((  0, -69),   -69, ( 0, 69819), false, true , (  0, -69)),
                      ((  0,   0),     0, ( 1,     0), false, true , (  0,   0)),
                      ((  0,  -1),    -1, ( 0, 69887), false, true , (  0,  -1)),

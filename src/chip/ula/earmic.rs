@@ -8,7 +8,7 @@
 use core::num::Wrapping;
 
 use crate::chip::{EarIn, MicOut, EarMic, ReadEarMode};
-use crate::clock::{FrameTimestamp, FTs};
+use crate::clock::FTs;
 use crate::video::VideoFrame;
 use super::Ula;
 
@@ -66,7 +66,7 @@ impl<M, B, X, V> EarIn for Ula<M, B, X, V>
 
     fn purge_ear_in_changes(&mut self, ear_in: bool) {
         self.ear_in_changes.clear();
-        self.prev_ear_in = ear_in.into();
+        self.prev_ear_in = ear_in;
     }
 
     fn read_ear_in_count(&self) -> u32 {

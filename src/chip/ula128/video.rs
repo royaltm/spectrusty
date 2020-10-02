@@ -84,17 +84,15 @@ impl VideoFrame for Ula128VidFrame {
     #[inline(always)]
     fn snow_interference_coords(VideoTs { vc, hc }: VideoTs) -> Option<CellCoords> {
         let row = vc - Self::VSL_PIXELS.start;
-        if row >= 0 && vc < Self::VSL_PIXELS.end {
-            if hc >= 0 && hc <= 123 {
-                return match hc & 7 {
-                    0|1 => Some(0),
-                    2|3 => Some(1),
-                    _ => None
-                }.map(|offs| {
-                    let column = (((hc >> 2) & !1) | offs) as u8;
-                    CellCoords { column, row: row as u8 }
-                })
-            }
+        if row >= 0 && vc < Self::VSL_PIXELS.end && hc >= 0 && hc <= 123 {
+            return match hc & 7 {
+                0|1 => Some(0),
+                2|3 => Some(1),
+                _ => None
+            }.map(|offs| {
+                let column = (((hc >> 2) & !1) | offs) as u8;
+                CellCoords { column, row: row as u8 }
+            })
         }
         None
     }
@@ -200,7 +198,7 @@ pub(crate) fn create_ula128_renderer<'a, V, M, B, X>(
           Ula<M, B, X, V>: Video
 {
     let swap_screens = beg_screen_shadow;
-    let border = ula.border_color().into();
+    let border = ula.border_color();
     let invert_flash = ula.flash_state();
     let (border_changes, memory, frame_cache0) = ula.video_render_data_view();
     let frame_cache1 = shadow_frame_cache;
@@ -226,10 +224,10 @@ pub(crate) fn create_ula128_renderer<'a, V, M, B, X>(
 
 #[cfg(test)]
 mod tests {
-    use crate::clock::{FrameTimestamp, VFrameTs};
+    use crate::clock::{TimestampOps, VFrameTs};
     use super::*;
     type TestVideoFrame = Ula128VidFrame;
-    type TestVFTs = VFrameTs<Ula128VidFrame>;
+    type TestVFTs = VFrameTs<TestVideoFrame>;
 
     #[test]
     fn test_contention() {
@@ -244,7 +242,7 @@ mod tests {
                        (14368, 14368)];
         for offset in (0..16).map(|x| x * 8i32) {
             for (testing, target) in tstates.iter().copied() {
-                let mut vts = vts0 + testing + offset as u32;
+                let mut vts: TestVFTs = vts0 + testing + offset as u32;
                 vts.hc = TestVideoFrame::contention(vts.hc);
                 assert_eq!(vts.normalized(),
                            TestVFTs::from_tstates(target + offset));
@@ -260,6 +258,7 @@ mod tests {
 
     #[test]
     fn test_video_frame_vts_utils() {
+        assert_eq!(TestVFTs::EOF, TestVFTs::from_tstates(TestVideoFrame::FRAME_TSTATES_COUNT));
         let items = [((  0, -73),   -73, ( 0, 70835), false, true , (  0, -73)),
                      ((  0,   0),     0, ( 1,     0), false, true , (  0,   0)),
                      ((  0,  -1),    -1, ( 0, 70907), false, true , (  0,  -1)),
