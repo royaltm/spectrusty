@@ -1,5 +1,6 @@
 v0.2.0
-* `TimestampOps` trait now used in peripherals implementations, replaces deprecated `FrameTimestamp`. Former methods of `FrameTimestamp` moved to `VFrameTs` struct implementation. `VFrameTs<V>::EOF` constant introduced.
+
+* `TimestampOps` trait now used in peripherals implementations replaces deprecated `FrameTimestamp`. Former methods of `FrameTimestamp` moved to `VFrameTs` struct implementation. A new constant `VFrameTs<V>::EOF`.
 * Decouple `BusDevice` timestamps from `ControlUnit` implementations. Now timestamps must implement `From<VFrameTs<_>>` instead of being exactly the same. This enables usage of a common timestamp type for devices shared between different chipset implementations.
 * Removed unnecessary `Debug` and `Default` constraints on the timestamp type from definitions of NamedBusDevice, AyIoPort, NullDevice.
 * `ControlUnit` implementations, while executing single instructions invoke `BusDevice::update_timestamp`.
@@ -11,4 +12,4 @@ v0.2.0
 * examples: zxspectrum-common: generic bus device timestamp types; Bus device timestamps are now `FTs`.
 * examples: sdl2-zxspectrum, web-zxspectrum: adapted to changes in zxspectrum-common.
 
-* Changes suggested by clippy.
+* Changes suggested by Clippy.
