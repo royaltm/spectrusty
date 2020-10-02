@@ -69,6 +69,7 @@ pub struct UlaMemoryContention;
 #[derive(Clone)]
 pub struct Ula<M, B, X, V> {
     pub(super) frames: Wrapping<u64>, // frame counter
+    #[cfg_attr(feature = "snapshot", serde(bound = "V: VideoFrame"))]
     pub(super) tsc: VFrameTs<V>, // current T-state timestamp
     pub(super) memory: M,
     pub(super) bus: B,

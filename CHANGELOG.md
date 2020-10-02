@@ -8,6 +8,7 @@ v0.2.0
 * (fix, BREAKING) peripherals: types definitions in bus::ay::serial128 do not expose invariant parameter `T` but properly bind it to the `BusDevice` implementations of `D`.
 * (BREAKING) Redefined an `eof_timestamp` argument to BusDevice::next_frame.
 * (BREAKING) `UlaPlusInner::video_render_data_view` return type is now `VideoRenderDataView`.
+* (BREAKING) `VFrameTs<V>` serializes to and deserializes from `FTs`. This enables compatibility of the snapshots between different timestamp implementations. Not backward compatible.
 
 * examples: zxspectrum-common: generic bus device timestamp types; Bus device timestamps are now `FTs`.
 * examples: sdl2-zxspectrum, web-zxspectrum: adapted to changes in zxspectrum-common.

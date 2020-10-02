@@ -74,6 +74,7 @@ use frame_cache::SourceMode;
 pub struct Scld<M: PagedMemory8k, B, X, V>
 {
     #[cfg_attr(feature = "snapshot", serde(bound(
+        serialize = "Ula<M, B, X, V>: Serialize",
         deserialize = "Ula<M, B, X, V>: Deserialize<'de>"
     )))]
     ula: Ula<M, B, X, V>,

@@ -45,7 +45,8 @@ pub struct VideoTs {
 /// A [VideoTs] timestamp wrapper with a constraint to the `V:` [VideoFrame],
 /// implementing methods and traits for timestamp calculations.
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "snapshot", serde(from="VideoTs", into="VideoTs"))]
+#[cfg_attr(feature = "snapshot", serde(from="FTs", into="FTs"))]
+#[cfg_attr(feature = "snapshot", serde(bound = "V: VideoFrame"))]
 #[derive(Copy, Debug)]
 pub struct VFrameTs<V> {
     /// The current value of the timestamp.
