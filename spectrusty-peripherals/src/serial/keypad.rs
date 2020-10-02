@@ -205,7 +205,7 @@ impl<T: TimestampOps> SerialPortDevice for SerialKeypad<T> {
     }
 }
 
-impl<T: TimestampOps> SerialKeypad<T> {
+impl<T> SerialKeypad<T> {
     /// Reads the current state of the keypad.
     #[inline]
     pub fn get_key_state(&self) -> KeypadKeys {
@@ -217,7 +217,9 @@ impl<T: TimestampOps> SerialKeypad<T> {
         self.keys_changed |= keys_changed;
         self.keys = keys;
     }
+}
 
+impl<T: TimestampOps> SerialKeypad<T> {
     #[inline]
     fn gen_range_ts(&mut self, ts: T, lo: FTs, hi: FTs) -> T {
         let delta = self.rng.gen_range(lo, hi);

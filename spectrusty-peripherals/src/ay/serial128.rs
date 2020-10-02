@@ -139,8 +139,8 @@ impl Serial128Io {
 }
 
 impl<S1, S2> AyIoPort for SerialPorts128<S1, S2>
-    where S1: Debug + SerialPortDevice,
-          S2: Debug + SerialPortDevice<Timestamp=S1::Timestamp>,
+    where S1: SerialPortDevice,
+          S2: SerialPortDevice<Timestamp=S1::Timestamp>,
           S1::Timestamp: Copy
 {
     type Timestamp = S1::Timestamp;

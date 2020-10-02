@@ -150,7 +150,7 @@ pub struct AyRegChange {
 }
 
 /// This trait should be implemented by emulators of devices attached to one of two [Ay3_891xIo] I/O ports.
-pub trait AyIoPort: fmt::Debug {
+pub trait AyIoPort {
     type Timestamp: Sized;
     /// Resets the device at the given `timestamp`.
     #[inline]
@@ -400,7 +400,7 @@ impl AyRegChange {
     }
 }
 
-impl<T: fmt::Debug> AyIoPort for AyIoNullPort<T> {
+impl<T> AyIoPort for AyIoNullPort<T> {
     type Timestamp = T;
 }
 

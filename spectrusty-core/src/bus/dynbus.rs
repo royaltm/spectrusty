@@ -26,9 +26,9 @@ use super::{BusDevice, VFNullDevice, NullDevice};
 /// Devices implementing this trait can be used with a [DynamicBus].
 ///
 /// Implemented for all types that implement dependent traits.
-pub trait NamedBusDevice<T: Debug>: Display + BusDevice<Timestamp=T, NextDevice=NullDevice<T>>{}
+pub trait NamedBusDevice<T>: Display + BusDevice<Timestamp=T, NextDevice=NullDevice<T>>{}
 
-impl<T: Debug, D> NamedBusDevice<T> for D where D: Display + BusDevice<Timestamp=T, NextDevice=NullDevice<T>>{}
+impl<T, D> NamedBusDevice<T> for D where D: Display + BusDevice<Timestamp=T, NextDevice=NullDevice<T>>{}
 
 /// A type of a dynamic [NamedBusDevice].
 pub type NamedDynDevice<T> = dyn NamedBusDevice<T>;
@@ -60,7 +60,7 @@ pub struct DynamicBus<D: BusDevice> {
     devices: Vec<BoxNamedDynDevice<D::Timestamp>>
 }
 
-impl<'a, T: Debug, D: 'a> From<D> for Box<dyn NamedBusDevice<T> + 'a>
+impl<'a, T, D: 'a> From<D> for Box<dyn NamedBusDevice<T> + 'a>
     where D: BusDevice<Timestamp=T, NextDevice=NullDevice<T>> + Display
 {
     fn from(dev: D) -> Self {
@@ -141,7 +141,7 @@ impl<D> DynamicBus<D>
 
 impl<D> DynamicBus<D>
     where D: BusDevice,
-          D::Timestamp: Debug + 'static
+          D::Timestamp: 'static
 {
     /// Removes the last device from the dynamic daisy-chain.
     ///

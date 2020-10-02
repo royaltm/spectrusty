@@ -212,8 +212,8 @@ impl<T: Into<FTs> + fmt::Debug> AyAudioBusDevice for NullDevice<T> {
 
 impl<P, A, B, D> BusDevice for Ay3_891xBusDevice<P, A, B, D>
     where P: AyPortDecode,
-          A: AyIoPort<Timestamp=D::Timestamp>,
-          B: AyIoPort<Timestamp=D::Timestamp>,
+          A: AyIoPort<Timestamp=D::Timestamp> + Debug,
+          B: AyIoPort<Timestamp=D::Timestamp> + Debug,
           D: BusDevice,
           D::Timestamp: Debug + Copy
 {

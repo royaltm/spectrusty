@@ -21,7 +21,7 @@ use crate::clock::VFrameTs;
 
 pub use dynbus::*;
 
-impl<T: Debug + 'static> dyn NamedBusDevice<T> {
+impl<T: 'static> dyn NamedBusDevice<T> {
     /// Attempts to downcast the box to a concrete type.
     #[inline]
     pub fn downcast<D: 'static>(self: Box<Self>) -> Result<Box<D>, Box<dyn NamedBusDevice<T>>>
@@ -38,7 +38,7 @@ impl<T: Debug + 'static> dyn NamedBusDevice<T> {
     }
 }
 
-impl<T: Debug + 'static> dyn NamedBusDevice<T> + 'static {
+impl<T: 'static> dyn NamedBusDevice<T> + 'static {
     /// Returns `true` if the boxed type is the same as `D`
     #[inline]
     pub fn is<D: NamedBusDevice<T> + 'static>(&self) -> bool {
@@ -185,13 +185,20 @@ pub trait PortAddress: Debug {
 /// A daisy-chain terminator device. Use it as the last device in a chain.
 ///
 /// Substitute `T` with a timestamp type.
-#[derive(Clone, Default, Debug, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 pub struct NullDevice<T>(PhantomData<T>);
 
 pub type VFNullDevice<V> = NullDevice<VFrameTs<V>>;
 
-impl<T: Debug> BusDevice for NullDevice<T> {
+impl<T> Default for NullDevice<T> {
+    #[inline(always)]
+    fn default() -> Self {
+        NullDevice(PhantomData)
+    }
+}
+
+impl<T> BusDevice for NullDevice<T> {
     type Timestamp = T;
     type NextDevice = Self;
 
@@ -224,6 +231,12 @@ impl<T: Debug> BusDevice for NullDevice<T> {
     #[inline(always)]
     fn write_io(&mut self, _port: u16, _data: u8, _timestamp: Self::Timestamp) -> Option<u16> {
         None
+    }
+}
+
+impl<T> fmt::Debug for NullDevice<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("NullDevice").finish()
     }
 }
 
