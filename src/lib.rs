@@ -171,8 +171,25 @@ pub mod video;
 
 #[cfg(test)]
 mod tests {
+    use core::convert::TryFrom;
+    use super::clock::{FTs, VFrameTs};
+    use super::chip::ula::UlaVideoFrame;
+
+    type VFTs = VFrameTs<UlaVideoFrame>;
     #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
+    fn test_clock_conversion() {
+        assert_eq!(VFTs::default(), VFTs::new(0, 0));
+        assert_eq!(0, FTs::from(VFTs::new(0, 0)));
+        let vts = VFTs::max_value();
+        assert_eq!(vts, VFTs::new(32767, 154));
+        let ts = FTs::from(vts);
+        assert_eq!(ts, 32767 * 224 + 154);
+        let vts = VFTs::try_from(-32768 * 224 - 69).unwrap();
+        assert_eq!(vts, VFTs::new(-32768, -69));
+        assert_eq!(vts, VFTs::min_value());
+        assert!(VFTs::try_from(FTs::min_value()).is_err());
+        assert!(VFTs::try_from_tstates(FTs::min_value()).is_none());
+        assert!(VFTs::try_from(FTs::max_value()).is_err());
+        assert!(VFTs::try_from_tstates(FTs::max_value()).is_none());
     }
 }
