@@ -9,7 +9,7 @@ repository = "https://github.com/royaltm/spectrusty"
 homepage = "https://royaltm.github.io/spectrusty/"
 readme = "README.md"
 license = "LGPL-3.0-or-later"
-include = ["/src/", "/COPYING", "/COPYING.LESSER", "/README.md"]
+include = ["/src/", "/COPYING", "/COPYING.LESSER", "/CHANGELOG.md", "/README.md"]
 description = """
 SPECTRUSTY is a library for building highly customizable emulators \
 of the ZX Spectrum computer series and clones.
