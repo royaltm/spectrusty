@@ -16,47 +16,47 @@ use super::Ay3_891xBusDevice;
 
 /// This type implements a [BusDevice][spectrusty_core::bus::BusDevice] emulating AY-3-8912 with an extension
 /// [keypad][SerialKeypad].
-pub type Ay3_8912Keypad<T, D> = Ay3_891xBusDevice<
+pub type Ay3_8912Keypad<D> = Ay3_891xBusDevice<
                                                 Ay128kPortDecode,
                                                 SerialPorts128<
-                                                    SerialKeypad<T>,
-                                                    NullSerialPort<T>
+                                                    SerialKeypad<<D as BusDevice>::Timestamp>,
+                                                    NullSerialPort<<D as BusDevice>::Timestamp>
                                                 >,
-                                                AyIoNullPort<T>, D>;
+                                                AyIoNullPort<<D as BusDevice>::Timestamp>, D>;
 
 /// This type implements a [BusDevice][spectrusty_core::bus::BusDevice] emulating AY-3-8912 with a [RS-232][Rs232Io]
 /// communication.
-pub type Ay3_8912Rs232<T, D, R, W> = Ay3_891xBusDevice<
+pub type Ay3_8912Rs232<D, R, W> = Ay3_891xBusDevice<
                                                 Ay128kPortDecode,
                                                 SerialPorts128<
-                                                    NullSerialPort<T>,
-                                                    Rs232Io<T, R, W>
+                                                    NullSerialPort<<D as BusDevice>::Timestamp>,
+                                                    Rs232Io<<D as BusDevice>::Timestamp, R, W>
                                                 >,
-                                                AyIoNullPort<T>, D>;
+                                                AyIoNullPort<<D as BusDevice>::Timestamp>, D>;
 
 /// This type implements a [BusDevice][spectrusty_core::bus::BusDevice] emulating AY-3-8912 with extension
 /// [keypad][SerialKeypad] and [RS-232][Rs232Io] communication.
-pub type Ay3_8912KeypadRs232<T, D, R, W> = Ay3_891xBusDevice<
+pub type Ay3_8912KeypadRs232<D, R, W> = Ay3_891xBusDevice<
                                                 Ay128kPortDecode,
                                                 SerialPorts128<
-                                                    SerialKeypad<T>,
-                                                    Rs232Io<T, R, W>
+                                                    SerialKeypad<<D as BusDevice>::Timestamp>,
+                                                    Rs232Io<<D as BusDevice>::Timestamp, R, W>
                                                 >,
-                                                AyIoNullPort<T>, D>;
+                                                AyIoNullPort<<D as BusDevice>::Timestamp>, D>;
 
-impl<T, D: BusDevice> fmt::Display for Ay3_8912Keypad<T, D> {
+impl<D: BusDevice> fmt::Display for Ay3_8912Keypad<D> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("AY-3-8912 + Keypad")
     }
 }
 
-impl<T, D: BusDevice, R, W> fmt::Display for Ay3_8912Rs232<T, D, R, W> {
+impl<D: BusDevice, R, W> fmt::Display for Ay3_8912Rs232<D, R, W> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("AY-3-8912 + RS-232")
     }
 }
 
-impl<T, D: BusDevice, R, W> fmt::Display for Ay3_8912KeypadRs232<T, D, R, W> {
+impl<D: BusDevice, R, W> fmt::Display for Ay3_8912KeypadRs232<D, R, W> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("AY-3-8912 + Keypad + RS-232")
     }
