@@ -41,13 +41,13 @@ pub struct VideoTs {
     pub hc: Ts,
 }
 
-/// A [VideoTs] timestamp with a constraint to the `V:` [VideoFrame], implementing methods
-/// and traits allowing timestamp calculations.
+/// A [VideoTs] timestamp wrapper with a constraint to the `V:` [VideoFrame],
+/// implementing methods and traits for timestamp calculations.
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "snapshot", serde(from="VideoTs", into="VideoTs"))]
 #[derive(Copy, Hash, Debug)]
 pub struct VFrameTs<V> {
-    /// The current timestamp value of this timestamp.
+    /// The current value of the timestamp.
     pub ts: VideoTs,
     _vframe: PhantomData<V>,
 }
@@ -57,15 +57,18 @@ pub trait MemoryContention: Copy + Debug {
     fn is_contended_address(self, address: u16) -> bool;
 }
 
-/// A generic [VideoTs] based T-states counter.
+/// A generic [`VFrameTs<V>`][VFrameTs] based T-states counter.
 ///
-/// Implements [Clock] for counting T-states when code is being executed by [z80emu::Cpu].
+/// Implements [Clock] for counting cycles when code is being executed by [z80emu::Cpu].
 ///
-/// Counts additional T-states according to contention specified by generic parameters:
-/// `V:` [VideoFrame] and `C:` [MemoryContention].
+/// Inserts additional T-states according to the contention model specified by generic
+/// parameters: `V:` [VideoFrame] and `C:` [MemoryContention].
+///
+/// [Clock]: /z80emu/%2A/z80emu/host/trait.Clock.html
+/// [z80emu::Cpu]: /z80emu/%2A/z80emu/trait.Cpu.html
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct VFrameTsCounter<V, C>  {
-    /// The current timestamp value of this counter.
+    /// The current value of the counter.
     pub vts: VFrameTs<V>,
     /// An instance implementing a [MemoryContention] trait.
     pub contention: C,
@@ -92,12 +95,13 @@ impl <V: VideoFrame> VFrameTs<V> {
                                             },
                                              _vframe: PhantomData };
     /// Constructs a new `VFrameTs` from the given vertical and horizontal counter values.
-    /// A returned `VFrameTs` is not being normalized.
+    ///
+    /// __Note__: The returned `VFrameTs` is not normalized.
     #[inline]
     pub fn new(vc: Ts, hc: Ts) -> Self {
         VFrameTs { ts: VideoTs::new(vc, hc), _vframe: PhantomData }
     }
-    /// Returns `true` if a video timestamp is normalized.
+    /// Returns `true` if a video timestamp is normalized. Otherwise returns `false`.
     #[inline]
     pub fn is_normalized(self) -> bool {
         V::HTS_RANGE.contains(&self.ts.hc)

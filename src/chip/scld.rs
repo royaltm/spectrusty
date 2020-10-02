@@ -63,7 +63,9 @@ use frame_cache::SourceMode;
 
 /// This is the emulator of SCLD chip used with Timex's TC2048 / TC2068 / TS2068 models.
 ///
-/// The memory implementation must implement [PagedMemory8k] trait in addition to [ZxMemory].
+/// The generic type `M` must implement [PagedMemory8k] trait in addition to [ZxMemory].
+///
+/// See [Ula] for description of other generic parameters.
 ///
 /// [ZxMemory]: crate::memory::ZxMemory
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]

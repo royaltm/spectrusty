@@ -65,6 +65,8 @@ pub enum MemPage4 {
 pub struct TryFromU8MemPage4Error(pub u8);
 
 /// +2A/+3 Amstrad "ULA" (or AGA - Amstrad gate array).
+///
+/// See [Ula] for description of generic parameters.
 #[derive(Clone)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]

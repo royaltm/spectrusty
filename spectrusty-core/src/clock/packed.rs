@@ -9,7 +9,7 @@ use super::{Ts, FTs, VideoTs, VFrameTs, VideoFrame};
 
 macro_rules! video_ts_packed_data {
     ($name:ident, $bits:literal) => {
-        /// A T-states timestamp with packed N-bits data.
+        /// A timestamp with packed N-bits of data.
         #[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Debug)]
         pub struct $name {
             pub vc: Ts,
@@ -111,7 +111,7 @@ video_ts_packed_data! { VideoTsData6, 6 }
 
 macro_rules! fts_packed_data {
     ($name:ident, $bits:literal) => {
-        /// A T-states timestamp with packed N-bits data.
+        /// A timestamp with packed N-bits of data.
         #[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Debug)]
         pub struct $name(FTs);
 

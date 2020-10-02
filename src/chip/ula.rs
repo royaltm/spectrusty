@@ -61,6 +61,9 @@ pub struct UlaMemoryContention;
 /// * `B` - [BusDevice]
 /// * `X` - [MemoryExtension]
 /// * `V` - [VideoFrame]
+///
+/// The type used for [`<B as BusDevice>::Timestamp`][BusDevice::Timestamp] should at least
+/// satisfy the condition: `From<VFrameTs<V>>`.
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]
 #[derive(Clone)]

@@ -231,7 +231,7 @@ pub trait UlaPlusMode {
     }
 }
 
-/// Macro for dispatching expressions to the current [ZxSpectrumModel]'s inner instance of [ZxSpectrum] type.
+/// Macro for dispatching expressions to the current [ZxSpectrumModel]'s inner variant of [ZxSpectrum] type.
 ///
 /// * `$model` - should be the variable name (or using the 3rd syntax it can be an expression) referring
 ///   to the instance of [ZxSpectrumModel].

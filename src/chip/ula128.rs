@@ -67,6 +67,8 @@ pub enum MemPage8 {
 pub struct TryFromU8MemPage8Error(pub u8);
 
 /// 128k ULA (Uncommitted Logic Array).
+///
+/// See [Ula] for description of generic parameters.
 #[derive(Clone)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]
