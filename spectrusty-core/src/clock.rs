@@ -7,7 +7,7 @@
 */
 //! T-state timestamp types and counters.
 use core::cmp::{Ordering, Ord, PartialEq, PartialOrd};
-use core::convert::TryInto;
+use core::convert::{TryInto, TryFrom};
 use core::fmt::Debug;
 use core::hash::{Hash, Hasher};
 use core::marker::PhantomData;
@@ -45,7 +45,7 @@ pub struct VideoTs {
 /// A [VideoTs] timestamp wrapper with a constraint to the `V:` [VideoFrame],
 /// implementing methods and traits for timestamp calculations.
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "snapshot", serde(from="FTs", into="FTs"))]
+#[cfg_attr(feature = "snapshot", serde(try_from="FTs", into="FTs"))]
 #[cfg_attr(feature = "snapshot", serde(bound = "V: VideoFrame"))]
 #[derive(Copy, Debug)]
 pub struct VFrameTs<V> {
@@ -123,7 +123,8 @@ impl <V: VideoFrame> VFrameTs<V> {
             else {
                 V::HTS_RANGE.start
             } as FTs;
-            vc = vc.checked_add((fhc / V::HTS_COUNT as FTs) as Ts).expect("video ts overflow");
+            vc = vc.checked_add((fhc / V::HTS_COUNT as FTs) as Ts)
+                   .expect("video timestamp overflow");
             hc = fhc.rem_euclid(V::HTS_COUNT as FTs) as Ts + V::HTS_RANGE.start;
         }
         VFrameTs::new(vc, hc)
@@ -190,8 +191,18 @@ impl <V: VideoFrame> VFrameTs<V> {
     /// Panics when the given `ts` overflows the capacity of the timestamp.
     #[inline]
     pub fn from_tstates(ts: FTs) -> Self {
-        let mut vc = (ts / V::HTS_COUNT as FTs).try_into().expect("video ts overflow");
-        let mut hc: Ts = (ts % V::HTS_COUNT as FTs).try_into().unwrap();
+        Self::try_from_tstates(ts).expect("video timestamp overflow")
+    }
+    /// On success returns a normalized timestamp from the given number of T-states.
+    ///
+    /// Returns `None` when the given `ts` overflows the capacity of the timestamp.
+    #[inline]
+    pub fn try_from_tstates(ts: FTs) -> Option<Self> {
+        let mut vc = match (ts / V::HTS_COUNT as FTs).try_into() {
+            Ok(vc) => vc,
+            Err(..) => return None
+        };
+        let mut hc: Ts = (ts % V::HTS_COUNT as FTs) as Ts;
         if hc >= V::HTS_RANGE.end {
             hc -= V::HTS_COUNT;
             vc += 1;
@@ -200,12 +211,9 @@ impl <V: VideoFrame> VFrameTs<V> {
             hc += V::HTS_COUNT;
             vc -= 1;
         }
-        VFrameTs::new(vc, hc)
+        Some(VFrameTs::new(vc, hc))
     }
     /// Converts the timestamp to FTs.
-    ///
-    /// # Panics
-    /// Panics when `self` overflows the capacity of the result type.
     #[inline]
     pub fn into_tstates(self) -> FTs {
         let VideoTs { vc, hc } = self.ts;
@@ -580,14 +588,16 @@ impl<V> PartialOrd for VFrameTs<V> {
 impl<V: VideoFrame> From<VFrameTs<V>> for FTs {
     #[inline(always)]
     fn from(vfts: VFrameTs<V>) -> FTs {
-        TimestampOps::into_tstates(vfts)
+        VFrameTs::into_tstates(vfts)
     }
 }
 
-impl<V: VideoFrame> From<FTs> for VFrameTs<V> {
-    #[inline(always)]
-    fn from(ts: FTs) -> VFrameTs<V> {
-        TimestampOps::from_tstates(ts)
+impl<V: VideoFrame> TryFrom<FTs> for VFrameTs<V> {
+    type Error = &'static str;
+
+    fn try_from(ts: FTs) -> Result<Self, Self::Error> {
+        VFrameTs::try_from_tstates(ts).ok_or_else(
+            || "out of range video timestamp conversion attempted")
     }
 }
 
