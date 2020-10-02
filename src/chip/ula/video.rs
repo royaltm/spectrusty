@@ -188,7 +188,7 @@ impl<M: ZxMemory, B, X, V> Ula<M, B, X, V> {
         ) -> Renderer<UlaFrameProducer<'_, V>, std::vec::Drain<'_, VideoTsData3>>
         where V: VideoFrame
     {
-        let border = self.border.into();
+        let border = self.border;
         let invert_flash = self.flash_state();
         let screen = self.memory.screen_ref(0).unwrap();
         // print!("render: {} {:?}", screen_bank, screen.as_ptr());

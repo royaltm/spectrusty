@@ -11,7 +11,7 @@ use crate::clock::VideoTs;
 use crate::chip::{UlaPortFlags, ula::frame_cache::UlaFrameCache};
 use crate::memory::MemoryExtension;
 use crate::video::BorderColor;
-use super::{Ula128, super::plus::UlaPlusInner};
+use super::{Ula128, super::plus::{UlaPlusInner, VideoRenderDataView}};
 
 impl<'a, B, X> UlaPlusInner<'a> for Ula128<B, X>
     where X: MemoryExtension
@@ -66,20 +66,16 @@ impl<'a, B, X> UlaPlusInner<'a> for Ula128<B, X>
         self.cur_screen_shadow
     }
 
+
     fn video_render_data_view(
         &mut self
-    ) -> (
-            Drain<'_, VideoTs>,
-            &Self::Memory,
-            &UlaFrameCache<Self::VideoFrame>,
-            &UlaFrameCache<Self::VideoFrame>
-        )
+    ) -> VideoRenderDataView<'_, Drain<'_, VideoTs>, Self::Memory, Self::VideoFrame>
     {
-        (
-            self.screen_changes.drain(..),
-            &self.ula.memory,
-            &self.ula.frame_cache,
-            &self.shadow_frame_cache
-        )
+        VideoRenderDataView {
+            screen_changes: self.screen_changes.drain(..),
+            memory: &self.ula.memory,
+            frame_cache: &self.ula.frame_cache,
+            frame_cache_shadow: &self.shadow_frame_cache
+        }
     }
 }

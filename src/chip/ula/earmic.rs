@@ -66,7 +66,7 @@ impl<M, B, X, V> EarIn for Ula<M, B, X, V>
 
     fn purge_ear_in_changes(&mut self, ear_in: bool) {
         self.ear_in_changes.clear();
-        self.prev_ear_in = ear_in.into();
+        self.prev_ear_in = ear_in;
     }
 
     fn read_ear_in_count(&self) -> u32 {

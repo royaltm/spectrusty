@@ -214,11 +214,10 @@ impl<W: Write> PulseDecodeWriter<W> {
 
         for delta in iter {
             match self.state {
-                PulseDecodeState::Idle => match delta.get() {
-                    LEAD_PULSE_MIN..=LEAD_PULSE_MAX => {
+                PulseDecodeState::Idle => {
+                    if let LEAD_PULSE_MIN..=LEAD_PULSE_MAX = delta.get() {
                         self.state = PulseDecodeState::Lead { counter: 1 };
                     }
-                    _ => {},
                 }
                 PulseDecodeState::Lead { counter } => match delta.get() {
                     SYNC_PULSE1_MIN..=SYNC_PULSE1_MAX if counter >= MIN_LEAD_COUNT => {

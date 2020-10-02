@@ -43,6 +43,7 @@ impl<'a, V, IM, IS> PlusFrameProducer<'a, V, IM, IS>
           IM: Iterator<Item=VideoTsData2>,
           IS: Iterator<Item=VideoTs>
 {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
             swap_screens: bool,
             source: SourceMode,

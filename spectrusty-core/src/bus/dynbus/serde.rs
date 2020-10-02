@@ -5,6 +5,7 @@
 
     For the full copyright notice, see the lib.rs file.
 */
+#![allow(clippy::borrowed_box)]
 use core::fmt::{self, Debug};
 use core::ops::{Deref, DerefMut};
 use core::marker::PhantomData;

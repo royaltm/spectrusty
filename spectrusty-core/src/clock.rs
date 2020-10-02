@@ -9,6 +9,7 @@
 use core::cmp::{Ordering, Ord, PartialEq, PartialOrd};
 use core::convert::TryInto;
 use core::fmt::Debug;
+use core::hash::{Hash, Hasher};
 use core::marker::PhantomData;
 use core::num::{NonZeroU8, NonZeroU16};
 use core::ops::{Deref, DerefMut};
@@ -45,7 +46,7 @@ pub struct VideoTs {
 /// implementing methods and traits for timestamp calculations.
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "snapshot", serde(from="VideoTs", into="VideoTs"))]
-#[derive(Copy, Hash, Debug)]
+#[derive(Copy, Debug)]
 pub struct VFrameTs<V> {
     /// The current value of the timestamp.
     pub ts: VideoTs,
@@ -543,6 +544,12 @@ impl<V> Default for VFrameTs<V> {
 impl<V> Clone for VFrameTs<V> {
     fn clone(&self) -> Self {
         VFrameTs::from(self.ts)
+    }
+}
+
+impl<V> Hash for VFrameTs<V> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.ts.hash(state);
     }
 }
 

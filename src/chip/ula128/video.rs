@@ -84,17 +84,15 @@ impl VideoFrame for Ula128VidFrame {
     #[inline(always)]
     fn snow_interference_coords(VideoTs { vc, hc }: VideoTs) -> Option<CellCoords> {
         let row = vc - Self::VSL_PIXELS.start;
-        if row >= 0 && vc < Self::VSL_PIXELS.end {
-            if hc >= 0 && hc <= 123 {
-                return match hc & 7 {
-                    0|1 => Some(0),
-                    2|3 => Some(1),
-                    _ => None
-                }.map(|offs| {
-                    let column = (((hc >> 2) & !1) | offs) as u8;
-                    CellCoords { column, row: row as u8 }
-                })
-            }
+        if row >= 0 && vc < Self::VSL_PIXELS.end && hc >= 0 && hc <= 123 {
+            return match hc & 7 {
+                0|1 => Some(0),
+                2|3 => Some(1),
+                _ => None
+            }.map(|offs| {
+                let column = (((hc >> 2) & !1) | offs) as u8;
+                CellCoords { column, row: row as u8 }
+            })
         }
         None
     }
@@ -200,7 +198,7 @@ pub(crate) fn create_ula128_renderer<'a, V, M, B, X>(
           Ula<M, B, X, V>: Video
 {
     let swap_screens = beg_screen_shadow;
-    let border = ula.border_color().into();
+    let border = ula.border_color();
     let invert_flash = ula.flash_state();
     let (border_changes, memory, frame_cache0) = ula.video_render_data_view();
     let frame_cache1 = shadow_frame_cache;

@@ -241,7 +241,7 @@ pub trait ZxMemory {
     ///
     /// Not all types of memory support attaching external ROMs.
     fn map_exrom(&mut self, _exrom_bank: ExRom, _page: u8) -> Result<()> {
-        return Err(ZxMemoryError::UnsupportedExRomPaging)
+        Err(ZxMemoryError::UnsupportedExRomPaging)
     }
     /// Unmaps an external ROM if the currently mapped EX-ROM bank is the same as in the argument.
     /// Otherwise does nothing.

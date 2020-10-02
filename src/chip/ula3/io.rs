@@ -80,12 +80,10 @@ impl<B, X> Io for Ula3<B, X>
         }
         else {
             let (mut res, ws) = self.ula.write_io(port, data, ts);
-            if Ula3Mem2PortAddress::match_port(port) {
-                if !self.mem_locked {
-                    let flags = Ula3CtrlFlags::from_bits_truncate(data);
-                    if self.set_mem2_port_value(flags) {
-                        res = Some(());
-                    }
+            if Ula3Mem2PortAddress::match_port(port) && !self.mem_locked {
+                let flags = Ula3CtrlFlags::from_bits_truncate(data);
+                if self.set_mem2_port_value(flags) {
+                    res = Some(());
                 }
             }
             (res, ws)

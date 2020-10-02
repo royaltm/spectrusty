@@ -5,6 +5,7 @@
 
     For the full copyright notice, see the lib.rs file.
 */
+#![allow(clippy::inconsistent_digit_grouping)]
 #[cfg(feature = "snapshot")]
 use serde::{Serialize, Deserialize};
 

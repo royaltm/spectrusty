@@ -201,7 +201,7 @@ pub fn load_sna<R: Read + Seek, S: SnapshotLoader>(
 
     let index48 = [5, 2];
     let last_page = Ula128MemFlags::from_bits_truncate(sna_ext.port_data)
-                    .last_ram_page_bank().into();
+                    .last_ram_page_bank();
     for page in index48.iter().chain(
                     Some(&last_page).filter(|n| !index48.contains(n))
                 ) {
@@ -333,14 +333,14 @@ pub fn save_sna<C: SnapshotCreator, W: Write>(
     }
 
     let cpu = match snapshot.cpu() {
-        CpuModel::NMOS(cpu) => cpu.clone(),
+        CpuModel::NMOS(cpu) => cpu,
         CpuModel::CMOS(cpu) => {
             result.insert(SnapshotResult::CPU_MODEL_NSUP);
-            cpu.clone().into_flavour()
+            cpu.into_flavour()
         },
         CpuModel::BM1(cpu) => {
             result.insert(SnapshotResult::CPU_MODEL_NSUP);
-            cpu.clone().into_flavour()
+            cpu.into_flavour()
         }
     };
 
@@ -375,7 +375,7 @@ pub fn save_sna<C: SnapshotCreator, W: Write>(
 
     sna.write_struct(wr.by_ref())?;
 
-    let last_page: usize = memflags.last_ram_page_bank().into();
+    let last_page: usize = memflags.last_ram_page_bank();
     let index48 = [5,2,last_page];
     for page in index48.iter() {
         wr.write_all(

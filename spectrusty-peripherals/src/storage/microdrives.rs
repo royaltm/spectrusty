@@ -456,6 +456,7 @@ impl MicroCartridge {
                 const HEAD_SIZE_MAX: u16 = HEAD_SIZE_MIN + 55;
                 // const DATA_SIZE_MIN: u16 = PREAMBLE_SIZE + DATA_SIZE as u16;
                 // const DATA_SIZE_MAX: u16 = DATA_SIZE_MIN + 110;
+                #[allow(clippy::single_match)]
                 match (written.get(), self.tape_cursor.secpos) {
                     (HEAD_SIZE_MIN..=HEAD_SIZE_MAX, SecPosition::Gap1) => {
                         // this may yield a "valid" sector with invalid data, but harmless

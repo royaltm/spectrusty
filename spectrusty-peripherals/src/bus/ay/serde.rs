@@ -89,7 +89,7 @@ impl<'de, P, A, B, D> Deserialize<'de> for Ay3_891xBusDevice<P, A, B, D>
             }
         }
 
-        const FIELDS: &'static [&'static str] = &["aySound", "ayIo", "bus"];
+        const FIELDS: &[&str] = &["aySound", "ayIo", "bus"];
         deserializer.deserialize_struct("Ay3_891xBusDevice", FIELDS,
             Ay3_891xBusDeviceVisitor(PhantomData, PhantomData, PhantomData, PhantomData))
     }

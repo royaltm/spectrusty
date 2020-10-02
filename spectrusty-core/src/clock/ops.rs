@@ -57,7 +57,7 @@ pub trait TimestampOps: Copy
 }
 
 /// A trait providing simple calculation methods for frame-aware timestamps.
-#[deprecated(since = "0.2",
+#[deprecated(since = "0.2.0",
     note = "Do not use. Instead use TimestampOps to decouple timestamps from frames")]
 pub trait FrameTimestamp: Copy
                          + PartialEq
@@ -169,6 +169,7 @@ impl<V: VideoFrame> Add<FTs> for VFrameTs<V> {
     /// # Panics
     /// Panics when normalized timestamp after addition leads to an overflow of the capacity of [VideoTs].
     #[inline]
+    #[allow(clippy::suspicious_arithmetic_impl)]
     fn add(self, delta: FTs) -> Self {
         let VideoTs { vc, hc } = self.ts;
         let dvc: Ts = (delta / V::HTS_COUNT as FTs).try_into().expect("absolute delta FTs is too large");
@@ -191,6 +192,7 @@ impl<V: VideoFrame> Sub<FTs> for VFrameTs<V> {
     /// # Panics
     /// Panics when normalized timestamp after addition leads to an overflow of the capacity of [VideoTs].
     #[inline]
+    #[allow(clippy::suspicious_arithmetic_impl)]
     fn sub(self, delta: FTs) -> Self {
         let VideoTs { vc, hc } = self.ts;
         let dvc: Ts = (delta / V::HTS_COUNT as FTs).try_into().expect("delta too large");
@@ -259,6 +261,7 @@ impl<V: VideoFrame> Add<u32> for VFrameTs<V> {
     /// # Panics
     /// Panics when normalized timestamp after addition leads to an overflow of the capacity of [VideoTs].
     #[inline]
+    #[allow(clippy::suspicious_arithmetic_impl)]
     fn add(self, delta: u32) -> Self {
         let VideoTs { vc, hc } = self.ts;
         let dvc = (delta / V::HTS_COUNT as u32).try_into().expect("delta too large");
@@ -282,6 +285,7 @@ impl<V: VideoFrame> Sub<u32> for VFrameTs<V> {
     /// # Panics
     /// Panics when normalized timestamp after addition leads to an overflow of the capacity of [VideoTs].
     #[inline]
+    #[allow(clippy::suspicious_arithmetic_impl)]
     fn sub(self, delta: u32) -> Self {
         let VideoTs { vc, hc } = self.ts;
         let dvc = (delta / V::HTS_COUNT as u32).try_into().expect("delta too large");

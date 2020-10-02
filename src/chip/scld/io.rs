@@ -89,10 +89,8 @@ impl<M, B, X, V> Io for Scld<M, B, X, V>
         else if ScldMmuPortAddress::match_port(port) {
             self.set_mmu_flags_value(data);
         }
-        else {
-            if let Some(ws) = self.ula.bus.write_io(port, data, VFrameTs::from(ts).into()) {
-                return (None, NonZeroU16::new(ws))
-            }
+        else if let Some(ws) = self.ula.bus.write_io(port, data, VFrameTs::from(ts).into()) {
+            return (None, NonZeroU16::new(ws))
         }
         (None, None)
     }

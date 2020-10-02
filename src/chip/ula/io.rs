@@ -46,10 +46,8 @@ impl<M, B, X, V> Io for Ula<M, B, X, V>
             }
             self.ula_write_earmic(flags, ts);
         }
-        else {
-            if let Some(ws) = self.bus.write_io(port, data, VFrameTs::from(ts).into()) {
-                return (None, NonZeroU16::new(ws))
-            }
+        else if let Some(ws) = self.bus.write_io(port, data, VFrameTs::from(ts).into()) {
+            return (None, NonZeroU16::new(ws))
         }
         (None, None)
     }

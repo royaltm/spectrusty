@@ -334,7 +334,7 @@ impl<'r, 'a, MI, PI, B, P, V> Worker<'r, 'a, MI, PI, B, P, V>
 {
     #[inline(always)]
     fn consume_mode_changes(&mut self, ts: VideoTs) {
-        while let Some(tsc) = self.mode_changes.peek().map(|t| VideoTs::from(t)) {
+        while let Some(tsc) = self.mode_changes.peek().map(VideoTs::from) {
             if tsc < ts {
                 self.render_mode = self.mode_changes.next().unwrap().into();
                 self.border_pixel = get_border_pixel::<P>(self.render_mode, self.palette);
@@ -350,7 +350,7 @@ impl<'r, 'a, MI, PI, B, P, V> Worker<'r, 'a, MI, PI, B, P, V>
 
     #[inline(always)]
     fn consume_palette_changes(&mut self, ts: VideoTs) {
-        while let Some(tsc) = self.palette_changes.peek().map(|t| VideoTs::from(t)) {
+        while let Some(tsc) = self.palette_changes.peek().map(VideoTs::from) {
             if tsc < ts {
                 let vts_pal = self.palette_changes.next().unwrap();
                 if is_border_palette_index( vts_pal.update_palette(self.palette) ) {

@@ -181,10 +181,8 @@ impl<P, J, D> BusDevice for JoystickBusDevice<P, J, D>
 
     #[inline]
     fn write_io(&mut self, port: u16, data: u8, timestamp: Self::Timestamp) -> Option<u16> {
-        if P::match_port(port) {
-            if self.joystick.port_write(port, data) {
-                return Some(0);
-            }
+        if P::match_port(port) && self.joystick.port_write(port, data) {
+            return Some(0);
         }
         self.bus.write_io(port, data, timestamp)
     }
@@ -311,6 +309,7 @@ impl<'a> TryFrom<&'a str> for JoystickSelect {
     }
 }
 
+#[allow(clippy::len_without_is_empty)]
 impl JoystickSelect {
     /// The largest value that can be passed as a `global_index` to [JoystickSelect::new_with_index].
     pub const MAX_GLOBAL_INDEX: usize = 4;
@@ -500,7 +499,7 @@ impl<D> BusDevice for MultiJoystickBusDevice<D>
             if let Some((data, ws)) = bus_data {
                 return Some((data & joy_data, ws))
             }
-            return Some((joy_data, None))
+            Some((joy_data, None))
         }
         else {
             bus_data

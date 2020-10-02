@@ -92,9 +92,10 @@ use crate::chip::{
     },
 };
 use crate::video::{
-    BorderColor, Video, RenderMode, UlaPlusPalette, PaletteChange
+    BorderColor, Video, RenderMode, UlaPlusPalette, PaletteChange,
+    VideoFrame
 };
-use crate::memory::MemoryExtension;
+use crate::memory::{ZxMemory, MemoryExtension};
 
 /*
   G G i i i h a s UlaPlusRegFlags
@@ -139,6 +140,18 @@ pub struct UlaPlus<U: Video> {
     source_changes: Vec<VideoTsData2>,
 }
 
+/// A return type of [UlaPlusInner::video_render_data_view].
+pub struct VideoRenderDataView<'a, I, M, V>
+    where I: Iterator<Item=VideoTs> + 'a,
+          M: ZxMemory,
+          V: VideoFrame
+{
+    pub screen_changes: I,
+    pub memory: &'a M,
+    pub frame_cache: &'a UlaFrameCache<V>,
+    pub frame_cache_shadow: &'a UlaFrameCache<V>,
+}
+
 /// Implemented by chipsets that UlaPlus can enhance.
 pub trait UlaPlusInner<'a>: Video + MemoryAccess {
     type ScreenSwapIter: Iterator<Item=VideoTs> + 'a;
@@ -171,12 +184,7 @@ pub trait UlaPlusInner<'a>: Video + MemoryAccess {
     /// Returns references to components necessary for video rendering.
     fn video_render_data_view(
         &'a mut self
-    ) -> (
-        Self::ScreenSwapIter,
-        &'a Self::Memory,
-        &'a UlaFrameCache<Self::VideoFrame>,
-        &'a UlaFrameCache<Self::VideoFrame>
-    );
+    ) -> VideoRenderDataView<'a, Self::ScreenSwapIter, Self::Memory, Self::VideoFrame>;
 }
 
 impl<U> Default for UlaPlus<U>
@@ -392,11 +400,11 @@ impl<'a, U> UlaPlus<U>
 
     #[inline]
     fn change_border_color(&mut self, border: BorderColor, ts: VideoTs) {
-        if self.ula.update_last_border_color(border) {
-            if !self.cur_render_mode.is_hi_res() {
-                self.cur_render_mode = self.cur_render_mode.with_color(border.into());
-                self.push_mode_change(ts);
-            }
+        if self.ula.update_last_border_color(border) 
+            && !self.cur_render_mode.is_hi_res()
+        {
+            self.cur_render_mode = self.cur_render_mode.with_color(border.into());
+            self.push_mode_change(ts);
         }
     }
 
