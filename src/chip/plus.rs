@@ -249,7 +249,7 @@ impl<U> InnerAccess for UlaPlus<U>
 }
 
 impl<'a, U> UlaControl for UlaPlus<U>
-    where U: Video + UlaControl + UlaPlusInner<'a>
+    where U: UlaControl + UlaPlusInner<'a>
 {
     fn has_late_timings(&self) -> bool {
         self.ula.has_late_timings()

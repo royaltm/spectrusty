@@ -176,7 +176,6 @@ impl<M, B, X, V> UlaControl for Scld<M, B, X, V>
 
 impl<M, B, X, V> Scld<M, B, X, V>
     where M: PagedMemory8k,
-          V: VideoFrame
 {
     #[inline]
     fn push_mode_change(&mut self, ts: VideoTs, render_mode: RenderMode) {

@@ -131,7 +131,7 @@ impl<M, B, X, V: VideoFrame> FrameState for Ula<M, B, X, V> {
     }
 }
 
-impl<M, B, X, V: VideoFrame> UlaControl for Ula<M, B, X, V> {
+impl<M, B, X, V> UlaControl for Ula<M, B, X, V> {
     fn has_late_timings(&self) -> bool {
         self.late_timings
     }

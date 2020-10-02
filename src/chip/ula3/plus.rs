@@ -7,7 +7,6 @@
 */
 use std::vec::Drain;
 
-use crate::bus::BusDevice;
 use crate::clock::VideoTs;
 use crate::chip::{UlaPortFlags, ula::frame_cache::UlaFrameCache};
 use crate::memory::MemoryExtension;
@@ -15,8 +14,7 @@ use crate::video::BorderColor;
 use super::{Ula3, super::plus::UlaPlusInner};
 
 impl<'a, B, X> UlaPlusInner<'a> for Ula3<B, X>
-    where B: BusDevice,
-          X: MemoryExtension
+    where X: MemoryExtension
 {
     type ScreenSwapIter = Drain<'a, VideoTs>;
 

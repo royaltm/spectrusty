@@ -7,17 +7,14 @@
 */
 use core::iter::Empty;
 
-use crate::bus::BusDevice;
 use crate::clock::VideoTs;
 use crate::chip::{UlaPortFlags, ula::frame_cache::UlaFrameCache};
 use crate::memory::{ZxMemory, MemoryExtension};
 use crate::video::{BorderColor, VideoFrame};
-use super::Ula;
-use super::super::plus::UlaPlusInner;
+use super::{Ula, super::plus::UlaPlusInner};
 
 impl<'a, M, B, X, V> UlaPlusInner<'a> for Ula<M, B, X, V>
     where M: ZxMemory,
-          B: BusDevice,
           X: MemoryExtension,
           V: VideoFrame
 {
