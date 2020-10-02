@@ -233,12 +233,12 @@ pub fn update_keymap_with_modifier(
 /// [RPAREN]: KeypadKeys::RPAREN
 pub fn map_keypad_key(key: VirtualKeyCode, parens: bool) -> KeypadKeys {
     match key {
-        VirtualKeyCode::Divide if parens => KeypadKeys::LPAREN,
-        VirtualKeyCode::Divide => KeypadKeys::DIVIDE,
-        VirtualKeyCode::Multiply if parens => KeypadKeys::RPAREN,
-        VirtualKeyCode::Multiply => KeypadKeys::MULTIPLY,
-        VirtualKeyCode::Subtract => KeypadKeys::MINUS,
-        VirtualKeyCode::Add => KeypadKeys::PLUS,
+        VirtualKeyCode::NumpadDivide if parens => KeypadKeys::LPAREN,
+        VirtualKeyCode::NumpadDivide => KeypadKeys::DIVIDE,
+        VirtualKeyCode::NumpadMultiply if parens => KeypadKeys::RPAREN,
+        VirtualKeyCode::NumpadMultiply => KeypadKeys::MULTIPLY,
+        VirtualKeyCode::NumpadSubtract => KeypadKeys::MINUS,
+        VirtualKeyCode::NumpadAdd => KeypadKeys::PLUS,
         VirtualKeyCode::NumpadEnter => KeypadKeys::ENTER,
         VirtualKeyCode::Numpad1 => KeypadKeys::N1,
         VirtualKeyCode::Numpad2 => KeypadKeys::N2,
@@ -250,7 +250,7 @@ pub fn map_keypad_key(key: VirtualKeyCode, parens: bool) -> KeypadKeys {
         VirtualKeyCode::Numpad8 => KeypadKeys::N8,
         VirtualKeyCode::Numpad9 => KeypadKeys::N9,
         VirtualKeyCode::Numpad0 => KeypadKeys::N0,
-        VirtualKeyCode::Decimal => KeypadKeys::PERIOD,
+        VirtualKeyCode::NumpadDecimal => KeypadKeys::PERIOD,
         _ => KeypadKeys::empty()
     }
 }
