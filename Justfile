@@ -21,6 +21,8 @@ doc:
 
 # run all tests
 test:
+    cargo test --no-default-features -- --nocapture
+    cargo test --no-default-features -- --ignored --nocapture
     cargo test -- --nocapture
     cargo test -- --ignored --nocapture
     cargo build -p zxspectrum-common
