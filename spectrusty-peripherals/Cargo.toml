@@ -40,5 +40,6 @@ default-features = false
 path = "../spectrusty-core"
 
 [dev-dependencies]
+serde_json = "1.0"
 spectrusty-core = { path = "../spectrusty-core", version = "0.2" }
 spectrusty-audio = { path = "../spectrusty-audio", version = "0.2" }

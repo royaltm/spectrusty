@@ -12,6 +12,7 @@ use core::num::NonZeroU16;
 use core::fmt;
 use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
+use std::borrow::Cow;
 
 #[cfg(feature = "snapshot")]
 use serde::{Serialize, Deserialize};
@@ -226,11 +227,12 @@ impl<D> DerefMut for MultiJoystickBusDevice<D> {
 /// Some of the variants contain more than one joystick device.
 #[derive(Clone, Copy, Debug)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "snapshot", serde(try_from = "&str", into = "&str"))]
+#[cfg_attr(feature = "snapshot", serde(try_from = "Cow<str>", into = "&str"))]
 pub enum JoystickSelect {
     Kempston(KempstonJoystickDevice),
     Fuller(FullerJoystickDevice),
-    Sinclair(SinclairJoystickDevice<SinclairJoyRightMap>, SinclairJoystickDevice<SinclairJoyLeftMap>),
+    Sinclair(SinclairJoystickDevice<SinclairJoyRightMap>,
+             SinclairJoystickDevice<SinclairJoyLeftMap>),
     Cursor(CursorJoystickDevice),
 }
 
@@ -289,7 +291,7 @@ impl FromStr for JoystickSelect {
 
 /// The error type returned when a [JoystickSelect] variant conversion failed.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TryFromStrJoystickSelectError<'a>(pub &'a str);
+pub struct TryFromStrJoystickSelectError<'a>(pub Cow<'a, str>);
 
 impl fmt::Display for TryFromStrJoystickSelectError<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -303,6 +305,16 @@ impl<'a> TryFrom<&'a str> for JoystickSelect {
     type Error = TryFromStrJoystickSelectError<'a>;
     fn try_from(name: &'a str) -> Result<Self, Self::Error> {
         match JoystickSelect::new_from_name(name) {
+            Some((joy, _)) => Ok(joy),
+            None => Err(TryFromStrJoystickSelectError(name.into()))
+        }
+    }
+}
+
+impl<'a> TryFrom<Cow<'a, str>> for JoystickSelect {
+    type Error = TryFromStrJoystickSelectError<'a>;
+    fn try_from(name: Cow<'a, str>) -> Result<Self, Self::Error> {
+        match JoystickSelect::new_from_name(&name) {
             Some((joy, _)) => Ok(joy),
             None => Err(TryFromStrJoystickSelectError(name))
         }
@@ -504,5 +516,27 @@ impl<D> BusDevice for MultiJoystickBusDevice<D>
         else {
             bus_data
         }
+    }
+}
+
+#[cfg(test)]
+#[cfg(feature = "snapshot")]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn joystick_select_snapshot() {
+        let (joy, len) = JoystickSelect::new_from_name("Sinclair").unwrap();
+        assert_eq!(len, 2);
+        assert!(joy.is_sinclair());
+        assert_eq!(joy.len(), len);
+        assert_eq!(<&str>::from(joy), "Sinclair");
+        let json = r#""Sinclair""#;
+        assert_eq!(serde_json::to_string(&joy).unwrap(), json);
+        let joy0: JoystickSelect = serde_json::from_str(json).unwrap();
+        let joy1: JoystickSelect = serde_json::from_reader(json.as_bytes()).unwrap();
+        assert!(joy0.is_sinclair());
+        assert!(joy1.is_sinclair());
+        assert_eq!(format!("{}", joy0), "Sinclair");
     }
 }

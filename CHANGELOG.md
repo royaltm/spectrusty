@@ -1,3 +1,7 @@
+v0.2.1
+
+* spectrusty-peripherals: Fixed deserializing of `JoystickSelect` from owned strings; `TryFromStrJoystickSelectError` inner public property type changed to `Cow<str>`.
+
 v0.2.0
 
 * Decouple `BusDevice` timestamps from `ControlUnit` implementations. Now timestamps must implement `From<VFrameTs<_>>` instead of being exactly the same. This enables usage of a common timestamp type for devices shared between different chipset implementations.
