@@ -92,6 +92,7 @@ impl ZxInterface1MemExt {
     }
 }
 
+#[cfg(feature = "snapshot")]
 fn exrom_default() -> ExRom {
     Rc::new([])
 }
