@@ -5,9 +5,9 @@
 
     For the full copyright notice, see the lib.rs file.
 */
-use core::fmt;
 use std::io;
 
+#[cfg(feature = "snapshot")] use core::fmt;
 #[cfg(feature = "snapshot")]
 use serde::{Serialize, Deserialize, Serializer, Deserializer, de::{self, Visitor}};
 
@@ -78,6 +78,7 @@ impl Clone for Empty {
     }
 }
 
+#[cfg(feature = "snapshot")]
 macro_rules! impl_serde_unit {
     ($ty:ty, $name:expr) => {
         impl Serialize for $ty {
@@ -109,5 +110,7 @@ macro_rules! impl_serde_unit {
     };
 }
 
+#[cfg(feature = "snapshot")]
 impl_serde_unit!(Sink, "Sink");
+#[cfg(feature = "snapshot")]
 impl_serde_unit!(Empty, "Empty");

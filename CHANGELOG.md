@@ -1,6 +1,7 @@
 v0.2.1
 
 * spectrusty-peripherals: Fixed deserializing of `JoystickSelect` from owned strings; `TryFromStrJoystickSelectError` inner public property type changed to `Cow<str>`.
+* spectrusty-utils: Fixed compilation without default features.
 
 v0.2.0
 
