@@ -29,3 +29,15 @@ test:
     cargo test -p zxspectrum-common -- --nocapture
     cargo build -p audio --bins
     cargo test -p audio -- --nocapture
+
+# run clippy tests
+clippy:
+    touch src/lib.rs
+    cargo clippy -- -D warnings
+    cargo clippy --no-default-features -- -D warnings
+    for directory in spectrusty-*; do \
+        cd $directory && \
+        touch src/lib.rs && \
+        cargo clippy --no-default-features -- -D warnings && \
+        cd ..; \
+    done
