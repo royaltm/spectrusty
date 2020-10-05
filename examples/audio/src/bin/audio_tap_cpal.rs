@@ -33,6 +33,7 @@ type WavWriter = hound::WavWriter<std::io::BufWriter<std::fs::File>>;
 const FRAME_TSTATES: i32 = 69888;
 const CPU_HZ: u32 = 3_500_000;
 const AMPLITUDE: f32 = 0.1;
+const AUDIO_LATENCY: usize = 1;
 
 fn produce<T: 'static + FromSample<i16> + AudioSample + cpal::Sample + Send, R: Read + Seek>(
         mut audio: AudioHandle<T>,
@@ -145,7 +146,9 @@ This program comes with ABSOLUTELY NO WARRANTY.
 This is free software, and you are welcome to redistribute it under certain conditions."#);
 
     let frame_duration_nanos = nanos_from_frame_tc_cpu_hz(FRAME_TSTATES as u32, CPU_HZ) as u32;
-    let audio = AudioHandleAnyFormat::create(&cpal::default_host(), frame_duration_nanos, 0)?;
+    let audio = AudioHandleAnyFormat::create(&cpal::default_host(),
+                                             frame_duration_nanos,
+                                             AUDIO_LATENCY)?;
     let spec = hound::WavSpec {
         channels: 1,
         sample_rate: audio.sample_rate(),

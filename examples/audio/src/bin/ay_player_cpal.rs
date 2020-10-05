@@ -39,6 +39,7 @@ use spectrusty::chip::ay_player::*;
 /****************************************************************************/
 type Ay128kPlayer = AyPlayer<Ay128kPortDecode>;
 type WavWriter = hound::WavWriter<std::io::BufWriter<std::fs::File>>;
+const AUDIO_LATENCY: usize = 5;
 
 fn produce<T, R: Read>(
         mut audio: AudioHandle<T>,
@@ -179,7 +180,9 @@ This is free software, and you are welcome to redistribute it under certain cond
                    .map_err(|_| "simple logger initialization failed")?;
 
     let frame_duration_nanos = ZxSpectrum128Config::frame_duration_nanos() as u32;
-    let audio = AudioHandleAnyFormat::create(&cpal::default_host(), frame_duration_nanos, 5)?;
+    let audio = AudioHandleAnyFormat::create(&cpal::default_host(),
+                                             frame_duration_nanos,
+                                             AUDIO_LATENCY)?;
     let spec = hound::WavSpec {
         channels: 2,
         sample_rate: audio.sample_rate(),

@@ -32,6 +32,7 @@ use spectrusty::peripherals::ay::{audio::*, AyRegister, AyRegChange};
 /****************************************************************************/
 const FRAME_TSTATES: i32 = 70908;
 const CPU_HZ: u32 = 3_546_900;
+const AUDIO_LATENCY: usize = 1;
 
 fn produce<T: 'static + FromSample<f32> + AudioSample + cpal::Sample + Send>(mut audio: AudioHandle<T>)
     where i16: IntoSample<T>
@@ -92,8 +93,9 @@ This program comes with ABSOLUTELY NO WARRANTY.
 This is free software, and you are welcome to redistribute it under certain conditions."#);
 
     let frame_duration_nanos = nanos_from_frame_tc_cpu_hz(FRAME_TSTATES as u32, CPU_HZ) as u32;
-    let audio = AudioHandleAnyFormat::create(&cpal::default_host(), frame_duration_nanos, 0)?;
-
+    let audio = AudioHandleAnyFormat::create(&cpal::default_host(),
+                                             frame_duration_nanos,
+                                             AUDIO_LATENCY)?;
     audio.play()?;
 
     match audio {
