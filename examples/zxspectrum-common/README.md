@@ -20,6 +20,7 @@ The computer models defined in this example use the following [ROMs](../../resou
 * `ZX Spectrum +2` - [plus2-0.rom], [plus2-1.rom]
 * `ZX Spectrum +2A` - [plus3-0.rom], [plus3-1.rom], [plus3-2.rom], [plus3-3.rom]
 * `Timex TC2048` - [tc2048.rom]
+* `ZX Spectrum 48k+ (ULAplus)` - [48.rom]
 * `ZX Spectrum ++2 (ULAplus)` - [plus2-0.rom], [plus2-1.rom]
 * `ZX Spectrum +2B (ULAplus)` - [plus2B.rom], [48.rom], [BBCBasic.rom], [opense.rom]
 
