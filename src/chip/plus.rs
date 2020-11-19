@@ -35,9 +35,11 @@ Implementation specifics (may change in the future releases):
 * The "locking" bit of Spectrum's 128k memory paging doesn't affect the ULAplus modes, but it makes the shadow memory
   inaccessible if it's being paged out when the bit is being enabled.
 * When used with 48k ULA the shadow screen page is the same as the normal screen page.
-* The grayscale mode is applied to all graphic modes: classic spectrum's 15 colors, palette, and high resolution.
+* The grayscale and palette modes are applied to all graphic modes including high resolution.
 * In grayscale mode with palette enabled, each palette entry describes a grayscale intensity from 0 to 255.
-* In classic 15 color and high-resolution modes, each color is converted to grayscale based on the color intensity.
+* In grayscale mode with palette off, each color is converted to grayscale based on the color intensity.
+* In low resolution with palette mode enabled the palette entries 8 to 15 are being used to determine border color.
+* In high resolution with palette mode enabled the palette entries 24 to 31 are being used to determine colors.
 
 In 128k mode, there are four available screen memory areas and in this documentation and source code they are 
 referenced as:

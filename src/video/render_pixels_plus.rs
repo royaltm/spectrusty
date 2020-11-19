@@ -50,10 +50,10 @@ bitflags! {
     /// 1 0 0 b b b - (b)order, lo-res, palette off/grayscale on
     /// 0 1 0 b b b - (b)order, lo-res, palette on
     /// 1 1 0 b b b - (b)order, lo-res, palette on/grayscale on
-    /// 0 0 1 i i i - (i)nk, hi-res
-    /// 1 0 1 i i i - (i)nk, hi-res/grascale on
-    /// 0 1 1 - unknown mode (hi-res, palette ignored)
-    /// 1 1 1 - unknown mode (hi-res/grayscale on, palette ignored)
+    /// 0 0 1 i i i - (i)nk, hi-res, palette off
+    /// 1 0 1 i i i - (i)nk, hi-res, palette off/grayscale on
+    /// 0 1 1 i i i - (i)nk, hi-res, palette on
+    /// 1 1 1 i i i - (i)nk, hi-res, palette on/grayscale on
     /// ```
     #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
     #[cfg_attr(feature = "snapshot", serde(try_from = "u8", into = "u8"))]
@@ -68,6 +68,7 @@ bitflags! {
         const GRAY_PALETTE   = 0b110000;
         const GRAY_HI_RES    = 0b101000;
         const PALETTE_HI_RES = 0b011000;
+        const GRAYPAL_HI_RES = 0b111000;
         const INDEX_MODE     = 0b000000;
     }
 }
@@ -155,6 +156,11 @@ impl RenderMode {
     #[inline]
     pub fn is_palette(self) -> bool {
         self.intersects(RenderMode::PALETTE)
+    }
+    /// Returns the `color` with inversed color index bits [0, 2].
+    #[inline(always)]
+    pub fn inverse_color(color: u8) -> u8 {
+        color ^ 0b111
     }
 }
 
@@ -288,7 +294,7 @@ impl<'r, VD, MI, PI> RendererPlus<'r, VD, MI, PI>
         } = self;
 
         let border_pixel = get_border_pixel::<P>(render_mode, palette);
-        let hi_res_pixel = get_hi_res_ink_pixel::<P>(render_mode);
+        let hi_res_pixel = get_hi_res_ink_pixel::<P>(render_mode, palette);
         let mode_changes = mode_changes.peekable();
         let palette_changes = palette_changes.peekable();
         let border_top = V::border_top_vsl_iter(border_size);
@@ -339,7 +345,7 @@ impl<'r, 'a, MI, PI, B, P, V> Worker<'r, 'a, MI, PI, B, P, V>
                 self.render_mode = self.mode_changes.next().unwrap().into();
                 self.border_pixel = get_border_pixel::<P>(self.render_mode, self.palette);
                 if self.render_mode.is_hi_res() {
-                    self.hi_res_pixel = get_hi_res_ink_pixel::<P>(self.render_mode);
+                    self.hi_res_pixel = get_hi_res_ink_pixel::<P>(self.render_mode, self.palette);
                 }                
             }
             else {
@@ -475,34 +481,183 @@ fn attr_to_palette_color(attr: u8, palette: &UlaPlusPalette) -> (u8, u8) {
     (ink_grb, paper_grb)
 }
 
+const PLT_LO_BORDER: u8 = 0o10;
+const PLT_HI_BORDER: u8 = 0o30;
+
 #[inline(always)]
 fn get_border_pixel<P: Palette>(render_mode: RenderMode, palette: &UlaPlusPalette) -> P::Pixel {
-    let border = render_mode.color_index();
+    let color_index = render_mode.color_index(); // lo-res border 0-7 or hi-res ink 8-15
     match render_mode & RenderMode::MODE_MASK {
-        RenderMode::PALETTE        => P::get_pixel_grb8( palette[(8|border) as usize] ),
-        RenderMode::GRAY_PALETTE   => P::get_pixel_gray8( palette[(8|border) as usize] ),
-        RenderMode::GRAY_HI_RES|
-        RenderMode::MODE_MASK      => P::get_pixel_gray( border ^ INK_MASK ),
-        RenderMode::HI_RESOLUTION|
-        RenderMode::PALETTE_HI_RES => P::get_pixel( border ^ INK_MASK ),
-        RenderMode::GRAYSCALE      => P::get_pixel_gray( border ),
-        RenderMode::INDEX_MODE     => P::get_pixel(border),
-        _ => unreachable!()
+        RenderMode::GRAYPAL_HI_RES => P::get_pixel_gray8(
+            palette[( RenderMode::inverse_color(color_index)|PLT_HI_BORDER ) as usize]
+        ),
+        RenderMode::PALETTE_HI_RES => P::get_pixel_grb8(
+            palette[( RenderMode::inverse_color(color_index)|PLT_HI_BORDER ) as usize]
+        ),
+        RenderMode::GRAY_HI_RES    => P::get_pixel_gray( RenderMode::inverse_color(color_index) ),
+        RenderMode::HI_RESOLUTION  => P::get_pixel( RenderMode::inverse_color(color_index) ),
+        RenderMode::GRAY_PALETTE   => P::get_pixel_gray8(
+            palette[( color_index|PLT_LO_BORDER ) as usize]
+        ),
+        RenderMode::PALETTE        => P::get_pixel_grb8(
+            palette[( color_index|PLT_LO_BORDER ) as usize]
+        ),
+        RenderMode::GRAYSCALE      => P::get_pixel_gray( color_index ),
+        _ => P::get_pixel( color_index )
     }
 }
 
 #[inline(always)]
-fn get_hi_res_ink_pixel<P: Palette>(render_mode: RenderMode) -> P::Pixel {
-    let color = render_mode.color_index();
-    if render_mode.is_grayscale() {
-        P::get_pixel_gray( color )
-    }
-    else {
-        P::get_pixel( color )
+fn get_hi_res_ink_pixel<P: Palette>(render_mode: RenderMode, palette: &UlaPlusPalette) -> P::Pixel {
+    let color_index = render_mode.color_index(); // hi-res ink 8-15
+    match render_mode & RenderMode::COLOR_MODE {
+        RenderMode::GRAY_PALETTE => P::get_pixel_gray8(
+            palette[( color_index|PLT_HI_BORDER ) as usize]
+        ),
+        RenderMode::PALETTE => P::get_pixel_grb8(
+            palette[( color_index|PLT_HI_BORDER ) as usize]
+        ),
+        RenderMode::GRAYSCALE => P::get_pixel_gray( color_index ),
+        _ => P::get_pixel( color_index ),
     }
 }
 
+const PLT_MASK_BORDER: u8 = 0b101_000;
+const PLT_CHCK_BORDER: u8 = 0b001_000;
+
+/// Returns `true` if palette `index` is in the range: [8, 15] or [24, 31].
 #[inline(always)]
 fn is_border_palette_index(index: u8) -> bool {
-    index & !7 == 8
+    index & PLT_MASK_BORDER == PLT_CHCK_BORDER
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn render_pixels_plus_is_border_palette_index_works() {
+        for index in 0..64 {
+            assert_eq!(
+                is_border_palette_index(index),
+                (index >= 8 && index <= 15) || (index >= 24 && index <= 31)
+            );
+        }
+    }
+
+    #[test]
+    fn render_pixels_plus_attr_to_ink_paper_works() {
+        assert_eq!( attr_to_ink_paper(0b00_000_000), (0b0000, 0b0000) );
+        assert_eq!( attr_to_ink_paper(0b00_101_010), (0b0010, 0b0101) );
+        assert_eq!( attr_to_ink_paper(0b01_010_101), (0b1101, 0b1010) );
+        assert_eq!( attr_to_ink_paper(0b00_000_111), (0b0111, 0b0000) );
+        assert_eq!( attr_to_ink_paper(0b01_011_110), (0b1110, 0b1011) );
+        assert_eq!( attr_to_ink_paper(0b10_101_010), (0b0010, 0b0101) );
+        assert_eq!( attr_to_ink_paper(0b11_010_101), (0b1101, 0b1010) );
+        assert_eq!( attr_to_ink_paper(0b10_000_111), (0b0111, 0b0000) );
+        assert_eq!( attr_to_ink_paper(0b11_011_110), (0b1110, 0b1011) );
+        assert_eq!( attr_to_ink_paper(0b11_111_111), (0b1111, 0b1111) );
+    }
+
+    #[test]
+    fn render_pixels_plus_attr_to_palette_color_works() {
+        let mut palette = UlaPlusPalette::default();
+        for i in 0..palette.len() {
+            palette[i] = 0b11_000000 | i as u8;
+        }
+
+        assert_eq!( attr_to_palette_color(0b00_000_000, &palette), (0b11_000000, 0b11_001000) );
+        assert_eq!( attr_to_palette_color(0b00_110_001, &palette), (0b11_000001, 0b11_001110) );
+        assert_eq!( attr_to_palette_color(0b00_001_101, &palette), (0b11_000101, 0b11_001001) );
+        assert_eq!( attr_to_palette_color(0b01_000_111, &palette), (0b11_010111, 0b11_011000) );
+        assert_eq!( attr_to_palette_color(0b10_111_000, &palette), (0b11_100000, 0b11_101111) );
+        assert_eq!( attr_to_palette_color(0b10_100_011, &palette), (0b11_100011, 0b11_101100) );
+        assert_eq!( attr_to_palette_color(0b11_111_111, &palette), (0b11_110111, 0b11_111111) );
+    }
+
+    struct TestPalette;
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    enum TestPixel {
+        Index(u8),
+        Gray(u8),
+        Grb8(u8),
+        Gray8(u8),
+    }
+
+    impl Palette for TestPalette {
+        type Pixel = TestPixel;
+
+        fn get_pixel(index: u8) -> Self::Pixel {
+            TestPixel::Index(index)
+        }
+
+        fn get_pixel_gray(index: u8) -> Self::Pixel {
+            TestPixel::Gray(index)
+        }
+
+        fn get_pixel_grb8(g3r3b2: u8) -> Self::Pixel {
+            TestPixel::Grb8(g3r3b2)
+        }
+
+        fn get_pixel_gray8(value: u8) -> Self::Pixel {
+            TestPixel::Gray8(value)
+        }
+    }        
+
+    #[test]
+    fn render_pixels_plus_get_border_pixel_works() {
+        let mut palette = UlaPlusPalette::default();
+        for i in 0..palette.len() {
+            palette[i] = 0b11_000000 | i as u8;
+        }
+        for color in 0..8 {
+            assert_eq!(get_border_pixel::<TestPalette>(
+                       RenderMode::INDEX_MODE.with_color(color), &palette),
+                       TestPixel::Index(color));
+            assert_eq!(get_border_pixel::<TestPalette>(
+                       RenderMode::GRAYSCALE.with_color(color), &palette),
+                       TestPixel::Gray(color));
+            assert_eq!(get_border_pixel::<TestPalette>(
+                       RenderMode::PALETTE.with_color(color), &palette),
+                       TestPixel::Grb8(0b11_001_000 | color));
+            assert_eq!(get_border_pixel::<TestPalette>(
+                       RenderMode::GRAY_PALETTE.with_color(color), &palette),
+                       TestPixel::Gray8(0b11_001_000 | color));
+            assert_eq!(get_border_pixel::<TestPalette>(
+                       RenderMode::HI_RESOLUTION.with_color(color), &palette),
+                       TestPixel::Index(8 | color ^ 7));
+            assert_eq!(get_border_pixel::<TestPalette>(
+                       RenderMode::GRAY_HI_RES.with_color(color), &palette),
+                       TestPixel::Gray(8 | color ^ 7));
+            assert_eq!(get_border_pixel::<TestPalette>(
+                       RenderMode::PALETTE_HI_RES.with_color(color), &palette),
+                       TestPixel::Grb8(0b11_011_000 | color ^ 7));
+            assert_eq!(get_border_pixel::<TestPalette>(
+                       RenderMode::GRAYPAL_HI_RES.with_color(color), &palette),
+                       TestPixel::Gray8(0b11_011_000 | color ^ 7));
+        }
+    }
+
+    #[test]
+    fn render_pixels_plus_get_hi_res_ink_pixel_works() {
+        let mut palette = UlaPlusPalette::default();
+        for i in 0..palette.len() {
+            palette[i] = 0b11_000000 | i as u8;
+        }
+        for color in 0..8 {
+            assert_eq!(get_hi_res_ink_pixel::<TestPalette>(
+                       RenderMode::HI_RESOLUTION.with_color(color), &palette),
+                       TestPixel::Index(8 | color));
+            assert_eq!(get_hi_res_ink_pixel::<TestPalette>(
+                       RenderMode::GRAY_HI_RES.with_color(color), &palette),
+                       TestPixel::Gray(8 | color));
+            assert_eq!(get_hi_res_ink_pixel::<TestPalette>(
+                       RenderMode::PALETTE_HI_RES.with_color(color), &palette),
+                       TestPixel::Grb8(0b11_011_000 | color));
+            assert_eq!(get_hi_res_ink_pixel::<TestPalette>(
+                       RenderMode::GRAYPAL_HI_RES.with_color(color), &palette),
+                       TestPixel::Gray8(0b11_011_000 | color));
+        }
+    }
 }
