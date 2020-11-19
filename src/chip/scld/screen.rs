@@ -19,7 +19,7 @@ impl<M, B, X, V> ScreenDataProvider for Scld<M, B, X, V>
     fn get_screen_mode(&self) -> ScrMode {
         let flags = self.cur_ctrl_flags;
         if flags.is_screen_hi_res() {
-            ScrMode::HighRes(flags.bits())
+            ScrMode::HighRes(flags.bits(), false)
         }
         else if flags.is_screen_hi_attrs() {
             ScrMode::HighColor(false)
@@ -39,7 +39,7 @@ impl<M, B, X, V> ScreenDataProvider for Scld<M, B, X, V>
                 flags.remove(ScldCtrlFlags::SCREEN_MODE_MASK);
                 flags.insert(ScldCtrlFlags::SCREEN_HI_ATTRS);
             }
-            ScrMode::HighRes(mode) => {
+            ScrMode::HighRes(mode, false) => {
                 flags.remove(ScldCtrlFlags::SCREEN_MODE_MASK|ScldCtrlFlags::HIRES_COLOR_MASK);
                 flags.insert(ScldCtrlFlags::SCREEN_HI_ATTRS|ScldCtrlFlags::SCREEN_HI_RES|
                              (ScldCtrlFlags::from(mode) & ScldCtrlFlags::HIRES_COLOR_MASK));

@@ -28,10 +28,12 @@ pub use spectrusty_core::memory::ScreenArray;
 
 const PIXELS_SIZE: usize = 6144;
 const SCR_SIZE: u64 = 6912;
-const SCR_PLUS_SIZE: u64 = SCR_SIZE + 64;
+const PALETTE_SIZE: u64 = 64;
+const SCR_PLUS_SIZE: u64 = SCR_SIZE + PALETTE_SIZE;
 const SCR_HICOLOR_SIZE: u64 = PIXELS_SIZE as u64 * 2;
-const SCR_HICOLOR_PLUS_SIZE: u64 = SCR_HICOLOR_SIZE + 64;
+const SCR_HICOLOR_PLUS_SIZE: u64 = SCR_HICOLOR_SIZE + PALETTE_SIZE;
 const SCR_HIRES_SIZE: u64 = SCR_HICOLOR_SIZE + 1;
+const SCR_HIRES_PLUS_SIZE: u64 = SCR_HICOLOR_SIZE + 1 + PALETTE_SIZE;
 
 /// This enum indicates a current or requested screen mode.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -43,8 +45,9 @@ pub enum ScrMode {
     /// The `bool` should be `true` if the ULAplus palette is or should be supported. Otherwise it's `false`.
     HighColor(bool),
     /// The high resultion SCLD screen mode.
-    /// The `u8` should be a high resolution color scheme: 0..=7.
-    HighRes(u8),
+    /// The `u8` is a high resolution color scheme on bits 3 to 5.
+    /// The `bool` should be `true` if the ULAplus palette is or should be supported. Otherwise it's `false`.
+    HighRes(u8, bool),
 }
 
 /// Utilities for loading and saving **SCR** files.
@@ -95,14 +98,14 @@ pub trait ScreenDataProvider {
     ///
     /// # Panics
     /// This method may panic if ULAplus is not supported by the underlying implementation.
-    fn screen_palette_ref(&self) -> &[u8;64] {
+    fn screen_palette_ref(&self) -> &[u8;PALETTE_SIZE as usize] {
         unimplemented!()
     }
     /// Should return a mutable reference to the ULAplus palette.
     ///
     /// # Panics
     /// This method may panic if ULAplus is not supported by the underlying implementation.
-    fn screen_palette_mut(&mut self) -> &mut [u8;64] {
+    fn screen_palette_mut(&mut self) -> &mut [u8;PALETTE_SIZE as usize] {
         unimplemented!()
     }
 }
@@ -115,11 +118,18 @@ impl<T> LoadScr for T where T: ScreenDataProvider {
             SCR_PLUS_SIZE => ScrMode::Classic(true),
             SCR_HICOLOR_SIZE => ScrMode::HighColor(false),
             SCR_HICOLOR_PLUS_SIZE => ScrMode::HighColor(true),
-            SCR_HIRES_SIZE => {
-                src.seek(SeekFrom::Current(-1))?;
+            SCR_HIRES_SIZE|SCR_HIRES_PLUS_SIZE => {
+                src.seek(SeekFrom::Current(
+                    if end == SCR_HIRES_PLUS_SIZE {
+                        -(PALETTE_SIZE as i64) - 1
+                    }
+                    else {
+                        -1
+                    }
+                ))?;
                 let mut color: u8 = 0;
                 src.read_exact(slice::from_mut(&mut color))?;
-                ScrMode::HighRes(color)
+                ScrMode::HighRes(color, end == SCR_HIRES_PLUS_SIZE)
             }
             _ => {
                 return Err(io::Error::new(io::ErrorKind::InvalidData, "Screen format not recognized"));
@@ -133,13 +143,15 @@ impl<T> LoadScr for T where T: ScreenDataProvider {
             SCR_SIZE|SCR_PLUS_SIZE => {
                 src.read_exact(self.screen_primary_mut())?;
             }
-            SCR_HICOLOR_SIZE|SCR_HICOLOR_PLUS_SIZE|SCR_HIRES_SIZE => {
+            SCR_HICOLOR_SIZE|SCR_HICOLOR_PLUS_SIZE|
+            SCR_HIRES_SIZE|SCR_HIRES_PLUS_SIZE => {
                 src.read_exact(&mut self.screen_primary_mut()[0..PIXELS_SIZE])?;
                 src.read_exact(&mut self.screen_secondary_mut()[0..PIXELS_SIZE])?;
             }
             _ => {}
         }
-        if end == SCR_PLUS_SIZE || end == SCR_HICOLOR_PLUS_SIZE {
+        if let SCR_PLUS_SIZE|SCR_HICOLOR_PLUS_SIZE|SCR_HIRES_PLUS_SIZE = end {
+            src.seek(SeekFrom::Start(end - PALETTE_SIZE))?;
             src.read_exact(self.screen_palette_mut())?;
         }
         Ok(())
@@ -154,15 +166,14 @@ impl<T> LoadScr for T where T: ScreenDataProvider {
                 dst.write_all(&self.screen_secondary_ref()[0..PIXELS_SIZE])?;
             }
         }
-        match mode {
-            ScrMode::Classic(true)|ScrMode::HighColor(true) => {
-                dst.write_all(self.screen_palette_ref())
-            }
-            ScrMode::HighRes(mode) => {
-                dst.write_all(slice::from_ref(&mode))
-            }
-            _ => Ok(())
+        if let ScrMode::HighRes(outmode, ..) = mode {
+            dst.write_all(slice::from_ref(&outmode))?;
         }
-        
+        if let ScrMode::Classic(true)|
+               ScrMode::HighColor(true)|
+               ScrMode::HighRes(.., true) = mode {
+            dst.write_all(self.screen_palette_ref())?;
+        }
+        Ok(())
     }
 }

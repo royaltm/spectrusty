@@ -22,7 +22,7 @@ impl<'a, U> ScreenDataProvider for UlaPlus<U>
         let render_mode = self.cur_render_mode;
         if render_mode.is_hi_res() {
             let mode = ((render_mode & RenderMode::COLOR_MASK).bits() << 3) | 0b110;
-            ScrMode::HighRes(mode)
+            ScrMode::HighRes(mode, render_mode.is_palette())
         }
         else if self.cur_source_mode.is_hi_color() {
             ScrMode::HighColor(render_mode.is_palette())
@@ -52,11 +52,12 @@ impl<'a, U> ScreenDataProvider for UlaPlus<U>
                 render_mode.set(RenderMode::PALETTE, palette);
                 self.ula.border_color().into()
             }
-            ScrMode::HighRes(mode) => {
+            ScrMode::HighRes(mode, palette) => {
                 source_mode.remove(SourceMode::SOURCE_MASK);
                 source_mode.insert(SourceMode::ATTR_HI_COLOR);
                 render_mode.remove(RenderMode::COLOR_MODE);
                 render_mode.insert(RenderMode::HI_RESOLUTION);
+                render_mode.set(RenderMode::PALETTE, palette);
                 mode >> 3
             }
         };
