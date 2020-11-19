@@ -1,3 +1,7 @@
+v0.3.0
+* RendererPlus: Added support for the hi-res modes with color and grayscale palette.
+* spectrusty-formats: scr: Added format support for the hi-res screen with a color palette.
+
 v0.2.1
 
 * spectrusty-peripherals: Fixed deserializing of `JoystickSelect` from owned strings; `TryFromStrJoystickSelectError` inner public property type changed to `Cow<str>`.
