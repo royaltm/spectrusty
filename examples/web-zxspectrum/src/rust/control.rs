@@ -61,6 +61,7 @@ pub trait SpectrumControl<B: Blep>: VideoControl +
     fn read_ear_mode(&self) -> ReadEarMode;
     fn set_read_ear_mode(&mut self, mode: ReadEarMode);
     fn load_scr(&mut self, scr_data: &[u8]) -> io::Result<()>;
+    fn save_scr(&self, dst: &mut Vec<u8>) -> io::Result<()>;
     fn poke_memory(&mut self, address: u16, value: u8);
     fn peek_memory(&self, address: u16) -> u8;
     fn dump_memory(&self, range: Range<u16>) -> io::Result<Vec<u8>>;
@@ -156,6 +157,10 @@ impl<C: Cpu, U, B> SpectrumControl<B> for ZxSpectrum<C, U, MemTap>
 
     fn load_scr(&mut self, scr_data: &[u8]) -> io::Result<()> {
         self.ula.load_scr(io::Cursor::new(scr_data))
+    }
+
+    fn save_scr(&self, dst: &mut Vec<u8>) -> io::Result<()> {
+        self.ula.save_scr(dst)
     }
 
     fn poke_memory(&mut self, address: u16, value: u8) {

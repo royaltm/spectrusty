@@ -189,6 +189,7 @@ import("../../pkg").then(rust_module => {
   .bind("save-z80v2", "click", (ev) => downloadZ80Snap(2))
   .bind("save-z80v1", "click", (ev) => downloadZ80Snap(1))
   .bind("save-sna", "click", (ev) => downloadSNASnap())
+  .bind("save-scr", "click", (ev) => downloadSCRSnap())
   .bind("save-snapshot", "click", (ev) => downloadJSONSnap())
   .bind("poke-memory", "click", (ev) => {
     var res = prompt("POKE");
@@ -694,6 +695,11 @@ import("../../pkg").then(rust_module => {
   function downloadJSONSnap() {
     var json = spectrum.toJSON();
     downloadFile(json, "json", "spectrusty.json");
+  }
+
+  function downloadSCRSnap() {
+    var data = spectrum.snapScr();
+    downloadFile(data, "octet/stream", "spectrusty.scr");
   }
 
   function downloadSNASnap() {

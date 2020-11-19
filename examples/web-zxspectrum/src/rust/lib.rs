@@ -423,8 +423,6 @@ impl ZxSpectrumEmu {
     pub fn load_sna(&mut self, sna_data: Vec<u8>) -> Result<()> {
         load_sna(Cursor::new(sna_data), self).js_err()?;
         self.update_on_frame_duration_changed();
-        // self.spectrum_control_mut().load_sna(sna_data.as_slice()).js_err()?;
-        // self.model.lock_48k_mode();
         Ok(())
     }
     /// Attempts to load a `.Z80` snapshot file.
@@ -529,6 +527,16 @@ impl ZxSpectrumEmu {
         .map(|reader| {
             Uint8Array::from(&**reader.get_ref().get_ref().get_ref())
         })
+    }
+    /// Returns a screen snapshot data of the emulated Spectrum in an '.SCR' format on success.
+    ///
+    /// # Errors
+    /// Returns an error if the snapshot could not be created in this format.
+    #[wasm_bindgen(js_name = snapScr)]
+    pub fn snap_scr(&self) -> Result<Vec<u8>> {
+        let mut buf = Vec::new();
+        self.spectrum_control_ref().save_scr(&mut buf).js_err()?;
+        Ok(buf)
     }
     /// Returns a snapshot data of the emulated Spectrum in a '.SNA' format on success.
     ///
