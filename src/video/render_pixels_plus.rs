@@ -346,7 +346,7 @@ impl<'r, 'a, MI, PI, B, P, V> Worker<'r, 'a, MI, PI, B, P, V>
                 self.border_pixel = get_border_pixel::<P>(self.render_mode, self.palette);
                 if self.render_mode.is_hi_res() {
                     self.hi_res_pixel = get_hi_res_ink_pixel::<P>(self.render_mode, self.palette);
-                }                
+                }
             }
             else {
                 break;
