@@ -51,6 +51,7 @@ pub trait SpectrumControl<B: Blep>: VideoControl +
     fn render_audio(&mut self, blep: &mut B) -> usize;
     fn reset(&mut self, hard: bool);
     fn trigger_nmi(&mut self);
+    fn reset_and_halt(&mut self);
     fn emulator_state_ref(&self) -> &EmulatorState;
     fn emulator_state_mut(&mut self) -> &mut EmulatorState;
     fn process_keyboard_event(&mut self, key: &str, pressed: bool, shift_down: bool, ctrl_down: bool, num_lock: bool);
@@ -92,6 +93,10 @@ impl<C: Cpu, U, B> SpectrumControl<B> for ZxSpectrum<C, U, MemTap>
 
     fn trigger_nmi(&mut self) {
         self.trigger_nmi()
+    }
+
+    fn reset_and_halt(&mut self) {
+        self.reset_and_halt()
     }
 
     fn emulator_state_ref(&self) -> &EmulatorState {

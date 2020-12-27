@@ -284,6 +284,11 @@ impl ZxSpectrumEmu {
         let (_, state_changed) = self.model.reset_and_load().js_err()?;
         Ok(state_changed)
     }
+    /// Resets and halts the CPU.
+    #[wasm_bindgen(js_name = resetAndHalt)]
+    pub fn reset_and_halt(&mut self)  {
+        self.spectrum_control_mut().reset_and_halt();
+    }
     /// Changes next rendered frame's border size from the given border size name.
     ///
     /// # Errors

@@ -586,6 +586,15 @@ import("../../pkg").then(rust_module => {
     .catch(err => alert(err))
   }
 
+  function loadRemoteScr(uri) {
+    return loadRemote(uri, false)
+    .then(data => {
+      spectrum.showScr(data);
+      return true;
+    })
+    .catch(err => alert(err));
+  }
+
   function loadFromUrlParams(autoload) {
     var promise = Promise.resolve("fresh");
     if (autoload && restoreState(spectrum, urlparams)) {
@@ -607,6 +616,18 @@ import("../../pkg").then(rust_module => {
           urlparams.applyTo(spectrum);
           if (tap && autoload) {
             spectrum.resetAndLoad();
+            state = "run";
+          }
+          return state;
+        })
+      );
+    }
+    else if (urlparams.modifiedScr()) {
+      promise = promise.then(state => loadRemoteScr(urlparams.scr)
+        .then(loaded => {
+          urlparams.applyTo(spectrum);
+          if (loaded && autoload) {
+            spectrum.resetAndHalt();
             state = "run";
           }
           return state;

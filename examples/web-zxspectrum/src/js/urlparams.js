@@ -21,6 +21,7 @@ import { setupDevice } from "./utils";
   #sna=...
   #z80=...
   #json=...
+  #scr=...
 */
  
 const SimpleOptions = {
@@ -43,6 +44,7 @@ export class UrlParameters {
   constructor() {
     const hash = location.hash;
     this.options = parseOptions(hash);
+    this.scr = null;
     this.tap = null;
     this.snap = null;
     this.cache = hash;
@@ -145,6 +147,7 @@ export class UrlParameters {
       kempstonMouse,
       ay,
       tapChunk,
+      // scr,
       // tap,
       // snap
     } = this.options;
@@ -176,6 +179,8 @@ export class UrlParameters {
   removeSnap() {
     delete this.options.snap;
     this.snap = null;
+    delete this.options.scr;
+    this.scr = null;
   }
 
   modifiedTap() {
@@ -202,6 +207,13 @@ export class UrlParameters {
     }
     return res;
   }
+
+  modifiedScr() {
+    const scr = this.options.scr;
+    var res = scr != this.scr;
+    this.scr = scr || null;
+    return res && !!scr;
+  }
 }
 
 function parseOptions(hashstr) {
@@ -213,6 +225,9 @@ function parseOptions(hashstr) {
     switch (key) {
       case "ay":
         options.ay = parseAyOptions(value.split(","));
+        break;
+      case "scr":
+        options.scr = value;
         break;
       case "tap":
         options.tap || (options.tap = tap = []);
@@ -292,6 +307,12 @@ function optionsToHash(options) {
   if (snap) {
     hash += `#${snap.type}=${snap.url}`;
   }
+
+  let scr = options.scr;
+  if (scr) {
+    hash += `#scr=${scr}`;
+  }
+
   return hash;
 }
 
