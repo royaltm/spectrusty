@@ -201,6 +201,25 @@ impl<C: Cpu, U, F> ZxSpectrum<C, U, F>
     }
 }
 
+impl<C: Cpu, U, F> ZxSpectrum<C, U, F> {
+    /// Requests the RESET function which will be executed on the next frame run.
+    ///
+    /// `hard` should be `true` if the hardware reset is required or `false` for the software
+    /// `RST 00` call.
+    pub fn reset(&mut self, hard: bool) {
+        self.reset_request = Some(hard);
+    }
+    /// Requests the NMI trigger function which will be executed on the next frame run.
+    pub fn trigger_nmi(&mut self) {
+        self.nmi_request = true;
+    }
+    /// Resets and halts the CPU immediately.
+    pub fn reset_and_halt(&mut self) {
+        self.cpu.reset();
+        self.cpu.halt();
+    }
+}
+
 impl<C: Cpu, U, F> ZxSpectrum<C, U, F>
     where U: UlaCommon,
           F: Read + Write + Seek
@@ -504,16 +523,5 @@ impl<C: Cpu, U, F> ZxSpectrum<C, U, F>
             self.ula.render_earmic_out_audio_frame::<EarOutAmps4<B::SampleDelta>>(blep, channel);
         }
         self.ula.end_audio_frame(blep)
-    }
-    /// Requests the RESET function which will be executed on the next frame run.
-    ///
-    /// `hard` should be `true` if the hardware reset is required or `false` for the software
-    /// `RST 00` call.
-    pub fn reset(&mut self, hard: bool) {
-        self.reset_request = Some(hard);
-    }
-    /// Requests the NMI trigger function which will be executed on the next frame run.
-    pub fn trigger_nmi(&mut self) {
-        self.nmi_request = true;
     }
 }
