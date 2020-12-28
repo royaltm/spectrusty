@@ -29,7 +29,21 @@
               <input type="range" class="custom-range" min="0" max="100" value="100" id="sound-gain"/>
             </div>
             <div class="col-auto">
-              <input type="button" class="btn btn-secondary" id="pause-resume" value="Pause" />
+              <input type="button" class="btn btn-primary" id="pause-resume" value="Pause" />
+            </div>
+          </div>
+          <div class="row align-items-center">
+            <div class="col">
+              <label for="speed-control">Emulation speed:</label>
+              <input type="range" class="custom-range" min="-400" max="400" value="0" id="speed-control"/>
+            </div>
+            <div class="col-auto">
+              <div class="input-group input-group-sm">
+                <input type="text" class="form-control" size="3" value="x1.0" id="speed-current" readonly placeholder="" title="Emulation speed rate"/>
+                <div class="input-group-append">
+                  <button class="btn btn-secondary" type="button" id="speed-reset">&lt;- 1.00</button>
+                </div>
+              </div>
             </div>
           </div>
           <div class="row align-items-start">
@@ -157,17 +171,17 @@
               </div>
             </div>
           </div>
-          <div class="row align-items-start mb-2">
+          <div class="row align-items-start">
             <div class="col-auto">
               <div class="custom-control custom-checkbox">
                 <input type="checkbox" class="custom-control-input" id="fast-tape">
-                <label class="custom-control-label form-control-sm" title="Enables TURBO mode automatically when the tape is being accessed and turns it off when loading or saving ends" for="fast-tape">⚡ turbo LOAD&amp;SAVE</label>
+                <label class="custom-control-label form-control-sm" title="Enables TURBO mode automatically when the tape is being accessed and turns it off when loading or saving ends" for="fast-tape">⚡ turbo tape</label>
               </div>
             </div>
             <div class="col-auto">
               <div class="custom-control custom-checkbox">
                 <input type="checkbox" class="custom-control-input" id="instant-tape">
-                <label class="custom-control-label form-control-sm" for="instant-tape" title="Enables instant loading of tape data when ROM loading routines are being accessed">⚡⚡ instant ROM loader</label>
+                <label class="custom-control-label form-control-sm" for="instant-tape" title="Enables instant loading of tape data when ROM loading routines are being accessed">⚡⚡ instant ROM LOAD</label>
               </div>
             </div>
             <div class="col-auto">
@@ -175,19 +189,6 @@
                 <input type="checkbox" class="custom-control-input" id="audible-tape">
                 <label class="custom-control-label form-control-sm" for="audible-tape" title="Enables tape audio playback when playing or recording the tape in a non-accelerated mode">🔊 audible tape</label>
               </div>
-            </div>
-          </div>
-          <div class="row align-items-center">
-            <div class="col-auto">
-              <div class="input-group md-3">
-                <div class="input-group-prepend">
-                  <button class="btn btn-secondary" type="button" id="speed-reset">Original</button>
-                </div>
-                <input type="text" class="form-control" size="3" value="x1.0" id="speed-current" readonly placeholder="" title="Emulation speed rate"/>
-              </div>
-            </div>
-            <div class="col">
-              <input type="range" class="custom-range form-control-sm" min="-400" max="400" value="0" id="speed-control" title="Adjusts emulation speed rate" />
             </div>
           </div>
           <div class="row align-items-center">
