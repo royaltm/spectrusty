@@ -124,10 +124,11 @@ import("../../pkg").then(rust_module => {
   ).bind("joysticks",
     (ev) => spectrum.selectJoystick(ev.target.selectedIndex - 1),
     (el) => el.value = spectrum.joystick
-  ).bind("reset-hard", "click", (ev) => spectrum.reset(true))
-  .bind("reset-soft", "click", (ev) => spectrum.reset(false))
-  .bind("reset-power", "click", (ev) => spectrum.powerCycle())
-  .bind("trigger-nmi", "click", (ev) => spectrum.triggerNmi())
+  )
+  .bind("reset-hard", "click", (ev) => { spectrum.reset(true); resumePaused() })
+  .bind("reset-soft", "click", (ev) => { spectrum.reset(false); resumePaused() })
+  .bind("reset-power", "click", (ev) => { spectrum.powerCycle(); resumePaused() })
+  .bind("trigger-nmi", "click", (ev) => { spectrum.triggerNmi(); resumePaused() })
   .bind("ay-fuller-box", attachDevice, hasDevice)
   .bind("ay-melodik", attachDevice, hasDevice)
   .bind("kempston-mouse", attachDevice, hasDevice)
@@ -354,6 +355,9 @@ import("../../pkg").then(rust_module => {
     if (state === "fresh" || state === "run") {
       togglePause().then(showAbout);
     }
+    else if (state === "halt") {
+      setTimeout(togglePause, 50);
+    }
     run(true);
   });
 
@@ -381,6 +385,10 @@ import("../../pkg").then(rust_module => {
 
   function hideVisualKeyboard() {
     spectrumContainer.classList.remove("show-keyboard")
+  }
+
+  function resumePaused() {
+    return paused ? togglePause() : Promise.resolve();
   }
 
   function togglePause() {
@@ -628,7 +636,7 @@ import("../../pkg").then(rust_module => {
           urlparams.applyTo(spectrum);
           if (loaded && autoload) {
             spectrum.resetAndHalt();
-            state = "run";
+            state = "halt";
           }
           return state;
         })
