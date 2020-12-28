@@ -5,9 +5,10 @@
     For the full copyright notice, see the lib.rs file.
 */
 use core::convert::TryFrom;
+use core::fmt;
 use core::iter;
 use core::str::FromStr;
-use core::fmt;
+use core::time::Duration;
 use std::io::{self, Read};
 use rand::prelude::*;
 
@@ -792,20 +793,43 @@ impl<C, S, X, F, R, W> ZxSpectrumModel<C, S, X, F, R, W>
         spectrum_model_dispatch!(self(spec) => spec.set_state(state))
     }
 
-    pub fn effective_frame_duration_nanos(&self) -> u32 {
-        spectrum_model_dispatch!(self(spec) => spec.effective_frame_duration_nanos())
-    }
-
-    pub fn effective_frame_duration(&self) -> core::time::Duration {
-        spectrum_model_dispatch!(self(spec) => spec.effective_frame_duration())
-    }
-
+    /// Returns the adjusted CPU clock frequency of this model.
     pub fn effective_cpu_rate(&self) -> f64 {
         spectrum_model_dispatch!(self(spec) => spec.effective_cpu_rate())
     }
 
+    /// Returns the adjusted duration of a single execution frame in nanoseconds.
+    pub fn effective_frame_duration_nanos(&self) -> u32 {
+        spectrum_model_dispatch!(self(spec) => spec.effective_frame_duration_nanos())
+    }
+
+    /// Returns the adjusted duration of a single execution frame.
+    pub fn effective_frame_duration(&self) -> Duration {
+        spectrum_model_dispatch!(self(spec) => spec.effective_frame_duration())
+    }
+
     pub fn ensure_audio_frame_time<B: Blep>(&self, blep: &mut B, sample_rate: u32) {
         spectrum_model_dispatch!(self(spec) => spec.ensure_audio_frame_time(blep, sample_rate))
+    }
+
+    /// Returns the original CPU clock frequency of this model.
+    pub fn cpu_rate(&self) -> u32 {
+        spectrum_model_ula_static_dispatch!(self(S, X)::CPU_HZ)
+    }
+
+    /// Returns the number of T-states per frame of this model.
+    pub fn frame_tstates_count(&self) -> FTs {
+        spectrum_model_ula_static_dispatch!(self(S, X)::FRAME_TSTATES)
+    }
+
+    /// Returns the original duration of a single execution frame in nanoseconds.
+    pub fn frame_duration_nanos(&self) -> u32 {
+        spectrum_model_ula_static_dispatch!(self(S, X)::frame_duration_nanos())
+    }
+
+    /// Returns the original duration of a single execution frame.
+    pub fn frame_duration(&self) -> Duration {
+        spectrum_model_ula_static_dispatch!(self(S, X)::frame_duration())
     }
 
     pub fn lock_48k_mode(&mut self) -> bool {
@@ -819,16 +843,6 @@ impl<C, S, X, F, R, W> ZxSpectrumModel<C, S, X, F, R, W>
             _ => {}
         }
         true
-    }
-
-    /// Returns the default CPU clock frequency of this model.
-    pub fn cpu_rate(&self) -> u32 {
-        spectrum_model_ula_static_dispatch!(self(S, X)::CPU_HZ)
-    }
-
-    /// Returns the number of T-states per frame of this model.
-    pub fn frame_tstates_count(&self) -> FTs {
-        spectrum_model_ula_static_dispatch!(self(S, X)::FRAME_TSTATES)
     }
 
     /// Returns the [Video::PIXEL_DENSITY] of this model.

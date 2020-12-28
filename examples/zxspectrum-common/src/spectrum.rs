@@ -182,16 +182,19 @@ impl<L: Flavour, U, F> ZxSpectrum<Z80<L>, U, F>
 impl<C: Cpu, U, F> ZxSpectrum<C, U, F>
     where U: HostConfig
 {
+    /// Returns the adjusted CPU clock frequency of this model.
+    pub fn effective_cpu_rate(&self) -> f64 {
+        U::effective_cpu_rate(self.state.clock_rate_factor as f64)
+    }
+
+    /// Returns the adjusted duration of a single execution frame in nanoseconds.
     pub fn effective_frame_duration_nanos(&self) -> u32 {
         U::effective_frame_duration_nanos(self.state.clock_rate_factor as f64)
     }
 
+    /// Returns the adjusted duration of a single execution frame.
     pub fn effective_frame_duration(&self) -> Duration {
         U::effective_frame_duration(self.state.clock_rate_factor as f64)
-    }
-
-    pub fn effective_cpu_rate(&self) -> f64 {
-        U::effective_cpu_rate(self.state.clock_rate_factor as f64)
     }
 
     pub fn ensure_audio_frame_time<B: Blep>(&self, blep: &mut B, sample_rate: u32)
