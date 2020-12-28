@@ -135,12 +135,21 @@ impl ZxSpectrumEmu {
     #[wasm_bindgen(js_name = runFramesWithAudio)]
     pub fn run_frames_with_audio(&mut self, time: f64) -> Result<Option<bool>> {
         let mut state_changed = false;
-        let model = spectrum_control_from_model_mut(&mut self.model);
-        if model.emulator_state_ref().turbo {
+        let state = self.model.emulator_state_ref();
+        if state.turbo {
+            let clock_rate_factor = state.clock_rate_factor;
+            if clock_rate_factor != 1.0 {
+                self.animation_sync.set_frame_duration(self.model.frame_duration_nanos());
+            }
+            let model = spectrum_control_from_model_mut(&mut self.model);
             state_changed = model.run_frames_accelerated(&mut self.animation_sync)
                                  .js_err()?.1;
+            if clock_rate_factor != 1.0 {
+                self.animation_sync.set_frame_duration(self.model.effective_frame_duration_nanos());
+            }
         }
         else {
+            let model = spectrum_control_from_model_mut(&mut self.model);
             if self.mouse_move != (0, 0) {
                 model.send_mouse_move(self.mouse_move);
                 self.mouse_move = (0, 0);
