@@ -1,6 +1,6 @@
 [package]
 name = "spectrusty-core"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Rafal Michalski <royaltm75@gmail.com>"]
 edition = "2018"
 repository = "https://github.com/royaltm/spectrusty"
@@ -19,7 +19,7 @@ snapshot = ["serde", "z80emu/serde", "base64"]
 bitflags = "1.2.1"
 
 [dependencies.base64]
-version = "0.12"
+version = "0.13"
 optional = true
 
 [dependencies.z80emu]
