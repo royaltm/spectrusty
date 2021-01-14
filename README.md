@@ -110,8 +110,7 @@ The video and contention timings for the Sinclair/Amstrad machines are thoroughl
 Rust Version Requirements
 -------------------------
 
-`spectrusty` requires Rustc version 1.41 or greater due to the usage of some macro features and API that was introduced
-or stabilized in this version.
+`spectrusty` requires Rustc version 1.44 or greater due to the usage of some macro features and API that was introduced or stabilized in this version.
 
 
 Copyright
@@ -132,7 +131,7 @@ The **SPECTRUSTY** library is available under the terms of the GNU LGPL version 
 [Build Link]: https://travis-ci.org/royaltm/spectrusty
 [Build img]: https://travis-ci.org/royaltm/spectrusty.svg?branch=master
 [rustc version link]: https://github.com/royaltm/spectrusty#rust-version-requirements
-[rustc version img]: https://img.shields.io/badge/rustc-1.41+-lightgray.svg
+[rustc version img]: https://img.shields.io/badge/rustc-1.44+-lightgray.svg
 [License Link]: https://www.gnu.org/licenses/#LGPL
 [License img]: https://img.shields.io/crates/l/spectrusty
 [TC2048]: https://en.wikipedia.org/wiki/Timex_Computer_2048
