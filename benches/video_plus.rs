@@ -81,7 +81,7 @@ fn bench_mode_intensive(ben: &mut Bencher) {
     let source_changes = Vec::new();
     let frame_cache0 = Default::default();
     let frame_cache1 = Default::default();
-    fill_mode_changes(&mut mode_changes, 21, thread_rng().gen_range(0, 21));
+    fill_mode_changes(&mut mode_changes, 21, thread_rng().gen_range(0..21));
     bench_video::<UlaVideoFrame>(ben, mode_changes, palette_changes, source_changes, frame_cache0, frame_cache1);
 }
 
@@ -92,8 +92,8 @@ fn bench_mode_source_intensive(ben: &mut Bencher) {
     let mut source_changes = Vec::new();
     let frame_cache0 = Default::default();
     let frame_cache1 = Default::default();
-    fill_mode_changes(&mut mode_changes, 42, thread_rng().gen_range(0, 42));
-    fill_source_changes(&mut source_changes, 42, thread_rng().gen_range(0, 42));
+    fill_mode_changes(&mut mode_changes, 42, thread_rng().gen_range(0..42));
+    fill_source_changes(&mut source_changes, 42, thread_rng().gen_range(0..42));
     bench_video::<UlaVideoFrame>(ben, mode_changes, palette_changes, source_changes, frame_cache0, frame_cache1);
 }
 
@@ -104,8 +104,8 @@ fn bench_mode_palette_intensive(ben: &mut Bencher) {
     let source_changes = Vec::new();
     let frame_cache0 = Default::default();
     let frame_cache1 = Default::default();
-    fill_mode_changes(&mut mode_changes, 42, thread_rng().gen_range(0, 42));
-    fill_palette_changes(&mut palette_changes, 42, thread_rng().gen_range(0, 42));
+    fill_mode_changes(&mut mode_changes, 42, thread_rng().gen_range(0..42));
+    fill_palette_changes(&mut palette_changes, 42, thread_rng().gen_range(0..42));
     bench_video::<UlaVideoFrame>(ben, mode_changes, palette_changes, source_changes, frame_cache0, frame_cache1);
 }
 
@@ -116,9 +116,9 @@ fn bench_all_intensive(ben: &mut Bencher) {
     let mut source_changes = Vec::new();
     let frame_cache0 = Default::default();
     let frame_cache1 = Default::default();
-    fill_mode_changes(&mut mode_changes, 63, thread_rng().gen_range(0, 63));
-    fill_palette_changes(&mut palette_changes, 63, thread_rng().gen_range(0, 63));
-    fill_source_changes(&mut source_changes, 63, thread_rng().gen_range(0, 63));
+    fill_mode_changes(&mut mode_changes, 63, thread_rng().gen_range(0..63));
+    fill_palette_changes(&mut palette_changes, 63, thread_rng().gen_range(0..63));
+    fill_source_changes(&mut source_changes, 63, thread_rng().gen_range(0..63));
     bench_video::<UlaVideoFrame>(ben, mode_changes, palette_changes, source_changes, frame_cache0, frame_cache1);
 }
 
@@ -127,7 +127,7 @@ fn fill_mode_changes(mode_changes: &mut Vec<VideoTsData6>, step: usize, start: u
     let mut rng = thread_rng();
     for ts in (0..UlaVideoFrame::FRAME_TSTATES_COUNT).skip(start).step_by(step) {
         let vts = VFrameTs::<UlaVideoFrame>::from_tstates(ts);
-        let mode = match rng.gen_range(0, 8) {
+        let mode = match rng.gen_range(0..8) {
             0 => (RenderMode::HI_RESOLUTION).bits()|color,
             1 => (RenderMode::HI_RESOLUTION|RenderMode::GRAYSCALE).bits()|color,
             2 => (RenderMode::PALETTE).bits()|color,
@@ -155,7 +155,7 @@ fn fill_source_changes(source_changes: &mut Vec<VideoTsData2>, step: usize, star
     let mut rng = thread_rng();
     for ts in (0..UlaVideoFrame::FRAME_TSTATES_COUNT).skip(start).step_by(step) {
         let vts = VFrameTs::<UlaVideoFrame>::from_tstates(ts);
-        let source: u8 = rng.gen_range(0, 3);
+        let source: u8 = rng.gen_range(0..3);
         source_changes.push((vts, source).into());
     }
 }

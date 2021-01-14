@@ -66,7 +66,7 @@ fn bench_frame_full(ben: &mut Bencher) {
 fn bench_border_intensive(ben: &mut Bencher) {
     let mut border_changes = Vec::new();
     let frame_cache = Default::default();
-    fill_border_changes(&mut border_changes, 21, thread_rng().gen_range(0, 21));
+    fill_border_changes(&mut border_changes, 21, thread_rng().gen_range(0..21));
     bench_video::<UlaVideoFrame>(ben, border_changes, frame_cache);
 }
 
@@ -74,7 +74,7 @@ fn bench_border_intensive(ben: &mut Bencher) {
 fn bench_border_rare(ben: &mut Bencher) {
     let mut border_changes = Vec::new();
     let frame_cache = Default::default();
-    fill_border_changes(&mut border_changes, 11000, thread_rng().gen_range(0, 11000));
+    fill_border_changes(&mut border_changes, 11000, thread_rng().gen_range(0..11000));
     bench_video::<UlaVideoFrame>(ben, border_changes, frame_cache);
 }
 

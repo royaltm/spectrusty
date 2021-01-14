@@ -76,7 +76,7 @@ fn bench_border_intensive(ben: &mut Bencher) {
     let mut border_changes = Vec::new();
     let frame_cache0 = Default::default();
     let frame_cache1 = Default::default();
-    fill_border_changes(&mut border_changes, 21, thread_rng().gen_range(0, 21));
+    fill_border_changes(&mut border_changes, 21, thread_rng().gen_range(0..21));
     let screen_changes = Vec::new();
     bench_video::<Ula128VidFrame>(ben, border_changes, frame_cache0, frame_cache1, screen_changes);
 }
@@ -86,7 +86,7 @@ fn bench_border_rare(ben: &mut Bencher) {
     let mut border_changes = Vec::new();
     let frame_cache0 = Default::default();
     let frame_cache1 = Default::default();
-    fill_border_changes(&mut border_changes, 11000, thread_rng().gen_range(0, 11000));
+    fill_border_changes(&mut border_changes, 11000, thread_rng().gen_range(0..11000));
     let screen_changes = Vec::new();
     bench_video::<Ula128VidFrame>(ben, border_changes, frame_cache0, frame_cache1, screen_changes);
 }
@@ -97,7 +97,7 @@ fn bench_screen_changes_intensive(ben: &mut Bencher) {
     let frame_cache0 = Default::default();
     let frame_cache1 = Default::default();
     let mut screen_changes = Vec::new();
-    fill_screen_changes(&mut screen_changes, 21, thread_rng().gen_range(0, 21));
+    fill_screen_changes(&mut screen_changes, 21, thread_rng().gen_range(0..21));
     bench_video::<Ula128VidFrame>(ben, border_changes, frame_cache0, frame_cache1, screen_changes);
 }
 
@@ -107,29 +107,29 @@ fn bench_screen_changes_rare(ben: &mut Bencher) {
     let frame_cache0 = Default::default();
     let frame_cache1 = Default::default();
     let mut screen_changes = Vec::new();
-    fill_screen_changes(&mut screen_changes, 11000, thread_rng().gen_range(0, 11000));
+    fill_screen_changes(&mut screen_changes, 11000, thread_rng().gen_range(0..11000));
     bench_video::<Ula128VidFrame>(ben, border_changes, frame_cache0, frame_cache1, screen_changes);
 }
 
 #[bench]
 fn bench_border_changes_screen_changes_intensive(ben: &mut Bencher) {
     let mut border_changes = Vec::new();
-    fill_border_changes(&mut border_changes, 42, thread_rng().gen_range(0, 42));
+    fill_border_changes(&mut border_changes, 42, thread_rng().gen_range(0..42));
     let frame_cache0 = Default::default();
     let frame_cache1 = Default::default();
     let mut screen_changes = Vec::new();
-    fill_screen_changes(&mut screen_changes, 42, thread_rng().gen_range(0, 42));
+    fill_screen_changes(&mut screen_changes, 42, thread_rng().gen_range(0..42));
     bench_video::<Ula128VidFrame>(ben, border_changes, frame_cache0, frame_cache1, screen_changes);
 }
 
 #[bench]
 fn bench_border_changes_screen_changes_rare(ben: &mut Bencher) {
     let mut border_changes = Vec::new();
-    fill_border_changes(&mut border_changes, 7000, thread_rng().gen_range(0, 7000));
+    fill_border_changes(&mut border_changes, 7000, thread_rng().gen_range(0..7000));
     let frame_cache0 = Default::default();
     let frame_cache1 = Default::default();
     let mut screen_changes = Vec::new();
-    fill_screen_changes(&mut screen_changes, 11000, thread_rng().gen_range(0, 11000));
+    fill_screen_changes(&mut screen_changes, 11000, thread_rng().gen_range(0..11000));
     bench_video::<Ula128VidFrame>(ben, border_changes, frame_cache0, frame_cache1, screen_changes);
 }
 
