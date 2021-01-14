@@ -1,6 +1,6 @@
 [package]
 name = "web-ay-player"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Rafal Michalski <royaltm75@gmail.com>"]
 edition = "2018"
 workspace = "../.."
@@ -18,10 +18,8 @@ wasm-bindgen-futures = "0.4"
 js-sys = "0.3"
 serde = "1.0"
 serde_json = "1.0"
-
-[dependencies.wasm-bindgen]
-version = "0.2"
-features = ["serde-serialize"]
+getrandom = { version = "0.2", features = ["js"] }
+wasm-bindgen = { version = "0.2", features = ["serde-serialize"] }
 
 [dependencies.web-sys]
 version = "0.3"

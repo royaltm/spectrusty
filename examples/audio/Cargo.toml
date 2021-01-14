@@ -1,6 +1,6 @@
 [package]
 name = "audio"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Rafal Michalski <royaltm75@gmail.com>"]
 edition = "2018"
 workspace = "../.."
@@ -12,10 +12,10 @@ by the SPECTRUSTY library using native bindings via the CPAL library.
 """
 
 [dependencies]
-cpal = "0.12"
+cpal = "0.13.1"
 hound = "3.4"
 log = "0.4"
-simple_logger = "1.9"
+simple_logger = "1.11"
 
 [dependencies.spectrusty]
 version = "*"
