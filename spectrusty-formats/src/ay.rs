@@ -22,7 +22,7 @@ use log::{error, warn, info, debug, trace};
 use memchr::memchr;
 use nom::bytes::complete::tag;
 use nom::combinator::{iterator, map};
-use nom::error::{ErrorKind, context, ParseError};
+use nom::error::{ErrorKind, context, ParseError, ContextError};
 use nom::multi::many1;
 use nom::number::complete::{be_u16, be_u8};
 use nom::sequence::tuple;
@@ -365,7 +365,9 @@ impl<'a> ParseError<&'a[u8]> for VerboseBytesError<'a> {
     other.errors.push((input, VerboseBytesErrorKind::Nom(kind)));
     other
   }
+}
 
+impl<'a> ContextError<&'a[u8]> for VerboseBytesError<'a> {
   fn add_context(input: &'a[u8], ctx: &'static str, mut other: Self) -> Self {
     other.errors.push((input, VerboseBytesErrorKind::Context(ctx)));
     other
@@ -396,10 +398,10 @@ fn parse_at<'a, T: 'a, E: ParseError<&'a[u8]>, F>(
     }
 }
 
-fn fail_err<I: Clone, O, E: ParseError<I>, F>(
-        f: F
-    ) -> impl Fn(I) -> IResult<I, O, E> 
-    where F: Fn(I) -> IResult<I, O, E>
+fn fail_err<I: Clone, O, E, F>(
+        mut f: F
+    ) -> impl FnMut(I) -> IResult<I, O, E>
+    where F: FnMut(I) -> IResult<I, O, E>
 {
     move |input: I| {
         f(input).map_err(|e| e.into_failure())
@@ -421,7 +423,7 @@ impl<E> IntoFailure<E> for Err<E> {
     }
 }
 
-fn parse_ay_raw<'a, E: Clone + ParseError<&'a [u8]>>(
+fn parse_ay_raw<'a, E: Clone + ContextError<&'a [u8]> + ParseError<&'a [u8]>>(
         raw: &'a [u8]
     ) -> Result<(AyMeta, Box<[AySong]>), Err<E>>
 {

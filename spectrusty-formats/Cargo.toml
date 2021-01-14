@@ -1,6 +1,6 @@
 [package]
 name = "spectrusty-formats"
-version = "0.3.0"
+version = "0.3.1"
 authors = ["Rafal Michalski <royaltm75@gmail.com>"]
 edition = "2018"
 repository = "https://github.com/royaltm/spectrusty"
@@ -13,19 +13,19 @@ File format parsers and related utilities for the SPECTRUSTY library.
 
 [dependencies]
 log = "0.4"
-nom = "5.1"
+nom = "6"
 memchr = "2.3"
 bitflags = "1.2.1"
 
 [dependencies.spectrusty-core]
-version = "0.2"
+version = "0.2.1"
 path = "../spectrusty-core"
 
 [dependencies.spectrusty-peripherals]
-version = "0.2"
+version = "0.2.1"
 path = "../spectrusty-peripherals"
 
 [dev-dependencies]
-smallvec = "1.1"
-rand = "0.7"
-spectrusty = "0.1"
+smallvec = "1.6"
+rand = "0.8"
+spectrusty = { version = "0.3", path = ".." }
