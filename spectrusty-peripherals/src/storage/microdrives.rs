@@ -37,27 +37,34 @@ pub const HALT_FOREVER_TS: Option<NonZeroU16> = unsafe {
 pub type MicroCartridgeSecIter<'a> = FilterMap<
                                             Zip<
                                                 slice::Iter<'a, Sector>,
-                                                bitvec::slice::Iter<'a, Local, u32>
+                                                bitvec::slice::Iter<'a, LocalBits, u32>
                                             >,
-                                            &'a dyn Fn((&'a Sector, &'a bool)) -> Option<&'a Sector>
+                                            &'a dyn Fn(
+                                                (&'a Sector, BitRef<'a, bitvec::ptr::Const, LocalBits, u32>)
+                                            ) -> Option<&'a Sector>
                                         >;
 
 /// [Sector] mutable reference iterator of the [IntoIterator] implementation for [MicroCartridge].
 pub type MicroCartridgeSecIterMut<'a> = FilterMap<
                                             Zip<
                                                 slice::IterMut<'a, Sector>,
-                                                bitvec::slice::Iter<'a, Local, u32>
+                                                bitvec::slice::Iter<'a, LocalBits, u32>
                                             >,
-                                            &'a dyn Fn((&'a mut Sector, &'a bool)) -> Option<&'a mut Sector>
+                                            &'a dyn Fn(
+                                                (&'a mut Sector, BitRef<'a, bitvec::ptr::Const, LocalBits, u32>)
+                                            ) -> Option<&'a mut Sector>
                                         >;
 /// An iterator returned by [MicroCartridge::iter_with_indices] method.
 pub type MicroCartridgeIdSecIter<'a> = FilterMap<
                                             Enumerate<
                                                 Zip<
                                                     slice::Iter<'a, Sector>,
-                                                    bitvec::slice::Iter<'a, Local, u32>
+                                                    bitvec::slice::Iter<'a, LocalBits, u32>
                                             >>,
-                                            &'a dyn Fn((usize, (&'a Sector, &'a bool))) -> Option<(u8, &'a Sector)>
+                                            &'a dyn Fn(
+                                                (usize,
+                                                (&'a Sector, BitRef<'a, bitvec::ptr::Const, LocalBits, u32>))
+                                            ) -> Option<(u8, &'a Sector)>
                                         >;
 /// The maximum number of emulated physical ZX Microdrive tape sectors.
 pub const MAX_SECTORS: usize = 256;
@@ -194,7 +201,7 @@ impl fmt::Debug for MicroCartridge {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "MicroCartridge {{ sectors: {}, formatted: {}, protected: {:?}, writing: {:?}, cursor: {:?} }}",
             self.sectors.len(),
-            self.sector_map.bits::<Local>().count_ones(),
+            self.sector_map.view_bits::<LocalBits>().count_ones(),
             self.protec,
             self.written,
             self.tape_cursor
@@ -217,13 +224,13 @@ impl MicroCartridge {
     }
     /// Returns the number of formatted sectors.
     pub fn count_formatted(&self) -> usize {
-        self.sector_map.bits::<Local>().count_ones()
+        self.sector_map.view_bits::<LocalBits>().count_ones()
     }
     /// Returns an iterator of formatted sectors with their original indices.
     pub fn iter_with_indices(&self) -> MicroCartridgeIdSecIter<'_> {
-        let iter_map = self.sector_map.bits::<Local>().iter();
-        self.sectors.iter().zip(iter_map).enumerate().filter_map(&|(i, (s, &valid))| {
-            if valid { Some((i as u8, s)) } else { None }
+        let iter_map = self.sector_map.view_bits::<LocalBits>().iter();
+        self.sectors.iter().zip(iter_map).enumerate().filter_map(&|(i, (s, valid))| {
+            if *valid { Some((i as u8, s)) } else { None }
         })
     }
     /// Returns `true` if the cartridge is write protected.
@@ -242,7 +249,7 @@ impl MicroCartridge {
     /// Panics if `sector` equals to or is above the `max_sectors` limit.
     #[inline]
     pub fn is_sector_formatted(&self, sector: u8) -> bool {
-        self.sector_map.bits::<Local>()[sector as usize]
+        self.sector_map.view_bits::<LocalBits>()[sector as usize]
     }
     /// Creates a new instance of [MicroCartridge] with provided sectors.
     ///
@@ -263,7 +270,7 @@ impl MicroCartridge {
         assert!(max_sectors > 0 && max_sectors <= MAX_SECTORS &&
                 sectors.len() <= max_sectors && sectors.len() <= MAX_USABLE_SECTORS);
         let mut sector_map = [0u32;SECTOR_MAP_SIZE];
-        sector_map.bits_mut::<Local>()[0..sectors.len()].set_all(true);
+        sector_map.view_bits_mut::<LocalBits>()[0..sectors.len()].set_all(true);
         sectors.resize(max_sectors, Sector::default());
         let sectors = sectors.into_boxed_slice();
         MicroCartridge {
@@ -296,9 +303,9 @@ impl<'a> IntoIterator for &'a MicroCartridge {
     type IntoIter = MicroCartridgeSecIter<'a>;
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
-        let iter_map = self.sector_map.bits::<Local>().iter();
-        self.sectors.iter().zip(iter_map).filter_map(&|(s, &valid)| {
-            if valid { Some(s) } else { None }
+        let iter_map = self.sector_map.view_bits::<LocalBits>().iter();
+        self.sectors.iter().zip(iter_map).filter_map(&|(s, valid)| {
+            if *valid { Some(s) } else { None }
         })
     }
 }
@@ -309,9 +316,9 @@ impl<'a> IntoIterator for &'a mut MicroCartridge {
     type IntoIter = MicroCartridgeSecIterMut<'a>;
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
-        let iter_map = self.sector_map.bits::<Local>().iter();
-        self.sectors.iter_mut().zip(iter_map).filter_map(&|(s, &valid)| {
-            if valid { Some(s) } else { None }
+        let iter_map = self.sector_map.view_bits::<LocalBits>().iter();
+        self.sectors.iter_mut().zip(iter_map).filter_map(&|(s, valid)| {
+            if *valid { Some(s) } else { None }
         })
     }
 }
@@ -381,7 +388,7 @@ impl TapeCursor {
 impl MicroCartridge {
     #[inline(always)]
     fn set_valid_sector(&mut self, sector: u8, valid: bool) {
-        self.sector_map.bits_mut::<Local>().set(sector as usize, valid);
+        self.sector_map.view_bits_mut::<LocalBits>().set(sector as usize, valid);
     }
 
     #[inline(always)]
@@ -424,11 +431,11 @@ impl MicroCartridge {
                     prev_cursor.sector
                 };
                 if sector < prev_sector {
-                    self.sector_map.bits_mut::<Local>()[prev_sector.into()..].set_all(false);
-                    self.sector_map.bits_mut::<Local>()[..sector.into()].set_all(false);
+                    self.sector_map.view_bits_mut::<LocalBits>()[prev_sector.into()..].set_all(false);
+                    self.sector_map.view_bits_mut::<LocalBits>()[..sector.into()].set_all(false);
                 }
                 else {
-                    self.sector_map.bits_mut::<Local>()[prev_sector.into()..=sector.into()].set_all(false);
+                    self.sector_map.view_bits_mut::<LocalBits>()[prev_sector.into()..=sector.into()].set_all(false);
                 }
             }
         }
@@ -931,7 +938,7 @@ mod tests {
         drive.write_control((*utsc).0, true, false, false, false);
         let cartridge = drive.current_drive().unwrap();
         assert_eq!(cartridge.written, None);
-        let sector_map = cartridge.sector_map.bits::<Local>();
+        let sector_map = cartridge.sector_map.view_bits::<LocalBits>();
         assert_eq!(sector_map[0], true);
         for valid in &sector_map[1..] {
             assert_eq!(*valid, false);
@@ -976,12 +983,12 @@ mod tests {
         }
         assert_eq!(cartridge.tape_cursor, TapeCursor {
             cursor: 121224, sector: 0, secpos: SecPosition::Gap2 });
-        let sector_map = cartridge.sector_map.bits::<Local>();
+        let sector_map = cartridge.sector_map.view_bits::<LocalBits>();
         assert_eq!(sector_map[0], true);
         // writing ends, erasing contitnues
         drive.write_control((*utsc).0, true, false, false, false);
         let cartridge = drive.current_drive().unwrap();
-        let sector_map = cartridge.sector_map.bits::<Local>();
+        let sector_map = cartridge.sector_map.view_bits::<LocalBits>();
         assert_eq!(sector_map[0], true);
         // erasing gap
         *utsc += Wrapping(8941);
@@ -990,7 +997,7 @@ mod tests {
         let cartridge = drive.current_drive().unwrap();
         assert_eq!(cartridge.tape_cursor, TapeCursor {
             cursor: 827, sector: 1, secpos: SecPosition::Preamble1(5) });
-        let sector_map = cartridge.sector_map.bits::<Local>();
+        let sector_map = cartridge.sector_map.view_bits::<LocalBits>();
         assert_eq!(sector_map[0], true);
         for valid in &sector_map[1..] {
             assert_eq!(*valid, false);
@@ -1116,7 +1123,7 @@ mod tests {
         }
         assert_eq!(cartridge.tape_cursor, TapeCursor {
             cursor: 105361, sector: 0, secpos: SecPosition::Gap2 });
-        let sector_map = cartridge.sector_map.bits::<Local>();
+        let sector_map = cartridge.sector_map.view_bits::<LocalBits>();
         assert_eq!(sector_map[0], true);
         // writing ends, erasing continues for short time
         *utsc += Wrapping(18);
@@ -1127,7 +1134,7 @@ mod tests {
         let cartridge = drive.current_drive().unwrap();
         assert_eq!(cartridge.tape_cursor, TapeCursor {
             cursor: 105653, sector: 0, secpos: SecPosition::Gap2 });
-        let sector_map = cartridge.sector_map.bits::<Local>();
+        let sector_map = cartridge.sector_map.view_bits::<LocalBits>();
         assert_eq!(sector_map[0], true);
         for valid in &sector_map[1..] {
             assert_eq!(*valid, false);

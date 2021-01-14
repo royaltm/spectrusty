@@ -223,7 +223,7 @@ impl<T> SerialKeypad<T> {
 impl<T: TimestampOps> SerialKeypad<T> {
     #[inline]
     fn gen_range_ts(&mut self, ts: T, lo: FTs, hi: FTs) -> T {
-        let delta = self.rng.gen_range(lo, hi);
+        let delta = self.rng.gen_range(lo..hi);
         ts + delta
     }
 
