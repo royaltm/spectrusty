@@ -50,7 +50,7 @@ optional = true
 path = "spectrusty-formats"
 
 [dependencies.spectrusty-peripherals]
-version = "0.2.1"
+version = "0.2.2"
 default-features = false
 optional = true
 path = "spectrusty-peripherals"
