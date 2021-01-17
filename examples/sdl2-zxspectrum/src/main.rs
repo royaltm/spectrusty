@@ -26,17 +26,23 @@
 
 use core::convert::TryInto;
 use core::fmt;
+use std::borrow::Cow;
 use std::fs::{File, OpenOptions};
 use std::str::FromStr;
+use std::result;
+use std::thread;
 
 #[allow(unused_imports)]
 use log::{error, warn, info, debug, trace};
+
+use clap::clap_app;
 
 #[allow(unused_imports)]
 use sdl2::{Sdl,
            event::{Event, WindowEvent},
            keyboard::{Scancode, Keycode, Mod as Modifier},
            mouse::MouseButton,
+           render::WindowCanvas,
            pixels::PixelFormatEnum,
            rect::Rect,
            video::{WindowPos, FullscreenType, Window, WindowContext}};
@@ -44,7 +50,7 @@ use sdl2::{Sdl,
 use spectrusty::z80emu::{Z80Any, Cpu};
 use spectrusty::audio::UlaAudioFrame;
 use spectrusty::clock::TimestampOps;
-use spectrusty::chip::{MemoryAccess, UlaCommon, HostConfig};
+use spectrusty::chip::{MemoryAccess, UlaCommon};
 
 use spectrusty::peripherals::memory::ZxInterface1MemExt;
 use spectrusty::bus::{
@@ -124,16 +130,21 @@ PgUp/PgDown: Moves a TAP cursor to the previous/next block of current TAP file.
 Tab: Toggles ULAPlus mode if a computer model supports it.
 "###;
 
-use clap::clap_app;
-
 const REQUESTED_AUDIO_LATENCY: usize = 1;
-use std::thread;
+
+struct Env<'a> {
+    sdl_context: &'a sdl2::Sdl,
+    emu_canvas: &'a mut WindowCanvas,
+    keyboard_canvas: &'a mut WindowCanvas,
+    keyboard_visible: &'a mut bool,
+    file_count: &'a mut u16
+}
 
 fn main() -> Result<()> {
     simple_logger::SimpleLogger::new().with_level(log::LevelFilter::Info).init()?;
 
     let matches = clap_app!(SDL2_SPECTRUSTY_Example =>
-        (version: "1.0")
+        (version: env!("CARGO_PKG_VERSION"))
         (author: "Rafał Michalski")
         (about: HEAD)
         (@arg audio: --audio +takes_value "Audio latency")
@@ -153,112 +164,205 @@ fn main() -> Result<()> {
 
     set_dpi_awareness()?;
 
-    // println!("{:?}", matches.values_of("FILES"));
+    const STACK_SIZE: usize = 4 * 1024 * 1024;
 
-    thread::Builder::new().stack_size(4096 * 1024)
-    .spawn(move || {
-        select_model(matches).unwrap()
+    thread::Builder::new().stack_size(STACK_SIZE)
+    .spawn(move || -> result::Result<(), String> {
+        select_model_and_run(matches)
+        .map_err(|e| e.to_string())
     })?
-    .join().unwrap();
+    .join().unwrap()?;
     Ok(())
 }
 
-fn select_model(matches: clap::ArgMatches) -> Result<()> {
+fn select_model_and_run(matches: clap::ArgMatches) -> Result<()> {
+    let sdl_context = &sdl2::init()?;
+    // Postpone audio init until we have our model
+    let mut audio = None;
+    // SDL2 related code follows
+    // the context variables, created below could be a part of some struct in a mature program
+    let video_subsystem = sdl_context.video()?;
+    debug!("driver: {}", video_subsystem.current_video_driver());
+    let mut emu_canvas: Option<WindowCanvas> = None;
+    let keyboard_canvas = &mut create_image_canvas_window(&video_subsystem, KEYBOARD_IMAGE)?;
+    keyboard_canvas.window_mut().hide();
+    let keyboard_visible = &mut false;
+    // tap files created
+    let file_count = &mut 0;
+    let mut allow_autoload = true;
+
+    let mut prev_state: Option<EmulatorState> = None;
+
+    let create_window = |title: &str, width, height| {
+        video_subsystem.window(title, width, height)
+                                    // .resizable()
+                                    .allow_highdpi()
+                                    .position_centered()
+                                    .build()
+                                    .map_err(err_str)?
+
+                                    .into_canvas()
+                                    .accelerated()
+                                    // .present_vsync()
+                                    .build()
+                                    .map_err(err_str)
+    };
+
     let mut mreq = ModelRequest::SpectrumPlus2B;
 
-    let model;
-    let allow_autoload;
-
-    let mut request_if1 = None;
-    let mut if1_rom_paged_in = false;
-
     let files = matches.values_of("FILES");
+    let mut maybe_snapshot: Option<(Cow<str>, _)> = files.clone()
+        .and_then(|f|
+            f.filter_map(|fpath|
+                snapshot_kind(fpath)
+                .map(|kind| (fpath.into(), kind))
+            )
+            .next()
+        );
+    let mut files = files.map(|f|
+        f.filter(|&fpath| snapshot_kind(fpath).is_none())
+    );
+    loop {
+        let model;
 
-    if let Some((filepath, kind)) = files.and_then(|f|
-                                        f.filter_map(|fpath|
-                                            snapshot_kind(fpath)
-                                            .map(|kind| (fpath, kind))
-                                        )
-                                        .next()
-                                    )
-    {
-        info!("Loading snapshot: {}", filepath);
-        let file = File::open(filepath)?;
-        model = match kind {
-            SnapshotKind::Json => {
-                let mut model: ZxSpectrumModel = serde_json::from_reader(file)?;
-                model.rebuild_device_index();
-                model
-            }
-            SnapshotKind::Sna|SnapshotKind::Z80 => {
-                let load_fn = match kind {
-                    SnapshotKind::Sna => sna::load_sna,
-                    SnapshotKind::Z80 => z80::load_z80,
-                    _ => unreachable!()
+        let mut request_if1 = None;
+        let mut if1_rom_paged_in = false;
+
+        if let Some((filepath, kind)) = maybe_snapshot.take() {
+            let mut load_snapshot = || -> Result<_> {
+                let file = File::open(&*filepath)?;
+                Ok(match kind {
+                    SnapshotKind::Json => {
+                        let mut model: ZxSpectrumModel = serde_json::from_reader(file)?;
+                        model.rebuild_device_index();
+                        model
+                    }
+                    SnapshotKind::Sna|SnapshotKind::Z80 => {
+                        let load_fn = match kind {
+                            SnapshotKind::Sna => sna::load_sna,
+                            SnapshotKind::Z80 => z80::load_z80,
+                            _ => unreachable!()
+                        };
+                        let mut snap = ZxSpectrumModelSnap::default();
+                        load_fn(file, &mut snap)?;
+                        request_if1 = Some(snap.has_if1);
+                        if1_rom_paged_in = snap.if1_rom_paged_in;
+                        snap.model.unwrap()
+                    }
+                })
+            };
+            info!("Loading snapshot: {}", filepath);
+            allow_autoload = false;
+            model = match load_snapshot() {
+                Ok(model) => model,
+                Err(err) if emu_canvas.is_some() => {
+                    alert_window(err.to_string().into());
+                    continue;
+                }
+                Err(err) => return Err(err)
+            };
+            mreq = ModelRequest::from(&model);
+        }
+        else {
+            if let Some(model) = matches.value_of("model") {
+                mreq = match model.parse() {
+                    Ok(m) => m,
+                    Err(e) => {
+                        eprintln!("{}!", e);
+                        eprintln!("Available models (\"ZX Spectrum\" or \"Timex\" prefixes may be omitted):");
+                        for m in ModelRequest::iter() {
+                            eprintln!("- {}", m);
+                        }
+                        return Ok(())
+                    }
                 };
-                let mut snap = ZxSpectrumModelSnap::default();
-                load_fn(file, &mut snap)?;
-                request_if1 = Some(snap.has_if1);
-                if1_rom_paged_in = snap.if1_rom_paged_in;
-                snap.model.unwrap()
+            }
+            model = ZxSpectrumModel::new(mreq);
+        }
+
+        info!("{}: cpu_hz: {} T-states/frame: {} pixel density: {}",
+            mreq,
+            model.cpu_rate(),
+            model.frame_tstates_count(),
+            model.pixel_density()
+        );
+
+        // ensure audio is initialized
+        let audio: &mut Audio = match audio.as_mut() {
+            Some(audio) => audio,
+            None => {
+                let audio_latency = matches.value_of("audio")
+                                         .map(usize::from_str).transpose()?
+                                         .unwrap_or(REQUESTED_AUDIO_LATENCY);
+                audio = Some(
+                    Audio::create(sdl_context, model.frame_duration_nanos(), audio_latency)?
+                );
+                audio.as_mut().unwrap()
             }
         };
-        mreq = ModelRequest::from(&model);
-        allow_autoload = false;
-    }
-    else {
-        if let Some(model) = matches.value_of("model") {
-            match model.parse() {
-                Ok(m) => mreq = m,
-                Err(e) => {
-                    eprintln!("{}!", e);
-                    eprintln!("Available models (\"ZX Spectrum\" or \"Timex\" prefixes may be omitted):");
-                    for m in ModelRequest::iter() {
-                        eprintln!("- {}", m);
-                    }
-                    return Ok(())
-                }
+
+        prev_state = spectrum_model_dispatch!(model(mut spec) => {
+            configure_model(&mut spec, &matches, request_if1, if1_rom_paged_in)?;
+            // preserve state
+            if let Some(mut state) = prev_state.take() {
+                state.sub_joy = spec.state.sub_joy; // overwrite current joystick sub-index
+                spec.set_state(state);
             }
+            let mut zx = ZxSpectrumEmu::new_with(mreq, spec, audio)?;
+            let show_copyright = preload_files(&mut zx, files.take(), allow_autoload)?;
+            // ensure emulator window is open and has the correct size and title
+            let (screen_width, screen_height) = zx.target_screen_size();
+            debug!("{:?} {}x{}", zx.spectrum.state.border_size, screen_width, screen_height);
+            let info = zx.short_info()?;
+            let emu_canvas = match emu_canvas.as_mut() {
+                Some(canvas) => {
+                    let window = canvas.window_mut();
+                    window.set_size(screen_width, screen_height)?;
+                    window.set_title(info)?;
+                    canvas
+                },
+                None => {
+                    emu_canvas = Some(
+                        create_window(info, screen_width, screen_height)?
+                    );
+                    emu_canvas.as_mut().unwrap()
+                }
+            };
+            // run the emulator
+            maybe_snapshot = run(&mut zx, show_copyright, Env {
+                sdl_context,
+                emu_canvas,
+                keyboard_canvas,
+                keyboard_visible,
+                file_count
+            })?
+            .map(|(s,k)| (s.into(), k));
+            // save the snapshot
+            info!("Saved a snapshot file: {}", zx.save_json()?);
+            Some(zx.spectrum.state)
+        });
+
+        if maybe_snapshot.is_none() {
+            break;
         }
-        model = ZxSpectrumModel::new(mreq);
-        allow_autoload = true;
     }
-
-    info!("{}: cpu_hz: {} T-states/frame: {} pixel density: {}",
-        ModelRequest::from(&model),
-        model.cpu_rate(),
-        model.frame_tstates_count(),
-        model.pixel_density()
-    );
-
-    spectrum_model_dispatch!(model(spec) => config_and_run(
-        mreq, spec, matches, allow_autoload, request_if1, if1_rom_paged_in
-    ))
+    Ok(())
 }
 
-fn config_and_run<U: 'static>(
-        mreq: ModelRequest,
-        mut spec: ZxSpectrum<Z80Any, U>,
-        matches: clap::ArgMatches,
-        allow_autoload: bool,
+fn configure_model<U: 'static>(
+        spec: &mut ZxSpectrum<Z80Any, U>,
+        matches: &clap::ArgMatches,
         request_if1: Option<bool>,
         if1_rom_paged_in: bool
     ) -> Result<()>
-    where U: HostConfig
-           + UlaCommon
-           + UlaAudioFrame<BandLim>
-           + SpoolerAccess
-           + ScreenDataProvider
-           + UlaPlusMode
-           + MemoryAccess<MemoryExt = ZxInterface1MemExt>
-           + serde::Serialize,
+    where U: SpoolerAccess
+           + MemoryAccess<MemoryExt = ZxInterface1MemExt>,
           BusTs<U>: TimestampOps + Default,
           ZxSpectrum<Z80Any, U>: JoystickAccess
 {
-    let sdl_context = sdl2::init()?;
-
-    let latency = matches.value_of("audio").map(usize::from_str).transpose()?
-                             .unwrap_or(REQUESTED_AUDIO_LATENCY);
+    if let Some(border_size) = matches.value_of("border") {
+        spec.state.border_size = BorderSize::from_str(border_size)?
+    }
 
     if let Some(cpu) = matches.value_of("cpu") {
         if cpu.eq_ignore_ascii_case("nmos") {
@@ -274,10 +378,6 @@ fn config_and_run<U: 'static>(
             eprintln!(r#"Unknown CPU type "{}".\nSelect one of: NMOS, CMOS, BM1"#, cpu);
             return Ok(())
         }
-    }
-
-    if let Some(border_size) = matches.value_of("border") {
-        spec.state.border_size = BorderSize::from_str(border_size)?
     }
 
     if let Some(rom_path) = matches.value_of("interface1") {
@@ -346,16 +446,24 @@ fn config_and_run<U: 'static>(
         };
         spec.select_joystick(index);
     }
+    Ok(())
+}
 
-    let mut zx = ZxSpectrumEmu::new_with(mreq, spec, &sdl_context, latency)?;
+fn preload_files<'a, I, C, U>(
+        zx: &mut ZxSpectrumEmu<C, U>,
+        files: Option<I>,
+        allow_autoload: bool,
+    ) -> Result<bool>
+    where I: Iterator<Item=&'a str>,
+          C: Cpu,
+          U: UlaCommon + ScreenDataProvider,
+          ZxSpectrum<C, U>: ZxInterface1Access
+{
     let mut show_copyright = allow_autoload;
 
     // load non-snapshot files
-    if let Some(files) = matches.values_of("FILES") {
-        for filepath in files.filter(|&filepath|
-                                        snapshot_kind(filepath).is_none()
-                                    )
-        {
+    if let Some(fpaths) = files {
+        for filepath in fpaths {
             info!("Loading file: {}", filepath);
             match zx.handle_file(filepath)? {
                 Some(msg) => if !msg.is_empty() {
@@ -371,23 +479,20 @@ fn config_and_run<U: 'static>(
         }
     }
 
-    // run the emulator
-    run(&mut zx, &sdl_context, show_copyright)?;
-
-    // save the snapshot
-    let json_name = format!("spectrusty_{}.json", now_timestamp_format!());
-    let json_file = std::fs::File::create(&json_name)?;
-    serde_json::to_writer(json_file, &zx)?;
-    info!("Saved a snapshot file: {}", json_name);
-
-    Ok(())
+    Ok(show_copyright)
 }
 
-fn run<C, U: 'static>(
-        zx: &mut ZxSpectrumEmu<C, U>,
-        sdl_context: &Sdl,
-        show_copyright: bool
-    ) -> Result<()>
+fn run<'a, C, U: 'static>(
+        zx: &mut ZxSpectrumEmu<'a, C, U>,
+        show_copyright: bool,
+        Env {
+            sdl_context,
+            emu_canvas,
+            keyboard_canvas,
+            keyboard_visible,
+            file_count
+        }: Env
+    ) -> Result<Option<(String, SnapshotKind)>>
     where C: Cpu + fmt::Display,
           U: UlaCommon
            + UlaAudioFrame<BandLim>
@@ -395,44 +500,20 @@ fn run<C, U: 'static>(
            + ScreenDataProvider
            + UlaPlusMode,
           BusTs<U>: TimestampOps,
-          ZxSpectrumEmu<C, U>: SnapshotCreator,
+          ZxSpectrumEmu<'a, C, U>: SnapshotCreator,
           ZxSpectrum<C, U>: JoystickAccess
 {
-    // SDL2 related code follows
-    // the context variables, created below could be a part of some struct in a mature program
-    let video_subsystem = sdl_context.video()?;
-    debug!("driver: {}", video_subsystem.current_video_driver());
-
-    let (screen_width, screen_height) = zx.target_screen_size();
-    debug!("{:?} {}x{}", zx.spectrum.state.border_size, screen_width, screen_height);
-    let window = video_subsystem.window(zx.short_info()?, screen_width, screen_height)
-                            // .resizable()
-                            .allow_highdpi()
-                            .position_centered()
-                            .build()
-                            .map_err(err_str)?;
-
-    let mut canvas = window.into_canvas()
-                    .accelerated()
-                    // .present_vsync()
-                    .build()
-                    .map_err(err_str)?;
-    let canvas_id = canvas.window().id();
-
-    let texture_creator = canvas.texture_creator();
+    let canvas_id = emu_canvas.window().id();
+    let keyboard_canvas_id = keyboard_canvas.window().id();
+    let texture_creator = emu_canvas.texture_creator();
     let create_texture = |(width, height)| {
         texture_creator.create_texture_streaming(PIXEL_FORMAT, width, height)
                        .map_err(err_str)
     };
 
     let mut texture = create_texture(zx.spectrum.render_size_pixels())?;
-    debug!("canvas: {:?}", canvas.window().window_pixel_format());
+    debug!("canvas: {:?}", emu_canvas.window().window_pixel_format());
     debug!("stream: {:?}", texture.query());
-
-    let mut keyboard_visible = false;
-    let mut keyboard_canvas = create_image_canvas_window(&video_subsystem, KEYBOARD_IMAGE)?;
-    let keyboard_canvas_id = keyboard_canvas.window().id();
-    keyboard_canvas.window_mut().hide();
 
     // sdl_context.mouse().show_cursor(false);
 
@@ -440,7 +521,6 @@ fn run<C, U: 'static>(
 
     let mut event_pump = sdl_context.event_pump()?;
 
-    let mut file_count = 0;
     // mouse move resultant on keyboard helper window
     let mut move_keyboard: Option<(i32, i32)> = None;
 
@@ -448,16 +528,18 @@ fn run<C, U: 'static>(
         info_window(HEAD, COPY.into());
     }
 
+    zx.resume_audio_if_producing();
+
     // here we run a simple: read events, emulate and draw loop
-    'mainloop: loop {
+    let load_snapshot = 'mainloop: loop {
         let mut update_info = false;
         for event in event_pump.poll_iter() {
             match event {
                 Event::Window { win_event: WindowEvent::Close, .. }|
                 Event::Quit { .. } => {
-                    break 'mainloop
+                    break 'mainloop None
                 }
-                Event::MouseMotion{ window_id, xrel, yrel, .. } if window_id == canvas_id => {
+                Event::MouseMotion { window_id, xrel, yrel, .. } if window_id == canvas_id => {
                     // println!("{}x{}", xrel, yrel);
                     zx.move_mouse(xrel, yrel);
                     continue
@@ -482,19 +564,19 @@ fn run<C, U: 'static>(
                     }
                 }
                 Event::KeyDown { keycode: Some(Keycode::Escape), repeat: false, .. } => {
-                    if canvas.window().grab() { // escape mouse cursor grab mode
+                    if emu_canvas.window().grab() { // escape mouse cursor grab mode
                         sdl_context.mouse().show_cursor(true);
-                        canvas.window_mut().set_grab(false);
+                        emu_canvas.window_mut().set_grab(false);
                     }
                 }
                 Event::MouseButtonDown { window_id, mouse_btn, .. }
                 if window_id == canvas_id => {
-                    if canvas.window().grab() {
+                    if emu_canvas.window().grab() {
                         zx.update_mouse_button(mouse_btn, true);
                     }
                     else {
                         sdl_context.mouse().show_cursor(false);
-                        canvas.window_mut().set_grab(true);
+                        emu_canvas.window_mut().set_grab(true);
                     }
                 }
                 Event::MouseButtonUp { window_id, mouse_btn, .. }
@@ -513,7 +595,7 @@ fn run<C, U: 'static>(
                     zx.audio.pause();
                     info_window(HEAD, format!("Hardware configuration:\n{}\n{}",
                                     zx.device_info()?, HELP).into());
-                    zx.resume_audio();
+                    zx.resume_audio_if_producing();
                 }
                 Event::KeyDown{ keycode: Some(Keycode::F11), repeat: false, ..} => {
                     zx.spectrum.trigger_nmi();
@@ -560,7 +642,7 @@ fn run<C, U: 'static>(
                 Event::KeyDown { keycode: Some(Keycode::F3), repeat: false, ..} => {
                     zx.audio.pause();
                     info_window("Printer", zx.save_printed_images()?.into());
-                    zx.resume_audio();
+                    zx.resume_audio_if_producing();
                     update_info = true;
                 }
                 Event::KeyDown { keycode: Some(Keycode::F4), repeat: false, ..} => {
@@ -569,11 +651,11 @@ fn run<C, U: 'static>(
                 }
                 Event::KeyDown { keycode: Some(Keycode::Insert), repeat: false, ..} => {
                     loop {
-                        file_count += 1;
-                        if file_count > 999 {
+                        *file_count += 1;
+                        if *file_count > 999 {
                             panic!("too much files!");
                         }
-                        let name = format!("new_file{:04}.tap", file_count);
+                        let name = format!("new_file{:04}.tap", *file_count);
                         match OpenOptions::new().create_new(true).read(true).write(true).open(&name) {
                             Ok(file) => {
                                 zx.spectrum.state.tape.insert_as_reader(file);
@@ -625,7 +707,7 @@ fn run<C, U: 'static>(
                 Event::KeyDown { keycode: Some(Keycode::F6), repeat: false, ..} => {
                     zx.audio.pause();
                     info_window("Tape recorder", zx.tape_info()?);
-                    zx.resume_audio();
+                    zx.resume_audio_if_producing();
                 }
                 Event::KeyDown { keycode: Some(Keycode::F7), repeat: false, ..} => {
                     if zx.spectrum.state.instant_tape {
@@ -655,17 +737,17 @@ fn run<C, U: 'static>(
                     let border_size = &mut zx.spectrum.state.border_size;
                     *border_size = u8::from(*border_size).wrapping_sub(1).try_into().unwrap_or(BorderSize::Full);
                     let (w, h) = zx.target_screen_size();
-                    canvas.window_mut().set_size(w, h)?;
+                    emu_canvas.window_mut().set_size(w, h)?;
                     texture = create_texture(zx.spectrum.render_size_pixels())?;
                 }
                 Event::KeyDown { keycode: Some(Keycode::ScrollLock), repeat: false, ..} => {
-                    if keyboard_visible {
+                    if *keyboard_visible {
                         keyboard_canvas.window_mut().hide();
                     }
                     else {
                         keyboard_canvas.window_mut().show();
-                        let (mut x, mut y) = canvas.window().position();
-                        let (w, h) = canvas.window().size();
+                        let (mut x, mut y) = emu_canvas.window().position();
+                        let (w, h) = emu_canvas.window().size();
                         y += h as i32;
                         let (kw, _) = keyboard_canvas.window().size();
                         x += (w as i32 - kw as i32)/2;
@@ -673,7 +755,7 @@ fn run<C, U: 'static>(
                         keyboard_canvas.present();
                         move_keyboard = None;
                     }
-                    keyboard_visible = !keyboard_visible;
+                    *keyboard_visible = !*keyboard_visible;
                 }
                 Event::KeyDown { keycode: Some(Keycode::PrintScreen), repeat: false, ..} => {
                     zx.audio.pause();
@@ -687,7 +769,7 @@ fn run<C, U: 'static>(
                             format!("Screen saved as:\n{}.scr\n\nCouldn't save snapshot:\n{}",
                                     basename, e).into())
                     }
-                    zx.resume_audio();
+                    zx.resume_audio_if_producing();
                 }
                 Event::KeyDown { keycode: Some(Keycode::Tab), repeat: false, ..} => {
                     update_info |= zx.spectrum.ula.enable_ulaplus_modes(
@@ -709,10 +791,15 @@ fn run<C, U: 'static>(
                             }
                             update_info = true;
                         }
-                        Ok(None) => info_window("File", format!("Unknown file type: {}", filename).into()),
+                        Ok(None) => {
+                            if let Some(kind) = snapshot_kind(&filename) {
+                                break 'mainloop Some((filename, kind))
+                            }
+                            info_window("File", format!("Unknown file type: {}", filename).into());
+                        }
                         Err(e) => alert_window(e.to_string().into()),
                     }
-                    zx.resume_audio();
+                    zx.resume_audio_if_producing();
                 }
                 _ => {
                     // continue 'mainloop
@@ -721,7 +808,7 @@ fn run<C, U: 'static>(
         }
 
         if !zx.spectrum.state.paused {
-            let viewport = canvas.window().drawable_size();
+            let viewport = emu_canvas.window().drawable_size();
             zx.send_mouse_move(viewport);
 
             let state_changed = if zx.spectrum.state.turbo {
@@ -739,16 +826,16 @@ fn run<C, U: 'static>(
                     zx.audio.pause();
                 }
                 else {
-                    zx.resume_audio();
+                    zx.resume_audio_if_producing();
                 }
             }
         }
 
         if update_info {
-            canvas.window_mut().set_title(zx.short_info()?)?;
+            emu_canvas.window_mut().set_title(zx.short_info()?)?;
         }
         else if let Some(title) = zx.update_dynamic_info()? {
-            canvas.window_mut().set_title(title)?;
+            emu_canvas.window_mut().set_title(title)?;
         }
 
         if zx.spectrum.state.paused {
@@ -759,13 +846,14 @@ fn run<C, U: 'static>(
         // render pixels
         texture.with_lock(None, |buffer: &mut [u8], pitch: usize| {
             // measure_performance!("Video frame at: {:.4} Hz frames: {} wall: {} s"; 1.0f64, timer_subsystem, counter_elapsed, counter_iters, counter_sum; {
-            zx.spectrum.ula.render_video_frame::<PixelBuf, SpectrumPal>(buffer, pitch, zx.spectrum.state.border_size);
+            zx.spectrum.ula.render_video_frame::<PixelBuf, SpectrumPal>(
+                            buffer, pitch, zx.spectrum.state.border_size);
             // 1.0});
         })?;
         // present pixels
-        canvas.copy(&texture, None, None)?;
-        canvas.present();
-    }
+        emu_canvas.copy(&texture, None, None)?;
+        emu_canvas.present();
+    };
 
     if let Some(mdrive) = zx.spectrum.microdrives_mut() {
         for i in 1..8 {
@@ -781,5 +869,5 @@ fn run<C, U: 'static>(
         }
     }
 
-    Ok(())
+    Ok(load_snapshot)
 }

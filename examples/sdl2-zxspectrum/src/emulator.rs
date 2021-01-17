@@ -18,7 +18,7 @@ use log::{error, warn, info, debug, trace};
 
 use ::serde::Serialize;
 use arrayvec::ArrayString;
-use sdl2::{Sdl, mouse::MouseButton, keyboard::{Keycode, Mod as Modifier}};
+use sdl2::{mouse::MouseButton, keyboard::{Keycode, Mod as Modifier}};
 
 use spectrusty::audio::{
     BlepAmpFilter, BlepStereo, AudioSample, AudioFrame,
@@ -82,9 +82,9 @@ pub type Result<T> = core::result::Result<T, Box<dyn std::error::Error>>;
 
 type Sample = f32;
 type BlepDelta = f32;
-type Audio = AudioHandle<Sample>;
+pub type Audio = AudioHandle<Sample>;
 pub type BandLim = BlepAmpFilter<BlepStereo<BandLimited<BlepDelta>>>;
-
+pub type EmulatorState = zxspectrum_common::EmulatorState<fs::File>;
 /// ZX Spectrum with TAPs as direct files.
 pub type ZxSpectrum<C, U> = zxspectrum_common::ZxSpectrum<C, U, fs::File>;
 pub type ZxSpectrumModel<C=Z80Any, X=ZxInterface1MemExt> = zxspectrum_common::ZxSpectrumModel<
@@ -97,12 +97,12 @@ pub type ZxSpectrumModel<C=Z80Any, X=ZxInterface1MemExt> = zxspectrum_common::Zx
 
 /// This is the main emulator class.
 #[derive(Serialize)]
-pub struct ZxSpectrumEmu<C: Cpu, U> {
+pub struct ZxSpectrumEmu<'a, C: Cpu, U> {
     pub model: ModelRequest,
     #[serde(flatten)]
     pub spectrum: ZxSpectrum<C, U>,
     #[serde(skip)]
-    pub audio: Audio,
+    pub audio: &'a mut Audio,
     #[serde(skip)]
     pub time_sync: ThreadSyncTimer,
     #[serde(skip)]
@@ -120,8 +120,8 @@ pub enum SnapshotKind {
     Json, Sna, Z80
 }
 
-pub fn snapshot_kind(filepath: &str) -> Option<SnapshotKind> {
-    match Path::new(filepath).extension().and_then(OsStr::to_str) {
+pub fn snapshot_kind<P: AsRef<Path>>(filepath: P) -> Option<SnapshotKind> {
+    match filepath.as_ref().extension().and_then(OsStr::to_str) {
         Some(ext) if ext.eq_ignore_ascii_case("json") => Some(SnapshotKind::Json),
         Some(ext) if ext.eq_ignore_ascii_case("sna") => Some(SnapshotKind::Sna),
         Some(ext) if ext.eq_ignore_ascii_case("z80") => Some(SnapshotKind::Z80),
@@ -129,12 +129,11 @@ pub fn snapshot_kind(filepath: &str) -> Option<SnapshotKind> {
     }
 }
 
-impl<C: Cpu, U> ZxSpectrumEmu<C, U> {
+impl<'a, C: Cpu, U> ZxSpectrumEmu<'a, C, U> {
     pub fn new_with(
             model: ModelRequest,
             spectrum: ZxSpectrum<C, U>,
-            sdl_context: &Sdl,
-            latency: usize
+            audio: &'a mut Audio
         ) -> Result<Self>
         where U: HostConfig + AudioFrame<BandLim>
     {
@@ -145,11 +144,10 @@ impl<C: Cpu, U> ZxSpectrumEmu<C, U> {
         //     sample_format: hound::SampleFormat::Float,
         // };
         // let writer = Some(hound::WavWriter::create("spectrum.wav", spec).unwrap());
-        let audio = Audio::create(sdl_context, U::frame_duration_nanos(), latency)?;
+        // let audio = Audio::create(sdl_context, U::frame_duration_nanos(), latency)?;
         let mut bandlim = BlepAmpFilter::build(0.25)(BlepStereo::build(0.86)(BandLimited::new(audio.channels.into())));
         spectrum.ula.ensure_audio_frame_time(&mut bandlim, audio.sample_rate, U::effective_cpu_rate(1.0));
         let time_sync = ThreadSyncTimer::new(U::frame_duration_nanos());
-        audio.play();
         Ok(ZxSpectrumEmu {
             model,
             spectrum,
@@ -162,7 +160,7 @@ impl<C: Cpu, U> ZxSpectrumEmu<C, U> {
         })
     }
 
-    pub fn resume_audio(&self) {
+    pub fn resume_audio_if_producing(&self) {
         if !(self.spectrum.state.paused || self.spectrum.state.turbo) {
             self.audio.play();
         }
@@ -291,7 +289,7 @@ impl<C: Cpu, U> ZxSpectrumEmu<C, U> {
                     name.truncate(base_len);
                 }
                 name.push_str(".svg");
-                let mut file = std::fs::File::create(&name)?;
+                let mut file = fs::File::create(&name)?;
                 spooler.write_svg_dot_gfx_lines("SDL2 Spectrusty DEMO", &mut file)?;
                 writeln!(info, "  {}", name)?;
                 spooler.clear();
@@ -366,21 +364,6 @@ impl<C: Cpu, U> ZxSpectrumEmu<C, U> {
                 self.load_mdr(file)
             }
             // Some(s) if s.eq_ignore_ascii_case("zxp") => {
-            // Some(s) if s.eq_ignore_ascii_case("sna") => {
-            //     let file = fs::File::open(path)?;
-            //     self.load_sna(file)?;
-            //     Ok(FileType::Sna)
-            // }
-            // Some(s) if s.eq_ignore_ascii_case("z80") => {
-            //     let file = fs::File::open(path)?;
-            //     self.load_sna(file)?;
-            //     Ok(FileType::Sna)
-            // }
-            // Some(s) if s.eq_ignore_ascii_case("json") => {
-            //     let file = fs::File::open(path)?;
-            //     self.load_sna(file)?;
-            //     Ok(FileType::Sna)
-            // }
             _ => {
                 Ok(None)
             }
@@ -391,32 +374,6 @@ impl<C: Cpu, U> ZxSpectrumEmu<C, U> {
         where U: ScreenDataProvider
     {
         self.spectrum.ula.load_scr(scr_data)
-    }
-
-    pub fn save_screen(&self, basename: &str) -> io::Result<()>
-        where U: ScreenDataProvider
-    {
-        let name = format!("{}.scr", basename);
-        let file = std::fs::File::create(&name)?;
-        self.spectrum.ula.save_scr(file)?;
-        Ok(())
-    }
-
-    pub fn save_z80(&mut self, basename: &str) -> io::Result<String>
-        where Self: SnapshotCreator,
-              U: MemoryAccess + ControlUnit + Video
-    {
-        let name = format!("{}.z80", basename);
-        let file = std::fs::File::create(&name)?;
-        ensure_cpu_is_safe_for_snapshot(&mut self.spectrum.cpu, &mut self.spectrum.ula);
-        let result = z80::save_z80v3(self, file)?;
-        Ok(if !result.is_empty() {
-            format!("The substantial amount of information has been lost in the selected snapshot format.\n\n {:?}",
-                    result)
-        }
-        else {
-            String::new()
-        })
     }
 
     pub fn load_mdr<R: io::Read>(&mut self, mdr_data: R) -> Result<Option<String>>
@@ -440,6 +397,41 @@ impl<C: Cpu, U> ZxSpectrumEmu<C, U> {
             }
         }
         Err(io::Error::new(io::ErrorKind::Other, "ZX Interface 1 not installed").into())
+    }
+
+    pub fn save_screen(&self, basename: &str) -> io::Result<()>
+        where U: ScreenDataProvider
+    {
+        let name = format!("{}.scr", basename);
+        let file = fs::File::create(&name)?;
+        self.spectrum.ula.save_scr(file)?;
+        Ok(())
+    }
+
+    pub fn save_z80(&mut self, basename: &str) -> io::Result<String>
+        where Self: SnapshotCreator,
+              U: MemoryAccess + ControlUnit + Video
+    {
+        let name = format!("{}.z80", basename);
+        let file = fs::File::create(&name)?;
+        ensure_cpu_is_safe_for_snapshot(&mut self.spectrum.cpu, &mut self.spectrum.ula);
+        let result = z80::save_z80v3(self, file)?;
+        Ok(if !result.is_empty() {
+            format!("The substantial amount of information has been lost in the selected snapshot format.\n\n {:?}",
+                    result)
+        }
+        else {
+            String::new()
+        })
+    }
+
+    pub fn save_json(&self) -> io::Result<String>
+        where Self: Serialize
+    {
+        let json_name = format!("spectrusty_{}.json", now_timestamp_format!());
+        let json_file = fs::File::create(&json_name)?;
+        serde_json::to_writer(json_file, self)?;
+        Ok(json_name)
     }
 
     pub fn short_info(&mut self) -> Result<&str>

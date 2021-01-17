@@ -39,7 +39,7 @@ pub struct ZxSpectrumModelSnap {
 }
 
 
-impl<C, U: 'static> SnapshotCreator for ZxSpectrumEmu<C, U>
+impl<'a, C, U: 'static> SnapshotCreator for ZxSpectrumEmu<'a, C, U>
     where C: Cpu + Into<CpuModel>,
           U: UlaCommon + DeviceAccess + MemoryAccess<MemoryExt=ZxInterface1MemExt>,
           BusTs<U>: TimestampOps,
