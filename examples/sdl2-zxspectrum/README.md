@@ -39,7 +39,7 @@ Please refer to Spectrum's operating manual on how to use those ports from the e
 
 ### Data files
 
-`TAP`, `SCR` files and `MDR` cartridge files can be added by dragging & dropping them on the program's window.
+`TAP`, `SCR` files and `MDR` cartridge files can be added or snapshot files can be loaded by dragging & dropping them on the program's window.
 
 Only one `TAP` file can be inserted at the same time. The previous file will be ejected if another one has been added.
 
@@ -49,7 +49,7 @@ Adding `SCR` file will just render it into model's active screen memory, possibl
 
 Up to 7 `MDR` cardridges can be added in read-only mode. One empty `MDR` cardridge in R/W mode is always being present when Microdrives are active.
 
-Before exiting, the program saves the snapshot image in the `JSON` file, which can be restored later by providing a path to the file in the command line arguments. If the first Microdrive cartridge has been modified it will also be saved as an `MDR` file.
+Before exiting or loading another snapshot file, the program saves the current state into the `JSON` snapshot file, that can be restored later by providing a path to the file in the command line arguments or by dropping it on the program's window. If the first Microdrive cartridge has been modified it will also be saved as an `MDR` file.
 
 When recording tape data, it's being written directly to the `TAP` file.
 
@@ -97,7 +97,7 @@ You may copy it as long as you make sure SDL2 library file is also in `PATH`, un
 ```
 sdl2-zxspectrum --help
 
-SDL2_SPECTRUSTY_Example 1.0
+SDL2_SPECTRUSTY_Example
 Rafał Michalski
 SPECTRUSTY: a desktop SDL2 example emulator.
 
