@@ -1,6 +1,7 @@
 v0.3.1
 * spectrusty-audio: cpal bumped to 0.13.1, fixes compilation on 32-bit machines.
 * bumped nom, bitvec and rand.
+* rustc version requirement was raised to 1.44.
 
 v0.3.0
 * RendererPlus: Added support for the hi-res modes with color and grayscale palette.
