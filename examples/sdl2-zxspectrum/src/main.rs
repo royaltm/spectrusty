@@ -88,7 +88,9 @@ type SpectrumPal = pixel::SpectrumPalA8R8G8B8;
 const PIXEL_FORMAT: PixelFormatEnum = PixelFormatEnum::RGB888;
 const KEYBOARD_IMAGE: &[u8] = include_bytes!("../../../resources/keyboard48.jpg");
 
-const HEAD: &str = r#"SPECTRUSTY: a desktop SDL2 example emulator."#;
+const HEAD: &str = concat!("SPECTRUSTY v",
+                           env!("CARGO_PKG_VERSION"),
+                           ": a desktop SDL2 example emulator.");
 const COPY: &str = r###"
 This program is an example of how to use the SPECTRUSTY library 
 to create a ZX Spectrum emulator using Simple DirectMedia Layer 2.
