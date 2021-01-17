@@ -141,7 +141,9 @@ struct Env<'a> {
 }
 
 fn main() -> Result<()> {
-    simple_logger::SimpleLogger::new().with_level(log::LevelFilter::Info).init()?;
+    env_logger::Builder::from_env(
+        env_logger::Env::default().default_filter_or("info")
+    ).init();
 
     let matches = clap_app!(SDL2_SPECTRUSTY_Example =>
         (version: env!("CARGO_PKG_VERSION"))
