@@ -109,9 +109,9 @@ use crate::memory::{ZxMemory, MemoryExtension};
 
 /// Provides ULAplus screen and color modes for [Ula], [Ula128] and [Ula3].
 ///
-/// [Ula]: crate::chip::Ula
-/// [Ula128]: crate::chip::Ula128
-/// [Ula3]: crate::chip::Ula3
+/// [Ula]: crate::chip::ula::Ula
+/// [Ula128]: crate::chip::ula128::Ula128
+/// [Ula3]: crate::chip::ula3::Ula3
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "snapshot", serde(rename_all = "camelCase"))]
 #[derive(Clone)]

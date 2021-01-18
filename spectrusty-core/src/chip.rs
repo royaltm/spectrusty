@@ -69,8 +69,9 @@ pub trait ControlUnit {
     /// This determines which devices, the emulated computer will be able to interact with.
     ///
     /// An associated constant: [BusDevice::Timestamp] must match the associated type declared for
-    /// implementations of [z80emu][z80emu::host] traits such as [Io::Timestamp] or [Memory::Timestamp].
+    /// implementations of [z80emu] traits such as [Io::Timestamp] or [Memory::Timestamp].
     ///
+    /// [z80emu]: crate::z80emu::host
     /// [Io::Timestamp]: crate::z80emu::Io::Timestamp
     /// [Memory::Timestamp]: crate::z80emu::Memory::Timestamp
     type BusDevice: BusDevice;
@@ -93,7 +94,7 @@ pub trait ControlUnit {
     /// Returns `false` when the `cpu` has just executed an `EI` instruction or one of `0xDD`, `0xFD` prefixes.
     /// In this instance, calling this method is a no-op, and it returns `false`.
     ///
-    /// For more details see [z80emu::Cpu::nmi].
+    /// For more details see [z80emu::Cpu::nmi][crate::z80emu::Cpu::nmi].
     fn nmi<C: Cpu>(&mut self, cpu: &mut C) -> bool;
     /// Conditionally prepares the internal state for the next frame and executes instructions on the `cpu`
     /// as fast as possible, until the near end of that frame.
