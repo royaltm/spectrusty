@@ -38,10 +38,10 @@ use spectrusty::chip::{
     FrameState, UlaControl,
     MemoryAccess, HostConfig, UlaCommon,
     Ula128MemFlags, Ula3CtrlFlags,
-    ula::{Ula, UlaVideoFrame, UlaNTSCVidFrame},
-    ula128::{Ula128, Ula128VidFrame},
-    ula3::{Ula3, Ula3VidFrame},
-    scld::Scld,
+    ula::{self, UlaVideoFrame, UlaNTSCVidFrame},
+    ula128::{self, Ula128VidFrame},
+    ula3::{self, Ula3VidFrame},
+    scld,
     plus::{UlaPlus, UlaPlusInner},
 };
 use spectrusty::formats::snapshot::ensure_cpu_is_safe_for_snapshot;
@@ -67,7 +67,14 @@ pub static ROM_PLUS2B: &[&[u8]] = &[include_bytes!("../../../resources/roms/plus
                                     include_bytes!("../../../resources/roms/opense.rom")];
 
 /* First some chipset type declarations */
-pub use spectrusty::chip::ula::{UlaPAL, UlaNTSC};
+
+/// redeclare chipsets with boxed devices.
+pub type Ula<M, D, X, V>  =    ula::Ula<M, Box<D>, X, V>;
+pub type UlaPAL<M, D, X>  =    ula::UlaPAL<M, Box<D>, X>;
+pub type UlaNTSC<M, D, X> =    ula::UlaNTSC<M, Box<D>, X>;
+pub type Scld<M, D, X, V> =   scld::Scld<M, Box<D>, X, V>;
+pub type Ula128<D, X>     = ula128::Ula128<Box<D>, X>;
+pub type Ula3<D, X>       =   ula3::Ula3<Box<D>, X>;
 
 /// Timex TC2048 chipset.
 pub type TC2048<D, X=NoMemoryExtension> = Scld<Memory48kDock64kEx, D, X, UlaVideoFrame>;

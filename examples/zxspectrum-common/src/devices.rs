@@ -26,10 +26,9 @@ use spectrusty::bus::{
 };
 use spectrusty::chip::{
     ControlUnit,
-    ula::{Ula, UlaVideoFrame},
+    ula::UlaVideoFrame,
     ula128::Ula128VidFrame,
     ula3::Ula3VidFrame,
-    scld::Scld
 };
 use spectrusty::memory::{PagedMemory8k, ZxMemory, MemoryExtension};
 use spectrusty::video::VideoFrame;
