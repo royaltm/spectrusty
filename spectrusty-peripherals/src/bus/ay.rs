@@ -96,6 +96,8 @@ pub struct Ay3_891xBusDevice<P, A, B, D: BusDevice> {
         _port_decode: PhantomData<P>
 }
 
+impl<D> PassByAyAudioBusDevice for Box<D> where D: PassByAyAudioBusDevice {}
+
 impl<D, N> AyAudioBusDevice for D
     where D::Timestamp: Into<FTs>,
           D: BusDevice<NextDevice=N> + PassByAyAudioBusDevice,
@@ -109,6 +111,26 @@ impl<D, N> AyAudioBusDevice for D
     }
 }
 
+macro_rules! impl_ay_audio_boxed_bus_device {
+    ($device:ident<$($ty:ident),*>) => {
+        impl_ay_audio_boxed_bus_device!($device<$($ty),*> where );
+    };
+    ($device:ident<$($ty:ident),*> where $($cond:tt)*) => {
+        impl<$($ty),*> AyAudioBusDevice for Box<$device<$($ty),*>>
+            where $device<$($ty),*>: AyAudioBusDevice + BusDevice,
+                  $($cond)*
+        {
+            fn render_ay_audio<L, B>(&mut self, blep: &mut B, end_ts: <Self as BusDevice>::Timestamp, frame_tstates: FTs, chans: [usize; 3])
+                where B: Blep,
+                      L: AmpLevels<B::SampleDelta>
+            {
+                (&mut **self).render_ay_audio::<L, B>(blep, end_ts, frame_tstates, chans)
+            }
+        }
+    };
+}
+
+impl_ay_audio_boxed_bus_device!(OptionalBusDevice<D, N>);
 impl<D, N> AyAudioBusDevice for OptionalBusDevice<D, N>
     where <D as BusDevice>::Timestamp: Into<FTs> + Copy,
           D: AyAudioBusDevice + BusDevice,
@@ -151,6 +173,7 @@ impl<T> AyAudioBusDevice for dyn NamedBusDevice<T>
     }
 }
 
+impl_ay_audio_boxed_bus_device!(DynamicBus<D> where D: BusDevice);
 impl<D> AyAudioBusDevice for DynamicBus<D>
     where <D as BusDevice>::Timestamp: Into<FTs> + Copy + fmt::Debug + 'static,
           D: AyAudioBusDevice + BusDevice
@@ -170,6 +193,7 @@ impl<D> AyAudioBusDevice for DynamicBus<D>
     }
 }
 
+impl_ay_audio_boxed_bus_device!(DynamicSerdeBus<SD, D> where D: BusDevice);
 impl<SD, D> AyAudioBusDevice for DynamicSerdeBus<SD, D>
     where <D as BusDevice>::Timestamp: Into<FTs> + Copy + fmt::Debug + 'static,
           D: AyAudioBusDevice + BusDevice
@@ -186,15 +210,16 @@ impl<SD, D> AyAudioBusDevice for DynamicSerdeBus<SD, D>
     }
 }
 
-impl<P, A, B, D> AyAudioBusDevice for Ay3_891xBusDevice<P, A, B, D>
-    where <Self as BusDevice>::Timestamp: Into<FTs>,
-          Self: BusDevice<Timestamp=D::Timestamp>,
-          D: BusDevice
+impl_ay_audio_boxed_bus_device!(Ay3_891xBusDevice<P, PA, PB, D> where D: BusDevice);
+impl<P, PA, PB, D> AyAudioBusDevice for Ay3_891xBusDevice<P, PA, PB, D>
+    where Self: BusDevice<Timestamp=D::Timestamp>,
+          D: BusDevice,
+          D::Timestamp: Into<FTs>
 {
     #[inline(always)]
-    fn render_ay_audio<L, E>(&mut self, blep: &mut E, end_ts: <Self as BusDevice>::Timestamp, frame_tstates: FTs, chans: [usize; 3])
-        where E: Blep,
-              L: AmpLevels<E::SampleDelta>
+    fn render_ay_audio<L, B>(&mut self, blep: &mut B, end_ts: D::Timestamp, frame_tstates: FTs, chans: [usize; 3])
+        where B: Blep,
+              L: AmpLevels<B::SampleDelta>
     {
         let end_ts = end_ts.into();
         let changes = self.ay_io.recorder.drain_ay_reg_changes();
@@ -202,6 +227,7 @@ impl<P, A, B, D> AyAudioBusDevice for Ay3_891xBusDevice<P, A, B, D>
     }
 }
 
+impl_ay_audio_boxed_bus_device!(NullDevice<T>);
 impl<T: Into<FTs> + fmt::Debug> AyAudioBusDevice for NullDevice<T> {
     #[inline(always)]
     fn render_ay_audio<L, B>(&mut self, _blep: &mut B, _end_ts: T, _frame_tstates: FTs, _chans: [usize; 3])

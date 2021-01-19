@@ -169,6 +169,44 @@ pub trait BusDevice: Debug {
     }
 }
 
+impl<D: BusDevice> BusDevice for Box<D> {
+    type Timestamp = D::Timestamp;
+    type NextDevice = D::NextDevice;
+
+    #[inline(always)]
+    fn next_device_mut(&mut self) -> &mut Self::NextDevice {
+        (&mut **self).next_device_mut()
+    }
+    #[inline(always)]
+    fn next_device_ref(&self) -> &Self::NextDevice {
+        (& **self).next_device_ref()
+    }
+    #[inline]
+    fn into_next_device(self) -> Self::NextDevice {
+        (*self).into_next_device()
+    }
+    #[inline]
+    fn reset(&mut self, timestamp: Self::Timestamp) {
+        (&mut **self).reset(timestamp)
+    }
+    #[inline]
+    fn update_timestamp(&mut self, timestamp: Self::Timestamp) {
+        (&mut **self).update_timestamp(timestamp)
+    }
+    #[inline]
+    fn next_frame(&mut self, eof_timestamp: Self::Timestamp) {
+        (&mut **self).next_frame(eof_timestamp)
+    }
+    #[inline]
+    fn read_io(&mut self, port: u16, timestamp: Self::Timestamp) -> Option<(u8, Option<NonZeroU16>)> {
+        (&mut **self).read_io(port, timestamp)
+    }
+    #[inline]
+    fn write_io(&mut self, port: u16, data: u8, timestamp: Self::Timestamp) -> Option<u16> {
+        (&mut **self).write_io(port, data, timestamp)
+    }
+}
+
 /// A helper trait for matching I/O port addresses.
 pub trait PortAddress: Debug {
     /// Relevant address bits should be set to 1.
