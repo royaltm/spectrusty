@@ -16,7 +16,7 @@ use crate::video::{
     }
 };
 use super::{
-    UlaPlus, UlaPlusInner, VideoRenderDataView,
+    UlaPlus, UlaPlusInner, VideoRenderDataView, UlaFrameCache,
     frame_cache::PlusFrameProducer
 };
 
@@ -74,7 +74,7 @@ impl<'a, U> UlaPlus<U>
 {
     #[inline]
     pub(super) fn update_frame_cache(&mut self, addr: u16, ts: VideoTs) {
-        let (frame_cache, memory_ref) = match addr {
+        let (frame_cache, memory_ref): (&mut UlaFrameCache<_>, _) = match addr {
             0x4000..=0x5AFF => match self.ula.page1_screen0_shadow_bank() {
                 Some(false) => self.ula.frame_cache_mut_mem_ref(),
                 Some(true) => self.ula.shadow_frame_cache_mut_mem_ref(),

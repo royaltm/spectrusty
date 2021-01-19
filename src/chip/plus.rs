@@ -131,9 +131,9 @@ pub struct UlaPlus<U: Video> {
     #[cfg_attr(feature = "snapshot", serde(default))]
     cur_palette: UlaPlusPalette,
     #[cfg_attr(feature = "snapshot", serde(skip))]
-    sec_frame_cache: UlaFrameCache<U::VideoFrame>,
+    sec_frame_cache: Box<UlaFrameCache<U::VideoFrame>>,
     #[cfg_attr(feature = "snapshot", serde(skip))]
-    shadow_sec_frame_cache: UlaFrameCache<U::VideoFrame>,
+    shadow_sec_frame_cache: Box<UlaFrameCache<U::VideoFrame>>,
     #[cfg_attr(feature = "snapshot", serde(skip))]
     palette_changes: Vec<PaletteChange>,
     #[cfg_attr(feature = "snapshot", serde(skip))]
@@ -206,8 +206,8 @@ impl<U> Default for UlaPlus<U>
             cur_render_mode: RenderMode::from_border_color(border),
             beg_source_mode: SourceMode::default(),
             cur_source_mode: SourceMode::default(),
-            sec_frame_cache: UlaFrameCache::default(),
-            shadow_sec_frame_cache: UlaFrameCache::default(),
+            sec_frame_cache: Default::default(),
+            shadow_sec_frame_cache: Default::default(),
             beg_palette: UlaPlusPalette::default(),
             cur_palette: UlaPlusPalette::default(),
             palette_changes: Vec::new(),

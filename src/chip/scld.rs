@@ -82,7 +82,7 @@ pub struct Scld<M: PagedMemory8k, B, X, V>
     cur_ctrl_flags: ScldCtrlFlags,
     mem_paged: u8,
     #[cfg_attr(feature = "snapshot", serde(skip))]
-    sec_frame_cache: UlaFrameCache<V>,
+    sec_frame_cache: Box<UlaFrameCache<V>>,
     #[cfg_attr(feature = "snapshot", serde(skip))]
     mode_changes: Vec<VideoTsData6>,
     #[cfg_attr(feature = "snapshot", serde(skip))]

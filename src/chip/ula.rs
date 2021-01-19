@@ -82,7 +82,7 @@ pub struct Ula<M, B, X, V> {
     late_timings: bool,
     // video related
     #[cfg_attr(feature = "snapshot", serde(skip))]
-    pub(super) frame_cache: UlaFrameCache<V>,
+    pub(super) frame_cache: Box<UlaFrameCache<V>>,
     #[cfg_attr(feature = "snapshot", serde(skip))]
     border_out_changes: Vec<VideoTsData3>, // frame timestamp with packed border on 3 bits
     pub(super) border: BorderColor, // video frame start border color

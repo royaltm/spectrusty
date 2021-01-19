@@ -79,7 +79,7 @@ pub struct Ula128<B=VFNullDevice<Ula128VidFrame>, X=NoMemoryExtension> {
     cur_screen_shadow: bool, // current shadow screen
     mem_locked: bool,
     #[cfg_attr(feature = "snapshot", serde(skip))]
-    shadow_frame_cache: UlaFrameCache<Ula128VidFrame>,
+    shadow_frame_cache: Box<UlaFrameCache<Ula128VidFrame>>,
     #[cfg_attr(feature = "snapshot", serde(skip))]
     screen_changes: Vec<VideoTs>,
 }
