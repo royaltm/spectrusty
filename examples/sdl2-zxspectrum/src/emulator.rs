@@ -72,7 +72,7 @@ mod printer;
 mod serde;
 mod snapshot;
 use self::nonblocking::NonBlockingStdinReader;
-use self::printer::{EpsonGfxFilteredStdoutWriter};
+use self::printer::EpsonGfxFilteredStdoutWriter;
 pub use self::printer::{ZxPrinter, DynSpoolerAccess, SpoolerAccess};
 pub use self::interface1::{ZxInterface1, ZxInterface1Access};
 pub use snapshot::ZxSpectrumModelSnap;

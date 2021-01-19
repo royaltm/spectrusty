@@ -29,8 +29,6 @@ use core::fmt;
 use std::borrow::Cow;
 use std::fs::{File, OpenOptions};
 use std::str::FromStr;
-use std::result;
-use std::thread;
 
 #[allow(unused_imports)]
 use log::{error, warn, info, debug, trace};
@@ -168,18 +166,6 @@ fn main() -> Result<()> {
 
     set_dpi_awareness()?;
 
-    const STACK_SIZE: usize = 4 * 1024 * 1024;
-
-    thread::Builder::new().stack_size(STACK_SIZE)
-    .spawn(move || -> result::Result<(), String> {
-        select_model_and_run(matches)
-        .map_err(|e| e.to_string())
-    })?
-    .join().unwrap()?;
-    Ok(())
-}
-
-fn select_model_and_run(matches: clap::ArgMatches) -> Result<()> {
     let sdl_context = &sdl2::init()?;
     // Postpone audio init until we have our model
     let mut audio = None;
