@@ -25,10 +25,15 @@ test:
     cargo test --no-default-features -- --ignored --nocapture
     cargo test -- --nocapture
     cargo test -- --ignored --nocapture
+    cargo test --features=boxed_frame_cache -- --nocapture
+    cargo test --features=boxed_frame_cache -- --ignored --nocapture
     cargo build -p zxspectrum-common
     cargo test -p zxspectrum-common -- --nocapture
+    cargo build --no-default-features -p zxspectrum-common
+    cargo test --no-default-features -p zxspectrum-common -- --nocapture
     cargo build -p audio --bins
     cargo test -p audio -- --nocapture
+    cargo test -p sdl2-zxspectrum -- --nocapture
 
 # run clippy tests
 clippy:
