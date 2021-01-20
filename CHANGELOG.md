@@ -1,3 +1,7 @@
+v0.3.2
+* feature: boxed_frame_cache places video frame cache on the heap to make the chipset struct sizes significantly smaller and stack friendly at the cost of a minimal performance penalty.
+* implemented BusDevice and AyAudioBusDevice for boxed devices.
+
 v0.3.1
 * spectrusty-audio: cpal bumped to 0.13.1, fixes compilation on 32-bit machines.
 * bumped nom, bitvec and rand.
