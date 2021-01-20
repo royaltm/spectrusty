@@ -1,6 +1,6 @@
 /*
     sdl2-zxspectrum: ZX Spectrum emulator example as a SDL2 application.
-    Copyright (C) 2020  Rafal Michalski
+    Copyright (C) 2020-2021  Rafal Michalski
 
     For the full copyright notice, see the main.rs file.
 */
@@ -582,4 +582,39 @@ fn dynamic_info<C, U, W: fmt::Write>(spec: &ZxSpectrum<C, U>, info: &mut W) -> R
         print_spooling(info, "ZX", spooler);
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use core::mem::size_of;
+    use zxspectrum_common::MemTap;
+    use spectrusty::memory::NoMemoryExtension;
+    use spectrusty_utils::io::{Empty, Sink};
+    use super::*;
+    type ZxSpectrumModel<C, X, F, R, W> = zxspectrum_common::ZxSpectrumModel<C,
+                                                serde::SerdeDynDevice, X, F, R, W>;
+
+    #[test]
+    fn test_sizes() {
+        println!("ZxSpectrumModel no-ext  file-tap no R/W: {}", size_of::<ZxSpectrumModel<Z80Any,
+                                        NoMemoryExtension,
+                                        std::fs::File,
+                                        Empty,
+                                        Sink>>());
+        println!("ZxSpectrumModel no-ext  mem-tap  no R/W: {}", size_of::<ZxSpectrumModel<Z80Any, 
+                                        NoMemoryExtension,
+                                        MemTap,
+                                        Empty,
+                                        Sink>>());
+        println!("ZxSpectrumModel no-ext  file-tap io R/W: {}", size_of::<ZxSpectrumModel<Z80Any,
+                                        NoMemoryExtension,
+                                        std::fs::File,
+                                        NonBlockingStdinReader,
+                                        EpsonGfxFilteredStdoutWriter>>());
+        println!("ZxSpectrumModel if1-ext file-tap io R/W: {}", size_of::<ZxSpectrumModel<Z80Any, 
+                                        ZxInterface1MemExt,
+                                        std::fs::File,
+                                        NonBlockingStdinReader,
+                                        EpsonGfxFilteredStdoutWriter>>());
+    }
 }

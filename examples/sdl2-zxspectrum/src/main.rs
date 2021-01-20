@@ -1,6 +1,6 @@
 /*
     sdl2-zxspectrum: ZX Spectrum emulator example as a SDL2 application.
-    Copyright (C) 2020  Rafal Michalski
+    Copyright (C) 2020-2021  Rafal Michalski
 
     sdl2-zxspectrum is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
