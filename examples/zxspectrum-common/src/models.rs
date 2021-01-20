@@ -1,6 +1,6 @@
 /*
     zxspectrum-common: High-level ZX Spectrum emulator library example.
-    Copyright (C) 2020  Rafal Michalski
+    Copyright (C) 2020-2021  Rafal Michalski
 
     For the full copyright notice, see the lib.rs file.
 */
@@ -68,13 +68,27 @@ pub static ROM_PLUS2B: &[&[u8]] = &[include_bytes!("../../../resources/roms/plus
 
 /* First some chipset type declarations */
 
-/// redeclare chipsets with boxed devices.
-pub type Ula<M, D, X, V>  =    ula::Ula<M, Box<D>, X, V>;
-pub type UlaPAL<M, D, X>  =    ula::UlaPAL<M, Box<D>, X>;
-pub type UlaNTSC<M, D, X> =    ula::UlaNTSC<M, Box<D>, X>;
-pub type Scld<M, D, X, V> =   scld::Scld<M, Box<D>, X, V>;
-pub type Ula128<D, X>     = ula128::Ula128<Box<D>, X>;
-pub type Ula3<D, X>       =   ula3::Ula3<Box<D>, X>;
+// redeclare chipsets with boxed devices.
+#[cfg(feature = "boxed_devices")]
+mod chipsets {
+    pub type Ula<M, D, X, V>  =    super::ula::Ula<M, Box<D>, X, V>;
+    pub type UlaPAL<M, D, X>  =    super::ula::UlaPAL<M, Box<D>, X>;
+    pub type UlaNTSC<M, D, X> =    super::ula::UlaNTSC<M, Box<D>, X>;
+    pub type Scld<M, D, X, V> =   super::scld::Scld<M, Box<D>, X, V>;
+    pub type Ula128<D, X>     = super::ula128::Ula128<Box<D>, X>;
+    pub type Ula3<D, X>       =   super::ula3::Ula3<Box<D>, X>;
+}
+// chipsets with inline devices
+#[cfg(not(feature = "boxed_devices"))]
+mod chipsets {
+    pub use    super::ula::Ula;
+    pub use    super::ula::UlaPAL;
+    pub use    super::ula::UlaNTSC;
+    pub use   super::scld::Scld;
+    pub use super::ula128::Ula128;
+    pub use   super::ula3::Ula3;
+}
+pub use chipsets::*;
 
 /// Timex TC2048 chipset.
 pub type TC2048<D, X=NoMemoryExtension> = Scld<Memory48kDock64kEx, D, X, UlaVideoFrame>;
@@ -133,26 +147,37 @@ pub type ZxSpectrum2B<C, D, X=NoMemoryExtension,
                             W=Sink> = ZxSpectrum<C, Plus3<D, X, R, W>, F>;
 
 /*   The device types used in ZxSpectrumModel.  */
-/*
+#[cfg(feature = "universal_dev_ts")]
+mod devices {
+    use super::*;
+    /// The device type used by models with [UlaPAL] in [ZxSpectrumModel].
+    pub type UlaPALDevice<S> = PluggableJoystickDynamicBus<S, FTs>;
+    /// The device type used by models with [TC2048] in [ZxSpectrumModel].
+    pub type TC2048Device<S> = PluggableJoystickDynamicBus<S, FTs>;
+    /// The device type used by models with [UlaNTSC] in [ZxSpectrumModel].
+    pub type UlaNTSCDevice<S> = PluggableJoystickDynamicBus<S, FTs>;
+    /// The device type used by models with [Ula128AyKeypad] in [ZxSpectrumModel].
+    pub type Ula128Device<S> = PluggableJoystickDynamicBus<S, FTs>;
+    /// The device type used by models with [Ula3Ay] in [ZxSpectrumModel].
+    pub type Ula3Device<S> = PluggableJoystickDynamicBus<S, FTs>;
+}
 // Alternatively the definitions below can be swapped with the ones below to use VFrameTs timestamps instead.
 // This will however result in a larger executable size.
-// Some tests also demonstrated that emulators perform slightly slower with these.
-pub type UlaPALDevice<S> = PluggableJoystickDynamicBus<S, VFrameTs<UlaVideoFrame>>;
-pub type TC2048Device<S> = PluggableJoystickDynamicBus<S, VFrameTs<UlaVideoFrame>>;
-pub type UlaNTSCDevice<S> = PluggableJoystickDynamicBus<S, VFrameTs<UlaNTSCVidFrame>>;
-pub type Ula128Device<S> = PluggableJoystickDynamicBus<S, VFrameTs<Ula128VidFrame>>;
-pub type Ula3Device<S> = PluggableJoystickDynamicBus<S, VFrameTs<Ula3VidFrame>>;
-*/
-/// The device type used by models with [UlaPAL] in [ZxSpectrumModel].
-pub type UlaPALDevice<S> = PluggableJoystickDynamicBus<S, FTs>;
-/// The device type used by models with [TC2048] in [ZxSpectrumModel].
-pub type TC2048Device<S> = PluggableJoystickDynamicBus<S, FTs>;
-/// The device type used by models with [UlaNTSC] in [ZxSpectrumModel].
-pub type UlaNTSCDevice<S> = PluggableJoystickDynamicBus<S, FTs>;
-/// The device type used by models with [Ula128AyKeypad] in [ZxSpectrumModel].
-pub type Ula128Device<S> = PluggableJoystickDynamicBus<S, FTs>;
-/// The device type used by models with [Ula3Ay] in [ZxSpectrumModel].
-pub type Ula3Device<S> = PluggableJoystickDynamicBus<S, FTs>;
+#[cfg(not(feature = "universal_dev_ts"))]
+mod devices {
+    use super::*;
+    /// The device type used by models with [UlaPAL] in [ZxSpectrumModel].
+    pub type UlaPALDevice<S> = PluggableJoystickDynamicBus<S, VFrameTs<UlaVideoFrame>>;
+    /// The device type used by models with [TC2048] in [ZxSpectrumModel].
+    pub type TC2048Device<S> = PluggableJoystickDynamicBus<S, VFrameTs<UlaVideoFrame>>;
+    /// The device type used by models with [UlaNTSC] in [ZxSpectrumModel].
+    pub type UlaNTSCDevice<S> = PluggableJoystickDynamicBus<S, VFrameTs<UlaNTSCVidFrame>>;
+    /// The device type used by models with [Ula128AyKeypad] in [ZxSpectrumModel].
+    pub type Ula128Device<S> = PluggableJoystickDynamicBus<S, VFrameTs<Ula128VidFrame>>;
+    /// The device type used by models with [Ula3Ay] in [ZxSpectrumModel].
+    pub type Ula3Device<S> = PluggableJoystickDynamicBus<S, VFrameTs<Ula3VidFrame>>;
+}
+pub use devices::*;
 
 /// This enum is being used for querying or creating a new [ZxSpectrumModel].
 #[derive(Debug, Clone, Copy, PartialEq)]

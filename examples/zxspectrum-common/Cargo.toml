@@ -11,6 +11,11 @@ An example ZX Spectrum emulator library that organizes concrete models and devic
 This library provides a very opinionated, high-level API on top of SPECTRUSTY.
 """
 
+[features]
+default = ["boxed_devices", "universal_dev_ts"]
+boxed_devices = []
+universal_dev_ts = []
+
 [dependencies]
 log = "0.4"
 fnv = "1.0"
