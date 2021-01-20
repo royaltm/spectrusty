@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020  Rafal Michalski
+    Copyright (C) 2020-2021  Rafal Michalski
 
     This file is part of SPECTRUSTY, a Rust library for building emulators.
 
@@ -130,10 +130,23 @@ pub struct UlaPlus<U: Video> {
     beg_palette: UlaPlusPalette,
     #[cfg_attr(feature = "snapshot", serde(default))]
     cur_palette: UlaPlusPalette,
+
+    #[cfg(feature = "boxed_frame_cache")]
     #[cfg_attr(feature = "snapshot", serde(skip))]
     sec_frame_cache: Box<UlaFrameCache<U::VideoFrame>>,
+
+    #[cfg(feature = "boxed_frame_cache")]
     #[cfg_attr(feature = "snapshot", serde(skip))]
     shadow_sec_frame_cache: Box<UlaFrameCache<U::VideoFrame>>,
+
+    #[cfg(not(feature = "boxed_frame_cache"))]
+    #[cfg_attr(feature = "snapshot", serde(skip))]
+    sec_frame_cache: UlaFrameCache<U::VideoFrame>,
+
+    #[cfg(not(feature = "boxed_frame_cache"))]
+    #[cfg_attr(feature = "snapshot", serde(skip))]
+    shadow_sec_frame_cache: UlaFrameCache<U::VideoFrame>,
+
     #[cfg_attr(feature = "snapshot", serde(skip))]
     palette_changes: Vec<PaletteChange>,
     #[cfg_attr(feature = "snapshot", serde(skip))]

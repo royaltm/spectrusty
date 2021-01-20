@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020  Rafal Michalski
+    Copyright (C) 2020-2021  Rafal Michalski
 
     This file is part of SPECTRUSTY, a Rust library for building emulators.
 
@@ -81,8 +81,14 @@ pub struct Ula<M, B, X, V> {
     read_ear_mode: ReadEarMode,
     late_timings: bool,
     // video related
+    #[cfg(feature = "boxed_frame_cache")]
     #[cfg_attr(feature = "snapshot", serde(skip))]
     pub(super) frame_cache: Box<UlaFrameCache<V>>,
+
+    #[cfg(not(feature = "boxed_frame_cache"))]
+    #[cfg_attr(feature = "snapshot", serde(skip))]
+    pub(super) frame_cache: UlaFrameCache<V>,
+
     #[cfg_attr(feature = "snapshot", serde(skip))]
     border_out_changes: Vec<VideoTsData3>, // frame timestamp with packed border on 3 bits
     pub(super) border: BorderColor, // video frame start border color

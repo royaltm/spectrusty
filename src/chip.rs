@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020  Rafal Michalski
+    Copyright (C) 2020-2021  Rafal Michalski
 
     This file is part of SPECTRUSTY, a Rust library for building emulators.
 
@@ -138,3 +138,56 @@ impl<U> UlaCommon for U
            + EarIn
            + for<'a> MicOut<'a>
 {}
+
+#[cfg(test)]
+mod tests {
+    use core::mem::size_of;
+    use crate::memory::*;
+    use crate::bus::VFNullDevice;
+    use crate::chip::{UlaVideoFrame, UlaNTSCVidFrame};
+    use super::ula::frame_cache::UlaFrameCache;
+    use super::ula::{UlaPAL, UlaNTSC};
+    use super::scld::Scld;
+    use super::ula128::{Ula128, Ula128VidFrame};
+    use super::ula3::{Ula3, Ula3VidFrame};
+    use super::plus::UlaPlus;
+
+    type TC2048 = Scld::<Memory48kDock64kEx, VFNullDevice<UlaVideoFrame>, NoMemoryExtension, UlaVideoFrame>;
+
+    #[test]
+    fn test_chip_sizes() {
+        println!("ULA     {:?}", size_of::<UlaPAL::<Memory48k>>());
+        println!("ULAx    {:?}", size_of::<UlaPAL::<Memory48kEx>>());
+        println!("ULA128  {:?}", size_of::<Ula128>());
+        println!("ULA3    {:?}", size_of::<Ula3>());
+        println!("SCLD    {:?}", size_of::<TC2048>());
+        println!("ULA48+  {:?}", size_of::<UlaPlus<UlaPAL::<Memory48k>>>());
+        println!("ULA48x+ {:?}", size_of::<UlaPlus<UlaPAL::<Memory48kEx>>>());
+        println!("ULA128+ {:?}", size_of::<UlaPlus<Ula128>>());
+        println!("ULA3+   {:?}", size_of::<UlaPlus<Ula3>>());
+        if cfg!(feature = "boxed_frame_cache") {
+            assert!(size_of::<UlaPAL::<Memory48k>>() < size_of::<UlaFrameCache<UlaVideoFrame>>() / 10);
+            assert!(size_of::<UlaPAL::<Memory48kEx>>() < size_of::<UlaFrameCache<UlaVideoFrame>>() / 10);
+            assert!(size_of::<UlaNTSC::<Memory48k>>() < size_of::<UlaFrameCache<UlaNTSCVidFrame>>() / 10);
+            assert!(size_of::<UlaNTSC::<Memory48kEx>>() < size_of::<UlaFrameCache<UlaNTSCVidFrame>>() / 10);
+            assert!(size_of::<TC2048>() < size_of::<UlaFrameCache<UlaVideoFrame>>() / 10);
+            assert!(size_of::<Ula128>() < size_of::<UlaFrameCache<Ula128VidFrame>>() / 10);
+            assert!(size_of::<Ula3>() < size_of::<UlaFrameCache<Ula3VidFrame>>() / 10);
+            assert!(size_of::<UlaPlus<UlaPAL::<Memory48kEx>>>() < size_of::<UlaFrameCache<UlaVideoFrame>>() / 10);
+            assert!(size_of::<UlaPlus<Ula128>>() < size_of::<UlaFrameCache<Ula128VidFrame>>() / 10);
+            assert!(size_of::<UlaPlus<Ula3>>() < size_of::<UlaFrameCache<Ula3VidFrame>>() / 10);
+        }
+        else {
+            assert!(size_of::<UlaPAL::<Memory48k>>() > size_of::<UlaFrameCache<UlaVideoFrame>>());
+            assert!(size_of::<UlaPAL::<Memory48kEx>>() > size_of::<UlaFrameCache<UlaVideoFrame>>());
+            assert!(size_of::<UlaNTSC::<Memory48k>>() > size_of::<UlaFrameCache<UlaNTSCVidFrame>>());
+            assert!(size_of::<UlaNTSC::<Memory48kEx>>() > size_of::<UlaFrameCache<UlaNTSCVidFrame>>());
+            assert!(size_of::<TC2048>() > size_of::<UlaFrameCache<UlaVideoFrame>>() * 2);
+            assert!(size_of::<Ula128>() > size_of::<UlaFrameCache<Ula128VidFrame>>() * 2);
+            assert!(size_of::<Ula3>() > size_of::<UlaFrameCache<Ula3VidFrame>>() * 2);
+            assert!(size_of::<UlaPlus<UlaPAL::<Memory48kEx>>>() > size_of::<UlaFrameCache<UlaVideoFrame>>() * 3);
+            assert!(size_of::<UlaPlus<Ula128>>() > size_of::<UlaFrameCache<Ula128VidFrame>>() * 4);
+            assert!(size_of::<UlaPlus<Ula3>>() > size_of::<UlaFrameCache<Ula3VidFrame>>() * 4);
+        }
+    }
+}

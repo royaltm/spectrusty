@@ -21,6 +21,8 @@ script:
       cargo test --verbose -- --ignored
       cargo test --no-default-features --verbose
       cargo test --no-default-features --verbose -- --ignored
+      cargo test --features=boxed_frame_cache --verbose
+      cargo test --features=boxed_frame_cache --verbose -- --ignored
       cargo build -p zxspectrum-common --verbose
       cargo test -p zxspectrum-common --verbose
       cargo build -p audio --bins --verbose

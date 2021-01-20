@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020  Rafal Michalski
+    Copyright (C) 2020-2021  Rafal Michalski
 
     This file is part of SPECTRUSTY, a Rust library for building emulators.
 
@@ -52,11 +52,13 @@ Several features control which components will be included:
 
 Additional features:
 
-* "snapshot" - enables serde serializers and deserializers, so custom snapshots can be created with ease in
-  elastic formats.
-* "compression" - enables gzip compression/decompression of memory chunks stored in snapshots.
-* "sdl2" - enables audio implementation for [SDL2] hardware abstraction layer.
-* "cpal" - enables audio implementation for [cpal] native audio library.
+* `"snapshot"` - enables serde serializers and deserializers, so custom snapshots can be created
+  with ease in elastic formats.
+* `"compression"` - enables gzip compression/decompression of memory chunks stored in snapshots.
+* `"boxed_frame_cache"` - chipset implementations will have significantly reduced struct sizes
+  by boxing their internal [UlaFrameCache] instances at the cost of a minimal performance penalty.
+* `"sdl2"` - enables audio implementation for [SDL2] hardware abstraction layer.
+* `"cpal"` - enables audio implementation for [cpal] native audio library.
 
 The default features are:
 
@@ -154,6 +156,7 @@ These are the most commonly used:
 [Blep]: audio::Blep
 [ZxMemory]: memory::ZxMemory
 [MemoryExtension]: memory::MemoryExtension
+[UlaFrameCache]: chip::ula::frame_cache::UlaFrameCache
 [VideoFrame]: video::VideoFrame
 [VideoTs]: clock::VideoTs
 [Cpu]: /z80emu/%2A/z80emu/trait.Cpu.html

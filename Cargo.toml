@@ -28,6 +28,7 @@ snapshot = ["serde", "arrayvec/serde", "spectrusty-core/snapshot", "spectrusty-p
 audio = ["spectrusty-audio"]
 formats = ["spectrusty-formats"]
 peripherals = ["spectrusty-peripherals"]
+boxed_frame_cache = []
 
 [dependencies]
 log = "0.4"

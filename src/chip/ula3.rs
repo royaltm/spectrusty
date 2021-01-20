@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020  Rafal Michalski
+    Copyright (C) 2020-2021  Rafal Michalski
 
     This file is part of SPECTRUSTY, a Rust library for building emulators.
 
@@ -78,8 +78,15 @@ pub struct Ula3<B=VFNullDevice<Ula3VidFrame>, X=NoMemoryExtension> {
     beg_screen_shadow: bool,  // shadow screen when a frame began
     cur_screen_shadow: bool,  // current shadow screen
     mem_locked: bool,
+
+    #[cfg(feature = "boxed_frame_cache")]
     #[cfg_attr(feature = "snapshot", serde(skip))]
     shadow_frame_cache: Box<UlaFrameCache<Ula3VidFrame>>,
+
+    #[cfg(not(feature = "boxed_frame_cache"))]
+    #[cfg_attr(feature = "snapshot", serde(skip))]
+    shadow_frame_cache: UlaFrameCache<Ula3VidFrame>,
+
     #[cfg_attr(feature = "snapshot", serde(skip))]
     screen_changes: Vec<VideoTs>
 }

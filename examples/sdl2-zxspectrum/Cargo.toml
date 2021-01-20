@@ -31,7 +31,7 @@ serde_yaml = "0.8"
 
 [dependencies.spectrusty]
 version = "*"
-features = ["audio", "sdl2"]
+features = ["audio", "sdl2", "boxed_frame_cache"]
 path = "../.."
 
 [dependencies.spectrusty-utils]

@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020  Rafal Michalski
+    Copyright (C) 2020-2021  Rafal Michalski
 
     This file is part of SPECTRUSTY, a Rust library for building emulators.
 
@@ -81,8 +81,15 @@ pub struct Scld<M: PagedMemory8k, B, X, V>
     beg_ctrl_flags: ScldCtrlFlags,
     cur_ctrl_flags: ScldCtrlFlags,
     mem_paged: u8,
+
+    #[cfg(feature = "boxed_frame_cache")]
     #[cfg_attr(feature = "snapshot", serde(skip))]
     sec_frame_cache: Box<UlaFrameCache<V>>,
+
+    #[cfg(not(feature = "boxed_frame_cache"))]
+    #[cfg_attr(feature = "snapshot", serde(skip))]
+    sec_frame_cache: UlaFrameCache<V>,
+
     #[cfg_attr(feature = "snapshot", serde(skip))]
     mode_changes: Vec<VideoTsData6>,
     #[cfg_attr(feature = "snapshot", serde(skip))]
