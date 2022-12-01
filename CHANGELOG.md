@@ -5,6 +5,7 @@ v0.3.3
 * spectrusty-utils: minifb bumped to 0.23, winit bumped to 0.27.
 * bumped arrayvec, bitflags, bitvec, nom and others.
 * examples: webassembly examples upgraded to use webpack 5, deps bumped of other examples.
+* rustc version requirement was raised to 1.59.
 
 v0.3.2
 * feature: boxed_frame_cache places video frame cache on the heap to make the chipset struct sizes significantly smaller and stack friendly at the cost of a minimal performance penalty.
