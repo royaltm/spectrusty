@@ -92,6 +92,6 @@ default-members = [
 ]
 
 [profile.release]
-lto = true
-panic = 'abort'
-opt-level = 's'
+# lto = true
+# panic = 'abort'
+# opt-level = 's'
