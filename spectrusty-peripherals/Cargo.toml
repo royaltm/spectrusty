@@ -18,7 +18,7 @@ snapshot = ["serde", "spectrusty-core/snapshot", "base64"]
 [dependencies]
 log = "0.4"
 bitflags = "1.3.2"
-bitvec = "0.20"
+bitvec = "1.0"
 
 [dependencies.rand]
 version = "0.8"

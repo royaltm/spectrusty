@@ -37,10 +37,10 @@ pub const HALT_FOREVER_TS: Option<NonZeroU16> = unsafe {
 pub type MicroCartridgeSecIter<'a> = FilterMap<
                                             Zip<
                                                 slice::Iter<'a, Sector>,
-                                                bitvec::slice::Iter<'a, LocalBits, u32>
+                                                bitvec::slice::Iter<'a, u32, LocalBits>
                                             >,
                                             &'a dyn Fn(
-                                                (&'a Sector, BitRef<'a, bitvec::ptr::Const, LocalBits, u32>)
+                                                (&'a Sector, BitRef<'a, bitvec::ptr::Const, u32, LocalBits>)
                                             ) -> Option<&'a Sector>
                                         >;
 
@@ -48,10 +48,10 @@ pub type MicroCartridgeSecIter<'a> = FilterMap<
 pub type MicroCartridgeSecIterMut<'a> = FilterMap<
                                             Zip<
                                                 slice::IterMut<'a, Sector>,
-                                                bitvec::slice::Iter<'a, LocalBits, u32>
+                                                bitvec::slice::Iter<'a, u32, LocalBits>
                                             >,
                                             &'a dyn Fn(
-                                                (&'a mut Sector, BitRef<'a, bitvec::ptr::Const, LocalBits, u32>)
+                                                (&'a mut Sector, BitRef<'a, bitvec::ptr::Const, u32, LocalBits>)
                                             ) -> Option<&'a mut Sector>
                                         >;
 /// An iterator returned by [MicroCartridge::iter_with_indices] method.
@@ -59,11 +59,11 @@ pub type MicroCartridgeIdSecIter<'a> = FilterMap<
                                             Enumerate<
                                                 Zip<
                                                     slice::Iter<'a, Sector>,
-                                                    bitvec::slice::Iter<'a, LocalBits, u32>
+                                                    bitvec::slice::Iter<'a, u32, LocalBits>
                                             >>,
                                             &'a dyn Fn(
                                                 (usize,
-                                                (&'a Sector, BitRef<'a, bitvec::ptr::Const, LocalBits, u32>))
+                                                (&'a Sector, BitRef<'a, bitvec::ptr::Const, u32, LocalBits>))
                                             ) -> Option<(u8, &'a Sector)>
                                         >;
 /// The maximum number of emulated physical ZX Microdrive tape sectors.
@@ -270,7 +270,7 @@ impl MicroCartridge {
         assert!(max_sectors > 0 && max_sectors <= MAX_SECTORS &&
                 sectors.len() <= max_sectors && sectors.len() <= MAX_USABLE_SECTORS);
         let mut sector_map = [0u32;SECTOR_MAP_SIZE];
-        sector_map.view_bits_mut::<LocalBits>()[0..sectors.len()].set_all(true);
+        sector_map.view_bits_mut::<LocalBits>()[0..sectors.len()].fill(true);
         sectors.resize(max_sectors, Sector::default());
         let sectors = sectors.into_boxed_slice();
         MicroCartridge {
@@ -431,11 +431,11 @@ impl MicroCartridge {
                     prev_cursor.sector
                 };
                 if sector < prev_sector {
-                    self.sector_map.view_bits_mut::<LocalBits>()[prev_sector.into()..].set_all(false);
-                    self.sector_map.view_bits_mut::<LocalBits>()[..sector.into()].set_all(false);
+                    self.sector_map.view_bits_mut::<LocalBits>()[prev_sector.into()..].fill(false);
+                    self.sector_map.view_bits_mut::<LocalBits>()[..sector.into()].fill(false);
                 }
                 else {
-                    self.sector_map.view_bits_mut::<LocalBits>()[prev_sector.into()..=sector.into()].set_all(false);
+                    self.sector_map.view_bits_mut::<LocalBits>()[prev_sector.into()..=sector.into()].fill(false);
                 }
             }
         }
