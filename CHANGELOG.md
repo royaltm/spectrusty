@@ -1,3 +1,11 @@
+v0.3.3
+* spectrusty-core: z80emu bumped to 0.7.
+* spectrusty-audio: cpal bumped to 0.14.1.
+* spectrusty-audio, spectrusty-utils: sdl2 bumped to 0.35.
+* spectrusty-utils: minifb bumped to 0.23, winit bumped to 0.27.
+* bumped arrayvec, bitflags, bitvec, nom and others.
+* examples: webassembly examples upgraded to use webpack 5, deps bumped of other examples.
+
 v0.3.2
 * feature: boxed_frame_cache places video frame cache on the heap to make the chipset struct sizes significantly smaller and stack friendly at the cost of a minimal performance penalty.
 * implemented BusDevice and AyAudioBusDevice for boxed devices.
