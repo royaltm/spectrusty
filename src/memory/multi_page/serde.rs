@@ -35,7 +35,7 @@ impl<M: MemoryBlock> Serialize for MemPageableRomRamExRom<M>
             *pages.page_mut(exrom.page) = exrom.ptr;
         }
         let mem_ptr = self.mem.as_slice().as_ptr() as usize;
-        let banks: ArrayVec<[u8;MAX_PAGES]> = pages.into_iter()
+        let banks: ArrayVec<u8,MAX_PAGES> = pages.into_iter()
                                      .map(|p| p.as_ptr() as usize - mem_ptr)
                                      .map(|offset| {
                                         assert_eq!(offset % M::BANK_SIZE, 0);
@@ -63,7 +63,7 @@ impl<'de, M: MemoryBlock> Deserialize<'de> for MemPageableRomRamExRom<M>
             #[serde(deserialize_with = "deserialize_mem")]
             mem: Box<M>,
             #[serde(rename(deserialize = "pages"))]
-            banks: ArrayVec<[u8;MAX_PAGES]>,
+            banks: ArrayVec<u8,MAX_PAGES>,
             exrom: Option<ExRomTemp>
         }
 

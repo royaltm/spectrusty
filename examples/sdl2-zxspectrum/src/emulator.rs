@@ -497,7 +497,7 @@ impl<'a, C: Cpu, U> ZxSpectrumEmu<'a, C, U> {
         where U: SpoolerAccess,
               ZxSpectrum<C, U>: DynSpoolerAccess + ZxInterface1Access
     {
-        let mut dynbuf: ArrayString<[_;64]> = ArrayString::new();
+        let mut dynbuf: ArrayString<64> = ArrayString::new();
         dynamic_info(&self.spectrum, &mut dynbuf)?;
         if self.info_text[self.info_range.clone()] != dynbuf[..] {
             self.info_text.replace_range(self.info_range.clone(), &dynbuf);

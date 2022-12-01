@@ -12,10 +12,10 @@ by the SPECTRUSTY library using native bindings via the CPAL library.
 """
 
 [dependencies]
-cpal = "0.13.1"
-hound = "3.4"
+cpal = "0.14.1"
+hound = "3.5"
 log = "0.4"
-simple_logger = "1.11"
+simple_logger = "3"
 
 [dependencies.spectrusty]
 version = "*"

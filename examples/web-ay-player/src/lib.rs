@@ -130,7 +130,7 @@ impl AyPlayerHandle {
         Self::play_next_frame(time + duration, &self.player)
         .map(|_| {
             self.status = PlayerStatus::Playing;
-            JsValue::from_serde(&song_info).unwrap()
+            serde_wasm_bindgen::to_value(&song_info).unwrap()
         })
     }
 
@@ -229,7 +229,7 @@ impl AyPlayerHandle {
                     Ok(info) => info,
                     Err(err) => return reject(err.into())
                 };
-                let _ = resolve.call1(&JsValue::NULL, &JsValue::from_serde(&info).unwrap());
+                let _ = resolve.call1(&JsValue::NULL, &serde_wasm_bindgen::to_value(&info).unwrap());
             });
             file_reader.set_onloadend(Some(cb.unchecked_ref()));
         })
@@ -248,7 +248,7 @@ impl AyPlayerHandle {
         let array_buffer = JsFuture::from(response.array_buffer()?).await?;
         let data = Uint8Array::new(&array_buffer).to_vec();
         let info = player.borrow_mut().player.load_file(data)?;
-        Ok(JsValue::from_serde(&info).unwrap())
+        Ok(serde_wasm_bindgen::to_value(&info).unwrap())
     }
     /// Toggles paused state. Returns a `Promise` which resolves to `true` if paused
     /// or `false` if unpaused, `null` if not playing.

@@ -12,6 +12,9 @@ module.exports = {
         path: path.resolve(__dirname, "dist"),
         filename: "index.js",
     },
+    experiments: {
+        asyncWebAssembly: true
+    },
     plugins: [
         new HtmlWebpackPlugin({
             template: "index.html"
@@ -51,9 +54,9 @@ module.exports = {
             // the mode `production` makes `wasm-pack` build in `release` mode.
             forceMode: "production",
         }),
-        new CopyWebpackPlugin([
-            { from: "static" }
-        ]),
+        new CopyWebpackPlugin({ patterns: [
+            { from: "static", noErrorOnMissing: true }
+        ]}),
         // Have this example work in Edge which doesn't ship `TextEncoder` or
         // `TextDecoder` at this time.
         new webpack.ProvidePlugin({

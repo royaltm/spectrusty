@@ -79,7 +79,7 @@ impl io::Write for EpsonGfxFilteredStdoutWriter {
                     }
                 }
                 else {
-                    let mut s = ArrayString::<[_;8]>::new();
+                    let mut s = ArrayString::<8>::new();
                     write!(s, " {:02x} ", buf[0]).unwrap();
                     if self.stdout.write(s.as_bytes())? != s.len() {
                         return Ok(0)
