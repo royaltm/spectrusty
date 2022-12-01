@@ -1,0 +1,66 @@
+name: Continuous integration
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    continue-on-error: false
+    strategy:
+      matrix:
+        rust:
+          - 1.59.0
+          - stable
+          - beta
+          - nightly
+        include:
+          - rust: stable
+            coverage: 'send'
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+      - name: Update apt
+        run: sudo apt-get update -y -qq
+      - name: Install alsa
+        run: sudo apt-get install -y libasound2-dev
+      - name: Install ${{ matrix.rust }} toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain:  ${{ matrix.rust }}
+          override: true
+      - name: Basic Tests
+        env:
+          RUSTFLAGS: '-D warnings'
+        run: |
+          rustc --version
+          cargo --version
+          cargo build --verbose
+          cargo test --verbose
+      - name: All Tests
+        if: matrix.rust == 'stable'
+        env:
+          RUSTFLAGS: '-D warnings'
+        run: |
+          sudo apt-get install -y libsdl2-dev
+          cargo test --verbose -- --ignored
+          cargo test --no-default-features --verbose
+          cargo test --no-default-features --verbose -- --ignored
+          cargo test --features=boxed_frame_cache --verbose
+          cargo test --features=boxed_frame_cache --verbose -- --ignored
+          cargo build -p zxspectrum-common --verbose
+          cargo test -p zxspectrum-common --verbose
+          cargo build --no-default-features -p zxspectrum-common --verbose
+          cargo test --no-default-features -p zxspectrum-common --verbose
+          cargo build -p audio --bins --verbose
+          cargo test -p audio --verbose
+          cargo build -p sdl2-zxspectrum --no-default-features --verbose
+          cargo test -p sdl2-zxspectrum --no-default-features --verbose
