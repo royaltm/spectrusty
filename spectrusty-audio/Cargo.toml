@@ -1,6 +1,6 @@
 [package]
 name = "spectrusty-audio"
-version = "0.2.1"
+version = "0.3.0"
 authors = ["Rafal Michalski <royaltm75@gmail.com>"]
 edition = "2018"
 repository = "https://github.com/royaltm/spectrusty"
@@ -21,7 +21,7 @@ default = []
 log = "0.4"
 
 [dependencies.spectrusty-core]
-version = "0.2.1"
+version = "0.3.0"
 path = "../spectrusty-core"
 
 [dependencies.sdl2]

@@ -1,6 +1,6 @@
 [package]
 name = "sdl2-zxspectrum"
-version = "0.3.1"
+version = "0.3.2"
 authors = ["Rafal Michalski <royaltm75@gmail.com>"]
 edition = "2018"
 workspace = "../.."
@@ -14,6 +14,7 @@ An example of a complete ZX Spectrum emulator with native bindings via SDL2 libr
 default = ["bundled"]
 bundled = ["sdl2/bundled"]
 static-link = ["sdl2/static-link"]
+use-pkgconfig = ["sdl2/use-pkgconfig"]
 
 [dependencies]
 clap = "2.34"
