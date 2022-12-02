@@ -101,8 +101,7 @@ fn select_hw_model_v2<S: SnapshotCreator>(
         SpectrumNTSC => {
             result.insert(SnapshotResult::MODEL_NSUP);
             (if ext.intersects(Extensions::SAM_RAM) { 2 }
-            else if ext.intersects(Extensions::IF1) { 1 }
-            else { 0 }, false)
+             else { ext.intersects(Extensions::IF1) as u8 }, false)
         }
         Spectrum128 if ext.intersects(Extensions::IF1) => (4, false),
         Spectrum128 => (3, false),
@@ -202,12 +201,12 @@ fn init_z80_header_ex<S: SnapshotCreator, C: Cpu>(
         ext: Extensions,
         snapshot: &S,
         select_hw_model: HwModelSelector<S>,
-        mut result: &mut SnapshotResult
+        result: &mut SnapshotResult
     ) -> Result<()>
 {
     use ComputerModel::*;
     head_ex.pc = cpu.get_pc().to_le_bytes();
-    let (hw_mode, alt_hw) = select_hw_model(model, ext, snapshot, &mut result)?;
+    let (hw_mode, alt_hw) = select_hw_model(model, ext, snapshot, result)?;
     let mut flags3 = Flags3::empty();
     flags3.set(Flags3::ALT_HW_MODE, alt_hw);
     head_ex.hw_mode = hw_mode;

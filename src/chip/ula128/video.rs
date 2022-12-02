@@ -63,7 +63,7 @@ impl VideoFrame for Ula128VidFrame {
 
     #[inline]
     fn contention(hc: Ts) -> Ts {
-        if hc >= -3 && hc < 123 {
+        if (-3..123).contains(&hc) {
             let ct = (hc + 3) & 7;
             if ct < 6 {
                 return hc + 6 - ct;
@@ -84,7 +84,7 @@ impl VideoFrame for Ula128VidFrame {
     #[inline(always)]
     fn snow_interference_coords(VideoTs { vc, hc }: VideoTs) -> Option<CellCoords> {
         let row = vc - Self::VSL_PIXELS.start;
-        if row >= 0 && vc < Self::VSL_PIXELS.end && hc >= 0 && hc <= 123 {
+        if row >= 0 && vc < Self::VSL_PIXELS.end && (0..=123).contains(&hc) {
             return match hc & 7 {
                 0|1 => Some(0),
                 2|3 => Some(1),

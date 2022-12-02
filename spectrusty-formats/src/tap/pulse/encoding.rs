@@ -69,38 +69,23 @@ impl PulseIterState {
     /// Returns `true` if there are no more pulses to emit or there
     /// was an error while reading bytes.
     pub fn is_done(&self) -> bool {
-        match self {
-            PulseIterState::Done|PulseIterState::Error(_) => true,
-            _ => false
-        }
+        matches!(self, PulseIterState::Done|PulseIterState::Error(..))
     }
     /// Returns `true` if emitting lead pulses.
     pub fn is_lead(&self) -> bool {
-        match self {
-            PulseIterState::Lead {..} => true,
-            _ => false
-        }
+        matches!(self, PulseIterState::Lead {..})
     }
     /// Returns `true` if emitting data pulses.
     pub fn is_data(&self) -> bool {
-        match self {
-            PulseIterState::Data {..} => true,
-            _ => false
-        }
+        matches!(self, PulseIterState::Data {..})
     }
     /// Returns `true` if emitting sync1 pulse.
     pub fn is_sync1(&self) -> bool {
-        match self {
-            PulseIterState::Sync1 => true,
-            _ => false
-        }
+        matches!(self, PulseIterState::Sync1)
     }
     /// Returns `true` if emitting sync2 pulse.
     pub fn is_sync2(&self) -> bool {
-        match self {
-            PulseIterState::Sync2 => true,
-            _ => false
-        }
+        matches!(self, PulseIterState::Sync2)
     }
 }
 

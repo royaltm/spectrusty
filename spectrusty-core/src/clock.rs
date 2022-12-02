@@ -596,8 +596,8 @@ impl<V: VideoFrame> TryFrom<FTs> for VFrameTs<V> {
     type Error = &'static str;
 
     fn try_from(ts: FTs) -> Result<Self, Self::Error> {
-        VFrameTs::try_from_tstates(ts).ok_or_else(
-            || "out of range video timestamp conversion attempted")
+        VFrameTs::try_from_tstates(ts).ok_or(
+            "out of range video timestamp conversion attempted")
     }
 }
 

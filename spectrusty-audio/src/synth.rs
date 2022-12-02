@@ -287,6 +287,7 @@ where I: Iterator<Item=&'a T>,
       O: BandLimOpt,
       T: Copy + MulNorm + IntoSample<S> + FromSample<f32>
 {
+    #[allow(clippy::useless_conversion)]
     fn drop(&mut self) {
         if self.sum_end.get().is_none() {
             for _ in self.into_iter() {}

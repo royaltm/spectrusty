@@ -233,7 +233,7 @@ pub trait SectorExt {
 
 
 /// An error returned when a [Sector]'s content is invalid.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MdrValidationError {
     /// An index of a faulty sector.
     pub index: u8,
@@ -253,7 +253,7 @@ pub struct Catalog {
 }
 
 /// [MicroCartridge]'s file meta data.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct CatFile {
     /// Size of the file in bytes (single copy).
     pub size: u32,
@@ -266,7 +266,7 @@ pub struct CatFile {
 }
 
 /// A [MicroCartridge]'s file type.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CatFileType {
     /// Represents a file created by the `OPEN #` command. Also called a `PRINT` file.
     Data,
@@ -305,7 +305,7 @@ pub struct SectorBlock {
 /// Occupies the first 9 bytes of a first data block.
 ///
 /// This is the equivalent of an [audio tape header][Header].
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[repr(C,packed)]
 pub struct MdrFileHeader {
     /// The type of the file this header represents.
@@ -553,7 +553,7 @@ impl SectorExt for Sector {
     }
 
     fn format(&mut self, seq: u8, catalog_name: &[u8]) {
-        if seq < 1 || seq > 245 {
+        if !(1..=245).contains(&seq) {
             panic!("HDNUMB must be between 1 and 254");
         }
         self.head[HDFLAG] = 1;
@@ -661,7 +661,7 @@ impl<'a> Iterator for FileSectorIter<'a> {
         if self.counter == 0 {
             return None
         }
-        while let Some((index, sector)) = self.iter.next() {
+        for (index, sector) in self.iter.by_ref() {
             if self.stop == index {
                 self.counter = 0;
             }
@@ -697,7 +697,7 @@ impl<'a> Iterator for FileSectorIdsUnordIter<'a> {
     type Item = SectorBlock;
 
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some((index, sector)) = self.iter.next() {
+        for (index, sector) in self.iter.by_ref() {
             if !sector.is_free() && sector.file_name() == &self.name {
                 let block_seq = sector.file_block_seq();
                 return Some(SectorBlock { index, block_seq })
@@ -807,12 +807,12 @@ impl MicroCartridgeExt for MicroCartridge {
         }
         let fbheader = MdrFileHeader::from(&header).into_array();
         let hdrd = io::Cursor::new(fbheader).chain(rd.take(header.length as u64));
-        let res = self.store_file(&header.name, true, hdrd)?;
+        let res = self.store_file(header.name, true, hdrd)?;
         {
             let mut checksum = 0u8;
             let res = rd.read_exact(slice::from_mut(&mut checksum));
             if res.is_err() || rd.checksum != 0 {
-                self.erase_file(&header.name);
+                self.erase_file(header.name);
                 return Err(io::Error::new(io::ErrorKind::InvalidData, "TAP block checksum error"))
             }
         }
@@ -977,7 +977,7 @@ impl MicroCartridgeExt for MicroCartridge {
                     "at least two sectors have the same identification number" })
             }
         }
-        Ok(header.map(|name| String::from_utf8_lossy(name)))
+        Ok(header.map(String::from_utf8_lossy))
     }
 
     fn validate_sectors(&self) -> Result<usize, MdrValidationError> {

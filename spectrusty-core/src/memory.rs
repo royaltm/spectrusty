@@ -65,7 +65,7 @@ impl From<ZxMemoryError> for io::Error {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
 pub enum MemoryKind {
     Rom,
@@ -73,7 +73,7 @@ pub enum MemoryKind {
 }
 
 /// A type returned by [ZxMemory::page_index_at].
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MemPageOffset {
     /// A kind of memory bank switched in.
     pub kind: MemoryKind,
@@ -84,7 +84,7 @@ pub struct MemPageOffset {
 }
 
 /// A type yielded by [ZxMemory::for_each_page_mut].
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum PageMutSlice<'a> {
     Rom(&'a mut [u8]),
     Ram(&'a mut [u8])
@@ -104,10 +104,7 @@ impl<'a> PageMutSlice<'a> {
     }
 
     pub fn is_rom(&self) -> bool {
-        match self {
-            PageMutSlice::Rom(..) => true,
-            _ => false
-        }
+        matches!(self, PageMutSlice::Rom(..))
     }
 
     pub fn as_mut_rom(&mut self) -> Option<&mut [u8]> {
@@ -125,10 +122,7 @@ impl<'a> PageMutSlice<'a> {
     }
 
     pub fn is_ram(&self) -> bool {
-        match self {
-            PageMutSlice::Ram(..) => true,
-            _ => false
-        }
+        matches!(self, PageMutSlice::Ram(..))
     }
 
     pub fn as_mut_ram(&mut self) -> Option<&mut [u8]> {

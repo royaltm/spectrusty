@@ -61,7 +61,7 @@ impl VideoFrame for Ula3VidFrame {
 
     #[inline]
     fn contention(hc: Ts) -> Ts {
-        if hc >= -3 && hc < 125 {
+        if (-3..125).contains(&hc) {
             let ct = (hc + 2) & 7;
             if ct != 0 {
                 return hc + 8 - ct;

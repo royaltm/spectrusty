@@ -51,7 +51,7 @@ pub struct ParallelPortWriter<T, W> {
 }
 
 /// A parallel port device that does nothing and provides a constant low `BUSY` signal.
-#[derive(Clone, Copy, Default, Debug, PartialEq)]
+#[derive(Clone, Copy, Default, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 pub struct NullParallelPort<T>(core::marker::PhantomData<T>);
 

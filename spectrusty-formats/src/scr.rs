@@ -36,7 +36,7 @@ const SCR_HIRES_SIZE: u64 = SCR_HICOLOR_SIZE + 1;
 const SCR_HIRES_PLUS_SIZE: u64 = SCR_HICOLOR_SIZE + 1 + PALETTE_SIZE;
 
 /// This enum indicates a current or requested screen mode.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScrMode {
     /// The default ULA screen mode.
     /// The `bool` should be `true` if the ULAplus palette is or should be supported. Otherwise it's `false`.

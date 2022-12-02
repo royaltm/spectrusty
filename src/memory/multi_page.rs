@@ -289,7 +289,7 @@ impl<M: MemoryBlock> MemPageableRomRamExRom<M> {
     #[inline]
     fn is_exrom_attached(&self, ex_rom: &ExRom) -> bool {
         if let Some(ExRomAttachment { ref rom, .. }) = self.ex_rom.as_ref() {
-            Rc::ptr_eq(&ex_rom, rom)
+            Rc::ptr_eq(ex_rom, rom)
         }
         else {
             false
@@ -314,7 +314,7 @@ impl<M: MemoryBlock> MemPageableRomRamExRom<M> {
         let page = page & M::Pages::PAGES_MASK;
         let page_p = self.pages.page_mut(page);
         let ptr = *page_p;
-        *page_p = M::cast_slice_as_bank_ptr(&*rom);
+        *page_p = M::cast_slice_as_bank_ptr(&rom);
         let ro = (self.ro_pages & ro_flag_mask(page)) != 0;
         self.ex_rom = Some(ExRomAttachment { page, ro, ptr, rom });
         self.ro_pages |= ro_flag_mask(page);

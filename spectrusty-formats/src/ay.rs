@@ -249,7 +249,7 @@ impl AyFile {
             debug!("PLAYER TWO");
             PLAYER_TWO
         };
-        rawmem[0x0000..player.len()].copy_from_slice(&player);
+        rawmem[0x0000..player.len()].copy_from_slice(player);
         if song.interrupt != 0 {
             let intr = song.interrupt.to_le_bytes();
             rawmem[PLAYER_TWO_INTERRUPT_OFFSET..PLAYER_TWO_INTERRUPT_OFFSET+intr.len()].copy_from_slice(&intr);
@@ -263,7 +263,7 @@ impl AyFile {
                 debug!("Block too large: ${:x}", address + data.len());
                 data = &data[..u16::max_value() as usize - address];
             }
-            rawmem[address..address+data.len()].copy_from_slice(&data);
+            rawmem[address..address+data.len()].copy_from_slice(data);
         }
         debug!("STACK: ${:x}", song.stack);
         // debug_memory(0x0000, &rawmem[0x0000..player.len()]);
@@ -301,7 +301,7 @@ impl AyFile {
 /****************************************************************************/
 /*                        OM NOM NOM NOM NOM NOM NOM                        */
 /****************************************************************************/
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct VerboseBytesError<'a> {
   errors: Vec<(&'a [u8], VerboseBytesErrorKind)>,
 }
@@ -345,7 +345,7 @@ impl<'a> VerboseBytesError<'a> {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 /// error context for `VerboseBytesError`
 enum VerboseBytesErrorKind {
   /// static string added by the `context` function
@@ -436,7 +436,7 @@ fn parse_ay_raw<'a, E: Clone + ContextError<&'a [u8]> + ParseError<&'a [u8]>>(
         else {
             raw.get(offset..offset+len)
         }.map(|blob| {
-            AyBlob::new(&blob)
+            AyBlob::new(blob)
         }).ok_or_else(|| {
             let (inp, context) = (&raw[raw.len()..], "data offset exceeding file size");
             Err::Failure(E::add_context(inp, context,
@@ -567,7 +567,7 @@ fn parse_ay_raw<'a, E: Clone + ContextError<&'a [u8]> + ParseError<&'a [u8]>>(
 }
 
 /// The type of error returned by the *AY* file parser.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AyParseError {
     /// Data parsed.
     pub data: Box<[u8]>,

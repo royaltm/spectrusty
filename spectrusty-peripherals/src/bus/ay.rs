@@ -124,7 +124,7 @@ macro_rules! impl_ay_audio_boxed_bus_device {
                 where B: Blep,
                       L: AmpLevels<B::SampleDelta>
             {
-                (&mut **self).render_ay_audio::<L, B>(blep, end_ts, frame_tstates, chans)
+                (**self).render_ay_audio::<L, B>(blep, end_ts, frame_tstates, chans)
             }
         }
     };
@@ -206,7 +206,7 @@ impl<SD, D> AyAudioBusDevice for DynamicSerdeBus<SD, D>
         where B: Blep,
               L: AmpLevels<B::SampleDelta>
     {
-        (&mut **self).render_ay_audio::<L, B>(blep, end_ts, frame_tstates, chans)
+        (**self).render_ay_audio::<L, B>(blep, end_ts, frame_tstates, chans)
     }
 }
 

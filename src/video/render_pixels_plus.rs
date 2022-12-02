@@ -1,3 +1,4 @@
+#![allow(clippy::unusual_byte_groupings)]
 /*
     Copyright (C) 2020  Rafal Michalski
 
@@ -176,7 +177,7 @@ impl TryFrom<u8> for RenderMode {
     type Error = TryFromU8RenderModeError;
     fn try_from(mode: u8) -> core::result::Result<Self, Self::Error> {
         RenderMode::from_bits(mode)
-                   .ok_or_else(|| TryFromU8RenderModeError(mode))
+                   .ok_or(TryFromU8RenderModeError(mode))
     }
 }
 
@@ -414,7 +415,7 @@ impl<'r, 'a, MI, PI, B, P, V> Worker<'r, 'a, MI, PI, B, P, V>
             else {
                 let (ink, paper) = if self.render_mode.is_palette() {
                     self.consume_palette_changes(ts);
-                    let (ink, paper) = attr_to_palette_color(attr, &self.palette);
+                    let (ink, paper) = attr_to_palette_color(attr, self.palette);
                     if self.render_mode.is_grayscale() {
                         (P::get_pixel_gray8(ink), P::get_pixel_gray8(paper))
                     }

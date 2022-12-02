@@ -145,7 +145,7 @@ impl From<bool> for ControlState {
 
 /// A serial port device that does nothing and provides a constant [ControlState::Inactive] signal
 /// on the `DTR` line and a [DataState::Mark] signal on the `TxD` line.
-#[derive(Clone, Copy, Default, Debug, PartialEq)]
+#[derive(Clone, Copy, Default, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 pub struct NullSerialPort<T>(core::marker::PhantomData<T>);
 

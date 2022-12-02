@@ -400,7 +400,7 @@ impl fmt::Display for TryFromU8BorderColorError {
 impl TryFrom<u8> for BorderColor {
     type Error = TryFromU8BorderColorError;
     fn try_from(color: u8) -> core::result::Result<Self, Self::Error> {
-        BorderColor::from_bits(color).ok_or_else(|| TryFromU8BorderColorError(color))
+        BorderColor::from_bits(color).ok_or(TryFromU8BorderColorError(color))
     }
 }
 

@@ -26,7 +26,7 @@ const DATA_PULSE_THRESHOLD: u32 = (ZERO_PULSE_LENGTH.get() + ONE_PULSE_LENGTH.ge
 const MIN_LEAD_COUNT: u32 = 16;
 
 /// The current state of the [PulseDecodeWriter].
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PulseDecodeState {
     /// Initial state, waiting for lead pulses.
     Idle,
@@ -73,38 +73,23 @@ pub struct PulseDecodeWriter<W> {
 impl PulseDecodeState {
     /// Returns `true` if the state is [PulseDecodeState::Idle].
     pub fn is_idle(&self) -> bool {
-        match self {
-            PulseDecodeState::Idle => true,
-            _ => false
-        }
+        matches!(self, PulseDecodeState::Idle)
     }
     /// Returns `true` if receiving lead pulses.
     pub fn is_lead(&self) -> bool {
-        match self {
-            PulseDecodeState::Lead {..} => true,
-            _ => false
-        }
+        matches!(self, PulseDecodeState::Lead {..})
     }
     /// Returns `true` if receiving data pulses.
     pub fn is_data(&self) -> bool {
-        match self {
-            PulseDecodeState::Data {..} => true,
-            _ => false
-        }
+        matches!(self, PulseDecodeState::Data {..})
     }
     /// Returns `true` if received sync1 pulse.
     pub fn is_sync1(&self) -> bool {
-        match self {
-            PulseDecodeState::Sync1 => true,
-            _ => false
-        }
+        matches!(self, PulseDecodeState::Sync1)
     }
     /// Returns `true` if received sync2 pulse.
     pub fn is_sync2(&self) -> bool {
-        match self {
-            PulseDecodeState::Sync2 => true,
-            _ => false
-        }
+        matches!(self, PulseDecodeState::Sync2)
     }
 }
 
@@ -236,14 +221,14 @@ impl<W: Write> PulseDecodeWriter<W> {
                 }
                 PulseDecodeState::Sync2 => match delta.get() {
                     delta @ DATA_PULSE_MIN..=DATA_PULSE_MAX => {
-                        let current: u8 = if delta > DATA_PULSE_THRESHOLD { 1 } else { 0 };
+                        let current = (delta > DATA_PULSE_THRESHOLD) as u8;
                         self.state = PulseDecodeState::Data { current, pulse: 1, written: 0 }
                     }
                     _ => { self.state = PulseDecodeState::Idle },
                 }
                 PulseDecodeState::Data { current, pulse, written } => match delta.get() {
                     delta @ DATA_PULSE_MIN..=DATA_PULSE_MAX => {
-                        let bit: u8 = if delta > DATA_PULSE_THRESHOLD { 1 } else { 0 };
+                        let bit = (delta > DATA_PULSE_THRESHOLD) as u8;
                         let current = if pulse & 1 == 1 {
                             if (current ^ bit) & 1 == 1 {
                                 return self.end();

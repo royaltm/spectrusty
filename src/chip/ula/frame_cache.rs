@@ -114,8 +114,8 @@ impl<'a, V> UlaFrameProducer<'a, V> {
         self.line_iter.frame_pixels = &fc.frame_pixels[line];
         self.line_iter.frame_colors = &fc.frame_colors[line];
         self.line_iter.frame_colors_coarse = &fc.frame_colors_coarse[line >> 3];
-        self.line_iter.ink_line = ink_line_from(line, &self.frame_ref.screen);
-        self.line_iter.attr_line = attr_line_from(line, &self.frame_ref.screen);
+        self.line_iter.ink_line = ink_line_from(line, self.frame_ref.screen);
+        self.line_iter.attr_line = attr_line_from(line, self.frame_ref.screen);
     }
 }
 

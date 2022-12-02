@@ -61,7 +61,7 @@ impl VideoFrame for UlaVideoFrame {
 
     #[inline]
     fn contention(hc: Ts) -> Ts {
-        if hc >= -1 && hc < 125 {
+        if (-1..125).contains(&hc) {
             let ct = (hc + 1) & 7;
             if ct < 6 {
                 return hc + 6 - ct;
@@ -84,7 +84,7 @@ impl VideoFrame for UlaVideoFrame {
         let row = vc - Self::VSL_PIXELS.start;
         if row >= 0 && vc < Self::VSL_PIXELS.end {
             let hc = hc - 2;
-            if hc >= 0 && hc <= 123 {
+            if (0..=123).contains(&hc) {
                 return match hc & 7 {
                     0|1 => Some(0),
                     2|3 => Some(1),

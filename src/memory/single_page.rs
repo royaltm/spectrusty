@@ -127,7 +127,7 @@ macro_rules! impl_zxmemory {
             fn write16(&mut self, addr: u16, val: u16) {
                 match addr {
                     #[allow(unused_comparisons)]
-                    a if a >= $rambot && a < $ramtop => unsafe {
+                    a if ($rambot..$ramtop).contains(&a) => unsafe {
                         let ptr: *mut u8 = self.mem.as_mut_ptr().offset(a as isize);
                         let ptr16 = ptr as *mut u16;
                         ptr16.write_unaligned(val.to_le());

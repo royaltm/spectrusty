@@ -634,11 +634,11 @@ impl TryFrom<&'_[u8]> for TapChunkInfo {
             }
             size => size
         };
-        match bytes.get(0) {
+        match bytes.first() {
             Some(&HEAD_BLOCK_FLAG) if size == HEADER_SIZE && checksum(bytes) == 0 => {
                 Header::try_from(&bytes[1..HEADER_SIZE-1])
                 .map(TapChunkInfo::Head)
-                .or_else(|_| Ok(TapChunkInfo::Unknown { size: size as u16, flag: HEAD_BLOCK_FLAG }))
+                .or(Ok(TapChunkInfo::Unknown { size: size as u16, flag: HEAD_BLOCK_FLAG }))
             }
             Some(&DATA_BLOCK_FLAG) => {
                 let checksum = checksum(bytes);
@@ -692,18 +692,13 @@ impl<T> TapChunk<T> where T: AsRef<[u8]> {
 
     /// Checks if this *TAP* chunk is a [Header] block.
     pub fn is_head(&self) -> bool {
-        match self.data.as_ref().get(0..2) {
-            Some(&[HEAD_BLOCK_FLAG, t]) if t & 3 == t => true,
-            _ => false
-        }
+        matches!(self.data.as_ref().get(0..2),
+                 Some(&[HEAD_BLOCK_FLAG, t]) if t & 3 == t)
     }
 
     /// Checks if this *TAP* chunk is a data block.
     pub fn is_data(&self) -> bool {
-        match self.data.as_ref().get(0) {
-            Some(&DATA_BLOCK_FLAG) => true,
-            _ => false
-        }
+        matches!(self.data.as_ref().first(), Some(&DATA_BLOCK_FLAG))
     }
 
     /// Checks if this *TAP* chunk is a valid data or [Header] block.

@@ -28,7 +28,7 @@ impl<'a> Read for MemDecompress<'a> {
             let fill_len = match deco {
                 Decompressed::Data(slice) => {
                     let len = slice.len();
-                    buf[..len].copy_from_slice(&slice);
+                    buf[..len].copy_from_slice(slice);
                     len
                 }
                 Decompressed::Repeat(repeat) => {

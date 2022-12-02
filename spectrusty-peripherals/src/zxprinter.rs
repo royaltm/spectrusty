@@ -260,7 +260,7 @@ impl<T: TimestampOps, S: Spooler> ZxPrinterDevice<T, S> {
 
 impl Spooler for DebugSpooler {
     fn push_line(&mut self, line: &[u8]) {
-        for b in line.iter().copied() {
+        for b in line {
             print!("{:02x}", b);
         }
         println!();

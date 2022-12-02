@@ -14,7 +14,7 @@ use spectrusty::formats::tap::*;
 
 pub mod romload;
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TapState {
     Idle,
     Playing,
@@ -104,18 +104,12 @@ impl<F: Write + Read + Seek> Tap<F> {
 
     /// Returns `true` if `self` is a [Tap::Reader].
     pub fn is_reader(&self) -> bool {
-        match self {
-            Tap::Reader(..) => true,
-            _ => false
-        }
+        matches!(self, Tap::Reader(..))
     }
 
     /// Returns `true` if `self` is a [Tap::Writer].
     pub fn is_writer(&self) -> bool {
-        match self {
-            Tap::Writer(..) => true,
-            _ => false
-        }
+        matches!(self, Tap::Writer(..))
     }
 
     /// Transforms the provided [Tap] into the [Tap::Reader] on success.

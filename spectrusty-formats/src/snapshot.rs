@@ -280,7 +280,7 @@ pub fn ensure_cpu_is_safe_for_snapshot<C: Cpu, M: ControlUnit + Video + MemoryAc
         }
         else if cpu.is_after_ei() {
             let VideoTs { vc, hc } = chip.current_video_ts();
-            if vc != 0 || hc < -1 || hc > 31 {
+            if vc != 0 || !(-1..=31).contains(&hc) {
                 return
             }
         }

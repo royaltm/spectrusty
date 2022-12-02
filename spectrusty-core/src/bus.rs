@@ -175,11 +175,11 @@ impl<D: BusDevice> BusDevice for Box<D> {
 
     #[inline(always)]
     fn next_device_mut(&mut self) -> &mut Self::NextDevice {
-        (&mut **self).next_device_mut()
+        (**self).next_device_mut()
     }
     #[inline(always)]
     fn next_device_ref(&self) -> &Self::NextDevice {
-        (& **self).next_device_ref()
+        (**self).next_device_ref()
     }
     #[inline]
     fn into_next_device(self) -> Self::NextDevice {
@@ -187,23 +187,23 @@ impl<D: BusDevice> BusDevice for Box<D> {
     }
     #[inline]
     fn reset(&mut self, timestamp: Self::Timestamp) {
-        (&mut **self).reset(timestamp)
+        (**self).reset(timestamp)
     }
     #[inline]
     fn update_timestamp(&mut self, timestamp: Self::Timestamp) {
-        (&mut **self).update_timestamp(timestamp)
+        (**self).update_timestamp(timestamp)
     }
     #[inline]
     fn next_frame(&mut self, eof_timestamp: Self::Timestamp) {
-        (&mut **self).next_frame(eof_timestamp)
+        (**self).next_frame(eof_timestamp)
     }
     #[inline]
     fn read_io(&mut self, port: u16, timestamp: Self::Timestamp) -> Option<(u8, Option<NonZeroU16>)> {
-        (&mut **self).read_io(port, timestamp)
+        (**self).read_io(port, timestamp)
     }
     #[inline]
     fn write_io(&mut self, port: u16, data: u8, timestamp: Self::Timestamp) -> Option<u16> {
-        (&mut **self).write_io(port, data, timestamp)
+        (**self).write_io(port, data, timestamp)
     }
 }
 

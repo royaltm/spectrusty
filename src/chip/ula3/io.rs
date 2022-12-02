@@ -65,7 +65,7 @@ impl<B, X> Io for Ula3<B, X>
 
     fn read_io(&mut self, port: u16, ts: VideoTs) -> (u8, Option<NonZeroU16>) {
         self.ula.ula_read_io(port, ts)
-                .unwrap_or_else(|| (u8::max_value(), None))
+                .unwrap_or((u8::max_value(), None))
     }
 
     fn write_io(&mut self, port: u16, data: u8, ts: VideoTs) -> (Option<()>, Option<NonZeroU16>) {

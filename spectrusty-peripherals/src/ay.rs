@@ -107,10 +107,10 @@ pub trait AyPortDecode: fmt::Debug {
 #[derive(Clone, Copy, Default, Debug)]
 pub struct Ay128kPortDecode;
 impl AyPortDecode for Ay128kPortDecode {
-    const PORT_MASK      : u16 = 0b11000000_00000010;
-    const PORT_SELECT    : u16 = 0b11000000_00000000;
-    const PORT_DATA_READ : u16 = 0b11000000_00000000;
-    const PORT_DATA_WRITE: u16 = 0b10000000_00000000;
+    const PORT_MASK      : u16 = 0b1100_0000_0000_0010;
+    const PORT_SELECT    : u16 = 0b1100_0000_0000_0000;
+    const PORT_DATA_READ : u16 = 0b1100_0000_0000_0000;
+    const PORT_DATA_WRITE: u16 = 0b1000_0000_0000_0000;
 }
 
 /// Matches I/O port addresses for AY-3-8912 used by the *Fuller Box* interface.
@@ -263,13 +263,13 @@ where A: AyIoPort<Timestamp=T>,
     }
     /// Returns an iterator of `(register, value)` pairs over current registers.
     #[inline]
-    pub fn iter_regs<'a>(&'a self) -> impl Iterator<Item=(AyRegister, u8)> + 'a {
+    pub fn iter_regs(&'_ self) -> impl Iterator<Item=(AyRegister, u8)> + '_ {
         self.regs.iter().enumerate().map(|(n, val)| ((n as u8).into(), *val))
     }
     /// Returns an iterator of `(register, value)` pairs over current registers used by the
     /// sound generator.
     #[inline]
-    pub fn iter_sound_gen_regs<'a>(&'a self) -> impl Iterator<Item=(AyRegister, u8)> + 'a {
+    pub fn iter_sound_gen_regs(&'_ self) -> impl Iterator<Item=(AyRegister, u8)> + '_ {
         self.iter_regs().take(NUM_SOUND_GEN_REGISTERS)
     }
     /// Sets a current value of the indicated register.
@@ -426,7 +426,7 @@ impl<T> AyRegRecorder for AyRegVecRecorder<T> {
 
 impl<T: Into<FTs>> AyRegVecRecorder<T> {
     /// Constructs a draining iterator of [AyRegChange] items from an inner [Vec].
-    pub fn drain_ay_reg_changes<'a>(&'a mut self) -> impl Iterator<Item=AyRegChange> + 'a {
+    pub fn drain_ay_reg_changes(&'_ mut self) -> impl Iterator<Item=AyRegChange> + '_ {
         self.0.drain(..).map(|(timestamp,reg,val)| AyRegChange::new_from_ts(timestamp,reg,val))
     }
 }

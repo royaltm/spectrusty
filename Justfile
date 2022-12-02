@@ -46,3 +46,19 @@ clippy:
         cargo clippy --no-default-features -- -D warnings && \
         cd ..; \
     done
+    cd spectrusty-audio && \
+        touch src/lib.rs && \
+        cargo clippy --features=sdl2 -- -D warnings && \
+        touch src/lib.rs && \
+        cargo clippy --features=cpal -- -D warnings && \
+        cd ..
+    cd spectrusty-utils && \
+        touch src/lib.rs && \
+        cargo clippy --features=sdl2 -- -D warnings && \
+        touch src/lib.rs && \
+        cargo clippy --features=minifb -- -D warnings && \
+        touch src/lib.rs && \
+        cargo clippy --features=winit -- -D warnings && \
+        touch src/lib.rs && \
+        cargo clippy --features=web-sys -- -D warnings && \
+        cd ..

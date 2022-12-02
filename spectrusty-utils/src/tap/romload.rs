@@ -226,7 +226,7 @@ fn is_rom_loading<C: Cpu, M: ZxMemory>(cpu: &C, mem: &M) -> Option<(u16, u16, u8
     }
 
     let de = cpu.get_reg16(StkReg16::DE);
-    if de < 1 || de > 0xFEFF {
+    if !(1..=0xFEFF).contains(&de) {
         return None;
     }
 

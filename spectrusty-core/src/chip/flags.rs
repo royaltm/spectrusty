@@ -210,7 +210,7 @@ impl fmt::Display for TryFromU8EarMicError {
 impl TryFrom<u8> for EarMic {
     type Error = TryFromU8EarMicError;
     fn try_from(earmic: u8) -> core::result::Result<Self, Self::Error> {
-        EarMic::from_bits(earmic).ok_or_else(|| TryFromU8EarMicError(earmic))
+        EarMic::from_bits(earmic).ok_or(TryFromU8EarMicError(earmic))
     }
 }
 
@@ -473,7 +473,7 @@ impl fmt::Display for TryFromU8ColorModeError {
 impl TryFrom<u8> for ColorMode {
     type Error = TryFromU8ColorModeError;
     fn try_from(color_mode: u8) -> core::result::Result<Self, Self::Error> {
-        ColorMode::from_bits(color_mode).ok_or_else(|| TryFromU8ColorModeError(color_mode))
+        ColorMode::from_bits(color_mode).ok_or(TryFromU8ColorModeError(color_mode))
     }
 }
 

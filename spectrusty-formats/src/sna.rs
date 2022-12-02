@@ -266,31 +266,29 @@ pub fn load_sna48<R: Read, S: SnapshotLoader>(
 }
 
 fn make_header<C: Cpu>(cpu: &C) -> SnaHeader {
-    let mut sna = SnaHeader::default();
-    sna.i = cpu.get_i();
-    sna.hl_alt = cpu.get_alt_reg16(StkReg16::HL).to_le_bytes();
-    sna.de_alt = cpu.get_alt_reg16(StkReg16::DE).to_le_bytes();
-    sna.bc_alt = cpu.get_alt_reg16(StkReg16::BC).to_le_bytes();
-    let (a_alt, f_alt) = cpu.get_alt_reg2(StkReg16::AF);
-    sna.a_alt = a_alt;
-    sna.f_alt = f_alt;
-    sna.hl = cpu.get_reg16(StkReg16::HL).to_le_bytes();
-    sna.de = cpu.get_reg16(StkReg16::DE).to_le_bytes();
-    sna.bc = cpu.get_reg16(StkReg16::BC).to_le_bytes();
-    let (a, f) = cpu.get_reg2(StkReg16::AF);
-    sna.a = a;
-    sna.f = f;
-    sna.iy = cpu.get_index16(Prefix::Yfd).to_le_bytes();
-    sna.ix = cpu.get_index16(Prefix::Xdd).to_le_bytes();
-    sna.r = cpu.get_r();
+    let mut sna = SnaHeader {
+        i: cpu.get_i(),
+        hl_alt: cpu.get_alt_reg16(StkReg16::HL).to_le_bytes(),
+        de_alt: cpu.get_alt_reg16(StkReg16::DE).to_le_bytes(),
+        bc_alt: cpu.get_alt_reg16(StkReg16::BC).to_le_bytes(),
+        hl: cpu.get_reg16(StkReg16::HL).to_le_bytes(),
+        de: cpu.get_reg16(StkReg16::DE).to_le_bytes(),
+        bc: cpu.get_reg16(StkReg16::BC).to_le_bytes(),
+        iy: cpu.get_index16(Prefix::Yfd).to_le_bytes(),
+        ix: cpu.get_index16(Prefix::Xdd).to_le_bytes(),
+        r: cpu.get_r(),
+        im: match cpu.get_im() {
+            InterruptMode::Mode0 => 0,
+            InterruptMode::Mode1 => 1,
+            InterruptMode::Mode2 => 2,
+        },
+        sp: cpu.get_sp().to_le_bytes(),
+        ..Default::default()
+    };
+    (sna.a_alt, sna.f_alt) = cpu.get_alt_reg2(StkReg16::AF);
+    (sna.a, sna.f) = cpu.get_reg2(StkReg16::AF);
     let (iff1, _) = cpu.get_iffs();
     sna.iffs = (iff1 as u8) << 2;
-    sna.im = match cpu.get_im() {
-        InterruptMode::Mode0 => 0,
-        InterruptMode::Mode1 => 1,
-        InterruptMode::Mode2 => 2,
-    };
-    sna.sp = cpu.get_sp().to_le_bytes();
     sna
 }
 
@@ -366,9 +364,12 @@ pub fn save_sna<C: SnapshotCreator, W: Write>(
     }
 
     let memflags = snapshot.ula128_flags();
-    let mut sna_ext = SnaHeader128::default();
-    sna_ext.pc = cpu.get_pc().to_le_bytes();
-    sna_ext.port_data = memflags.bits();
+    let mut sna_ext = SnaHeader128 {
+        pc: cpu.get_pc().to_le_bytes(),
+        port_data: memflags.bits(),
+        ..Default::default()
+    };
+
     if extensions.intersects(Extensions::TR_DOS) {
         sna_ext.trdos_rom = snapshot.is_tr_dos_rom_paged_in().into();
     }

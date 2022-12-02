@@ -19,7 +19,7 @@ pub mod cpal;
 pub mod sdl2;
 
 /// A list specifying categories of [AudioHandleError] error.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AudioHandleErrorKind {
     /// This error occurs when the audio subsystem host or device is not available.
     AudioSubsystem,

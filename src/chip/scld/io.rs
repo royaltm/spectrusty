@@ -70,7 +70,7 @@ impl<M, B, X, V> Io for Scld<M, B, X, V>
             }
             else {
                 self.ula.bus.read_io(port, VFrameTs::from(ts).into())
-                            .unwrap_or_else(|| (!0, None) )
+                            .unwrap_or((!0, None))
             }
         }
     }

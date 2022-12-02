@@ -159,13 +159,13 @@ impl<R: Read> TryFrom<&'_ mut Take<R>> for TapChunkInfo {
             HEAD_BLOCK_FLAG if limit == HEADER_SIZE as u64 => {
                 let mut header: [u8; HEADER_SIZE - 1] = Default::default();
                 rd.read_exact(&mut header)?;
-                if checksum(&header) != flag {
+                if checksum(header) != flag {
                     Ok(TapChunkInfo::Unknown { size: limit as u16, flag })
                 }
                 else {
                     Header::try_from(&header[..HEADER_SIZE - 2])
                     .map(TapChunkInfo::Head)
-                    .or_else(|_| Ok(TapChunkInfo::Unknown { size: limit as u16, flag }))
+                    .or(Ok(TapChunkInfo::Unknown { size: limit as u16, flag }))
                 }
             }
             DATA_BLOCK_FLAG => {

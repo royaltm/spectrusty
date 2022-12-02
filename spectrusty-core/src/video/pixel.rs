@@ -137,6 +137,7 @@ pub struct GrayscalePalR5G6B5;
 /// A grayscale ZX Spectrum [Palette] implementation to be used with [PixelBufP8].
 pub struct GrayscalePalR3G3B2;
 
+#[allow(clippy::unusual_byte_groupings)]
 #[inline]
 fn index_to_grb(index: u8) -> u8 {
     #[allow(clippy::inconsistent_digit_grouping)]

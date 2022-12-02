@@ -157,7 +157,7 @@ impl fmt::Display for TryFromU8SourceModeError {
 impl TryFrom<u8> for SourceMode {
     type Error = TryFromU8SourceModeError;
     fn try_from(mode: u8) -> Result<Self, Self::Error> {
-        SourceMode::from_bits(mode).ok_or_else(|| TryFromU8SourceModeError(mode))
+        SourceMode::from_bits(mode).ok_or(TryFromU8SourceModeError(mode))
     }
 }
 
@@ -231,26 +231,26 @@ impl<'a, V, I> ScldFrameProducer<'a, V, I>
         let source = self.source;
 
         if source.is_second_screen() {
-            self.line_iter.ink_line = ink_line_from(line, &self.frame_ref.screen1);
+            self.line_iter.ink_line = ink_line_from(line, self.frame_ref.screen1);
             self.line_iter.frame_pixels = &self.frame_ref.frame_cache1.frame_pixels[line];
         }
         else {
-            self.line_iter.ink_line = ink_line_from(line, &self.frame_ref.screen0);
+            self.line_iter.ink_line = ink_line_from(line, self.frame_ref.screen0);
             self.line_iter.frame_pixels = &self.frame_ref.frame_cache0.frame_pixels[line];
         }
 
         if source.is_hi_color() {
-            self.line_iter.attr_line = ink_line_from(line, &self.frame_ref.screen1);
+            self.line_iter.attr_line = ink_line_from(line, self.frame_ref.screen1);
             self.line_iter.frame_colors = &self.frame_ref.frame_cache1.frame_pixels[line];
             self.line_iter.frame_colors_coarse = EMPTY_FRAME_LINE;
         }
         else if source.is_second_screen() {
-            self.line_iter.attr_line = attr_line_from(line, &self.frame_ref.screen1);
+            self.line_iter.attr_line = attr_line_from(line, self.frame_ref.screen1);
             self.line_iter.frame_colors = &self.frame_ref.frame_cache1.frame_colors[line];
             self.line_iter.frame_colors_coarse = &self.frame_ref.frame_cache1.frame_colors_coarse[line >> 3];
         }
         else {
-            self.line_iter.attr_line = attr_line_from(line, &self.frame_ref.screen0);
+            self.line_iter.attr_line = attr_line_from(line, self.frame_ref.screen0);
             self.line_iter.frame_colors = &self.frame_ref.frame_cache0.frame_colors[line];
             self.line_iter.frame_colors_coarse = &self.frame_ref.frame_cache0.frame_colors_coarse[line >> 3];
         }
