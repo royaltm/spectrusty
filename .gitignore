@@ -18,3 +18,4 @@ sftp-config.json
 *.ay
 *.tar.gz
 *.tar.bz2
+*.tar.xz
