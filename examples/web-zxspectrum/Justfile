@@ -14,18 +14,21 @@ serve:
 webpack:
     NODE_ENV={{node_env}} npx webpack
 
-# clean cargo build
+# create distribution files - MIR optimized (rustc nightly)
+webpack-mir:
+    RUSTFLAGS="-Ccodegen-units=1 -Zno-parallel-llvm -Zmir-opt-level=4 \
+    -Zprint-fuel=z80emu \
+    -Zinline-mir=yes -Zinline-mir-threshold=500 -Zinline-mir-hint-threshold=1000" \
+    NODE_ENV={{node_env}} npx webpack
+
+# clean cargo build and webpack artefacts
 clean:
     cargo clean
     rm -rf pkg
-    rm -f {{name}}.js
-    rm -f {{name}}.d.ts
-    rm -f {{name}}_bg.d.ts
-    rm -f {{name}}_bg.wasm
 
 # remove all compiled files from dist and an archived tar file
 distclean: clean
-    rm -f {{name}}.tar.bz2
+    rm -f {{name}}.tar.{bz2,xz,gz}
     rm -rf dist
 
 # gzip all files in dist for distribution
@@ -36,7 +39,7 @@ gzip:
 
 # prepare a distribution tar file
 pack:
-    tar -cvjf {{name}}.tar.bz2 -C dist .
+    tar -cvaf {{name}}.tar.xz -C dist .
 
 # create distribution files and pack them
 dist: webpack gzip pack
