@@ -58,8 +58,8 @@ first two bytes of rom .................................^^^^^
 checksum (checkbittoggle would be a better name!).............^^
 ```
 
-The above text uses material from the ["TAP format"](https://faqwiki.zxnet.co.uk/wiki/TAP_format) article
-on the [Sinclair FAQ wiki](https://faqwiki.zxnet.co.uk/) and is released under the
+The above text uses material from the ["TAP format"](https://sinclair.wiki.zxnet.co.uk/wiki/TAP_format) article
+on the [Sinclair FAQ wiki](https://sinclair.wiki.zxnet.co.uk/) and is released under the
 [Creative Commons Attribution-Share Alike License](https://creativecommons.org/licenses/by-sa/3.0/).
 
 

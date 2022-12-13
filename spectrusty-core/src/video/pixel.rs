@@ -62,7 +62,7 @@ pub trait Palette {
     ///
     /// See [Palette::get_pixel] for color values.
     fn get_pixel_gray(index: u8) -> Self::Pixel;
-    /// Should return one of [ULAplus](https://faqwiki.zxnet.co.uk/wiki/ULAplus#GRB_palette_entries) colors.
+    /// Should return one of [ULAplus](https://sinclair.wiki.zxnet.co.uk/wiki/ULAplus#GRB_palette_entries) colors.
     fn get_pixel_grb8(g3r3b2: u8) -> Self::Pixel;
     /// Should return a grayscale pixel (0 - black, 255 - full intensity white).
     fn get_pixel_gray8(value: u8) -> Self::Pixel;

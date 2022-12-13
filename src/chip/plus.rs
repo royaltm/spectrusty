@@ -15,7 +15,7 @@ The [UlaPlus] chipset responds to the ports (fully decoded):
 * `0xBF3B` - the register port (write-only),
 * `0xFF3B` - the data port (read and write)
 
-and provides the new graphics capabilities according to the ULAplus version 1.1 [specification](https://faqwiki.zxnet.co.uk/wiki/ULAplus).
+and provides the new graphics capabilities according to the ULAplus version 1.1 [specification](https://sinclair.wiki.zxnet.co.uk/wiki/ULAplus).
 
 Implementation specifics (may change in the future releases):
 

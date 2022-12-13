@@ -8,7 +8,7 @@ ZX Spectrum emulator as a native application with hardware bindings via [SDL2] l
 
 This is an example of how to built a complete emulator program using SPECTRUSTY, including printers, serial and parallel ports and also [ZX Interface I] functions.
 
-However, to enable `ZX Interface I` in the emulator, you need to obtain a copy of its shadow ROM [if1-2.rom](https://faqwiki.zxnet.co.uk/wiki/ROM_images) first.
+However, to enable `ZX Interface I` in the emulator, you need to obtain a copy of its shadow ROM [if1-2.rom](https://sinclair.wiki.zxnet.co.uk/wiki/ROM_images) first.
 
 
 Usage
