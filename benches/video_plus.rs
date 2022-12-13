@@ -227,7 +227,8 @@ fn bench_video<V>(
                 black_box(&mut buffer);
             }
         });
-    }).unwrap();
+        Ok(())
+    }).unwrap().unwrap();
     let time = median / 1.0e9;
     eprintln!("frames / s: {:.0}, median time: {} s", 50.0/time, time);
 }

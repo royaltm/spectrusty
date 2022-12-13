@@ -64,7 +64,8 @@ fn boot_spectrum<U, C: Cpu>(ben: &mut Bencher, boot_frms: u64, boot_ts: i32, ini
             // println!("{}", ula.current_frame());
             black_box(&mut cpu);
         });
-    }).unwrap();
+        Ok(())
+    }).unwrap().unwrap();
     let time = median / 1.0e9;
     let boot_cycles = boot_frms * U::VideoFrame::FRAME_TSTATES_COUNT as u64 + boot_ts as u64;
     eprintln!("boot cycles: {}", boot_cycles);

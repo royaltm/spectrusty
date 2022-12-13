@@ -88,7 +88,8 @@ where T: Copy + Default + AddAssign + MulNorm + FromSample<f32> + SampleDelta + 
                 blep.next_frame();
             }
         });
-    }).unwrap();
+        Ok(())
+    }).unwrap().unwrap();
     let time = median / 1.0e9;
     eprintln!("frames / s: {:.0}, median time: {} s", 50.0/time, time);
 }
