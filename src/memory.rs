@@ -97,22 +97,18 @@ RAMTOP | Bank 0 | 0xffff
 mod single_page;
 mod multi_page;
 
+use std::convert::TryInto;
+
 pub use spectrusty_core::memory::*;
 pub use single_page::*;
 pub use multi_page::*;
 
 #[inline(always)]
 pub(self) fn screen_slice_to_array_ref(slice: &[u8]) -> &ScreenArray {
-    assert!(slice.len() == core::mem::size_of::<ScreenArray>());
-    let ptr = slice.as_ptr() as *const ScreenArray;
-    // SAFETY: ok because we just checked that the length fits
-    unsafe { &*ptr }
+    slice.try_into().unwrap()
 }
 
 #[inline(always)]
 pub(self) fn screen_slice_to_array_mut(slice: &mut [u8]) -> &mut ScreenArray {
-    assert!(slice.len() == core::mem::size_of::<ScreenArray>());
-    let ptr = slice.as_mut_ptr() as *mut ScreenArray;
-    // SAFETY: ok because we just checked that the length fits
-    unsafe { &mut *ptr }
+    slice.try_into().unwrap()
 }

@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020  Rafal Michalski
+    Copyright (C) 2020-2022  Rafal Michalski
 
     This file is part of SPECTRUSTY, a Rust library for building emulators.
 
@@ -8,12 +8,12 @@
 use core::ptr::NonNull;
 use core::slice;
 use std::rc::Rc;
-
+use std::convert::TryInto;
 #[cfg(feature = "snapshot")] mod serde;
 #[cfg(feature = "snapshot")]
 use ::serde::Serialize;
 #[cfg(feature = "snapshot")]
-use super::serde::{MemSerExt, MemDeExt, serialize_mem, deserialize_mem};
+use super::serde::{MemSerExt, serialize_mem, deserialize_mem};
 use super::{MEM8K_SIZE, MEM16K_SIZE, MEM32K_SIZE, MEM48K_SIZE, MEM64K_SIZE, MEM128K_SIZE};
 
 use super::{
@@ -28,17 +28,17 @@ use super::{
 };
 
 /// An EX-ROM attachable, paged (16k) memory type with 16kb RAM and 16kb ROM.
-pub type Memory16kEx = MemPageableRomRamExRom<[u8; MEM48K_SIZE]>;
+pub type Memory16kEx = MemPageableRomRamExRom<MEM48K_SIZE, MEM16K_SIZE, {MEM64K_SIZE/MEM16K_SIZE}>;
 /// An EX-ROM attachable, paged (16k) memory type with 48kb RAM and 16kb ROM.
-pub type Memory48kEx = MemPageableRomRamExRom<[u8; MEM64K_SIZE]>;
+pub type Memory48kEx = MemPageableRomRamExRom<MEM64K_SIZE, MEM16K_SIZE, {MEM64K_SIZE/MEM16K_SIZE}>;
 /// An EX-ROM attachable, paged (16k) memory type with 128kb RAM and 32kb ROM.
-pub type Memory128k = MemPageableRomRamExRom<[u8; MEM32K_SIZE + MEM128K_SIZE]>;
+pub type Memory128k = MemPageableRomRamExRom<{MEM32K_SIZE + MEM128K_SIZE}, MEM16K_SIZE, {MEM64K_SIZE/MEM16K_SIZE}>;
 /// An EX-ROM attachable, paged (16k) memory type with 128kb RAM and 64kb ROM.
-pub type Memory128kPlus = MemPageableRomRamExRom<[u8; MEM64K_SIZE + MEM128K_SIZE]>;
+pub type Memory128kPlus = MemPageableRomRamExRom<{MEM64K_SIZE + MEM128K_SIZE}, MEM16K_SIZE, {MEM64K_SIZE/MEM16K_SIZE}>;
 /// An EX-ROM attachable, paged (8k) memory type with 48kb RAM and 96kb ROM (64kb DOCK, 8kB EX-ROM, 16kB ROM).
-pub type Memory48kDock64kEx = MemPageableRomRamExRom<[u8; MEM8K_SIZE + MEM128K_SIZE]>;
+pub type Memory48kDock64kEx = MemPageableRomRamExRom<{MEM8K_SIZE + MEM128K_SIZE}, MEM8K_SIZE, {MEM64K_SIZE/MEM8K_SIZE}>;
 /// An EX-ROM attachable, paged (8k) memory type with 272kb RAM and 32kb ROM.
-pub type Memory272k = MemPageableRomRamExRom<[u8; MEM48K_SIZE + MEM128K_SIZE + MEM128K_SIZE]>;
+pub type Memory272k = MemPageableRomRamExRom<{MEM48K_SIZE + MEM128K_SIZE + MEM128K_SIZE}, MEM8K_SIZE, {MEM64K_SIZE/MEM8K_SIZE}>;
 
 pub trait PagedMemory16k: ZxMemory {}
 pub trait PagedMemory8k: ZxMemory {}
@@ -52,122 +52,98 @@ impl PagedMemory8k for Memory272k {}
 
 const SCLD_SCREEN_OFFSET: usize = 0x2000;
 
-pub struct MemPageableRomRamExRom<M: MemoryBlock> {
-    mem: Box<M>,
+// NUM_PAGES is covariant to PAGE_SIZE but const generics with complex expressions aren't available yet
+type Memory<const MEM_SIZE: usize> = [u8; MEM_SIZE];
+type MemoryBox<const MEM_SIZE: usize> = Box<Memory<MEM_SIZE>>;
+type MemoryBank<const PAGE_SIZE: usize> = [u8;PAGE_SIZE];
+#[derive(Clone, Copy)]
+#[repr(transparent)]
+struct MemoryPages<const PAGE_SIZE: usize,
+                   const NUM_PAGES: usize>([NonNull<MemoryBank<PAGE_SIZE>>; NUM_PAGES]);
+
+pub struct MemPageableRomRamExRom<const MEM_SIZE: usize, const PAGE_SIZE: usize, const NUM_PAGES: usize>
+{
+    mem: MemoryBox<MEM_SIZE>,
     ro_pages: u8,
-    pages: M::Pages,
-    ex_rom: Option<ExRomAttachment<<M::Pages as MemoryPages>::PagePtrType>>,
+    pages: MemoryPages<PAGE_SIZE, NUM_PAGES>,
+    ex_rom: Option<ExRomAttachment<PAGE_SIZE>>,
 }
 
 #[doc(hidden)]
-pub trait MemoryBlock: Sized {
-    type Pages: MemoryPages;
+pub trait MemoryConfig {
     const ROM_BANKS: usize;
     const RAM_BANKS: usize;
     const SCR_BANKS: usize;
-    const BANK_SIZE: usize;
     const DEFAULT_PAGES: &'static [usize];
     const SCR_BANK_OFFSETS: &'static [usize];
-    fn new() -> Self;
-    fn as_slice(&self) -> &[u8];
-    fn as_mut_slice(&mut self) -> &mut [u8];
-    fn cast_slice_as_bank_ptr(slice: &[u8]) -> NonNull<<Self::Pages as MemoryPages>::PagePtrType> {
-        assert!(slice.len() >= core::mem::size_of::<<Self::Pages as MemoryPages>::PagePtrType>());
-        let ptr = slice.as_ptr() as *const <Self::Pages as MemoryPages>::PagePtrType;
-        // SAFETY: ok because we just checked that the length fits
-        NonNull::from(unsafe { &(*ptr) })
+}
+
+fn cast_slice_as_bank_ptr<const PAGE_SIZE: usize>(slice: &[u8]) -> NonNull<MemoryBank<PAGE_SIZE>> {
+    assert!(slice.len() >= core::mem::size_of::<MemoryBank<PAGE_SIZE>>());
+    let ptr = slice.as_ptr() as *const MemoryBank<PAGE_SIZE>;
+    // SAFETY: ok because we just checked that the length fits
+    NonNull::from(unsafe { &(*ptr) })
+}
+
+impl<const PAGE_SIZE: usize,
+     const NUM_PAGES: usize> MemoryPages<PAGE_SIZE, NUM_PAGES>
+{
+    const PAGES_MASK: u8 = (NUM_PAGES - 1) as u8;
+
+    fn new() -> Self {
+        MemoryPages([NonNull::dangling(); NUM_PAGES])
+    }
+
+    #[inline(always)]
+    fn page(&self, page: u8) -> NonNull<MemoryBank<PAGE_SIZE>> {
+        self.0[(page & Self::PAGES_MASK) as usize]
+    }
+
+    #[inline(always)]
+    fn page_mut(&mut self, page: u8) -> &mut NonNull<MemoryBank<PAGE_SIZE>> {
+        &mut self.0[(page & Self::PAGES_MASK) as usize]
     }
 }
 
-#[doc(hidden)]
-pub trait MemoryPages {
-    type PagePtrType;
-    const PAGES_MASK: u8;
-    fn new() -> Self;
-    fn len() -> usize {
-        Self::PAGES_MASK as usize + 1
-    }
-    fn page(&self, page: u8) -> NonNull<Self::PagePtrType>;
-    fn page_mut(&mut self, page: u8) -> &mut NonNull<Self::PagePtrType>;
-}
-
-macro_rules! impl_memory_block {
-    ($pagesize:expr) => {
-        impl MemoryPages for [NonNull<[u8; $pagesize]>; MEM64K_SIZE/$pagesize] {
-            type PagePtrType = [u8; $pagesize]; // size must be the same as BANK_SIZE
-            const PAGES_MASK: u8 = (MEM64K_SIZE / $pagesize - 1) as u8;
-            fn new() -> Self {
-                [NonNull::dangling();MEM64K_SIZE / $pagesize]
-            }
-            #[inline(always)]
-            fn page(&self, page: u8) -> NonNull<[u8; $pagesize]> {
-                self[(page & Self::PAGES_MASK) as usize]
-            }
-            #[inline(always)]
-            fn page_mut(&mut self, page: u8) -> &mut NonNull<[u8; $pagesize]> {
-                &mut self[(page & Self::PAGES_MASK) as usize]
-            }
-        }
-    }
-}
-
-impl_memory_block!(MEM16K_SIZE);
-impl_memory_block!(MEM8K_SIZE);
-
-macro_rules! impl_memory_block {
+macro_rules! memory_config {
     (@repl $_t:tt $sub:expr) => {$sub};
-    (@count $($x:expr),*) => {0usize $(+ impl_memory_block!(@repl $x 1usize))*};
+    (@count $($x:expr),*) => {0usize $(+ memory_config!(@repl $x 1usize))*};
     (ROM($n:literal)) => { $n };
     (RAM($n:literal)) => { Self::ROM_BANKS + $n };
     ($pagesize:expr, $memsize:expr, $roms:literal, $rams:literal, [$($memtype:ident $bank:literal),*], [$($scr:expr),*]) => {
-        impl MemoryBlock for [u8; $memsize] {
-            type Pages = [NonNull<[u8; $pagesize]>; MEM64K_SIZE / $pagesize];
+        impl MemoryConfig for MemPageableRomRamExRom<{$memsize}, $pagesize, {MEM64K_SIZE / $pagesize}> {
             const ROM_BANKS: usize = $roms;
             const RAM_BANKS: usize = $rams;
-            const SCR_BANKS: usize = 2 * impl_memory_block!(@count $($scr),*);
-            const BANK_SIZE: usize = $pagesize;
-            const DEFAULT_PAGES: &'static [usize] = &[$(impl_memory_block!($memtype($bank))),*];
+            const SCR_BANKS: usize = 2 * memory_config!(@count $($scr),*);
+            // const BANK_SIZE: usize = $pagesize;
+            const DEFAULT_PAGES: &'static [usize] = &[$(memory_config!($memtype($bank))),*];
             const SCR_BANK_OFFSETS: &'static [usize] = &[$(
-                (Self::ROM_BANKS + $scr) * Self::BANK_SIZE
+                (Self::ROM_BANKS + $scr) * $pagesize
             ,)
             // add SCLD screen pages
             *$(
-                SCLD_SCREEN_OFFSET + (Self::ROM_BANKS + $scr) * Self::BANK_SIZE
+                SCLD_SCREEN_OFFSET + (Self::ROM_BANKS + $scr) * $pagesize
             ),*];
-
-            fn new() -> Self {
-                [!0; $memsize]
-            }
-
-            #[inline(always)]
-            fn as_slice(&self) -> &[u8] {
-                &self[..]
-            }
-
-            #[inline(always)]
-            fn as_mut_slice(&mut self) -> &mut [u8] {
-                &mut self[..]
-            }
         }
     };
 }
 
-impl_memory_block!(MEM16K_SIZE, MEM48K_SIZE, 2, 1, [ROM 0, RAM 0, ROM 1, ROM 1], [0]);
-impl_memory_block!(MEM16K_SIZE, MEM64K_SIZE, 1, 3, [ROM 0, RAM 0, RAM 1, RAM 2], [0]);
-impl_memory_block!(MEM16K_SIZE, MEM32K_SIZE + MEM128K_SIZE, 2, 8, [ROM 0, RAM 5, RAM 2, RAM 0], [5, 7]);
-impl_memory_block!(MEM16K_SIZE, MEM64K_SIZE + MEM128K_SIZE, 4, 8, [ROM 0, RAM 5, RAM 2, RAM 0], [5, 7]);
-impl_memory_block!(MEM8K_SIZE, MEM8K_SIZE + MEM128K_SIZE, 11, 6,
+memory_config!(MEM16K_SIZE, MEM48K_SIZE, 2, 1, [ROM 0, RAM 0, ROM 1, ROM 1], [0]);
+memory_config!(MEM16K_SIZE, MEM64K_SIZE, 1, 3, [ROM 0, RAM 0, RAM 1, RAM 2], [0]);
+memory_config!(MEM16K_SIZE, MEM32K_SIZE + MEM128K_SIZE, 2, 8, [ROM 0, RAM 5, RAM 2, RAM 0], [5, 7]);
+memory_config!(MEM16K_SIZE, MEM64K_SIZE + MEM128K_SIZE, 4, 8, [ROM 0, RAM 5, RAM 2, RAM 0], [5, 7]);
+memory_config!(MEM8K_SIZE, MEM8K_SIZE + MEM128K_SIZE, 11, 6,
                                         [ROM 9, ROM 10, RAM 0, RAM 1, RAM 2, RAM 3, RAM 4, RAM 5], [0]);
-impl_memory_block!(MEM8K_SIZE, MEM48K_SIZE + MEM128K_SIZE + MEM128K_SIZE, 4, 34,
+memory_config!(MEM8K_SIZE, MEM48K_SIZE + MEM128K_SIZE + MEM128K_SIZE, 4, 34,
                                         [ROM 0, ROM 1, RAM 10, RAM 11, RAM 16, RAM 17, RAM 0, RAM 1], [10, 14]);
 
 #[cfg_attr(feature = "snapshot", derive(Serialize))]
-struct ExRomAttachment<P> {
+struct ExRomAttachment<const PAGE_SIZE: usize> {
     page: u8,
     #[cfg_attr(feature = "snapshot", serde(skip_serializing))]
     ro: bool,
     #[cfg_attr(feature = "snapshot", serde(skip_serializing))]
-    ptr: NonNull<P>,
+    ptr: NonNull<[u8;PAGE_SIZE]>,
     #[cfg_attr(feature = "snapshot", serde(serialize_with = "serialize_mem"))]
     rom: ExRom
 }
@@ -178,13 +154,14 @@ enum WordPageOffset {
     Boundary { page: u8, offset: u16, next_page: u8 },
 }
 
-impl<M: MemoryBlock> Default for MemPageableRomRamExRom<M> {
+impl<const MEM_SIZE: usize, const PAGE_SIZE: usize, const NUM_PAGES: usize
+     > Default for MemPageableRomRamExRom<MEM_SIZE, PAGE_SIZE, NUM_PAGES>
+    where Self: MemoryConfig
+{
     fn default() -> Self {
-        let mem = Box::new(M::new());
-        let pages = M::Pages::new();
         let mut mem = MemPageableRomRamExRom {
-            mem,
-            pages,
+            mem: Box::new([!0; MEM_SIZE]),
+            pages: MemoryPages::new(),
             ex_rom: None,
             ro_pages: 0
         };
@@ -193,10 +170,10 @@ impl<M: MemoryBlock> Default for MemPageableRomRamExRom<M> {
     }
 }
 
-impl<M: MemoryBlock> Clone for MemPageableRomRamExRom<M>
-    where M: Clone,
-          M::Pages: Copy,
-          for <'a> &'a mut M::Pages: IntoIterator<Item=&'a mut NonNull<<M::Pages as MemoryPages>::PagePtrType>>
+impl<const MEM_SIZE: usize,
+     const PAGE_SIZE: usize,
+     const NUM_PAGES: usize> Clone for MemPageableRomRamExRom<MEM_SIZE, PAGE_SIZE, NUM_PAGES>
+    where Self: MemoryConfig
 {
     fn clone(&self) -> Self {
         let ro_pages = self.ro_pages;
@@ -214,10 +191,11 @@ impl<M: MemoryBlock> Clone for MemPageableRomRamExRom<M>
             }
         });
         // now lets re-map pointers to our copy of mem
-        let old_mem_ptr = self.mem.as_slice().as_ptr() as usize;
-        for p in pages.into_iter() {
-            let offset = p.as_ptr() as usize - old_mem_ptr;
-            *p = M::cast_slice_as_bank_ptr(&mem.as_slice()[offset..offset + M::BANK_SIZE]);
+        let old_mem_ptr: *const u8 = self.mem.as_ptr();
+        for p in pages.0.iter_mut() {
+            let offset = unsafe { (p.as_ptr() as *const u8).offset_from(old_mem_ptr) };
+            let offset: usize = offset.try_into().unwrap();
+            *p = cast_slice_as_bank_ptr(&mem[offset..offset + PAGE_SIZE]);
         }
         if let Some(exr) = ex_rom.as_mut() { // now swap pointers back
             core::mem::swap(&mut exr.ptr, pages.page_mut(exr.page));
@@ -231,20 +209,26 @@ fn ro_flag_mask(page: u8) -> u8 {
     1 << page
 }
 
-impl<M: MemoryBlock> MemPageableRomRamExRom<M> {
-    #[inline]
+impl<const MEM_SIZE: usize,
+     const PAGE_SIZE: usize,
+     const NUM_PAGES: usize> MemPageableRomRamExRom<MEM_SIZE, PAGE_SIZE, NUM_PAGES>
+    where Self: MemoryConfig
+{
+    const PAGES_MASK: u8 = MemoryPages::<PAGE_SIZE, NUM_PAGES>::PAGES_MASK;
+
+    #[inline(always)]
     fn as_slice(&self) -> &[u8] {
-        self.mem.as_slice()
+        &self.mem[..]
     }
-    #[inline]
+    #[inline(always)]
     fn as_mut_slice(&mut self) -> &mut[u8] {
-        self.mem.as_mut_slice()
+        &mut self.mem[..]
     }
-    #[inline]
+    #[inline(always)]
     fn mem_page_ptr(&self, page: u8) -> *const u8 {
         self.pages.page(page).as_ptr() as *const u8
     }
-    #[inline]
+    #[inline(always)]
     fn mem_page_mut_ptr(&mut self, page: u8) -> *mut u8 {
         self.pages.page_mut(page).as_ptr() as *mut u8
     }
@@ -252,18 +236,18 @@ impl<M: MemoryBlock> MemPageableRomRamExRom<M> {
     fn reset_banks(&mut self) {
         self.ro_pages = 0;
         self.ex_rom = None;
-        for (page, &bank) in M::DEFAULT_PAGES.iter().enumerate() {
+        for (page, &bank) in Self::DEFAULT_PAGES.iter().enumerate() {
             self.map_bank_on_page(bank, page as u8);
         }
     }
     #[inline(always)]
     fn byte_address_to_page_offset(address: u16) -> (u8, u16) {
-        ((address >> (M::BANK_SIZE as u16).trailing_zeros()) as u8, address & (M::BANK_SIZE - 1) as u16)
+        ((address >> (PAGE_SIZE as u16).trailing_zeros()) as u8, address & (PAGE_SIZE - 1) as u16)
     }
-    #[inline]
+    #[inline(always)]
     fn word_address_to_page_offset(address: u16) -> WordPageOffset {
         let (page, offset) = Self::byte_address_to_page_offset(address);
-        let next_page = (address.wrapping_add(1) >> (M::BANK_SIZE as u16).trailing_zeros()) as u8;
+        let next_page = (address.wrapping_add(1) >> (PAGE_SIZE as u16).trailing_zeros()) as u8;
         if page == next_page {
             WordPageOffset::Fits {
                 page, offset
@@ -311,21 +295,21 @@ impl<M: MemoryBlock> MemPageableRomRamExRom<M> {
 
     fn attach_exrom(&mut self, rom: ExRom, page: u8) {
         self.unpage_exrom();
-        let page = page & M::Pages::PAGES_MASK;
+        let page = page & Self::PAGES_MASK;
         let page_p = self.pages.page_mut(page);
         let ptr = *page_p;
-        *page_p = M::cast_slice_as_bank_ptr(&rom);
+        *page_p = cast_slice_as_bank_ptr(&*rom);
         let ro = (self.ro_pages & ro_flag_mask(page)) != 0;
         self.ex_rom = Some(ExRomAttachment { page, ro, ptr, rom });
         self.ro_pages |= ro_flag_mask(page);
     }
 
     fn map_bank_on_page(&mut self, bank: usize, page: u8) {
-        let page = page & M::Pages::PAGES_MASK;
-        let offset = bank * M::BANK_SIZE;
-        let slice = &self.as_slice()[offset..offset + M::BANK_SIZE];
-        let ptr = M::cast_slice_as_bank_ptr(slice);
-        let ro = bank < M::ROM_BANKS;
+        let page = page & Self::PAGES_MASK;
+        let offset = bank * PAGE_SIZE;
+        let slice = &self.mem[offset..offset + PAGE_SIZE];
+        let ptr = cast_slice_as_bank_ptr(slice);
+        let ro = bank < Self::ROM_BANKS;
         if let Some(ex_rom_att) = self.ex_rom.as_mut() {
             if ex_rom_att.page == page {
                 ex_rom_att.ptr = ptr;
@@ -345,30 +329,32 @@ impl<M: MemoryBlock> MemPageableRomRamExRom<M> {
 
     fn bank_on_page(&self, page: u8) -> usize {
         let bank_p = self.ex_rom.as_ref()
-                      .filter(|ex| ex.page == page & M::Pages::PAGES_MASK)
+                      .filter(|ex| ex.page == page & Self::PAGES_MASK)
                       .map(|ex| ex.ptr)
                       .unwrap_or_else(|| self.pages.page(page));
-        let mem_ptr = self.mem.as_slice().as_ptr() as usize;
-        let offset = bank_p.as_ptr() as usize - mem_ptr;
-        offset / M::BANK_SIZE
+        let mem_ptr: *const u8 = self.as_slice().as_ptr();
+        let offset = unsafe { (bank_p.as_ptr() as *const u8).offset_from(mem_ptr) };
+        offset as usize / PAGE_SIZE
     }
 
     #[inline(always)]
     fn is_writable_page(&self, page: u8) -> bool {
-        self.ro_pages & ro_flag_mask(page & M::Pages::PAGES_MASK) == 0
+        self.ro_pages & ro_flag_mask(page & Self::PAGES_MASK) == 0
     }
 }
 
-impl<M> ZxMemory for MemPageableRomRamExRom<M>
-    where M: MemoryBlock
+impl<const MEM_SIZE: usize,
+     const PAGE_SIZE: usize,
+     const NUM_PAGES: usize> ZxMemory for MemPageableRomRamExRom<MEM_SIZE, PAGE_SIZE, NUM_PAGES>
+    where Self: MemoryConfig
 {
-    const PAGE_SIZE: usize = M::BANK_SIZE;
-    const ROM_SIZE: usize = M::ROM_BANKS*M::BANK_SIZE;
+    const PAGE_SIZE: usize = PAGE_SIZE;
+    const ROM_SIZE: usize = Self::ROM_BANKS*PAGE_SIZE;
     const RAMTOP: u16 = u16::max_value();
-    const PAGES_MAX: u8 = <M::Pages as MemoryPages>::PAGES_MASK;
-    const SCR_BANKS_MAX: usize = M::SCR_BANKS as usize - 1;
-    const RAM_BANKS_MAX: usize = M::RAM_BANKS as usize - 1;
-    const ROM_BANKS_MAX: usize = M::ROM_BANKS as usize - 1;
+    const PAGES_MAX: u8 = Self::PAGES_MASK;
+    const SCR_BANKS_MAX: usize = Self::SCR_BANKS as usize - 1;
+    const RAM_BANKS_MAX: usize = Self::RAM_BANKS as usize - 1;
+    const ROM_BANKS_MAX: usize = Self::ROM_BANKS as usize - 1;
     // const FEATURES: MemoryFeatures = MemoryFeatures::NONE;
 
     #[inline(always)]
@@ -436,7 +422,7 @@ impl<M> ZxMemory for MemPageableRomRamExRom<M>
 
     #[inline]
     fn read_screen(&self, screen_bank: usize, addr: u16) -> u8 {
-        let offset = M::SCR_BANK_OFFSETS[screen_bank];
+        let offset = Self::SCR_BANK_OFFSETS[screen_bank];
         if addr < SCREEN_SIZE {
             unsafe {
                 self.as_slice().as_ptr().add(offset + addr as usize).read()
@@ -457,17 +443,17 @@ impl<M> ZxMemory for MemPageableRomRamExRom<M>
     }
     #[inline]
     fn screen_ref(&self, screen_bank: usize) -> Result<&ScreenArray> {
-        match M::SCR_BANK_OFFSETS.get(screen_bank) {
+        match Self::SCR_BANK_OFFSETS.get(screen_bank) {
             Some(&offset) => {
                 Ok(screen_slice_to_array_ref(
-                    &self.as_slice()[offset..offset + SCREEN_SIZE as usize]))
+                    &self.mem[offset..offset + SCREEN_SIZE as usize]))
             }
             None => Err(ZxMemoryError::InvalidBankIndex)
         }
     }
     #[inline]
     fn screen_mut(&mut self, screen_bank: usize) -> Result<&mut ScreenArray> {
-        match M::SCR_BANK_OFFSETS.get(screen_bank) {
+        match Self::SCR_BANK_OFFSETS.get(screen_bank) {
             Some(&offset) => {
                 Ok(screen_slice_to_array_mut(
                     &mut self.as_mut_slice()[offset..offset + SCREEN_SIZE as usize]))
@@ -492,11 +478,11 @@ impl<M> ZxMemory for MemPageableRomRamExRom<M>
             return Err(ZxMemoryError::InvalidPageIndex)
         }
         let bank = self.bank_on_page(page);
-        if bank < M::ROM_BANKS {
+        if bank < Self::ROM_BANKS {
             Ok((MemoryKind::Rom, bank))
         }
         else {
-            Ok((MemoryKind::Ram, bank - M::ROM_BANKS))
+            Ok((MemoryKind::Ram, bank - Self::ROM_BANKS))
         }
     }
     #[inline]
@@ -521,24 +507,24 @@ impl<M> ZxMemory for MemPageableRomRamExRom<M>
         if rom_bank > Self::ROM_BANKS_MAX {
             return Err(ZxMemoryError::InvalidBankIndex)
         }
-        let offset = M::BANK_SIZE * rom_bank;
-        Ok(&self.as_slice()[offset..offset+M::BANK_SIZE])
+        let offset = PAGE_SIZE * rom_bank;
+        Ok(&self.mem[offset..offset+PAGE_SIZE])
     }
 
     fn rom_bank_mut(&mut self, rom_bank: usize) -> Result<&mut[u8]> {
         if rom_bank > Self::ROM_BANKS_MAX {
             return Err(ZxMemoryError::InvalidBankIndex)
         }
-        let offset = M::BANK_SIZE * rom_bank;
-        Ok(&mut self.as_mut_slice()[offset..offset+M::BANK_SIZE])
+        let offset = PAGE_SIZE * rom_bank;
+        Ok(&mut self.as_mut_slice()[offset..offset+PAGE_SIZE])
     }
 
     fn ram_bank_ref(&self, ram_bank: usize) -> Result<&[u8]> {
         if ram_bank > Self::RAM_BANKS_MAX {
             return Err(ZxMemoryError::InvalidBankIndex)
         }
-        let offset = M::BANK_SIZE * ram_bank + Self::ROM_SIZE;
-        Ok(&self.as_slice()[offset..offset + M::BANK_SIZE])
+        let offset = PAGE_SIZE * ram_bank + Self::ROM_SIZE;
+        Ok(&self.mem[offset..offset + PAGE_SIZE])
     }
 
 
@@ -546,8 +532,8 @@ impl<M> ZxMemory for MemPageableRomRamExRom<M>
         if ram_bank > Self::RAM_BANKS_MAX {
             return Err(ZxMemoryError::InvalidBankIndex)
         }
-        let offset = M::BANK_SIZE * ram_bank + Self::ROM_SIZE;
-        Ok(&mut self.as_mut_slice()[offset..offset+M::BANK_SIZE])
+        let offset = PAGE_SIZE * ram_bank + Self::ROM_SIZE;
+        Ok(&mut self.as_mut_slice()[offset..offset+PAGE_SIZE])
     }
 
     fn map_rom_bank(&mut self, rom_bank: usize, page: u8) -> Result<()> {
@@ -568,14 +554,14 @@ impl<M> ZxMemory for MemPageableRomRamExRom<M>
         if page > Self::PAGES_MAX {
             return Err(ZxMemoryError::InvalidPageIndex)
         }
-        self.map_bank_on_page(ram_bank + M::ROM_BANKS, page);
+        self.map_bank_on_page(ram_bank + Self::ROM_BANKS, page);
         Ok(())
     }
     fn map_exrom(&mut self, exrom_bank: ExRom, page: u8) -> Result<()> {
         if page > Self::PAGES_MAX {
             Err(ZxMemoryError::InvalidPageIndex)
         }
-        else if exrom_bank.len() >= M::BANK_SIZE {
+        else if exrom_bank.len() >= PAGE_SIZE {
             self.attach_exrom(exrom_bank, page);
             Ok(())
         }

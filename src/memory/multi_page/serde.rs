@@ -1,26 +1,23 @@
 /*
-    Copyright (C) 2020  Rafal Michalski
+    Copyright (C) 2022  Rafal Michalski
 
     This file is part of SPECTRUSTY, a Rust library for building emulators.
 
     For the full copyright notice, see the lib.rs file.
 */
 use core::convert::TryFrom;
-use core::ptr::NonNull;
-use arrayvec::ArrayVec;
 use serde::{Serialize, Deserialize};
 use serde::ser::{self, Serializer, SerializeStruct};
 use serde::de::{self, Deserializer};
+use super::super::arrays;
 use super::{
-    ExRom, MemoryBlock, MemoryPages, MemPageableRomRamExRom, MemSerExt, MemDeExt,
+    ExRom, MemoryConfig, MemoryBox, MemoryPages, MemPageableRomRamExRom, MemSerExt,
+    cast_slice_as_bank_ptr,
     ro_flag_mask, serialize_mem, deserialize_mem};
 
-const MAX_PAGES: usize = 8;
-
-impl<M: MemoryBlock> Serialize for MemPageableRomRamExRom<M>
-    where M::Pages: Copy,
-          for<'a> &'a Box<M>: MemSerExt,
-          for<'a> &'a M::Pages: IntoIterator<Item=&'a NonNull<<M::Pages as MemoryPages>::PagePtrType>>
+impl<const MEM_SIZE: usize, const PAGE_SIZE: usize, const NUM_PAGES: usize
+    > Serialize for MemPageableRomRamExRom<MEM_SIZE, PAGE_SIZE, NUM_PAGES>
+    where Self: MemoryConfig
 {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
 
@@ -30,19 +27,25 @@ impl<M: MemoryBlock> Serialize for MemPageableRomRamExRom<M>
             #[serde(serialize_with = "serialize_mem")] &'a M
         ) where &'a M: MemSerExt;
 
+        #[derive(Serialize)]
+        #[serde(transparent)]
+        struct BanksWrap<const NUM_PAGES: usize>(
+            #[serde(with = "arrays")]
+            [u8; NUM_PAGES]
+        );
+
         let mut pages = self.pages;
         if let Some(exrom) = &self.ex_rom {
             *pages.page_mut(exrom.page) = exrom.ptr;
         }
-        let mem_ptr = self.mem.as_slice().as_ptr() as usize;
-        let banks: ArrayVec<u8,MAX_PAGES> = pages.into_iter()
-                                     .map(|p| p.as_ptr() as usize - mem_ptr)
-                                     .map(|offset| {
-                                        assert_eq!(offset % M::BANK_SIZE, 0);
-                                        u8::try_from(offset / M::BANK_SIZE)
-                                     })
-                                     .collect::<Result<_,_>>()
-                                     .map_err(|err| ser::Error::custom(err.to_string()))?;
+        let mem_ptr: *const u8 = self.mem.as_ptr();
+        let mut banks = BanksWrap([0u8; NUM_PAGES]);
+        for (p, b) in pages.0.iter().zip(banks.0.iter_mut()) {
+            let offset = unsafe { (p.as_ptr() as *const u8).offset_from(mem_ptr) };
+            assert_eq!(offset % PAGE_SIZE as isize, 0);
+            *b = u8::try_from(offset / PAGE_SIZE as isize)
+                    .map_err(|err| ser::Error::custom(err.to_string()))?;
+        }
         let mut state = serializer.serialize_struct("MemPageableRomRamExRom", 3)?;
         state.serialize_field("mem", &MemSerWrap(&self.mem))?;
         state.serialize_field("pages", &banks)?;
@@ -51,19 +54,20 @@ impl<M: MemoryBlock> Serialize for MemPageableRomRamExRom<M>
     }
 }
 
-impl<'de, M: MemoryBlock> Deserialize<'de> for MemPageableRomRamExRom<M>
-    where Box<M>: MemDeExt,
-          for<'a> &'a mut M::Pages: IntoIterator<Item=&'a mut NonNull<<M::Pages as MemoryPages>::PagePtrType>>
+impl<'de,
+     const MEM_SIZE: usize, const PAGE_SIZE: usize, const NUM_PAGES: usize
+     > Deserialize<'de> for MemPageableRomRamExRom<MEM_SIZE, PAGE_SIZE, NUM_PAGES>
+    where Self: MemoryConfig
 {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
         where D: Deserializer<'de>
     {
         #[derive(Deserialize)]
-        struct MemTemp<M: MemoryBlock> where Box<M>: MemDeExt {
+        struct MemTemp<const MEM_SIZE: usize, const NUM_PAGES: usize> {
             #[serde(deserialize_with = "deserialize_mem")]
-            mem: Box<M>,
-            #[serde(rename(deserialize = "pages"))]
-            banks: ArrayVec<u8,MAX_PAGES>,
+            mem: MemoryBox<MEM_SIZE>,
+            #[serde(with = "arrays",rename(deserialize = "pages"))]
+            banks: [u8;NUM_PAGES],
             exrom: Option<ExRomTemp>
         }
 
@@ -74,37 +78,32 @@ impl<'de, M: MemoryBlock> Deserialize<'de> for MemPageableRomRamExRom<M>
             rom: ExRom
         }
 
-        let MemTemp::<M> { mem, banks, exrom } = Deserialize::deserialize(deserializer)?;
-        if banks.len() != M::Pages::len() {
-            return Err(de::Error::custom(format!("memory pages: {} != expected {}",
-                                                    banks.len(), M::Pages::len())));
-        }
+        let MemTemp::<MEM_SIZE, NUM_PAGES> { mem, banks, exrom } = Deserialize::deserialize(deserializer)?;
 
-        let mut pages = M::Pages::new();
+        let mut pages = MemoryPages::<PAGE_SIZE, NUM_PAGES>::new();
         let mut ro_pages = 0;
-        let mem_slice = mem.as_slice();
-        let offset_max = mem_slice.len() - M::BANK_SIZE;
-        for ((p, bank), page) in pages.into_iter().zip(banks).zip(0u8..) {
-            let offset =  bank as usize * M::BANK_SIZE;
+        let offset_max = mem.len() - PAGE_SIZE;
+        for ((p, bank), page) in pages.0.iter_mut().zip(banks).zip(0u8..) {
+            let offset =  bank as usize * PAGE_SIZE;
             if offset > offset_max {
                 return Err(de::Error::custom(format!("memory bank: {} larger than max: {}",
-                                                        bank, offset_max / M::BANK_SIZE)));
+                                                        bank, offset_max / PAGE_SIZE)));
             }
-            if (bank as usize) < M::ROM_BANKS {
+            if (bank as usize) < Self::ROM_BANKS {
                 ro_pages |= ro_flag_mask(page);
             }
-            *p = M::cast_slice_as_bank_ptr(&mem_slice[offset..offset + M::BANK_SIZE]);
+            *p = cast_slice_as_bank_ptr(&mem[offset..offset + PAGE_SIZE]);
         }
 
         let mut res = MemPageableRomRamExRom { mem, pages, ro_pages, ex_rom: None};
         if let Some(ExRomTemp { page, rom }) = exrom {
-            if rom.len() != M::BANK_SIZE {
+            if rom.len() != PAGE_SIZE {
                 return Err(de::Error::custom(format!("attached ex-rom size incorrect: {} != {}",
-                                                        rom.len(), M::BANK_SIZE)));
+                                                        rom.len(), PAGE_SIZE)));
             }
-            if page > <M::Pages as MemoryPages>::PAGES_MASK {
+            if page > Self::PAGES_MASK {
                 return Err(de::Error::custom(format!("attached ex-rom page: {}  larger than max: {}",
-                                                        page, <M::Pages as MemoryPages>::PAGES_MASK)));
+                                                        page, Self::PAGES_MASK)));
             }
             res.attach_exrom(rom, page);
         }
@@ -115,9 +114,9 @@ impl<'de, M: MemoryBlock> Deserialize<'de> for MemPageableRomRamExRom<M>
 #[cfg(test)]
 mod tests {
     use std::rc::Rc;
-    use super::*;
     use crate::memory::multi_page::MEM16K_SIZE;
     use crate::memory::*;
+    use core::ptr::NonNull;
 
     fn page_mem_offset(mem: &[u8], ptr: NonNull<[u8; MEM16K_SIZE]>) -> usize {
         let mem_ptr = mem.as_ptr() as usize;
@@ -136,7 +135,7 @@ mod tests {
         if let Some(ex_rom) = &mem_de.ex_rom {
             *pages_de.page_mut(ex_rom.page) = ex_rom.ptr;
         }
-        for (&a, &b) in pages.iter().zip(pages_de.iter()) {
+        for (&a, &b) in pages.0.iter().zip(pages_de.0.iter()) {
             page_mem_offset(&mem.mem_ref(), a);
             page_mem_offset(&mem_de.mem_ref(), b);
         }

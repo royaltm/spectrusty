@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020  Rafal Michalski
+    Copyright (C) 2020-2022  Rafal Michalski
 
     This file is part of SPECTRUSTY, a Rust library for building emulators.
 
@@ -12,6 +12,7 @@ use std::rc::Rc;
 use std::io::{self, Read};
 
 mod extension;
+#[cfg(feature = "snapshot")] pub mod arrays;
 #[cfg(feature = "snapshot")] pub mod serde;
 
 pub use extension::*;

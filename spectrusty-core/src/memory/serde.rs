@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020  Rafal Michalski
+    Copyright (C) 2020-2022  Rafal Michalski
 
     This file is part of SPECTRUSTY, a Rust library for building emulators.
 
@@ -9,8 +9,8 @@
 use core::fmt;
 use std::borrow::Cow;
 use std::rc::Rc;
+use std::convert::TryInto;
 #[cfg(feature = "compression")] use core::iter::FromIterator;
-
 #[cfg(feature = "compression")] use compression::prelude::*;
 #[cfg(feature = "compression")] use serde::ser;
 
@@ -18,8 +18,6 @@ use serde::{
     Serializer, Deserialize, Deserializer,
     de::{self, Visitor}
 };
-
-use super::{MEM8K_SIZE, MEM32K_SIZE, MEM48K_SIZE, MEM64K_SIZE, MEM128K_SIZE};
 
 pub fn serialize_mem<T, S>(mem: &T, serializer: S) -> Result<S::Ok, S::Error>
     where S: Serializer,
@@ -80,86 +78,55 @@ pub trait MemDeExt: Sized {
     fn try_from_bytes<E: de::Error>(slice: &[u8]) -> Result<Self, E>;
 }
 
-macro_rules! impl_box_mem_ser_de_ext {
-    ($len:expr) => {
-        impl MemSerExt for Box<[u8;$len]> {
-            fn as_slice(&self) -> &[u8] {
-                &self[..]
-            }
-        }
-
-        impl MemDeExt for Box<[u8;$len]> {
-            const PREFER_FROM_BYTE_BUF: bool = true;
-
-            #[allow(unused_mut)]
-            fn try_from_byte_buf<E: de::Error>(mut buf: Vec<u8>) -> Result<Self, E> {
-                #[cfg(feature = "compression")]
-                {
-                    if is_compressed(&buf) {
-                        buf = decompress(&buf)?;
-                    }
-                }
-                if buf.len() == $len {
-                    let buf = buf.into_boxed_slice();
-                    Ok(unsafe { Box::from_raw(Box::into_raw(buf) as *mut [u8; $len]) })
-                }
-                else {
-                    Err(de::Error::custom(
-                        format!("failed to deserialize memory, {} bytes required, received: {}",
-                                $len, buf.len())
-                    ))
-                }
-            }
-
-            fn try_from_bytes<E: de::Error>(slice: &[u8]) -> Result<Self, E> {
-                #[cfg(feature = "compression")]
-                {
-                    if is_compressed(slice) {
-                        return Self::try_from_byte_buf(decompress(slice)?)
-                    }
-                }
-                Self::try_from_byte_buf(Vec::from(slice))
-            }
-        }
-    };
+impl<const LEN: usize> MemSerExt for Box<[u8;LEN]> {
+    fn as_slice(&self) -> &[u8] {
+        &self[..]
+    }
 }
 
-impl_box_mem_ser_de_ext!(MEM32K_SIZE);
-impl_box_mem_ser_de_ext!(MEM48K_SIZE);
-impl_box_mem_ser_de_ext!(MEM64K_SIZE);
-impl_box_mem_ser_de_ext!(MEM32K_SIZE + MEM128K_SIZE);
-impl_box_mem_ser_de_ext!(MEM64K_SIZE + MEM128K_SIZE);
-impl_box_mem_ser_de_ext!(MEM128K_SIZE + MEM128K_SIZE);
-impl_box_mem_ser_de_ext!(MEM8K_SIZE + MEM128K_SIZE);
-impl_box_mem_ser_de_ext!(MEM48K_SIZE + MEM128K_SIZE + MEM128K_SIZE);
+impl<const LEN: usize> MemDeExt for Box<[u8;LEN]> {
+    const PREFER_FROM_BYTE_BUF: bool = true;
 
-macro_rules! impl_mem_de_ext {
-    ($len:expr) => {
-        impl MemDeExt for [u8;$len] {
-            const PREFER_FROM_BYTE_BUF: bool = false;
-
-            fn try_from_byte_buf<E: de::Error>(buf: Vec<u8>) -> Result<Self, E> {
-                Self::try_from_bytes(&buf)
-            }
-
-            fn try_from_bytes<E: de::Error>(slice: &[u8]) -> Result<Self, E> {
-                if slice.len() == $len {
-                    let mut array = [0u8;$len];
-                    array.copy_from_slice(slice);
-                    Ok(array)
-                }
-                else {
-                    Err(de::Error::custom(
-                        format!("failed to deserialize a byte array, {} bytes required, received: {}",
-                                $len, slice.len())
-                    ))
-                }
+    #[allow(unused_mut)]
+    fn try_from_byte_buf<E: de::Error>(mut buf: Vec<u8>) -> Result<Self, E> {
+        #[cfg(feature = "compression")]
+        {
+            if is_compressed(&buf) {
+                buf = decompress(&buf)?;
             }
         }
-    };
+        let buf = buf.into_boxed_slice();
+        buf.try_into().map_err(|buf: Box<[_]>|
+            de::Error::custom(
+                format!("failed to deserialize memory, {} bytes required, received: {}",
+                    LEN, buf.len())))
+    }
+
+    fn try_from_bytes<E: de::Error>(slice: &[u8]) -> Result<Self, E> {
+        #[cfg(feature = "compression")]
+        {
+            if is_compressed(slice) {
+                return Self::try_from_byte_buf(decompress(slice)?)
+            }
+        }
+        Self::try_from_byte_buf(Vec::from(slice))
+    }
 }
 
-impl_mem_de_ext!(64);
+impl<const LEN: usize> MemDeExt for [u8;LEN] {
+    const PREFER_FROM_BYTE_BUF: bool = false;
+
+    fn try_from_byte_buf<E: de::Error>(buf: Vec<u8>) -> Result<Self, E> {
+        Self::try_from_bytes(&buf)
+    }
+
+    fn try_from_bytes<E: de::Error>(slice: &[u8]) -> Result<Self, E> {
+        slice.try_into().map_err(|_|
+            de::Error::custom(
+                format!("failed to deserialize a byte array, {} bytes required, received: {}",
+                    LEN, slice.len())))
+    }
+}
 
 impl<'a, T: MemSerExt> MemSerExt for &'a T {
     fn as_slice(&self) -> &[u8] {
