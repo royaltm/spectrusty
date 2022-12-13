@@ -16,7 +16,8 @@ use std::vec;
 #[cfg(feature = "snapshot")] mod serde;
 #[cfg(feature = "snapshot")]
 use ::serde::{Serialize, Deserialize};
-use bitvec::prelude::*;
+
+use ::bitvec::prelude::*;
 
 use spectrusty_core::clock::{FTs, TimestampOps};
 

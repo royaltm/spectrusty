@@ -411,6 +411,7 @@ impl<V: VideoFrame, C: MemoryContention> Clock for VFrameTsCounter<V, C> {
         self.as_timestamp()
     }
 
+    #[inline(always)]
     fn add_no_mreq(&mut self, address: u16, add_ts: NonZeroU8) {
         let mut hc = self.hc;
         if V::is_contended_line_no_mreq(self.vc) && self.contention.is_contended_address(address) {
@@ -424,6 +425,7 @@ impl<V: VideoFrame, C: MemoryContention> Clock for VFrameTsCounter<V, C> {
         self.vts.set_hc_after_small_increment(hc);
     }
 
+    #[inline(always)]
     fn add_m1(&mut self, address: u16) -> Self::Timestamp {
         // match address {
         //     // 0x8043 => println!("0x{:04x}: {} {:?}", address, self.as_tstates(), self.tsc),
@@ -441,6 +443,7 @@ impl<V: VideoFrame, C: MemoryContention> Clock for VFrameTsCounter<V, C> {
         self.as_timestamp()
     }
 
+    #[inline(always)]
     fn add_mreq(&mut self, address: u16) -> Self::Timestamp {
         let hc = if V::is_contended_line_mreq(self.vc) && self.contention.is_contended_address(address) {
             V::contention(self.hc)
