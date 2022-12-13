@@ -38,7 +38,9 @@ use web_sys::{
     GainNode,
 };
 use wasm_bindgen_futures::{JsFuture, future_to_promise};
+use serde::Serialize;
 use serde_json::json;
+use serde_wasm_bindgen::Serializer;
 
 use player::*;
 
@@ -130,7 +132,7 @@ impl AyPlayerHandle {
         Self::play_next_frame(time + duration, &self.player)
         .map(|_| {
             self.status = PlayerStatus::Playing;
-            serde_wasm_bindgen::to_value(&song_info).unwrap()
+            song_info.serialize(&Serializer::json_compatible()).unwrap()
         })
     }
 
@@ -229,7 +231,8 @@ impl AyPlayerHandle {
                     Ok(info) => info,
                     Err(err) => return reject(err.into())
                 };
-                let _ = resolve.call1(&JsValue::NULL, &serde_wasm_bindgen::to_value(&info).unwrap());
+                let _ = resolve.call1(&JsValue::NULL,
+                                      &info.serialize(&Serializer::json_compatible()).unwrap());
             });
             file_reader.set_onloadend(Some(cb.unchecked_ref()));
         })
@@ -248,7 +251,7 @@ impl AyPlayerHandle {
         let array_buffer = JsFuture::from(response.array_buffer()?).await?;
         let data = Uint8Array::new(&array_buffer).to_vec();
         let info = player.borrow_mut().player.load_file(data)?;
-        Ok(serde_wasm_bindgen::to_value(&info).unwrap())
+        Ok(info.serialize(&Serializer::json_compatible()).unwrap())
     }
     /// Toggles paused state. Returns a `Promise` which resolves to `true` if paused
     /// or `false` if unpaused, `null` if not playing.
