@@ -25,7 +25,7 @@ version = "0.8"
 features = ["small_rng"]
 
 [dependencies.base64]
-version = "0.13"
+version = "0.20"
 optional = true
 
 [dependencies.serde]
