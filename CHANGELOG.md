@@ -1,3 +1,15 @@
+v0.4.0
+* spectrusty-core: z80emu bumped to 0.8.
+* spectrusty-core: memory serializer re-implemented internally using const generics, custom array (de)serializer added.
+* spectrusty: *breaking* `ZxMemory` types re-implemented using const generics:
+  - `SinglePageMemory` struct introduced instead of separate `Memory16k`, `Memory48k`, `Memory64k` structs.
+  - `Memory16k`, `Memory48k`, `Memory64k` are now type aliases of `SinglePageMemory`.
+  - `MemPageableRomRamExRom` has a new signature.
+* deps: arrayvec is not longer needed, bumped cpal and base64
+* examples: simple_logger (audio examples) downgraded for Rust 1.59 compatibility.
+* examples: web fixed: exported values are back to JSON compatible.
+* examples: sdl2-zxspectrum: added build features.
+
 v0.3.3
 * spectrusty-core: z80emu bumped to 0.7.
 * spectrusty-audio: cpal bumped to 0.14.1.
