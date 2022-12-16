@@ -1,6 +1,6 @@
 name := 'web-zxspectrum'
-target_dir := '../../target/wasm32-unknown-unknown/release/'
 node_env := env_var_or_default('NODE_ENV', "production")
+optimizations := '-Zno-parallel-llvm -Ccodegen-units=1'
 
 # install npm deps
 install:
@@ -16,10 +16,8 @@ webpack:
 
 # create distribution files - MIR optimized (rustc nightly)
 webpack-mir:
-    RUSTFLAGS="-Ccodegen-units=1 -Zno-parallel-llvm -Zmir-opt-level=4 \
-    -Zprint-fuel=z80emu \
-    -Zinline-mir=yes -Zinline-mir-threshold=500 -Zinline-mir-hint-threshold=1000" \
-    NODE_ENV={{node_env}} npx webpack
+    just ../rustcwrap
+    RUSTFLAGS="{{optimizations}}" RUSTC_WRAPPER="{{'..'/'..'/'rustcwrap'}}" NODE_ENV={{node_env}} npx webpack
 
 # clean cargo build and webpack artefacts
 clean:

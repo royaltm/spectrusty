@@ -18,10 +18,6 @@ webpack:
 clean:
     cargo clean
     rm -rf pkg
-    rm -f {{name}}.js
-    rm -f {{name}}.d.ts
-    rm -f {{name}}_bg.d.ts
-    rm -f {{name}}_bg.wasm
 
 # remove all compiled files from dist and an archived tar file
 distclean: clean
