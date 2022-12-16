@@ -7,6 +7,10 @@ Cargo.lock
 Thumbs.db
 .DS_Store
 *.tmp
+*.pdb
+*.exe
+*.dll
+*.so
 *~
 *.lnk
 *.sublime-project
@@ -19,3 +23,5 @@ sftp-config.json
 *.tar.gz
 *.tar.bz2
 *.tar.xz
+/rustcwrap
+tmp
