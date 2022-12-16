@@ -1,0 +1,57 @@
+Spectrusty: 0.4
+Rust: x86_64-pc-windows-msvc
+Profile: lto=true, panic='abort', opt-level=3
+OS: windows
+Common features: bundled
+
+no-default-features:
+../../target/release/sdl2-zxspectrum.exe: 4951040 (Rust 1.59)
+../../target/release/sdl2-zxspectrum.exe: 5089280 (Rust 1.66)
+universal_dev_ts:
+../../target/release/sdl2-zxspectrum.exe: 4782592 (Rust 1.59)
+../../target/release/sdl2-zxspectrum.exe: 4864000 (Rust 1.66)
+ULA size: 14936 16k, 48k, NTSC
+ULA size: 29712 TC2048
+ULA size: 29912 128k, +2
+ULA size: 29944 +2A
+ULA size: 44528 48k+
+ULA size: 59504 ++2
+ULA size: 59536 +2B
+
+boxed_frame_cache:
+../../target/release/sdl2-zxspectrum.exe: 4959232 (Rust 1.59)
+../../target/release/sdl2-zxspectrum.exe: 5057536 (Rust 1.66)
+boxed_frame_cache,universal_dev_ts:
+../../target/release/sdl2-zxspectrum.exe: 4788224 (Rust 1.59)
+../../target/release/sdl2-zxspectrum.exe: 4854784 (Rust 1.66)
+ULA size: 256 16k, 48k, NTSC
+ULA size: 352 TC2048
+ULA size: 488 48k+
+ULA size: 552 128k, +2
+ULA size: 584 +2A
+ULA size: 784 ++2
+ULA size: 816 +2B
+
+boxed_devices:
+../../target/release/sdl2-zxspectrum.exe: 4932608 (Rust 1.59)
+../../target/release/sdl2-zxspectrum.exe: 5074944 (Rust 1.66)
+boxed_devices,universal_dev_ts:
+../../target/release/sdl2-zxspectrum.exe: 4768768 (Rust 1.59)
+../../target/release/sdl2-zxspectrum.exe: 4855808 (Rust 1.66)
+ULA size: 14912 16k, 48k, NTSC
+ULA size: 29632 128k, +2, +2A
+ULA size: 29688 TC2048
+ULA size: 44504 48k+
+ULA size: 59224 ++2, +2B
+
+boxed_frame_cache,boxed_devices:
+../../target/release/sdl2-zxspectrum.exe: 4933632 (Rust 1.59)
+../../target/release/sdl2-zxspectrum.exe: 5056512 (Rust 1.66)
+boxed_frame_cache,boxed_devices,universal_dev_ts:
+../../target/release/sdl2-zxspectrum.exe: 4773376 (Rust 1.59)
+../../target/release/sdl2-zxspectrum.exe: 4842496 (Rust 1.66)
+ULA size: 232 16k, 48k, NTSC
+ULA size: 272 128k, +2, +2A
+ULA size: 328 TC2048
+ULA size: 464 48k+
+ULA size: 504 ++2, +2B

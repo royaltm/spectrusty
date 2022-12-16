@@ -88,6 +88,20 @@ or without:
 cargo build --release --no-default-features --features=static-link
 ```
 
+
+### Features
+
+* `bundled` - Use bundled SDL2 build.
+* `static-link` - Link SDL2 statically.
+* `use-pkgconfig` - Use pkgconfig to find SDL2 libraries.
+* `compact` - enable `boxed_frame_cache`, `boxed_devices` and `universal_dev_ts` features, renders smaller code.
+* `universal_dev_ts` - Clock counters have the same base type across all models, thus reducing the compiled binary size at the cost of a small performance penalty.
+* `boxed_frame_cache` - Chipset implementations will have significantly reduced struct sizes at the cost of a minimal performance penalty.
+* `boxed_devices` - Struct and output code size sizes reduced even further.
+
+__NOTE__: Without `boxed_frame_cache` feature enabled you might hit stack overflow on the main thread.
+
+
 Running
 -------
 

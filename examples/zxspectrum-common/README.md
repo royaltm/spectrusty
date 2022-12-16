@@ -25,6 +25,14 @@ The computer models defined in this example use the following [ROMs](../../resou
 * `ZX Spectrum +2B (ULAplus)` - [plus2B.rom], [48.rom], [BBCBasic.rom], [opense.rom]
 
 
+### Features
+
+* `boxed_devices` - Devices of the chipset models are boxed thus reducing chipset struct size at the cost of a small performance penalty.
+* `universal_dev_ts` - Clock counters have the same base (linear) type across all models, thus significantly reducing the compiled binary size at the cost of a small performance penalty.
+
+Both features are enabled by default and can be opt out with `--no-default-features`:
+
+
 ### Documentation
 
 To build documentation, run from this directory:

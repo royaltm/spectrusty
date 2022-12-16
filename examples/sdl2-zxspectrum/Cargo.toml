@@ -11,10 +11,14 @@ An example of a complete ZX Spectrum emulator with native bindings via SDL2 libr
 """
 
 [features]
-default = ["bundled"]
+default = ["bundled", "compact"]
 bundled = ["sdl2/bundled"]
 static-link = ["sdl2/static-link"]
 use-pkgconfig = ["sdl2/use-pkgconfig"]
+compact = ["boxed_frame_cache", "boxed_devices", "universal_dev_ts"]
+boxed_frame_cache = ["spectrusty/boxed_frame_cache"]
+boxed_devices = ["zxspectrum-common/boxed_devices"]
+universal_dev_ts = ["zxspectrum-common/universal_dev_ts"]
 
 [dependencies]
 clap = "2.34"
@@ -32,7 +36,7 @@ serde_json = "1.0"
 
 [dependencies.spectrusty]
 version = "*"
-features = ["audio", "sdl2", "boxed_frame_cache"]
+features = ["audio", "sdl2"]
 path = "../.."
 
 [dependencies.spectrusty-utils]
@@ -42,6 +46,7 @@ path = "../../spectrusty-utils"
 
 [dependencies.zxspectrum-common]
 version = "*"
+default-features = false
 path = "../zxspectrum-common"
 
 [target.'cfg(windows)'.dependencies.winapi]
