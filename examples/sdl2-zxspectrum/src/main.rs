@@ -97,7 +97,7 @@ ZX Spectrum ROM © 1982-1987 Amstrad PLC.
 OpenSE BASIC © 2000-2012 Nine Tiles Networks Ltd, Andrew Owen.
 BBC BASIC (Z80) © 1982-2000 R.T. Russell, 1989-2005 J.G. Harston.
 
-© 2020 Rafał Michalski.
+© 2020-2022 Rafał Michalski.
 This program comes with ABSOLUTELY NO WARRANTY.
 This is free software, and you are welcome to redistribute it
 under certain conditions.
@@ -109,7 +109,7 @@ Drag & drop TAP, SNA or SCR files over the emulator window in order to load them
 
 Esc: Release grabbed pointer.
 F1: Shows this help.
-F2: Turbo - runs as fast as possible, while key is being pressed.
+F2: Turbo - toggle run as fast as possible.
 F3: Saves printer spooler content.
 F4: Changes joystick implementation (cursor keys).
 F5: Plays current TAP file.
@@ -350,6 +350,7 @@ fn configure_model<U: 'static>(
           BusTs<U>: TimestampOps + Default,
           ZxSpectrum<Z80Any, U>: JoystickAccess
 {
+    info!("ULA size: {}", core::mem::size_of::<U>());
     if let Some(border_size) = matches.value_of("border") {
         spec.state.border_size = BorderSize::from_str(border_size)?
     }
@@ -613,22 +614,30 @@ fn run<'a, C, U: 'static>(
                     update_info = true;
                 }
                 Event::KeyDown { keycode: Some(Keycode::F2), repeat: false, ..}
-                if !zx.spectrum.state.paused => {
-                    if !zx.spectrum.state.turbo {
-                        zx.audio.pause();
-                        zx.spectrum.state.turbo = true;
-                        update_info = true;
-                    }
-                }
-                Event::KeyUp { keycode: Some(Keycode::F2), repeat: false, ..} => {
-                    if zx.spectrum.state.turbo {
-                        if !zx.spectrum.state.paused {
-                            zx.audio.play();
+                    if !zx.spectrum.state.paused => {
+                        if zx.spectrum.state.turbo {
+                            if !zx.spectrum.state.paused {
+                                zx.audio.play();
+                            }
+                            zx.spectrum.state.turbo = false;
+                            update_info = true;
                         }
-                        zx.spectrum.state.turbo = false;
-                        update_info = true;
+                        else {
+                        // if !zx.spectrum.state.turbo {
+                            zx.audio.pause();
+                            zx.spectrum.state.turbo = true;
+                            update_info = true;
+                        }
                     }
-                }
+                // Event::KeyUp { keycode: Some(Keycode::F2), repeat: false, ..} => {
+                //     if zx.spectrum.state.turbo {
+                //         if !zx.spectrum.state.paused {
+                //             zx.audio.play();
+                //         }
+                //         zx.spectrum.state.turbo = false;
+                //         update_info = true;
+                //     }
+                // }
                 Event::KeyDown { keycode: Some(Keycode::F3), repeat: false, ..} => {
                     zx.audio.pause();
                     info_window("Printer", zx.save_printed_images()?.into());

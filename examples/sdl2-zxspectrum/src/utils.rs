@@ -18,11 +18,13 @@ use sdl2::{VideoSubsystem,
             messagebox::{ show_simple_message_box, MessageBoxFlag }};
 
 pub fn alert_window(text: Cow<str>) {
-    show_simple_message_box(MessageBoxFlag::ERROR, "ZX Spectrum", &text, None).expect("to show message box");
+    show_simple_message_box(MessageBoxFlag::ERROR, "ZX Spectrum", &text, None)
+    .unwrap_or_else(|_| eprintln!("{}", text));
 }
 
 pub fn info_window(head: &str, text: Cow<str>) {
-    show_simple_message_box(MessageBoxFlag::INFORMATION, head, &text, None).expect("to show message box");
+    show_simple_message_box(MessageBoxFlag::INFORMATION, head, &text, None)
+    .unwrap_or_else(|_| println!("{}", text));
 }
 
 #[cfg(not(windows))]
