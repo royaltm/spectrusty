@@ -30,31 +30,31 @@ examples:
 # run sdl2-zxspectrum example
 run args="":
     cd examples/sdl2-zxspectrum && \
-        cargo run -p sdl2-zxspectrum --release --no-default-features --features={{features}} -- {{args}}
+        cargo run --release --no-default-features --features={{features}} -- {{args}}
 
 # run sdl2-zxspectrum example - MIR optimized (rustc nightly)
 run-mir args="": rustcwrap
     cd examples/sdl2-zxspectrum && \
-        RUSTFLAGS="{{optimizations}}" RUSTC_WRAPPER="./rustcwrap" \
+        RUSTFLAGS="{{optimizations}}" RUSTC_WRAPPER="../../rustcwrap" \
             cargo +nightly-{{target}} run --target="{{target}}" --release \
                 --no-default-features --features={{features}} -- {{args}}
 
 # run sdl2-zxspectrum profile generate (rustc nightly)
 run-profgen args="":
-    set -euxo pipefail
     # rustup component add llvm-tools-preview
-    rm -rf tmp/pgo-data
     cd examples/sdl2-zxspectrum && \
-        RUSTFLAGS="-Cprofile-generate=tmp/pgo-data" \
-            cargo +nightly-{{target}} run --target="{{target}}" \
-                --release --no-default-features --features={{features}} -- {{args}}
-    {{llvm_profdata_exe}} merge -o tmp/pgo-data/merged.profdata tmp/pgo-data
+        RUSTFLAGS="-Cprofile-generate=../../tmp/pgo-data" \
+            cargo +nightly-{{target}} run --target="{{target}}" --release \
+                --no-default-features --features={{features}} -- {{args}}
 
 # run sdl2-zxspectrum with profile-driven optimizations (rustc nightly)
 run-prof args="":
+    set -euxo pipefail
+    {{llvm_profdata_exe}} merge -o tmp/pgo-data/merged.profdata tmp/pgo-data
     cd examples/sdl2-zxspectrum && \
     RUSTFLAGS="-Cllvm-args=-pgo-warn-missing-function -Cprofile-use={{justfile_directory()}}/tmp/pgo-data/merged.profdata" \
-        cargo +nightly-{{target}} run --target="{{target}}" --release --no-default-features --features={{features}} -- {{args}}
+        cargo +nightly-{{target}} run --target="{{target}}" --release \
+            --no-default-features --features={{features}} -- {{args}}
 
 # build rustcwrap for MIR builds
 rustcwrap:
@@ -98,6 +98,7 @@ test-examples:
 # clean all build artefacts
 clean:
     rm -rf tmp/pgo-data
+    rm -f rustcwrap rustcwrap.exe rustcwrap.pdb
     cargo clean
     just examples/web-zxspectrum/clean
     just examples/web-ay-player/clean
