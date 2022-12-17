@@ -1,4 +1,5 @@
 v0.4.0
+* all workspace library crates versions leveled to 0.4.0.
 * spectrusty-core: z80emu bumped to 0.8.
 * spectrusty-core: memory serializer re-implemented internally using const generics, custom array (de)serializer added.
 * spectrusty: *breaking* `ZxMemory` types re-implemented using const generics:
@@ -9,6 +10,7 @@ v0.4.0
 * examples: simple_logger (audio examples) downgraded for Rust 1.59 compatibility.
 * examples: web fixed: exported values are back to JSON compatible.
 * examples: sdl2-zxspectrum: added build features.
+* examples: web-zxspectrum: added build features.
 
 v0.3.3
 * spectrusty-core: z80emu bumped to 0.7.
