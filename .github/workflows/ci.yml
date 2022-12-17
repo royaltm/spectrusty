@@ -56,11 +56,27 @@ jobs:
           cargo test --no-default-features --verbose -- --ignored
           cargo test --features=boxed_frame_cache --verbose
           cargo test --features=boxed_frame_cache --verbose -- --ignored
-          cargo build -p zxspectrum-common --verbose
-          cargo test -p zxspectrum-common --verbose
-          cargo build --no-default-features -p zxspectrum-common --verbose
-          cargo test --no-default-features -p zxspectrum-common --verbose
+          cargo test --no-default-features --features=boxed_frame_cache --verbose
+          cargo test --no-default-features --features=boxed_frame_cache --verbose -- --ignored
           cargo build -p audio --bins --verbose
           cargo test -p audio --verbose
-          cargo build -p sdl2-zxspectrum --no-default-features --verbose
-          cargo test -p sdl2-zxspectrum --no-default-features --verbose
+      - name: Example zxspectrum-common Tests
+        if: matrix.rust == 'stable'
+        env:
+          RUSTFLAGS: '-D warnings'
+        working-directory: ./examples/zxspectrum-common
+        run: |
+          cargo build --verbose
+          cargo test --verbose
+          cargo build --no-default-features --verbose
+          cargo test --no-default-features --verbose
+      - name: Example sdl2-zxspectrum Tests
+        if: matrix.rust == 'stable'
+        env:
+          RUSTFLAGS: '-D warnings'
+        working-directory: ./examples/sdl2-zxspectrum
+        run: |
+          cargo build --no-default-features --verbose
+          cargo test --no-default-features --verbose
+          cargo build --no-default-features --features=compact --verbose
+          cargo test --no-default-features --features=compact --verbose
