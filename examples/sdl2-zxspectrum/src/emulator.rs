@@ -1,6 +1,6 @@
 /*
     sdl2-zxspectrum: ZX Spectrum emulator example as a SDL2 application.
-    Copyright (C) 2020-2021  Rafal Michalski
+    Copyright (C) 2020-2022  Rafal Michalski
 
     For the full copyright notice, see the main.rs file.
 */

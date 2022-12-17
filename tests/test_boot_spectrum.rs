@@ -1,6 +1,6 @@
 /*
     test_boot_spectrum: tests for the SPECTRUSTY library.
-    Copyright (C) 2020  Rafal Michalski
+    Copyright (C) 2020-2022  Rafal Michalski
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by

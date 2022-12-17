@@ -1,6 +1,6 @@
 /*
     web-zxspectrum: ZX Spectrum emulator example as a Web application.
-    Copyright (C) 2020  Rafal Michalski
+    Copyright (C) 2020-2022  Rafal Michalski
 
     web-zxspectrum is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by

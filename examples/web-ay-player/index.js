@@ -1,6 +1,6 @@
 /*
     web-ay-player: Web ZX Spectrum AY file format audio player example.
-    Copyright (C) 2020  Rafal Michalski
+    Copyright (C) 2020-2022  Rafal Michalski
 
     web-ay-player is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by

@@ -1,6 +1,6 @@
 /*
     zxspectrum-common: High-level ZX Spectrum emulator library example.
-    Copyright (C) 2020  Rafal Michalski
+    Copyright (C) 2020-2022  Rafal Michalski
 
     zxspectrum-common is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by

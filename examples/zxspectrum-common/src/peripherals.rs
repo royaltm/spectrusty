@@ -1,6 +1,6 @@
 /*
     zxspectrum-common: High-level ZX Spectrum emulator library example.
-    Copyright (C) 2020  Rafal Michalski
+    Copyright (C) 2020-2022  Rafal Michalski
 
     For the full copyright notice, see the lib.rs file.
 */

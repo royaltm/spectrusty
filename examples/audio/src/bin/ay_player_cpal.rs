@@ -1,6 +1,6 @@
 /*
     ay_pleyer_cpal: Command-line ZX Spectrum AY file player demo.
-    Copyright (C) 2020  Rafal Michalski
+    Copyright (C) 2020-2022  Rafal Michalski
 
     ay_pleyer_cpal is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -166,7 +166,7 @@ fn produce<T, R: Read>(
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!(r#"ay_pleyer_cpal  Copyright (C) 2020  Rafal Michalski
+    println!(r#"ay_pleyer_cpal  Copyright (C) 2020-2022  Rafal Michalski
 This program comes with ABSOLUTELY NO WARRANTY.
 This is free software, and you are welcome to redistribute it under certain conditions."#);
 

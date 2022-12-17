@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020-2021  Rafal Michalski
+    Copyright (C) 2020-2022  Rafal Michalski
 
     This file is part of SPECTRUSTY, a Rust library for building emulators.
 

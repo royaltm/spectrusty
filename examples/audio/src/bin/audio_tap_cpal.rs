@@ -1,6 +1,6 @@
 /*
     audio_tap_cpal: ZX Spectrum TAPE sound demo!
-    Copyright (C) 2020  Rafal Michalski
+    Copyright (C) 2020-2022  Rafal Michalski
 
     audio_tap_cpal is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -141,7 +141,7 @@ fn produce<T: 'static + FromSample<i16> + AudioSample + cpal::Sample + Send, R: 
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!(r#"audio_tap_cpal  Copyright (C) 2020  Rafal Michalski
+    println!(r#"audio_tap_cpal  Copyright (C) 2020-2022  Rafal Michalski
 This program comes with ABSOLUTELY NO WARRANTY.
 This is free software, and you are welcome to redistribute it under certain conditions."#);
 

@@ -1,6 +1,6 @@
 /*
     web-ay-player: Web ZX Spectrum AY file format audio player example.
-    Copyright (C) 2020  Rafal Michalski
+    Copyright (C) 2020-2022  Rafal Michalski
 
     For the full copyright notice, see the lib.rs file.
 */
