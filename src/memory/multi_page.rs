@@ -298,7 +298,7 @@ impl<const MEM_SIZE: usize,
         let page = page & Self::PAGES_MASK;
         let page_p = self.pages.page_mut(page);
         let ptr = *page_p;
-        *page_p = cast_slice_as_bank_ptr(&*rom);
+        *page_p = cast_slice_as_bank_ptr(&rom);
         let ro = (self.ro_pages & ro_flag_mask(page)) != 0;
         self.ex_rom = Some(ExRomAttachment { page, ro, ptr, rom });
         self.ro_pages |= ro_flag_mask(page);
@@ -352,9 +352,9 @@ impl<const MEM_SIZE: usize,
     const ROM_SIZE: usize = Self::ROM_BANKS*PAGE_SIZE;
     const RAMTOP: u16 = u16::max_value();
     const PAGES_MAX: u8 = Self::PAGES_MASK;
-    const SCR_BANKS_MAX: usize = Self::SCR_BANKS as usize - 1;
-    const RAM_BANKS_MAX: usize = Self::RAM_BANKS as usize - 1;
-    const ROM_BANKS_MAX: usize = Self::ROM_BANKS as usize - 1;
+    const SCR_BANKS_MAX: usize = Self::SCR_BANKS - 1;
+    const RAM_BANKS_MAX: usize = Self::RAM_BANKS - 1;
+    const ROM_BANKS_MAX: usize = Self::ROM_BANKS - 1;
     // const FEATURES: MemoryFeatures = MemoryFeatures::NONE;
 
     #[inline(always)]

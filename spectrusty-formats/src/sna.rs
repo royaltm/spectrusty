@@ -172,7 +172,7 @@ pub fn load_sna<R: Read + Seek, S: SnapshotLoader>(
 {
     let cur_pos = rd.seek(SeekFrom::Current(0))?;
     let end_pos = rd.seek(SeekFrom::Current(SNA_LENGTH as i64))?;
-    if end_pos - cur_pos != SNA_LENGTH as u64 {
+    if end_pos - cur_pos != SNA_LENGTH {
         return Err(Error::new(ErrorKind::InvalidData, "SNA: wrong size of the supplied stream"));
     }
 

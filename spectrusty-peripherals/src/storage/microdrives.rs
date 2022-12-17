@@ -354,8 +354,8 @@ const GAP2_START:    u32 = HEAD_TS + GAP1_TS + DATA_TS;
 impl SecPosition {
     #[inline]
     fn from_sector_cursor(cursor: u32) -> Self {
-        assert_eq!((HEAD_END + 1 - HEAD_START) / HEAD_SIZE as u32, BYTE_TS as u32);
-        assert_eq!((DATA_END + 1 - DATA_START) / DATA_SIZE as u32, BYTE_TS as u32);
+        assert_eq!((HEAD_END + 1 - HEAD_START) / HEAD_SIZE as u32, BYTE_TS);
+        assert_eq!((DATA_END + 1 - DATA_START) / DATA_SIZE as u32, BYTE_TS);
         match cursor {
             HEAD_PREAMBLE..=HEAD_SYN_END => SecPosition::Preamble1(((cursor - HEAD_PREAMBLE)/BYTE_TS) as u16),
             HEAD_START..=HEAD_END        => SecPosition::Header(((cursor - HEAD_START)/BYTE_TS) as u16),
@@ -372,7 +372,7 @@ impl TapeCursor {
     fn forward(&mut self, ts: u32, seclen: u32) { // cursor + sectors
         let mut cursor = self.cursor.saturating_add(ts);
         if cursor >= SECTOR_TS {
-            let diffsec = (cursor / SECTOR_TS) as u32;
+            let diffsec = cursor / SECTOR_TS;
             self.sector = Self::add_sectors(self.sector, diffsec, seclen);
             cursor %= SECTOR_TS;
         }

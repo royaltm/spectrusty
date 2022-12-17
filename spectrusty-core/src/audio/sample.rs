@@ -184,16 +184,7 @@ impl_from_sample!(i16, u16, f32);
 
 impl MulNorm for f32 {
     fn saturating_add(self, other: f32) -> f32 {
-        let res = self + other;
-        if res > 1.0 {
-            1.0
-        }
-        else if res < -1.0 {
-            -1.0
-        }
-        else {
-            res
-        }
+        (self + other).clamp(-1.0, 1.0)
     }
 
     fn mul_norm(self, other: f32) -> f32 {

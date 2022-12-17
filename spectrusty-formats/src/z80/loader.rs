@@ -193,6 +193,8 @@ pub fn load_z80<R: Read, S: SnapshotLoader>(
     loader.select_joystick(joystick);
     loader.assign_cpu(CpuModel::NMOS(cpu));
 
+    // clippy false positive: https://github.com/rust-lang/rust-clippy/issues/9274
+    #[allow(clippy::read_zero_byte_vec)] {
     let mut buf = Vec::new();
     if version == Z80Version::V1 {
         if flags1.is_mem_compressed() {
@@ -223,7 +225,7 @@ pub fn load_z80<R: Read, S: SnapshotLoader>(
                 loader.read_into_memory(range, rd.by_ref().take(len as u64))?;
             }
         }
-    }
+    }}
 
     if let Some(head_ex) = header_ex {
         if let Some(choice) = select_ay_model(model, Flags3::from(head_ex.flags3)) {
