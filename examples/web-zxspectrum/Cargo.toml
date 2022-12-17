@@ -19,6 +19,9 @@ path = "src/rust/lib.rs"
 
 [features]
 default = ["console_error_panic_hook", "console_log"]
+boxed_frame_cache = ["spectrusty/boxed_frame_cache"]
+boxed_devices = ["zxspectrum-common/boxed_devices"]
+universal_dev_ts = ["zxspectrum-common/universal_dev_ts"]
 
 [dependencies]
 wasm-bindgen-futures = "0.4"
@@ -66,6 +69,7 @@ features = ["web-sys"]
 
 [dependencies.zxspectrum-common]
 version = "*"
+default-features = false
 path = "../zxspectrum-common"
 
 [dev-dependencies]

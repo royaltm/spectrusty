@@ -1,4 +1,5 @@
 const prod = process.env.NODE_ENV === "production";
+const features = process.env.SPECTRUSTY_FEATURES || "";
 // const PUBLIC_PATH = process.env.PUBLIC_PATH || "/spectrusty/javascripts/";
 const path = require("path");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
@@ -29,8 +30,8 @@ module.exports = {
             // the available set of arguments.
             //
             // Default arguments are `--typescript --target browser --mode normal`.
-            extraArgs: prod ? "--no-typescript -- --no-default-features"
-                            : "--no-typescript",
+            extraArgs: (prod ? "--no-typescript -- --no-default-features"
+                             : "--no-typescript") + (features ? ' --features=' + features : ""),
             // Optional array of absolute paths to directories, changes to which
             // will trigger the build.
             watchDirectories: [

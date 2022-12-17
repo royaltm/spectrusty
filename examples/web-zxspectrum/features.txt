@@ -1,0 +1,36 @@
+rustc 1.68.0-nightly (ec56537c4 2022-12-15)
+lto=true, panic='abort', opt-level=3
+
+just webpack
+  2068823 dist/51638d044caad9fd2f49.module.wasm
+just webpack boxed_devices
+  2057831 dist/82748f85815fb14ed53c.module.wasm
+just webpack boxed_frame_cache
+  2050509 dist/29a7c19b846ac5b32317.module.wasm
+just webpack boxed_frame_cache,boxed_devices
+  2049277 dist/478fb8d1b60c555bb344.module.wasm
+just webpack universal_dev_ts
+  1941143 dist/f5c41416060e69038f14.module.wasm
+just webpack boxed_devices,universal_dev_ts
+  1930335 dist/77d469a8ebc8ba0abd69.module.wasm
+just webpack boxed_frame_cache,universal_dev_ts
+  1924099 dist/e0312d696bf85aa15a1d.module.wasm
+just webpack boxed_frame_cache,boxed_devices,universal_dev_ts
+  1922734 dist/429f4fda4413867dec0d.module.wasm
+
+just webpack-mir
+  2296686 dist/a48161a3c631c57f126e.module.wasm
+just webpack-mir boxed_devices
+  2264252 dist/1e0fd865d7f432537c87.module.wasm
+just webpack-mir boxed_frame_cache,boxed_devices
+  2250526 dist/6628054927ce66981496.module.wasm
+just webpack-mir boxed_frame_cache
+  2247214 dist/4d578424b00b0cdc4580.module.wasm
+just webpack-mir universal_dev_ts
+  2171056 dist/9af23caedfadbc4046d2.module.wasm
+just webpack-mir boxed_devices,universal_dev_ts
+  2143076 dist/0f96521eaa3306bd27c1.module.wasm
+just webpack-mir boxed_frame_cache,boxed_devices,universal_dev_ts
+  2129441 dist/a0ef3835fb2fd347db07.module.wasm
+just webpack-mir boxed_frame_cache,universal_dev_ts
+  2125262 dist/07d2f5ae626d7de65555.module.wasm

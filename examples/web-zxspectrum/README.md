@@ -44,5 +44,16 @@ Open `http://localhost:8080` in the web browser.
 To build distribution files in a `dist` folder:
 
 ```
-NODE_ENV=production npm run build
+NODE_ENV=production npx webpack
+```
+
+
+### Features
+
+* `universal_dev_ts` - Clock counters have the same base type across all models, thus reducing the compiled binary size at the cost of a small performance penalty.
+* `boxed_frame_cache` - Chipset implementations will have significantly reduced struct sizes at the cost of a minimal performance penalty.
+* `boxed_devices` - Struct and output code size sizes reduced even further.
+
+```
+SPECTRUSTY_FEATURES="universal_dev_ts,boxed_devices" NODE_ENV=production npx webpack
 ```
