@@ -157,7 +157,7 @@ To run ZX Spectrum 48k model with Melodik AY-3-8910 extension, Kempston joystick
 ../../target/release/sdl2-zxspectrum -m 48k --ay -j k path/to/file.tap
 ```
 
-How about `ZX Spectrum 128k` with ZX Interface I listening on port 30000 for ZX-NET packets:
+ZX Spectrum 128k with ZX Interface 1 listening on port 30000 for ZX-NET packets:
 
 ```
 ../../target/release/sdl2-zxspectrum -m 128k -i path/to/if1-2.rom --bind 0.0.0.0:30000

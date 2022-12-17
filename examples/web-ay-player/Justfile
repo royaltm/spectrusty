@@ -14,7 +14,7 @@ serve:
 webpack:
     NODE_ENV={{node_env}} npx webpack
 
-# clean cargo build
+# clean cargo build and webpack artefacts
 clean:
     cargo clean
     rm -rf pkg
