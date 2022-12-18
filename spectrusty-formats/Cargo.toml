@@ -1,6 +1,6 @@
 [package]
 name = "spectrusty-formats"
-version = "0.3.2"
+version = "0.4.0"
 authors = ["Rafal Michalski <royaltm75@gmail.com>"]
 edition = "2018"
 repository = "https://github.com/royaltm/spectrusty"
@@ -18,14 +18,14 @@ memchr = "2.5"
 bitflags = "1.3.2"
 
 [dependencies.spectrusty-core]
-version = "0.3.0"
+version = "0.4.0"
 path = "../spectrusty-core"
 
 [dependencies.spectrusty-peripherals]
-version = "0.3.0"
+version = "0.4.0"
 path = "../spectrusty-peripherals"
 
 [dev-dependencies]
 smallvec = "1.10"
 rand = "0.8"
-spectrusty = { version = "0.3", path = ".." }
+spectrusty = { version = ">=0.3", path = ".." }
