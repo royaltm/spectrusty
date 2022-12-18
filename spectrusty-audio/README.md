@@ -17,6 +17,6 @@ Audio related utilites for [SPECTRUSTY]: ZX Spectrum emulator library in Rust.
 [Build Link]: https://travis-ci.org/royaltm/spectrusty
 [Build img]: https://travis-ci.org/royaltm/spectrusty.svg?branch=master
 [rustc version link]: https://github.com/royaltm/spectrusty#rust-version-requirements
-[rustc version img]: https://img.shields.io/badge/rustc-1.41+-lightgray.svg
+[rustc version img]: https://img.shields.io/badge/rustc-1.59+-lightgray.svg
 [License Link]: https://www.gnu.org/licenses/#LGPL
 [License img]: https://img.shields.io/crates/l/spectrusty-audio
