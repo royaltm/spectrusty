@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020-2022  Rafal Michalski
+    Copyright (C) 2020-2023  Rafal Michalski
 
     This file is part of SPECTRUSTY, a Rust library for building emulators.
 
@@ -57,20 +57,32 @@ pub type CursorJoystick<D> = JoystickBusDevice<
                                                 D>;
 macro_rules! joystick_names {
     ($($ty:ty: $name:expr),*) => { $(
+        impl<D> From<&$ty> for &str {
+           fn from(_joy: &$ty) -> Self {
+                $name
+           }
+        }
+
+        impl<D> From<$ty> for &str {
+            fn from(_joy: $ty) -> Self {
+                $name
+            }
+        }
+
         impl<D> fmt::Display for $ty {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                f.write_str($name)
+                write!(f, "{} Joystick", <&str>::from(self))
             }
         }
     )*};
 }
 
 joystick_names! {
-    KempstonJoystick<D>: "Kempston Joystick",
-    FullerJoystick<D>: "Fuller Joystick",
-    SinclairRightJoystick<D>: "Sinclair #1 Joystick",
-    SinclairLeftJoystick<D>: "Sinclair #2 Joystick",
-    CursorJoystick<D>: "Cursor Joystick"
+    KempstonJoystick<D>: "Kempston",
+    FullerJoystick<D>: "Fuller",
+    SinclairRightJoystick<D>: "Sinclair #1",
+    SinclairLeftJoystick<D>: "Sinclair #2",
+    CursorJoystick<D>: "Cursor"
 }
 
 /// A joystick controller, providing a [BusDevice] implementation that can be used with [joystick devices][JoystickDevice].
@@ -219,6 +231,12 @@ impl<D> Deref for MultiJoystickBusDevice<D> {
 impl<D> DerefMut for MultiJoystickBusDevice<D> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.joystick
+    }
+}
+
+impl<D> fmt::Display for MultiJoystickBusDevice<D> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} Joystick", self.joystick)
     }
 }
 
@@ -522,7 +540,29 @@ impl<D> BusDevice for MultiJoystickBusDevice<D>
 #[cfg(test)]
 #[cfg(feature = "snapshot")]
 mod tests {
+    use spectrusty_core::{bus::NullDevice, clock::FTs};
     use super::*;
+
+    #[test]
+    fn joystick_names() {
+        type TerminatorDevice = NullDevice<FTs>;
+        assert_eq!(KempstonJoystick::<TerminatorDevice>::default().to_string(), "Kempston Joystick");
+        assert_eq!(FullerJoystick::<TerminatorDevice>::default().to_string(), "Fuller Joystick");
+        assert_eq!(SinclairJoystick::<TerminatorDevice>::default().to_string(), "Sinclair #2 Joystick");
+        assert_eq!(SinclairJoystick::<TerminatorDevice>::default().next_device_ref().to_string(), "Sinclair #1 Joystick");
+        assert_eq!(SinclairRightJoystick::<TerminatorDevice>::default().to_string(), "Sinclair #1 Joystick");
+        assert_eq!(SinclairLeftJoystick::<TerminatorDevice>::default().to_string(), "Sinclair #2 Joystick");
+        assert_eq!(CursorJoystick::<TerminatorDevice>::default().to_string(), "Cursor Joystick");
+        assert_eq!(MultiJoystickBusDevice::<TerminatorDevice>::default().to_string(), "Kempston Joystick");
+        assert_eq!(MultiJoystickBusDevice::<TerminatorDevice>::new_with(
+            JoystickSelect::new_from_name("kempston").unwrap().0).to_string(), "Kempston Joystick");
+        assert_eq!(MultiJoystickBusDevice::<TerminatorDevice>::new_with(
+            JoystickSelect::new_from_name("fuller").unwrap().0).to_string(), "Fuller Joystick");
+        assert_eq!(MultiJoystickBusDevice::<TerminatorDevice>::new_with(
+            JoystickSelect::new_from_name("sinclair").unwrap().0).to_string(), "Sinclair Joystick");
+        assert_eq!(MultiJoystickBusDevice::<TerminatorDevice>::new_with(
+            JoystickSelect::new_from_name("cursor").unwrap().0).to_string(), "Cursor Joystick");
+    }
 
     #[test]
     fn joystick_select_snapshot() {
