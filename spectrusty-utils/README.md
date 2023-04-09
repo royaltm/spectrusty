@@ -14,8 +14,8 @@ Various emulator related utilities for [SPECTRUSTY]: ZX Spectrum emulator librar
 [Crate img]: https://img.shields.io/crates/v/spectrusty-utils.svg
 [Docs Link]: https://docs.rs/spectrusty-utils
 [Docs img]: https://docs.rs/spectrusty-utils/badge.svg
-[Build Link]: https://travis-ci.org/royaltm/spectrusty
-[Build img]: https://travis-ci.org/royaltm/spectrusty.svg?branch=master
+[Build Link]: https://github.com/royaltm/spectrusty/actions/workflows/ci.yml
+[Build img]: https://github.com/royaltm/spectrusty/actions/workflows/ci.yml/badge.svg?branch=master
 [rustc version link]: https://github.com/royaltm/spectrusty#rust-version-requirements
 [rustc version img]: https://img.shields.io/badge/rustc-1.59+-lightgray.svg
 [License Link]: https://www.gnu.org/licenses/#LGPL

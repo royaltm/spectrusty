@@ -14,8 +14,8 @@ ZX Spectrum related file format utilities for [SPECTRUSTY]: ZX Spectrum emulator
 [Crate img]: https://img.shields.io/crates/v/spectrusty-formats.svg
 [Docs Link]: https://docs.rs/spectrusty-formats
 [Docs img]: https://docs.rs/spectrusty-formats/badge.svg
-[Build Link]: https://travis-ci.org/royaltm/spectrusty
-[Build img]: https://travis-ci.org/royaltm/spectrusty.svg?branch=master
+[Build Link]: https://github.com/royaltm/spectrusty/actions/workflows/ci.yml
+[Build img]: https://github.com/royaltm/spectrusty/actions/workflows/ci.yml/badge.svg?branch=master
 [rustc version link]: https://github.com/royaltm/spectrusty#rust-version-requirements
 [rustc version img]: https://img.shields.io/badge/rustc-1.59+-lightgray.svg
 [License Link]: https://www.gnu.org/licenses/#LGPL

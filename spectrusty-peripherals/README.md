@@ -14,8 +14,8 @@ Emulator components of ZX Spectrum peripheral devices for [SPECTRUSTY]: ZX Spect
 [Crate img]: https://img.shields.io/crates/v/spectrusty-peripherals.svg
 [Docs Link]: https://docs.rs/spectrusty-peripherals
 [Docs img]: https://docs.rs/spectrusty-peripherals/badge.svg
-[Build Link]: https://travis-ci.org/royaltm/spectrusty
-[Build img]: https://travis-ci.org/royaltm/spectrusty.svg?branch=master
+[Build Link]: https://github.com/royaltm/spectrusty/actions/workflows/ci.yml
+[Build img]: https://github.com/royaltm/spectrusty/actions/workflows/ci.yml/badge.svg?branch=master
 [rustc version link]: https://github.com/royaltm/spectrusty#rust-version-requirements
 [rustc version img]: https://img.shields.io/badge/rustc-1.59+-lightgray.svg
 [License Link]: https://www.gnu.org/licenses/#LGPL
