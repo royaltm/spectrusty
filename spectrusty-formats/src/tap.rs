@@ -493,7 +493,7 @@ impl Header {
     /// Changes `name`, builder style.
     pub fn with_name<S: AsRef<[u8]>>(mut self, name: S) -> Self {
         let name = name.as_ref();
-        let bname = &name[0..name.len().max(10)];
+        let bname = &name[0..name.len().min(10)];
         self.name[0..bname.len()].copy_from_slice(bname);
         for p in self.name[bname.len()..].iter_mut() {
             *p = b' ';
@@ -860,6 +860,24 @@ mod tests {
     use super::*;
     use std::fs::File;
     use smallvec::SmallVec;
+
+    #[test]
+    fn with_name_pads_name() {
+        let header = Header::new_code(1u16).with_name("01234567");
+        assert_eq!(b"01234567  ", &header.name);
+    }
+
+    #[test]
+    fn with_name_exact_length() {
+        let header = Header::new_code(1u16).with_name("0123456789");
+        assert_eq!(b"0123456789", &header.name);
+    }
+
+    #[test]
+    fn with_name_clamps_name() {
+        let header = Header::new_code(1u16).with_name("0123456789abc");
+        assert_eq!(b"0123456789", &header.name);
+    }
 
     #[test]
     fn slice_tap_works() {
