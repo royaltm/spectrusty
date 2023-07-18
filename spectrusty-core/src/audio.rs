@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020-2022  Rafal Michalski
+    Copyright (C) 2020-2023  Rafal Michalski
 
     This file is part of SPECTRUSTY, a Rust library for building emulators.
 
@@ -102,6 +102,7 @@ pub trait Blep {
 ///
 /// *NOTE*: To emulate a linear volume control, `filter` value should be scaled
 /// [logarithmically](https://www.dr-lex.be/info-stuff/volumecontrols.html).
+#[derive(Debug)]
 pub struct BlepAmpFilter<B: Blep> {
     /// A normalized filter value in the range `[0.0, 1.0]` (floats) or `[0, int::max_value()]` (integers).
     pub filter: B::SampleDelta,
@@ -119,6 +120,7 @@ pub struct BlepAmpFilter<B: Blep> {
 ///  >= 2 ---- * mono_filter ----> 0
 ///                          \---> 1
 /// ```
+#[derive(Debug)]
 pub struct BlepStereo<B: Blep> {
     /// A monophonic filter value in the range [0.0, 1.0] (floats) or [0, int::max_value()] (integers).
     pub mono_filter: B::SampleDelta,

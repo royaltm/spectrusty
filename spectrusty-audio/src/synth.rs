@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020-2022  Rafal Michalski
+    Copyright (C) 2020-2023  Rafal Michalski
 
     This file is part of SPECTRUSTY, a Rust library for building emulators.
 
@@ -10,15 +10,18 @@
 //! For the original implementation refer to [this web site](http://www.slack.net/~ant/bl-synth).
 //!
 // TODO: re-implement the more efficient integer based blip buffer, this implementation is just enough to get going
+use core::fmt;
 use core::marker::PhantomData;
 use core::num::NonZeroUsize;
 use core::cell::Cell;
 use core::ops::AddAssign;
-
 use spectrusty_core::{
     clock::FTs,
     audio::{SampleDelta, Blep, IntoSample, FromSample, MulNorm}
 };
+
+mod ext;
+pub use ext::*;
 
 const PI2: f64 = core::f64::consts::PI * 2.0;
 /// A number of phase offsets to sample band-limited step at
@@ -26,7 +29,7 @@ const PHASE_COUNT: usize = 32;
 /// A number of samples in each final band-limited step
 const STEP_WIDTH: usize = 24;
 
-/// A trait to implement high-pass and low-pass frequency filter limits for [BandLimited].
+/// A trait for implementing high-pass and low-pass frequency filter limits for [BandLimited].
 pub trait BandLimOpt {
     /// lower values filter more high frequency
     const LOW_PASS: f64 = 0.999;
@@ -74,6 +77,14 @@ pub struct BandLimited<T, O=BandLimWide> {
     _options: PhantomData<O>
 }
 
+impl<T, O> fmt::Debug for BandLimited<T, O> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("BandLimited")
+         .field("channels", &self.channels.get())
+         .finish_non_exhaustive()
+    }
+}
+
 impl<T: Copy + Default, O> BandLimited<T, O> {
     /// Clears buffered data and resets `frame start` to default.
     pub fn reset(&mut self) {
@@ -108,7 +119,7 @@ impl<T: Copy + Default, O> BandLimited<T, O> {
     /// Returns `true` if [BandLimited::end_frame] has been called before the call to [BandLimited::next_frame].
     ///
     /// It indicates if audio samples can be digitized from the last frame data.
-    pub fn is_frame_ended(&mut self) -> bool {
+    pub fn is_frame_ended(&self) -> bool {
         self.last_nsamples.is_some()
     }
     /// Finalizes audio frame.
@@ -323,7 +334,7 @@ where I: Iterator<Item=&'a T>,
 }
 
 impl<T, O> Blep for BandLimited<T, O>
-where T: Copy + Default + SampleDelta + MulNorm
+where T: SampleDelta + MulNorm
 {
     type SampleDelta = T;
 
@@ -358,5 +369,5 @@ where T: Copy + Default + SampleDelta + MulNorm
                           .zip(self.steps[phase].iter()) {
             *dp = dp.saturating_add(phase.mul_norm(delta));
         }
-    }    
+    }
 }
