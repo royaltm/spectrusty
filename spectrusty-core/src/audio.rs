@@ -300,6 +300,23 @@ impl<B: Blep> DerefMut for BlepStereo<B> {
     }
 }
 
+impl<B: Blep + ?Sized> Blep for &mut B {
+    type SampleDelta = B::SampleDelta;
+
+    #[inline]
+    fn ensure_frame_time(&mut self, sample_rate: u32, ts_rate: f64, frame_ts: FTs, margin_ts: FTs) {
+        (*self).ensure_frame_time(sample_rate, ts_rate, frame_ts, margin_ts)
+    }
+    #[inline]
+    fn end_frame(&mut self, timestamp: FTs) -> usize {
+        (*self).end_frame(timestamp)
+    }
+    #[inline]
+    fn add_step(&mut self, channel: usize, timestamp: FTs, delta: Self::SampleDelta) {
+        (*self).add_step(channel, timestamp, delta)
+    }
+}
+
 impl<B> Blep for BlepAmpFilter<B>
     where B: Blep, B::SampleDelta: MulNorm + SampleDelta
 {
