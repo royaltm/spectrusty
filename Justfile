@@ -49,7 +49,7 @@ run-profgen args="":
 
 # run sdl2-zxspectrum with profile-driven optimizations (rustc nightly)
 run-prof args="":
-    set -euxo pipefail
+    set -eux
     {{llvm_profdata_exe}} merge -o tmp/pgo-data/merged.profdata tmp/pgo-data
     cd examples/sdl2-zxspectrum && \
     RUSTFLAGS="-Cllvm-args=-pgo-warn-missing-function -Cprofile-use={{justfile_directory()}}/tmp/pgo-data/merged.profdata" \
@@ -69,7 +69,7 @@ test-all: test test-examples
 
 # run library tests
 test:
-    set -euxo pipefail
+    set -eux
     cargo test --no-default-features -- --nocapture
     cargo test --no-default-features -- --ignored --nocapture
     cargo test -- --nocapture
@@ -81,7 +81,7 @@ test:
 
 # test examples
 test-examples:
-    set -euxo pipefail
+    set -eux
     cargo build -p audio --bins
     cargo test -p audio -- --nocapture
     cd examples/zxspectrum-common && cargo build
