@@ -1,3 +1,10 @@
+...
+* spectrusty-audio: synth: trait BandLimitedExt, enum BandLimitedAny, implemented Debug for BandLimited.
+* spectrusty-audio: synth: removed mut from BandLimited::is_frame_ended.
+* spectrusty-core: implement Blep for mutable references of unsized Blep, implemented Debug for BlepStereo and BlepAmpFilter.
+* spectrusty-formats: Fix Header::with_name failing unless length is 10.
+* spectrusty-peripherals: implement fmt::Display for MultiJoystickBusDevice.
+
 v0.4.0
 * all workspace library crates versions leveled to 0.4.0.
 * spectrusty-core: z80emu bumped to 0.8.
