@@ -10,6 +10,7 @@ use core::fmt;
 use std::borrow::Cow;
 use std::rc::Rc;
 use std::convert::TryInto;
+use base64::{Engine as _, engine::general_purpose};
 #[cfg(feature = "compression")] use core::iter::FromIterator;
 #[cfg(feature = "compression")] use compression::prelude::*;
 #[cfg(feature = "compression")] use serde::ser;
@@ -41,7 +42,7 @@ pub fn serialize_mem_slice<S>(slice: &[u8], serializer: S) -> Result<S::Ok, S::E
     where S: Serializer
 {
     if serializer.is_human_readable() {
-        serializer.serialize_str(&base64::encode(slice))
+        serializer.serialize_str(&general_purpose::STANDARD.encode(slice))
     }
     else {
         serializer.serialize_bytes(slice)
@@ -54,7 +55,7 @@ pub fn deserialize_mem<'de, T, D>(deserializer: D) -> Result<T, D::Error>
 {
     if deserializer.is_human_readable() {
         Deserialize::deserialize(deserializer).and_then(|string: Cow<str>|
-            base64::decode(&*string).map_err(de::Error::custom)
+            general_purpose::STANDARD.decode(&*string).map_err(de::Error::custom)
         )
         .and_then(T::try_from_byte_buf)
     }

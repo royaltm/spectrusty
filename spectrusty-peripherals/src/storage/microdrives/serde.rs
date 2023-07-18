@@ -8,6 +8,7 @@
 use core::convert::TryFrom;
 use core::mem;
 use core::slice;
+use base64::{Engine as _, engine::general_purpose};
 
 use super::{HEAD_SIZE, DATA_SIZE, Sector};
 
@@ -40,7 +41,7 @@ impl TryFrom<&'_[u8]> for Sector {
 impl Serialize for Sector {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         if serializer.is_human_readable() {
-            serializer.serialize_str(&base64::encode(<&[u8]>::from(self)))
+            serializer.serialize_str(&general_purpose::STANDARD.encode(<&[u8]>::from(self)))
         }
         else {
             serializer.serialize_bytes(self.into())
@@ -54,7 +55,7 @@ impl<'de> Deserialize<'de> for Sector {
     {
         if deserializer.is_human_readable() {
             Deserialize::deserialize(deserializer).and_then(|string: &str|
-                base64::decode(string).map_err(|err| de::Error::custom(err.to_string()) )
+                general_purpose::STANDARD.decode(string).map_err(de::Error::custom)
             )
             .and_then(|buf| Sector::try_from(buf.as_slice()).map_err(de::Error::custom))
         }
