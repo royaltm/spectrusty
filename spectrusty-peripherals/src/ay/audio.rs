@@ -38,15 +38,20 @@ pub const AMPS: [f32;16] = [0.000_000, 0.007_813, 0.011_049, 0.015_625,
                             0.088_388, 0.125_000, 0.176_777, 0.250_000,
                             0.353_553, 0.500_000, 0.707_107, 1.000_000];
 
-pub const AMPS_I32: [i32;16] = [0x0000_0000, 0x0100_0431, 0x016a_0db9, 0x01ff_ffff,
-                                0x02d4_1313, 0x03ff_ffff, 0x05a8_2627, 0x07ff_ffff,
-                                0x0b50_4c4f, 0x0fff_ffff, 0x16a0_a0ff, 0x1fff_ffff,
-                                0x2d41_397f, 0x3fff_ffff, 0x5a82_7b7f, 0x7fff_ffff];
-
 pub const AMPS_I16: [i16;16] = [0x0000, 0x0100, 0x016a, 0x01ff,
                                 0x02d4, 0x03ff, 0x05a8, 0x07ff,
                                 0x0b50, 0x0fff, 0x16a0, 0x1fff,
                                 0x2d40, 0x3fff, 0x5a81, 0x7fff];
+
+pub const AMPS_F64: [f64;16] = [0.000_000, 0.007_813, 0.011_049, 0.015_625,
+                                0.022_097, 0.031_250, 0.044_194, 0.062_500,
+                                0.088_388, 0.125_000, 0.176_777, 0.250_000,
+                                0.353_553, 0.500_000, 0.707_107, 1.000_000];
+
+pub const AMPS_I32: [i32;16] = [0x0000_0000, 0x0100_0431, 0x016a_0db9, 0x01ff_ffff,
+                                0x02d4_1313, 0x03ff_ffff, 0x05a8_2627, 0x07ff_ffff,
+                                0x0b50_4c4f, 0x0fff_ffff, 0x16a0_a0ff, 0x1fff_ffff,
+                                0x2d41_397f, 0x3fff_ffff, 0x5a82_7b7f, 0x7fff_ffff];
 
 /// These AY-3-891x amplitude levels are being used in the ["Free Unix Spectrum Emulator"] emulator.
 ///
@@ -67,6 +72,16 @@ pub const FUSE_AMPS: [f32;16] = [0.000000000, 0.0137483785, 0.020462349, 0.02905
                                  0.042343784, 0.0618448150, 0.084718090, 0.136903940,
                                  0.169131000, 0.2646677500, 0.352712300, 0.449942770,
                                  0.570382240, 0.6872816000, 0.848172700, 1.000000000];
+
+pub const FUSE_AMPS_I32: [i32;16] = [0x00000000, 0x01c281c2, 0x029e829f, 0x03b803b8,
+                                     0x056b8567, 0x07ea87e8, 0x0ad80ad8, 0x1186117c,
+                                     0x15a615a8, 0x21e0a201, 0x2d25ad38, 0x3997b984,
+                                     0x49024904, 0x57f8d7ec, 0x6c90ec4b, 0x7fffffff];
+
+pub const FUSE_AMPS_F64: [f64;16] = [0.000000000, 0.0137483785, 0.020462349, 0.029053178,
+                                     0.042343784, 0.0618448150, 0.084718090, 0.136903940,
+                                     0.169131000, 0.2646677500, 0.352712300, 0.449942770,
+                                     0.570382240, 0.6872816000, 0.848172700, 1.000000000];
 
 pub const FUSE_AMPS_I16: [i16;16] = [0x0000, 0x01c2, 0x029e, 0x03b8,
                                      0x056b, 0x07ea, 0x0ad8, 0x1186,
@@ -109,8 +124,10 @@ macro_rules! impl_ay_amp_levels {
     )* };
 }
 impl_ay_amp_levels!(
-    [AyAmps, f32, AMPS], [AyAmps, i32, AMPS_I32], [AyAmps, i16, AMPS_I16],
-    [AyFuseAmps, f32, FUSE_AMPS], [AyFuseAmps, i16, FUSE_AMPS_I16]);
+    [AyAmps, f32, AMPS], [AyAmps, i16, AMPS_I16],
+    [AyAmps, i32, AMPS_I32], [AyAmps, f64, AMPS_F64],
+    [AyFuseAmps, f32, FUSE_AMPS], [AyFuseAmps, i16, FUSE_AMPS_I16],
+    [AyFuseAmps, f64, FUSE_AMPS_F64], [AyFuseAmps, i32, FUSE_AMPS_I32]);
 
 /// A trait for interfacing controllers to render square-wave audio pulses from an AY-3-891x emulator.
 pub trait AyAudioFrame<B: Blep> {

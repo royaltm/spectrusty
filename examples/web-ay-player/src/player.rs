@@ -1,6 +1,6 @@
 /*
     web-ay-player: Web ZX Spectrum AY file format audio player example.
-    Copyright (C) 2020-2022  Rafal Michalski
+    Copyright (C) 2020-2023  Rafal Michalski
 
     For the full copyright notice, see the lib.rs file.
 */
@@ -11,7 +11,7 @@ use serde_json::{self, json};
 
 use spectrusty::z80emu::Z80NMOS;
 use spectrusty::memory::ZxMemory;
-use spectrusty::audio::{*, synth::{BandLimited, BandLimOpt}};
+use spectrusty::audio::{*, synth::{BandLimited, BandLimOpt, ext::BandLimitedExt}};
 use spectrusty::peripherals::ay::{Ay128kPortDecode, audio::AyAudioFrame};
 use spectrusty::formats::{
     ay::*,
@@ -197,10 +197,9 @@ impl<F: BandLimOpt> AyFilePlayer<F> {
         self.player.end_audio_frame(&mut self.bandlim)
     }
 
+    #[inline]
     pub fn render_audio_channel(&self, channel: usize, target: &mut [f32]) {
-        for (sample, p) in self.bandlim.sum_iter(channel).zip(target.iter_mut()) {
-            *p = sample;
-        }
+        self.bandlim.render_audio_channel(target, channel);
     }
 
     pub fn next_frame(&mut self) {

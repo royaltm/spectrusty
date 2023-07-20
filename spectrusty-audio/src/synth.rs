@@ -20,8 +20,7 @@ use spectrusty_core::{
     audio::{SampleDelta, Blep, IntoSample, FromSample, MulNorm}
 };
 
-mod ext;
-pub use ext::*;
+pub mod ext;
 
 const PI2: f64 = core::f64::consts::PI * 2.0;
 /// A number of phase offsets to sample band-limited step at
@@ -64,7 +63,7 @@ impl BandLimOpt for BandLimNarrow {
 /// for an efficient band-limited synthesis.
 ///
 /// `T` specifies pulse step amplitude unit types. Currently, implementations are provided for:
-///  `f32`, `i16`, and `i32`.
+///  `f64`, `f32`, `i32`, `i16`, and `i8`. Although using `i8` renders very poor quality sound.
 pub struct BandLimited<T, O=BandLimWide> {
     steps: [[T; STEP_WIDTH]; PHASE_COUNT],
     diffs: Vec<T>,
@@ -94,8 +93,17 @@ impl<T: Copy + Default, O> BandLimited<T, O> {
         self.start_time = 0.0;
     }
     /// Shrinks the excessive capacity of the buffer as much as possible.
+    #[inline]
     pub fn shrink_to_fit(&mut self) {
         self.diffs.shrink_to_fit();
+    }
+    /// Returns `true` if [BandLimited::end_frame_at] or [Blep::end_frame] has been called before
+    /// the call to [BandLimited::next_frame].
+    ///
+    /// The returned boolean indicates whether audio samples can be produced from the last frame data.
+    #[inline]
+    pub fn is_frame_ended(&self) -> bool {
+        self.last_nsamples.is_some()
     }
     /// Ensures the frame buffer length is large enough to fit data for the specified `frame_time`
     /// with additional `margin_time`.
@@ -116,19 +124,13 @@ impl<T: Copy + Default, O> BandLimited<T, O> {
         }
         self.frame_time = frame_time;
     }
-    /// Returns `true` if [BandLimited::end_frame] has been called before the call to [BandLimited::next_frame].
-    ///
-    /// It indicates if audio samples can be digitized from the last frame data.
-    pub fn is_frame_ended(&self) -> bool {
-        self.last_nsamples.is_some()
-    }
     /// Finalizes audio frame.
     ///
     /// Returns the number of audio samples, single channel-wise, which are ready to be produced from
     /// the frame.
     ///
     /// `time_end` is specified in the sample time units (1.0 = 1 audio sample).
-    pub fn end_frame(&mut self, time_end: f64) -> usize {
+    pub fn end_frame_at(&mut self, time_end: f64) -> usize {
         if self.last_nsamples.is_none() {
             let samples = (time_end - self.start_time).trunc();
             let num_samples = samples as usize;
@@ -138,6 +140,55 @@ impl<T: Copy + Default, O> BandLimited<T, O> {
         else {
             panic!("BandLimited frame already over");
         }
+    }
+    /// Add square-wave pulse steps within a boundary of a single frame.
+    ///
+    //  * `channel` specifies an output audio channel.
+    /// * `time` specifies the time stamp of the pulse in sample time units (1.0 = 1 audio sample).
+    /// * `delta` specifies the pulse height (∆ amplitude).
+    ///
+    /// The implementation may panic if `time` boundary limits are not uphold.
+    #[inline]
+    pub fn add_step_at(&mut self, channel: usize, time: f64, delta: T)
+        where T: SampleDelta + MulNorm
+    {
+        let channels = self.channels.get();
+        debug_assert!(channel < channels);
+        let time = time - self.start_time;
+        let index = time.trunc() as usize * channels + channel;
+        // FIX: better handle negative timestamps
+        let phase = ((time.fract() * PHASE_COUNT as f64).trunc() as usize).rem_euclid(PHASE_COUNT);
+        for (dp, phase) in self.diffs[index..index + STEP_WIDTH*channels]
+                          .iter_mut().step_by(channels)
+                          .zip(self.steps[phase].iter()) {
+            *dp = dp.saturating_add(phase.mul_norm(delta));
+        }
+    }
+    /// Prepares the buffer for the next audio frame.
+    ///
+    /// This method must be called after the call to [BandLimited::end_frame_at] or to [Blep::end_frame]
+    /// and optionally after audio data has been produced with [BandLimited::sum_iter] or one of the
+    /// `BandLimitedExt::render_*` methods.
+    pub fn next_frame(&mut self)
+        where T: MulNorm + FromSample<f32>, O: BandLimOpt
+    {
+        let num_samples = self.last_nsamples.take().expect("BandLimited frame not ended");
+        self.start_time += num_samples as f64 - self.frame_time;
+        for (channel, (sum_tgt, sum_end)) in self.sums.iter_mut().enumerate() {
+            *sum_tgt = match sum_end.take() {
+                Some(sum) => sum,
+                None => {
+                    let channels = self.channels.get();
+                    let mut sum = *sum_tgt;
+                    for diff in self.diffs[..num_samples*channels].iter().skip(channel).step_by(channels) {
+                        sum = sum.saturating_add(*diff)
+                                 .mul_norm(T::from_sample(O::HIGH_PASS));
+                    }
+                    sum
+                }
+            };
+        }
+        self.prepare_next_frame(num_samples);
     }
 
     #[inline]
@@ -152,7 +203,7 @@ impl<T: Copy + Default, O> BandLimited<T, O> {
     }
 }
 
-impl<T,O> BandLimited<T,O>
+impl<T, O> BandLimited<T, O>
 where T: Copy + Default + AddAssign + MulNorm + FromSample<f32>,
       O: BandLimOpt,
       // f32: FromSample<T>,
@@ -229,39 +280,16 @@ where T: Copy + Default + AddAssign + MulNorm + FromSample<f32>,
             _options: PhantomData
         }
     }
-    /// Prepares the buffer for the next audio frame.
-    ///
-    /// This method must be called after the call to [BandLimited::end_frame] or to [Blep::end_frame]
-    /// and optionally after audio data has been produced with [BandLimited::sum_iter].
-    pub fn next_frame(&mut self) {
-        let num_samples = self.last_nsamples.take().expect("BandLimited frame not ended");
-        self.start_time += num_samples as f64 - self.frame_time;
-        for (channel, (sum_tgt, sum_end)) in self.sums.iter_mut().enumerate() {
-            *sum_tgt = match sum_end.take() {
-                Some(sum) => sum,
-                None => {
-                    let channels = self.channels.get();
-                    let mut sum = *sum_tgt;
-                    for diff in self.diffs[..num_samples*channels].iter().skip(channel).step_by(channels) {
-                        sum = sum.saturating_add(*diff)
-                                 .mul_norm(T::from_sample(O::HIGH_PASS));
-                    }
-                    sum
-                }
-            };
-        }
-        self.prepare_next_frame(num_samples);
-    }
 }
 
-impl<T,O> BandLimited<T,O>
+impl<T, O> BandLimited<T, O>
 where T: Copy + MulNorm + FromSample<f32>,
       O: BandLimOpt
 {
     /// Returns an iterator that produces audio samples in the specified sample format `S`
     /// from the specified `channel`.
     ///
-    /// This method must be called after the call to [BandLimited::end_frame] or [Blep::end_frame]
+    /// This method must be called after the call to [BandLimited::end_frame_at] or [Blep::end_frame]
     /// and before [BandLimited::next_frame].
     pub fn sum_iter<'a, S: 'a>(&'a self, channel: usize) -> impl Iterator<Item=S> + ExactSizeIterator + 'a
     where T: IntoSample<S>
@@ -282,6 +310,11 @@ where T: Copy + MulNorm + FromSample<f32>,
     }
 }
 
+/// Implements an iterator that produces audio samples in the specified sample format `S`,
+/// by summing and normalizing the buffered sample differences.
+///
+/// When dropped the iterator will copy the calculated sample sum in the [BandLimited] instance,
+/// so [BandLimited::next_frame] won't have to calculate it.
 struct BandLimitedSumIter<'a, T: Copy + MulNorm + IntoSample<S> + FromSample<f32>,
                               O: BandLimOpt,
                               I: Iterator<Item=&'a T>,
@@ -353,21 +386,12 @@ where T: SampleDelta + MulNorm
     #[inline]
     fn end_frame(&mut self, timestamp: FTs) -> usize {
         debug_assert!(timestamp > 0);
-        self.end_frame(self.time_rate * timestamp as f64)
+        self.end_frame_at(self.time_rate * timestamp as f64)
     }
 
     #[inline]
     fn add_step(&mut self, channel: usize, timestamp: FTs, delta: T) {
-        let channels = self.channels.get();
-        debug_assert!(channel < channels);
-        let time = self.time_rate * timestamp as f64 - self.start_time;
-        let index = time.trunc() as usize * channels + channel;
-        // FIX: better handle negative timestamps
-        let phase = ((time.fract() * PHASE_COUNT as f64).trunc() as usize).rem_euclid(PHASE_COUNT);
-        for (dp, phase) in self.diffs[index..index + STEP_WIDTH*channels]
-                          .iter_mut().step_by(channels)
-                          .zip(self.steps[phase].iter()) {
-            *dp = dp.saturating_add(phase.mul_norm(delta));
-        }
+        let time = self.time_rate * timestamp as f64;
+        self.add_step_at(channel, time, delta)
     }
 }

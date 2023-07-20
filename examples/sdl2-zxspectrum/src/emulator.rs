@@ -1,6 +1,6 @@
 /*
     sdl2-zxspectrum: ZX Spectrum emulator example as a SDL2 application.
-    Copyright (C) 2020-2022  Rafal Michalski
+    Copyright (C) 2020-2023  Rafal Michalski
 
     For the full copyright notice, see the main.rs file.
 */
@@ -22,7 +22,7 @@ use sdl2::{mouse::MouseButton, keyboard::{Keycode, Mod as Modifier}};
 
 use spectrusty::audio::{
     BlepAmpFilter, BlepStereo, AudioSample, AudioFrame,
-    synth::BandLimited,
+    synth::{BandLimited, ext::BandLimitedExt},
     carousel::AudioFrameResult
 };
 use spectrusty::z80emu::{Z80Any, Cpu};
@@ -188,21 +188,8 @@ impl<'a, C: Cpu, U> ZxSpectrumEmu<'a, C, U> {
         let Self { audio, bandlim, .. } = self;
         let output_channels = audio.channels.into();
         audio.producer.render_frame(|ref mut vec| {
-            let sample_iter = bandlim.sum_iter::<Sample>(0)
-                             .zip(bandlim.sum_iter::<Sample>(1))
-                             .map(|(a, b)| [a, b]);
             vec.resize(frame_sample_count * output_channels, Sample::silence());
-            // render each sample
-            for (chans, samples) in vec.chunks_mut(output_channels).zip(sample_iter) {
-                // write to the wav file
-                // writer.write_sample(Sample::from_sample(sample)).unwrap();
-                // convert sample type
-                // let sample = T::from_sample(samples);
-                // write sample to each channel
-                for (p, sample) in chans.iter_mut().zip(samples.iter()) {
-                    *p = *sample;
-                }
-            }
+            bandlim.render_audio_map_interleaved(&mut vec[..], output_channels, &[0, 1]);
         });
         // prepare BLEP for the next frame
         bandlim.next_frame();

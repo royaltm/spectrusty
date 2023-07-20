@@ -1,6 +1,6 @@
 /*
     ay_pleyer_cpal: Command-line ZX Spectrum AY file player demo.
-    Copyright (C) 2020-2022  Rafal Michalski
+    Copyright (C) 2020-2023  Rafal Michalski
 
     ay_pleyer_cpal is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -41,6 +41,15 @@ type Ay128kPlayer = AyPlayer<Ay128kPortDecode>;
 type WavWriter = hound::WavWriter<std::io::BufWriter<std::fs::File>>;
 const AUDIO_LATENCY: usize = 5;
 
+// A type for the BandLimited sample difference buffer.
+type SDT = f32; // i16, i32, f32, f64
+
+// A type of the BandLimOpt band pass filter.
+type FT = BandLimWide;
+// type FT = BandLimLowTreb;
+// type FT = BandLimLowBass;
+// type FT = BandLimNarrow;
+
 fn produce<T, R: Read>(
         mut audio: AudioHandle<T>,
         rd: R,
@@ -48,8 +57,7 @@ fn produce<T, R: Read>(
         mut first_length: Option<NonZeroU32>,
         mut writer: Option<WavWriter>
 )
-    where T: 'static + FromSample<f32> + AudioSample + cpal::Sample + Send,
-        i16: IntoSample<T>, f32: FromSample<T>,
+    where T: FromSample<SDT> + AudioSample + cpal::SizedSample
 {
     let output_channels = audio.channels as usize;
     let frame_duration = ZxSpectrum128Config::frame_duration();
@@ -57,12 +65,9 @@ fn produce<T, R: Read>(
     // BandLimLowTreb
     // BandLimLowBass
     // BandLimNarrow
-    // let mut bandlim = BlepStereo::new(BandLimited::<f32>::new(3), 0.5);
-    // let mut bandlim = BlepAmpFilter::new(0.777, BlepStereo::new(0.5,BandLimited::<f32>::new(2)));
-    let mut bandlim = BlepAmpFilter::build(0.777)(BlepStereo::build(0.8)(BandLimited::<f32>::new(2)));
-    // let mut bandlim = BlepAmpFilter::new(BandLimited::<f32>::new(3), 0.777);
-    // BandLimited::<f32>::new(3).wrap_with(BlepStereo::build(0.5)).wrap_with(BlepAmpFilter::build(0.777));
-    // BlepAmpFilter::build(0.777).wrap(BlepStereo::build(0.5)).wrap(BandLimited::<f32>::new(3));
+    let mut bandlim = BlepAmpFilter::new(SDT::from_sample(0.777),
+                            BlepStereo::new(SDT::from_sample(0.5),
+                                BandLimited::<SDT, FT>::new(2)));
     let mut cpu = Z80NMOS::default();
     let mut player = Ay128kPlayer::default();
     player.ensure_audio_frame_time(&mut bandlim, audio.sample_rate);
@@ -115,12 +120,11 @@ fn produce<T, R: Read>(
         // render frames
         // debug!("CURRENT FRAME: {} song_length: {}", player.current_frame(), song_length);
         while player.current_frame() <= song_length.into() {
-        // loop {
             // debug!("frame_tstates: {}", player.frame_tstate());
             player.execute_next_frame(&mut cpu);
-            player.render_ay_audio_frame::<AyAmps<f32>>(&mut bandlim, [0, 1, 2]);
-            // player.render_ay_audio_frame::<AyFuseAmps<f32>>(&mut bandlim, [0, 1, 2]);
-            player.render_earmic_out_audio_frame::<EarOutAmps4<f32>>(&mut bandlim, 2);
+            player.render_ay_audio_frame::<AyAmps<SDT>>(&mut bandlim, [0, 1, 2]);
+            // player.render_ay_audio_frame::<AyFuseAmps<SDT>>(&mut bandlim, [0, 1, 2]);
+            player.render_earmic_out_audio_frame::<EarOutAmps4<SDT>>(&mut bandlim, 2);
             // close current frame
             let frame_sample_count = player.end_audio_frame(&mut bandlim);
             // render BLEP frame into the sample buffer
@@ -140,8 +144,9 @@ fn produce<T, R: Read>(
             });
             if let Some(ref mut writer) = writer {
                 // write to the wav file
-                for (l, r) in bandlim.sum_iter::<f32>(0)
-                                     .zip(bandlim.sum_iter::<f32>(1)) {
+                for (l, r) in bandlim.sum_iter::<f32>(0).zip(
+                              bandlim.sum_iter::<f32>(1))
+                {
                     writer.write_sample(l).unwrap();
                     writer.write_sample(r).unwrap();
                 }
@@ -166,7 +171,7 @@ fn produce<T, R: Read>(
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!(r#"ay_pleyer_cpal  Copyright (C) 2020-2022  Rafal Michalski
+    println!(r#"ay_pleyer_cpal  Copyright (C) 2020-2023  Rafal Michalski
 This program comes with ABSOLUTELY NO WARRANTY.
 This is free software, and you are welcome to redistribute it under certain conditions."#);
 
@@ -208,9 +213,17 @@ This is free software, and you are welcome to redistribute it under certain cond
     audio.play()?;
 
     match audio {
-        AudioHandleAnyFormat::I16(audio) => produce::<i16,_>(audio, file, song_index, first_length, writer),
-        AudioHandleAnyFormat::U16(audio) => produce::<u16,_>(audio, file, song_index, first_length, writer),
-        AudioHandleAnyFormat::F32(audio) => produce::<f32,_>(audio, file, song_index, first_length, writer),
+        AudioHandleAnyFormat::I8(audio) => produce::<i8, _>(audio, file, song_index, first_length, writer),
+        AudioHandleAnyFormat::U8(audio) => produce::<u8, _>(audio, file, song_index, first_length, writer),
+        AudioHandleAnyFormat::I16(audio) => produce::<i16, _>(audio, file, song_index, first_length, writer),
+        AudioHandleAnyFormat::U16(audio) => produce::<u16, _>(audio, file, song_index, first_length, writer),
+        AudioHandleAnyFormat::I32(audio) => produce::<i32, _>(audio, file, song_index, first_length, writer),
+        AudioHandleAnyFormat::U32(audio) => produce::<u32, _>(audio, file, song_index, first_length, writer),
+        AudioHandleAnyFormat::I64(audio) => produce::<i64, _>(audio, file, song_index, first_length, writer),
+        AudioHandleAnyFormat::U64(audio) => produce::<u64, _>(audio, file, song_index, first_length, writer),
+        AudioHandleAnyFormat::F32(audio) => produce::<f32, _>(audio, file, song_index, first_length, writer),
+        AudioHandleAnyFormat::F64(audio) => produce::<f64, _>(audio, file, song_index, first_length, writer),
+        _ => Err("Unsupported audio format!")?,
     }
 
     Ok(())

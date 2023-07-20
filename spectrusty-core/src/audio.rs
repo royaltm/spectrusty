@@ -203,6 +203,10 @@ pub const AMPS_EAR_MIC: [f32; 4] = [0.34/3.70, 0.66/3.70, 3.56/3.70, 1.0];
 pub const AMPS_EAR_OUT: [f32; 4] = [0.34/3.70, 0.34/3.70, 1.0, 1.0];
 pub const AMPS_EAR_IN:  [f32; 2] = [0.34/3.70, 0.66/3.70];
 
+pub const AMPS_EAR_MIC_F64: [f64; 4] = [0.34/3.70, 0.66/3.70, 3.56/3.70, 1.0];
+pub const AMPS_EAR_OUT_F64: [f64; 4] = [0.34/3.70, 0.34/3.70, 1.0, 1.0];
+pub const AMPS_EAR_IN_F64:  [f64; 2] = [0.34/3.70, 0.66/3.70];
+
 pub const AMPS_EAR_MIC_I32: [i32; 4] = [0x0bc3_1d10, 0x16d5_1a60, 0x7b28_20ff, 0x7fff_ffff];
 pub const AMPS_EAR_OUT_I32: [i32; 4] = [0x0bc3_1d10, 0x0bc3_1d10, 0x7fff_ffff, 0x7fff_ffff];
 pub const AMPS_EAR_IN_I32:  [i32; 2] = [0x0bc3_1d10, 0x16d5_1a60];
@@ -252,6 +256,7 @@ macro_rules! impl_amp_levels {
     )* };
 }
 impl_amp_levels!([f32, AMPS_EAR_MIC, AMPS_EAR_OUT, AMPS_EAR_IN],
+                 [f64, AMPS_EAR_MIC_F64, AMPS_EAR_OUT_F64, AMPS_EAR_IN_F64],
                  [i32, AMPS_EAR_MIC_I32, AMPS_EAR_OUT_I32, AMPS_EAR_IN_I32],
                  [i16, AMPS_EAR_MIC_I16, AMPS_EAR_OUT_I16, AMPS_EAR_IN_I16]);
 

@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020-2022  Rafal Michalski
+    Copyright (C) 2020-2023  Rafal Michalski
 
     This file is part of SPECTRUSTY, a Rust library for building emulators.
 
@@ -36,7 +36,7 @@ pub use super::{AudioHandleError, AudioHandleErrorKind};
 /// sent from the `producer`.
 ///
 /// The `T` parameter should be one of the [sample primitives][cpal::Sample].
-pub struct AudioHandle<T: cpal::Sample + AudioSample> {
+pub struct AudioHandle<T: cpal::SizedSample + AudioSample> {
     /// The audio sample frequency of the output stream.
     pub sample_rate: u32,
     /// The number of audio channels in the output stream.
@@ -47,10 +47,35 @@ pub struct AudioHandle<T: cpal::Sample + AudioSample> {
 }
 
 /// The enum for producing and controlling the audio playback regardless of the sample format used.
+#[non_exhaustive]
 pub enum AudioHandleAnyFormat {
+    I8(AudioHandle<i8>),
     I16(AudioHandle<i16>),
+    I32(AudioHandle<i32>),
+    I64(AudioHandle<i64>),
+    U8(AudioHandle<u8>),
     U16(AudioHandle<u16>),
+    U32(AudioHandle<u32>),
+    U64(AudioHandle<u64>),
     F32(AudioHandle<f32>),
+    F64(AudioHandle<f64>),
+}
+
+macro_rules! implement_any {
+    ($me:ident, $ha:ident, $ex:expr) => {
+        match $me {
+            AudioHandleAnyFormat::I8($ha) => $ex,
+            AudioHandleAnyFormat::I16($ha) => $ex,
+            AudioHandleAnyFormat::I32($ha) => $ex,
+            AudioHandleAnyFormat::I64($ha) => $ex,
+            AudioHandleAnyFormat::U8($ha) => $ex,
+            AudioHandleAnyFormat::U16($ha) => $ex,
+            AudioHandleAnyFormat::U32($ha) => $ex,
+            AudioHandleAnyFormat::U64($ha) => $ex,
+            AudioHandleAnyFormat::F32($ha) => $ex,
+            AudioHandleAnyFormat::F64($ha) => $ex,
+        }
+    };
 }
 
 impl AudioHandleAnyFormat {
@@ -58,57 +83,39 @@ impl AudioHandleAnyFormat {
     pub fn sample_format(&self) -> SampleFormat {
         use AudioHandleAnyFormat::*;
         match self {
+            I8(..) => SampleFormat::I8,
             I16(..) => SampleFormat::I16,
+            I32(..) => SampleFormat::I32,
+            I64(..) => SampleFormat::I64,
+            U8(..) => SampleFormat::U8,
             U16(..) => SampleFormat::U16,
+            U32(..) => SampleFormat::U32,
+            U64(..) => SampleFormat::U64,
             F32(..) => SampleFormat::F32,
+            F64(..) => SampleFormat::F32,
         }
     }
     /// Returns the audio sample frequency of the output stream.
     pub fn sample_rate(&self) -> u32 {
-        use AudioHandleAnyFormat::*;
-        match self {
-            I16(audio) => audio.sample_rate,
-            U16(audio) => audio.sample_rate,
-            F32(audio) => audio.sample_rate,
-        }
+        implement_any! { self, audio, audio.sample_rate }
     }
     /// Returns the number of audio channels in the output stream.
     pub fn channels(&self) -> u8 {
-        use AudioHandleAnyFormat::*;
-        match self {
-            I16(audio) => audio.channels,
-            U16(audio) => audio.channels,
-            F32(audio) => audio.channels,
-        }
+        implement_any! { self, audio, audio.channels }
     }
     /// Starts playback of the audio device.
     pub fn play(&self) -> Result<(), AudioHandleError> {
-        use AudioHandleAnyFormat::*;
-        match self {
-            I16(audio) => audio.play(),
-            U16(audio) => audio.play(),
-            F32(audio) => audio.play(),
-        }
+        implement_any! { self, audio, audio.play() }
     }
     /// Pauses playback of the audio device.
     pub fn pause(&self) -> Result<(), AudioHandleError> {
-        use AudioHandleAnyFormat::*;
-        match self {
-            I16(audio) => audio.pause(),
-            U16(audio) => audio.pause(),
-            F32(audio) => audio.pause(),
-        }
+        implement_any! { self, audio, audio.pause() }
     }
     /// Closes audio playback and frees underlying resources.
     pub fn close(self) {}
     /// Calls the underlying [AudioFrameProducer::send_frame].
     pub fn send_frame(&mut self) -> AudioFrameResult<()> {
-        use AudioHandleAnyFormat::*;
-        match self {
-            I16(audio) => audio.producer.send_frame(),
-            U16(audio) => audio.producer.send_frame(),
-            F32(audio) => audio.producer.send_frame(),
-        }
+        implement_any! { self, audio, audio.producer.send_frame() }
     }
     /// Creates an instance of the [AudioHandleAnyFormat] from the provided **cpal** `host` with
     /// the default output device and the default audio parameters.
@@ -146,7 +153,7 @@ impl AudioHandleAnyFormat {
         )
     }
     /// Creates an instance of the [AudioHandleAnyFormat] from the provided **cpal** `device`
-    /// with the desired audio parameters and sample format.
+    /// with the desired audio parameters and default sample format.
     ///
     /// * `config` specifies the desired audio parameters.
     /// * `frame_duration_nanos` is the duration in nanoseconds of the standard emulation frame.
@@ -158,21 +165,61 @@ impl AudioHandleAnyFormat {
             latency: usize,
         ) -> Result<Self, AudioHandleError>
     {
-        Ok(match device.default_output_config()?.sample_format() {
+        let sample_format = device.default_output_config()?.sample_format();
+        Self::create_with_device_config_and_sample_format(
+            device, config, sample_format, frame_duration_nanos, latency)
+    }
+    /// Creates an instance of the [AudioHandleAnyFormat] from the provided **cpal** `device`
+    /// with the desired audio parameters and sample format.
+    ///
+    /// * `config` specifies the desired audio parameters.
+    /// * `frame_duration_nanos` is the duration in nanoseconds of the standard emulation frame.
+    /// * `latency` is the audio latency passed to the [create_carousel].
+    pub fn create_with_device_config_and_sample_format(
+            device: &cpal::Device,
+            config: &cpal::StreamConfig,
+            sample_format: cpal::SampleFormat,
+            frame_duration_nanos: u32,
+            latency: usize,
+        ) -> Result<Self, AudioHandleError>
+    {
+        Ok(match sample_format {
+            SampleFormat::I8 => AudioHandleAnyFormat::I8(
+                AudioHandle::<i8>::create_with_device_and_config(device, config, frame_duration_nanos, latency)?
+            ),
             SampleFormat::I16 => AudioHandleAnyFormat::I16(
                 AudioHandle::<i16>::create_with_device_and_config(device, config, frame_duration_nanos, latency)?
+            ),
+            SampleFormat::I32 => AudioHandleAnyFormat::I32(
+                AudioHandle::<i32>::create_with_device_and_config(device, config, frame_duration_nanos, latency)?
+            ),
+            SampleFormat::I64 => AudioHandleAnyFormat::I64(
+                AudioHandle::<i64>::create_with_device_and_config(device, config, frame_duration_nanos, latency)?
+            ),
+            SampleFormat::U8 => AudioHandleAnyFormat::U8(
+                AudioHandle::<u8>::create_with_device_and_config(device, config, frame_duration_nanos, latency)?
             ),
             SampleFormat::U16 => AudioHandleAnyFormat::U16(
                 AudioHandle::<u16>::create_with_device_and_config(device, config, frame_duration_nanos, latency)?
             ),
+            SampleFormat::U32 => AudioHandleAnyFormat::U32(
+                AudioHandle::<u32>::create_with_device_and_config(device, config, frame_duration_nanos, latency)?
+            ),
+            SampleFormat::U64 => AudioHandleAnyFormat::U64(
+                AudioHandle::<u64>::create_with_device_and_config(device, config, frame_duration_nanos, latency)?
+            ),
             SampleFormat::F32 => AudioHandleAnyFormat::F32(
                 AudioHandle::<f32>::create_with_device_and_config(device, config, frame_duration_nanos, latency)?
-            )
+            ),
+            SampleFormat::F64 => AudioHandleAnyFormat::F64(
+                AudioHandle::<f64>::create_with_device_and_config(device, config, frame_duration_nanos, latency)?
+            ),
+            sf => return Err((format!("unsupported sample format: {sf:?}"), AudioHandleErrorKind::InvalidArguments).into())
         })
     }
 }
 
-impl<T: cpal::Sample + AudioSample> AudioHandle<T> {
+impl<T: cpal::SizedSample + AudioSample> AudioHandle<T> {
     /// Starts playback of the audio device.
     pub fn play(&self) -> Result<(), AudioHandleError> {
         self.stream.play().map_err(From::from)
@@ -223,7 +270,7 @@ impl<T: cpal::Sample + AudioSample> AudioHandle<T> {
 
         let err_fn = |err| error!("an error occurred on stream: {}", err);
 
-        let stream = device.build_output_stream(config, data_fn, err_fn)?;
+        let stream = device.build_output_stream(config, data_fn, err_fn, None)?;
 
         Ok(AudioHandle {
             sample_rate,

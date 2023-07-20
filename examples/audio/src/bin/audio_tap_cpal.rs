@@ -1,6 +1,6 @@
 /*
     audio_tap_cpal: ZX Spectrum TAPE sound demo!
-    Copyright (C) 2020-2022  Rafal Michalski
+    Copyright (C) 2020-2023  Rafal Michalski
 
     audio_tap_cpal is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -17,6 +17,8 @@
 
     Author contact information: see Cargo.toml file, section [package.authors].
 */
+use core::ops::Neg;
+use core::ops::AddAssign;
 use std::io::{Cursor, Read, Seek};
 use spectrusty::audio::{
     synth::*,
@@ -33,22 +35,28 @@ type WavWriter = hound::WavWriter<std::io::BufWriter<std::fs::File>>;
 const FRAME_TSTATES: i32 = 69888;
 const CPU_HZ: u32 = 3_500_000;
 const AMPLITUDE: f32 = 0.1;
-const AUDIO_LATENCY: usize = 1;
+const AUDIO_LATENCY: usize = 5;
 
-fn produce<T: 'static + FromSample<i16> + AudioSample + cpal::Sample + Send, R: Read + Seek>(
+// A type for the BandLimited sample difference buffer.
+type SDT = f32; // i16, i32, f32, f64
+
+fn produce<T, SD, R>(
         mut audio: AudioHandle<T>,
         read: R,
         mut writer: WavWriter
     )
-    where i16: IntoSample<T>
+    where T: MulNorm + FromSample<f32> + FromSample<SD> + AudioSample + cpal::SizedSample,
+          SD: SampleDelta + MulNorm + AddAssign + Neg<Output=SD> + FromSample<f32>,
+          i16: FromSample<T>,
+          R: Read + Seek
 {
     // create a band-limited pulse buffer with 1 channel
-    let mut bandlim: BandLimited<i16> = BandLimited::new(1);
+    let mut bandlim: BandLimited<SD> = BandLimited::new(1);
     // ensure BLEP has enough space to fit a single audio frame (no margin - our frames will have constant size)
     bandlim.ensure_frame_time(audio.sample_rate, CPU_HZ as f64, FRAME_TSTATES, 0);
     let channels = audio.channels as usize;
     let mut tstamp: i32 = 0;
-    let mut delta: i16 = i16::from_sample(1.0f32);
+    let mut delta: SD = SD::from_sample(1.0f32);
     // let mut delta: f32 = 1.0;
     // create TapChunkReader
     let mut tap_reader = read_tap(read);
@@ -108,15 +116,15 @@ fn produce<T: 'static + FromSample<i16> + AudioSample + cpal::Sample + Send, R: 
         Blep::end_frame(&mut bandlim, FRAME_TSTATES);
         // render BLEP frame into the sample buffer
         audio.producer.render_frame(|ref mut vec| {
-            let sample_iter = bandlim.sum_iter::<i16>(0); // channel 0
+            let sample_iter = bandlim.sum_iter::<T>(0); // channel 0
             // set sample buffer size so to the size of the BLEP frame
             vec.resize(sample_iter.len() * channels, T::silence());
             // render each sample
             for (chans, sample) in vec.chunks_mut(channels).zip(sample_iter) {
                 // write to the wav file
-                writer.write_sample(sample).unwrap();
+                writer.write_sample(i16::from_sample(sample)).unwrap();
                 // convert sample type
-                let sample = T::from_sample(sample.mul_norm(i16::from_sample(AMPLITUDE)));
+                let sample = sample.mul_norm(<T as FromSample<_>>::from_sample(AMPLITUDE));
                 // write sample to each channel
                 for p in chans {
                     *p = sample;
@@ -131,9 +139,8 @@ fn produce<T: 'static + FromSample<i16> + AudioSample + cpal::Sample + Send, R: 
     // render 3 silent buffers before stopping
     for _ in 0..3 {
         audio.producer.render_frame(|ref mut vec| {
-            let sample: T = 0i16.into_sample();
             for p in vec.iter_mut() {
-                *p = sample;
+                *p = T::silence();
             }
         });
         audio.producer.send_frame().unwrap();
@@ -141,7 +148,7 @@ fn produce<T: 'static + FromSample<i16> + AudioSample + cpal::Sample + Send, R: 
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!(r#"audio_tap_cpal  Copyright (C) 2020-2022  Rafal Michalski
+    println!(r#"audio_tap_cpal  Copyright (C) 2020-2023  Rafal Michalski
 This program comes with ABSOLUTELY NO WARRANTY.
 This is free software, and you are welcome to redistribute it under certain conditions."#);
 
@@ -167,9 +174,15 @@ This is free software, and you are welcome to redistribute it under certain cond
     audio.play()?;
 
     match audio {
-        AudioHandleAnyFormat::I16(audio) => produce::<i16,_>(audio, file, writer),
-        AudioHandleAnyFormat::U16(audio) => produce::<u16,_>(audio, file, writer),
-        AudioHandleAnyFormat::F32(audio) => produce::<f32,_>(audio, file, writer),
+        AudioHandleAnyFormat::I8(audio) => produce::<i8, SDT, _>(audio, file, writer),
+        AudioHandleAnyFormat::U8(audio) => produce::<u8, SDT, _>(audio, file, writer),
+        AudioHandleAnyFormat::I16(audio) => produce::<i16, SDT, _>(audio, file, writer),
+        AudioHandleAnyFormat::U16(audio) => produce::<u16, SDT, _>(audio, file, writer),
+        AudioHandleAnyFormat::I32(audio) => produce::<i32, SDT, _>(audio, file, writer),
+        AudioHandleAnyFormat::U32(audio) => produce::<u32, SDT, _>(audio, file, writer),
+        AudioHandleAnyFormat::F32(audio) => produce::<f32, SDT, _>(audio, file, writer),
+        AudioHandleAnyFormat::F64(audio) => produce::<f64, SDT, _>(audio, file, writer),
+        _ => Err("Unsupported audio format!")?,
     }
 
     Ok(())

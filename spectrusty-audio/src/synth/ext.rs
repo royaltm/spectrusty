@@ -17,26 +17,26 @@ use super::{BandLimited, BandLimOpt,
 
 /// A trait interface for working with the [BandLimited] utility. Can be used as a dynamic trait.
 pub trait BandLimitedExt<T, S>: Blep<SampleDelta=T> {
-    /// See [BandLimited::reset].
-    fn reset(&mut self);
-    /// See [BandLimited::shrink_to_fit].
-    fn shrink_to_fit(&mut self);
-    /// See [BandLimited::is_frame_ended].
-    fn is_frame_ended(&self) -> bool;
-    /// See [BandLimited::next_frame].
-    fn next_frame(&mut self);
-    /// A helper method for rendering audio samples from a specific channel.
+    /// Forwards to [BandLimited::reset].
+    fn reset_ext(&mut self);
+    /// Forwards to [BandLimited::shrink_to_fit].
+    fn shrink_to_fit_ext(&mut self);
+    /// Forwards to [BandLimited::is_frame_ended].
+    fn is_frame_ended_ext(&self) -> bool;
+    /// Forwards to [BandLimited::next_frame].
+    fn next_frame_ext(&mut self);
+    /// A helper method for producing audio samples from a specific channel.
     ///
-    /// The size of `output` should be acquired from calling [BandLimited::end_frame] or [Blep::end_frame].
+    /// The size of `output` should be acquired from calling [BandLimited::end_frame_at] or [Blep::end_frame].
     ///
     /// `channel` is the [BandLimited] source channel index (0-based).
     ///
     /// For more information see [BandLimited::sum_iter].
     fn render_audio_channel(&self, output: &mut [S], channel: usize)
         where S: FromSample<T>;
-    /// A helper method for rendering audio samples from multiple channels into a channel-interleaved sample buffer.
+    /// A helper method for producing audio samples from multiple channels into a channel-interleaved sample buffer.
     ///
-    /// The size of `output` should be acquired from calling [BandLimited::end_frame] or [Blep::end_frame]
+    /// The size of `output` should be acquired from calling [BandLimited::end_frame_at] or [Blep::end_frame]
     /// and multiplied by the number of output audio channels: `output_nchannels`.
     ///
     /// `output_nchannels` must specifiy the number of output audio channels.
@@ -48,11 +48,11 @@ pub trait BandLimitedExt<T, S>: Blep<SampleDelta=T> {
     /// For more information see [BandLimited::sum_iter].
     fn render_audio_map_interleaved(&self, output: &mut [S], output_nchannels: usize, channel_map: &[usize])
         where S: FromSample<T>;
-    /// A helper method for rendering audio samples from a specific channel into a channel-interleaved sample buffer.
+    /// A helper method for producing audio samples from a specific channel into a channel-interleaved sample buffer.
     ///
     /// Each sample is being copied to each output channel (spread).
     ///
-    /// The size of `output` should be acquired from calling [BandLimited::end_frame] or [Blep::end_frame]
+    /// The size of `output` should be acquired from calling [BandLimited::end_frame_at] or [Blep::end_frame]
     /// and multiplied by the number of output audio channels: `output_nchannels`.
     ///
     /// `output_nchannels` must specifiy the number of output audio channels.
@@ -106,20 +106,20 @@ impl<D, B, T, S> BandLimitedExt<T, S> for D
           B: BandLimitedExt<T, S> + ?Sized
 {
     #[inline]
-    fn reset(&mut self) {
-        (**self).reset()
+    fn reset_ext(&mut self) {
+        (**self).reset_ext()
     }
     #[inline]
-    fn shrink_to_fit(&mut self) {
-        (**self).shrink_to_fit()
+    fn shrink_to_fit_ext(&mut self) {
+        (**self).shrink_to_fit_ext()
     }
     #[inline]
-    fn is_frame_ended(&self) -> bool {
-        (**self).is_frame_ended()
+    fn is_frame_ended_ext(&self) -> bool {
+        (**self).is_frame_ended_ext()
     }
     #[inline]
-    fn next_frame(&mut self) {
-        (**self).next_frame()
+    fn next_frame_ext(&mut self) {
+        (**self).next_frame_ext()
     }
     #[inline]
     fn render_audio_channel(&self, output: &mut [S], channel: usize)
@@ -142,27 +142,25 @@ impl<D, B, T, S> BandLimitedExt<T, S> for D
 }
 
 impl<T, O, S> BandLimitedExt<T, S> for BandLimited<T, O>
-    where T: SampleDelta + MulNorm + AddAssign + FromSample<f32>,
+    where T: SampleDelta + MulNorm + FromSample<f32>,
           O: BandLimOpt
 {
-    #[inline]
-    fn reset(&mut self) {
-        self.reset()
+    fn reset_ext(&mut self) {
+        (*self).reset()
+    }
+
+    fn shrink_to_fit_ext(&mut self) {
+        (*self).shrink_to_fit();
     }
 
     #[inline]
-    fn shrink_to_fit(&mut self) {
-        self.shrink_to_fit()
+    fn is_frame_ended_ext(&self) -> bool {
+        (*self).is_frame_ended()
     }
 
     #[inline]
-    fn is_frame_ended(&self) -> bool {
-        self.is_frame_ended()
-    }
-
-    #[inline]
-    fn next_frame(&mut self) {
-        self.next_frame()
+    fn next_frame_ext(&mut self) {
+        (*self).next_frame()
     }
 
     fn render_audio_channel(&self, output: &mut [S], channel: usize)
@@ -211,7 +209,7 @@ where T: SampleDelta + MulNorm
 
     #[inline]
     fn end_frame(&mut self, timestamp: FTs) -> usize {
-        implement_any! { self, b, Blep::end_frame(b, timestamp) }
+        implement_any! { self, b, b.end_frame(timestamp) }
     }
 
     #[inline]
@@ -221,22 +219,22 @@ where T: SampleDelta + MulNorm
 }
 
 impl<T, S> BandLimitedExt<T, S> for BandLimitedAny<T>
-    where T: SampleDelta + MulNorm + AddAssign + FromSample<f32>,
+    where T: SampleDelta + MulNorm + FromSample<f32>
 {
     #[inline]
-    fn reset(&mut self) {
+    fn reset_ext(&mut self) {
         implement_any! { self, b, b.reset() }
     }
     #[inline]
-    fn shrink_to_fit(&mut self) {
+    fn shrink_to_fit_ext(&mut self) {
         implement_any! { self, b, b.shrink_to_fit() }
     }
     #[inline]
-    fn is_frame_ended(&self) -> bool {
+    fn is_frame_ended_ext(&self) -> bool {
         implement_any! { self, b, b.is_frame_ended() }
     }
     #[inline]
-    fn next_frame(&mut self) {
+    fn next_frame_ext(&mut self) {
         implement_any! { self, b, b.next_frame() }
     }
     #[inline]
