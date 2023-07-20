@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020-2022  Rafal Michalski
+    Copyright (C) 2020-2023  Rafal Michalski
 
     This file is part of SPECTRUSTY, a Rust library for building emulators.
 
@@ -19,7 +19,7 @@ bitflags! {
     /// Every key's state is encoded as a single bit on this 40-bit flag type.
     /// * Bit = 1 a key is being pressed.
     /// * Bit = 0 a key is not being pressed.
-    #[derive(Default)]
+    #[derive(Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
     pub struct ZXKeyboardMap: u64 {
         const V  = 0x00_0000_0001;
         const G  = 0x00_0000_0002;
@@ -116,12 +116,23 @@ impl ZXKeyboardMap {
     }
     /// Changes the pressed state of the key indicated as a key index.
     pub fn change_key_state(self, key: u8, pressed: bool) -> Self {
-        let mask = ZXKeyboardMap::from_bits_truncate(1 << key);
+        let mask = ZXKeyboardMap::from_bits_retain(1 << key) & ZXKeyboardMap::all();
         if pressed {
             self | mask
         }
         else {
             self &!mask
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use spectrusty_core::test_bitflags_all_bits_defined_no_masks;
+
+    #[test]
+    fn flags_all_bits_defined() {
+        test_bitflags_all_bits_defined_no_masks!(ZXKeyboardMap, 40);
     }
 }

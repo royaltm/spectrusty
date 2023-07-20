@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020-2022  Rafal Michalski
+    Copyright (C) 2020-2023  Rafal Michalski
 
     This file is part of SPECTRUSTY, a Rust library for building emulators.
 
@@ -113,7 +113,7 @@ impl<B, X> Ula128<B, X> {
     #[inline]
     fn write_mem_port(&mut self, data: u8, ts: VideoTs) -> bool {
         if !self.mem_locked {
-            let flags = Ula128MemFlags::from_bits_truncate(data);
+            let flags = Ula128MemFlags::from_data(data);
             return self.set_mem_port_value(flags, ts)
         }
         false

@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020-2022  Rafal Michalski
+    Copyright (C) 2020-2023  Rafal Michalski
 
     This file is part of SPECTRUSTY, a Rust library for building emulators.
 
@@ -200,7 +200,7 @@ pub fn load_sna<R: Read + Seek, S: SnapshotLoader>(
           .map_err(|e| Error::new(ErrorKind::Other, e))?;
 
     let index48 = [5, 2];
-    let last_page = Ula128MemFlags::from_bits_truncate(sna_ext.port_data)
+    let last_page = Ula128MemFlags::from_data(sna_ext.port_data)
                     .last_ram_page_bank();
     for page in index48.iter().chain(
                     Some(&last_page).filter(|n| !index48.contains(n))

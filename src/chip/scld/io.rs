@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020-2022  Rafal Michalski
+    Copyright (C) 2020-2023  Rafal Michalski
 
     This file is part of SPECTRUSTY, a Rust library for building emulators.
 
@@ -77,13 +77,13 @@ impl<M, B, X, V> Io for Scld<M, B, X, V>
 
     fn write_io(&mut self, port: u16, data: u8, ts: VideoTs) -> (Option<()>, Option<NonZeroU16>) {
         if UlaPortAddress::match_port(port) {
-            let flags = UlaPortFlags::from_bits_truncate(data);
+            let flags = UlaPortFlags::from_data(data);
             let border = BorderColor::from(flags);
             self.change_border_color(border, ts);
             self.ula.ula_write_earmic(flags, ts);
         }
         else if ScldCtrlPortAddress::match_port(port) {
-            let flags = ScldCtrlFlags::from_bits_truncate(data);
+            let flags = ScldCtrlFlags::from_data(data);
             self.set_ctrl_flags_value(flags, ts);
         }
         else if ScldMmuPortAddress::match_port(port) {

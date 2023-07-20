@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020-2022  Rafal Michalski
+    Copyright (C) 2020-2023  Rafal Michalski
 
     This file is part of SPECTRUSTY, a Rust library for building emulators.
 
@@ -17,12 +17,12 @@ bitflags! {
     /// Flags for reading and writing the current stick direction.
     /// * Bit = 1 a direction is active.
     /// * Bit = 0 a direction is inactive.
-    #[derive(Default)]
+    #[derive(Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
     pub struct Directions: u8 {
-        const UP    = 0b0000_0001;
-        const RIGHT = 0b0000_0010;
-        const DOWN  = 0b0000_0100;
-        const LEFT  = 0b0000_1000;
+        const UP    = 0b0001;
+        const RIGHT = 0b0010;
+        const DOWN  = 0b0100;
+        const LEFT  = 0b1000;
     }
 }
 

@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020-2022  Rafal Michalski
+    Copyright (C) 2020-2023  Rafal Michalski
 
     This file is part of SPECTRUSTY, a Rust library for building emulators.
 
@@ -59,6 +59,7 @@ use std::io;
 use serde::{Serialize, Deserialize};
 
 use spectrusty_core::{
+    bitflags_masks,
     clock::TimestampOps,
     bus::BusDevice
 };
@@ -113,42 +114,89 @@ pub struct ZxInterface1BusDevice<R, W, N, D: BusDevice>
     bus: D
 }
 
-bitflags! {
-    #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
-    struct If1SerNetIo: u8 {
-        const RXD     = 0b0000_0001;
-        const TXD     = 0b1000_0000;
-        const NET     = 0b0000_0001;
-        const DEFAULT = 0b0111_1110;
-    }
+macro_rules! impl_from_to_flags {
+    ($flags:ty) => {
+        impl From<u8> for $flags {
+            fn from(bits: u8) -> Self {
+                <$flags>::from_bits_retain(bits)
+            }
+        }
+
+        impl From<$flags> for u8 {
+            fn from(flags: $flags) -> u8 {
+                flags.bits()
+            }
+        }
+    };
 }
 
 bitflags! {
     #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
+    #[cfg_attr(feature = "snapshot", serde(from = "u8", into = "u8"))]
+    #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
+    struct If1SerNetIo: u8 {
+        const RXD     = 0b0000_0001;
+        const NET     = 0b0000_0001;
+        const UNUSED1 = 0b0000_0010;
+        const UNUSED2 = 0b0000_0100;
+        const UNUSED3 = 0b0000_1000;
+        const UNUSED4 = 0b0001_0000;
+        const UNUSED5 = 0b0010_0000;
+        const UNUSED6 = 0b0100_0000;
+        const TXD     = 0b1000_0000;
+     // const DEFAULT = 0b0111_1110;
+    }
+}
+impl_from_to_flags!(If1SerNetIo);
+bitflags_masks!(If1SerNetIo {
+    pub const DEFAULT = UNUSED6|UNUSED5|UNUSED4|UNUSED3|UNUSED2|UNUSED1;
+});
+
+bitflags! {
+    #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
+    #[cfg_attr(feature = "snapshot", serde(from = "u8", into = "u8"))]
+    #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
     struct If1ControlIn: u8 {
-        const MD_MASK  = 0b0000_0111;
         const MD_PROT  = 0b0000_0001;
         const MD_SYN   = 0b0000_0010;
         const MD_GAP   = 0b0000_0100;
+     // const MD_MASK  = 0b0000_0111;
         const SER_DTR  = 0b0000_1000;
         const NET_BUSY = 0b0001_0000;
-        const DEFAULT  = 0b1110_0111;
+        const UNUSED5  = 0b0010_0000;
+        const UNUSED6  = 0b0100_0000;
+        const UNUSED7  = 0b1000_0000;
+     // const DEFAULT  = 0b1110_0111;
     }
 }
+impl_from_to_flags!(If1ControlIn);
+bitflags_masks!(If1ControlIn {
+    pub const MD_MASK = MD_GAP|MD_SYN|MD_PROT;
+    pub const DEFAULT = UNUSED7|UNUSED6|UNUSED5|MD_MASK;
+});
 
 bitflags! {
     #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
+    #[cfg_attr(feature = "snapshot", serde(from = "u8", into = "u8"))]
+    #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
     struct If1ControlOut: u8 {
-        const MD_MASK   = 0b0000_1111;
         const COMMS_OUT = 0b0000_0001;
         const COMMS_CLK = 0b0000_0010;
         const MD_R_W    = 0b0000_0100;
         const MD_ERASE  = 0b0000_1000;
+     // const MD_MASK   = 0b0000_1111;
         const SER_CTS   = 0b0001_0000;
         const NET_WAIT  = 0b0010_0000;
-        const DEFAULT   = 0b1110_1110;
+        const UNUSED6   = 0b0100_0000;
+        const UNUSED7   = 0b1000_0000;
+     // const DEFAULT   = 0b1110_1110;
     }
 }
+impl_from_to_flags!(If1ControlOut);
+bitflags_masks!(If1ControlOut {
+    pub const MD_MASK = MD_ERASE|MD_R_W|COMMS_CLK|COMMS_OUT;
+    pub const DEFAULT = UNUSED7|UNUSED6|NET_WAIT|MD_ERASE|MD_R_W|COMMS_CLK;
+});
 
 macro_rules! default_io {
     ($($ty:ty),*) => {$(
@@ -313,7 +361,7 @@ impl<R, W, N, D> BusDevice for ZxInterface1BusDevice<R, W, N, D>
     fn write_io(&mut self, port: u16, data: u8, timestamp: Self::Timestamp) -> Option<u16> {
         match port & IF1_MASK {
             IF1_SERN_BITS => {
-                let data = If1SerNetIo::from_bits_truncate(data);
+                let data = If1SerNetIo::from_bits_retain(data);
                 if self.ctrl_out.is_comms_out_ser() {
                     self.ctrl_in.set_dtr(self.serial.write_data(data.rxd(), timestamp));
                 }
@@ -325,7 +373,7 @@ impl<R, W, N, D> BusDevice for ZxInterface1BusDevice<R, W, N, D>
                 Some(0)
             }
             IF1_CTRL_BITS => {
-                let data = If1ControlOut::from_bits_truncate(data);
+                let data = If1ControlOut::from_bits_retain(data);
                 let diff = self.ctrl_out ^ data;
                 // println!("ctrl write: {:?}", data);
                 self.ctrl_out ^= diff;
@@ -345,5 +393,18 @@ impl<R, W, N, D> BusDevice for ZxInterface1BusDevice<R, W, N, D>
             IF1_DATA_BITS => Some(self.microdrives.write_data(data, timestamp)),
             _ => self.bus.write_io(port, data, timestamp)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use spectrusty_core::test_bitflags_all_bits_defined_no_masks;
+
+    #[test]
+    fn flags_all_bits_defined() {
+        test_bitflags_all_bits_defined_no_masks!(If1SerNetIo, 8);
+        test_bitflags_all_bits_defined_no_masks!(If1ControlIn, 8);
+        test_bitflags_all_bits_defined_no_masks!(If1ControlOut, 8);
     }
 }

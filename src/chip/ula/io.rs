@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020-2022  Rafal Michalski
+    Copyright (C) 2020-2023  Rafal Michalski
 
     This file is part of SPECTRUSTY, a Rust library for building emulators.
 
@@ -38,7 +38,7 @@ impl<M, B, X, V> Io for Ula<M, B, X, V>
 
     fn write_io(&mut self, port: u16, data: u8, ts: VideoTs) -> (Option<()>, Option<NonZeroU16>) {
         if port & 1 == 0 {
-            let flags = UlaPortFlags::from_bits_truncate(data);
+            let flags = UlaPortFlags::from_data(data);
             let border = BorderColor::from(flags);
             if self.last_border != border {
                 self.last_border = border;

@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020-2022  Rafal Michalski
+    Copyright (C) 2020-2023  Rafal Michalski
 
     This file is part of SPECTRUSTY, a Rust library for building emulators.
 
@@ -14,7 +14,7 @@ bitflags! {
     /// Flags for mouse buttons.
     /// * Bit = 1 button is pressed.
     /// * Bit = 0 button is released.
-    #[derive(Default)]
+    #[derive(Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
     pub struct MouseButtons: u8 {
         const LEFT    = 0b0000_0001;
         const RIGHT   = 0b0000_0010;

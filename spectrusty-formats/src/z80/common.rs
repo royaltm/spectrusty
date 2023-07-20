@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020-2022  Rafal Michalski
+    Copyright (C) 2020-2023  Rafal Michalski
 
     This file is part of SPECTRUSTY, a Rust library for building emulators.
 
@@ -12,7 +12,7 @@ use bitflags::bitflags;
 
 use spectrusty_core::z80emu::InterruptMode;
 use spectrusty_core::clock::FTs;
-use spectrusty_core::chip::ReadEarMode;
+use spectrusty_core::{bitflags_masks, chip::ReadEarMode};
 use spectrusty_core::video::BorderColor;
 
 use crate::{StructRead, StructWrite};
@@ -24,35 +24,53 @@ pub const PAGE_SIZE: usize = 0x4000;
 pub enum Z80Version { V1, V2, V3 }
 
 bitflags! {
-    #[derive(Default)]
+    #[derive(Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
     pub struct Flags1: u8 {
-        const R_HIGH_BIT     = 0b0000_0001;
-        const BORDER_COLOR   = 0b0000_1110;
-        const BASIC_SAMROM   = 0b0001_0000;
-        const MEM_COMPRESSED = 0b0010_0000;
+        const R_HIGH_BIT     = 0b00_0001;
+        const BORDER0        = 0b00_0010;
+        const BORDER1        = 0b00_0100;
+        const BORDER2        = 0b00_1000;
+     // const BORDER_COLOR   = 0b00_1110;
+        const BASIC_SAMROM   = 0b01_0000;
+        const MEM_COMPRESSED = 0b10_0000;
     }
 }
+bitflags_masks!(Flags1 {
+    pub const BORDER_COLOR = BORDER2|BORDER1|BORDER0;
+});
 
 bitflags! {
-    #[derive(Default)]
+    #[derive(Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
     pub struct Flags2: u8 {
         const INTR_MODE0       = 0b0000_0000;
         const INTR_MODE1       = 0b0000_0001;
         const INTR_MODE2       = 0b0000_0010;
-        const INTR_MODE_MASK   = 0b0000_0011;
+     // const INTR_MODE_MASK   = 0b0000_0011;
         const ISSUE2_EMULATION = 0b0000_0100;
         const DOUBLE_INTERRUPT = 0b0000_1000;
-        const VIDEO_SYNC       = 0b0011_0000;
-        const JOYSTICK_MODEL   = 0b1100_0000;
+        const VIDEO_SYNC0      = 0b0001_0000;
+        const VIDEO_SYNC1      = 0b0010_0000;
+     // const VIDEO_SYNC       = 0b0011_0000;
+        const JOYSTICK0        = 0b0100_0000;
+        const JOYSTICK1        = 0b1000_0000;
+     // const JOYSTICK_MODEL   = 0b1100_0000;
     }
 }
+bitflags_masks!(Flags2 {
+    pub const INTR_MODE_MASK = INTR_MODE2|INTR_MODE1;
+    pub const VIDEO_SYNC     = VIDEO_SYNC1|VIDEO_SYNC0;
+    pub const JOYSTICK_MODEL = JOYSTICK1|JOYSTICK0;
+});
 
 bitflags! {
-    #[derive(Default)]
+    #[derive(Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
     pub struct Flags3: u8 {
         const REG_R_EMU     = 0b0000_0001;
         const LDIR_EMU      = 0b0000_0010;
         const AY_SOUND_EMU  = 0b0000_0100;
+        const RESERVED3     = 0b0000_1000;
+        const RESERVED4     = 0b0001_0000;
+        const RESERVED5     = 0b0010_0000;
         const AY_FULLER_BOX = 0b0100_0000;
         const ALT_HW_MODE   = 0b1000_0000;
     }
@@ -165,7 +183,7 @@ impl Flags1 {
 
 impl From<u8> for Flags2 {
     fn from(byte: u8) -> Self {
-        Flags2::from_bits_truncate(byte)
+        Flags2::from_bits_retain(byte)
     }
 }
 
@@ -218,7 +236,7 @@ impl Flags2 {
 
 impl From<u8> for Flags3 {
     fn from(byte: u8) -> Self {
-        Flags3::from_bits_truncate(byte)
+        Flags3::from_bits_retain(byte)
     }
 }
 
@@ -294,6 +312,15 @@ impl MemoryHeader {
 mod tests {
     use super::*;
     use core::convert::TryInto;
+    use spectrusty_core::test_bitflags_all_bits_defined_no_masks;
+
+    #[test]
+    fn flags_all_bits_defined() {
+        test_bitflags_all_bits_defined_no_masks!(Flags1, 6);
+        test_bitflags_all_bits_defined_no_masks!(Flags2, 8);
+        test_bitflags_all_bits_defined_no_masks!(Flags3, 8);
+    }
+
     #[test]
     fn z80_cycles_works() {
         let model = ComputerModel::Spectrum48;

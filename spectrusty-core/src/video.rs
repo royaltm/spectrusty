@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020-2022  Rafal Michalski
+    Copyright (C) 2020-2023  Rafal Michalski
 
     This file is part of SPECTRUSTY, a Rust library for building emulators.
 
@@ -19,7 +19,7 @@ use serde::{Serialize, Deserialize};
 use bitflags::bitflags;
 
 use crate::clock::{Ts, FTs, VideoTs, VFrameTsCounter, MemoryContention};
-use crate::chip::UlaPortFlags;
+use crate::chip::{UlaPortFlags, bitflags_from_data, bitflags_masks};
 
 pub use pixel::{Palette, PixelBuffer};
 
@@ -64,18 +64,25 @@ bitflags! {
     /// Bitflags defining ZX Spectrum's border colors.
     #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
     #[cfg_attr(feature = "snapshot", serde(try_from = "u8", into = "u8"))]
-    #[derive(Default)]
+    #[derive(Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
     pub struct BorderColor: u8 {
         const BLACK   = 0b000;
         const BLUE    = 0b001;
         const RED     = 0b010;
-        const MAGENTA = 0b011;
+     // const MAGENTA = 0b011;
         const GREEN   = 0b100;
-        const CYAN    = 0b101;
-        const YELLOW  = 0b110;
-        const WHITE   = 0b111;
+     // const CYAN    = 0b101;
+     // const YELLOW  = 0b110;
+     // const WHITE   = 0b111;
     }
 }
+bitflags_from_data!(BorderColor);
+bitflags_masks!(BorderColor {
+    pub const MAGENTA = RED|BLUE;
+    pub const CYAN    = GREEN|BLUE;
+    pub const YELLOW  = GREEN|RED;
+    pub const WHITE   = GREEN|RED|BLUE;
+});
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TryFromU8BorderColorError(pub u8);
@@ -407,7 +414,7 @@ impl TryFrom<u8> for BorderColor {
 impl From<UlaPortFlags> for BorderColor {
     #[inline]
     fn from(flags: UlaPortFlags) -> Self {
-        BorderColor::from_bits_truncate((flags & UlaPortFlags::BORDER_MASK).bits())
+        BorderColor::from_bits_retain((flags & UlaPortFlags::BORDER_MASK).bits())
     }
 }
 
@@ -438,6 +445,27 @@ pub fn color_line_offset<T>(y: T) -> T
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::chip::test_bitflags_all_bits_defined_no_masks;
+
+    #[test]
+    fn flags_all_bits_defined() {
+        test_bitflags_all_bits_defined_no_masks!(BorderColor, 3);
+    }
+
+    #[test]
+    fn border_color_flags_works() {
+        let flags = !UlaPortFlags::BORDER_MASK;
+        assert_eq!(BorderColor::from(flags|UlaPortFlags::BORDER0), BorderColor::BLUE);
+        assert_eq!(BorderColor::from(flags|UlaPortFlags::BORDER1), BorderColor::RED);
+        assert_eq!(BorderColor::from(flags|UlaPortFlags::BORDER0|UlaPortFlags::BORDER1), BorderColor::MAGENTA);
+        assert_eq!(BorderColor::from(flags|UlaPortFlags::BORDER2), BorderColor::GREEN);
+        assert_eq!(BorderColor::from(flags|UlaPortFlags::BORDER0|UlaPortFlags::BORDER2), BorderColor::CYAN);
+        assert_eq!(BorderColor::from(flags|UlaPortFlags::BORDER1|UlaPortFlags::BORDER2), BorderColor::YELLOW);
+        assert_eq!(BorderColor::from(flags|UlaPortFlags::BORDER_MASK), BorderColor::WHITE);
+        assert_eq!(BorderColor::from(flags|UlaPortFlags::empty()), BorderColor::BLACK);
+        assert_eq!(BorderColor::BLACK, BorderColor::empty());
+        assert_eq!(BorderColor::WHITE, BorderColor::all());
+    }
 
     #[test]
     fn video_offsets_works() {

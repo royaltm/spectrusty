@@ -460,7 +460,7 @@ impl<'a, U> UlaPlus<U>
             }
         }
         else if self.register_flags.is_mode_group() {
-            let color_mode = ColorMode::from_bits_truncate(data);
+            let color_mode = ColorMode::from_data(data);
             self.color_mode = color_mode;
             self.update_render_mode(self.cur_render_mode.with_color_mode(color_mode), ts);
         }        

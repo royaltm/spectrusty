@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020-2022  Rafal Michalski
+    Copyright (C) 2020-2023  Rafal Michalski
 
     This file is part of SPECTRUSTY, a Rust library for building emulators.
 
@@ -32,7 +32,7 @@ impl<P, D> fmt::Display for Plus3CentronicsBusDevice<P, D> {
 bitflags! {
     #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
     #[cfg_attr(feature = "snapshot", serde(from = "u8", into = "u8"))]
-    #[derive(Default)]
+    #[derive(Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
     struct CentronicsFlags: u8 {
         const BUSY   = 0b0000_0001;
         const STROBE = 0b0001_0000;
@@ -156,7 +156,7 @@ impl<P, D> BusDevice for Plus3CentronicsBusDevice<P, D>
             return Some(0);
         }
         else if Ula3CtrlPortAddress::match_port(port) {
-            let flags = CentronicsFlags::from_bits_truncate(data);
+            let flags = CentronicsFlags::from(data);
             let flags_diff = (self.flags ^ flags) & CentronicsFlags::STROBE;
             if flags_diff == CentronicsFlags::STROBE {
                 self.flags ^= flags_diff;
@@ -178,6 +178,6 @@ impl From<CentronicsFlags> for u8 {
 impl From<u8> for CentronicsFlags {
     #[inline]
     fn from(flags: u8) -> CentronicsFlags {
-        CentronicsFlags::from_bits_truncate(flags)
+        CentronicsFlags::from_bits_retain(flags & CentronicsFlags::all().bits())
     }
 }

@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020-2022  Rafal Michalski
+    Copyright (C) 2020-2023  Rafal Michalski
 
     This file is part of SPECTRUSTY, a Rust library for building emulators.
 
@@ -10,6 +10,7 @@ use core::fmt::Debug;
 #[cfg(feature = "snapshot")]
 use serde::{Serialize, Deserialize};
 
+use spectrusty_core::bitflags_masks;
 use crate::serial::{SerialPortDevice, DataState, ControlState};
 
 use super::AyIoPort;
@@ -56,22 +57,29 @@ pub struct SerialPorts128<S1,S2> {
 bitflags! {
     #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
     #[cfg_attr(feature = "snapshot", serde(from = "u8", into = "u8"))]
+    #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
     struct Serial128Io: u8 {
         const SER1_CTS      = 0b0000_0001;
         const SER1_RXD      = 0b0000_0010;
+     // const SER1_OUT_MASK = 0b0000_0011;
         const SER2_CTS      = 0b0000_0100;
         const SER2_RXD      = 0b0000_1000;
-        const SER1_OUT_MASK = 0b0000_0011;
-        const SER2_OUT_MASK = 0b0000_1100;
-        const OUTPUT_MASK   = Self::SER1_OUT_MASK.bits()|Self::SER2_OUT_MASK.bits();
+     // const SER2_OUT_MASK = 0b0000_1100;
         const SER1_DTR      = 0b0001_0000;
         const SER1_TXD      = 0b0010_0000;
+     // const SER1_INP_MASK = 0b0011_0000;
         const SER2_DTR      = 0b0100_0000;
         const SER2_TXD      = 0b1000_0000;
-        const SER1_INP_MASK = 0b0011_0000;
-        const SER2_INP_MASK = 0b1100_0000;
+     // const SER2_INP_MASK = 0b1100_0000;
     }
 }
+bitflags_masks!(Serial128Io {
+    pub const SER1_OUT_MASK = SER1_CTS|SER1_RXD;
+    pub const SER2_OUT_MASK = SER2_CTS|SER2_RXD;
+    pub const OUTPUT_MASK   = SER1_OUT_MASK|SER2_OUT_MASK;
+    pub const SER1_INP_MASK = SER1_DTR|SER1_TXD;
+    pub const SER2_INP_MASK = SER2_DTR|SER2_TXD;
+});
 
 impl Default for Serial128Io {
     fn default() -> Self {
@@ -81,7 +89,7 @@ impl Default for Serial128Io {
 
 impl From<u8> for Serial128Io {
     fn from(keys: u8) -> Self {
-        Serial128Io::from_bits_truncate(keys)
+        Serial128Io::from_bits_retain(keys)
     }
 }
 
@@ -151,7 +159,7 @@ impl<S1, S2> AyIoPort for SerialPorts128<S1, S2>
     #[inline]
     fn ay_io_write(&mut self, _addr: u16, data: u8, timestamp: Self::Timestamp) {
         let mut io_state = self.io_state;
-        let io_diff = (io_state ^ Serial128Io::from_bits_truncate(data)) & Serial128Io::OUTPUT_MASK;
+        let io_diff = (io_state ^ Serial128Io::from_bits_retain(data)) & Serial128Io::OUTPUT_MASK;
         io_state ^= io_diff;
         // println!("port A write: {:02x} {:?} {:?}", data, io_diff, timestamp);
         if io_diff.is_ser1_cts() {
@@ -192,7 +200,14 @@ impl<S1, S2> AyIoPort for SerialPorts128<S1, S2>
 
 #[cfg(test)]
 mod tests {
-    // use super::*;
+    use super::*;
+    use spectrusty_core::test_bitflags_all_bits_defined_no_masks;
+
+    #[test]
+    fn flags_all_bits_defined() {
+        test_bitflags_all_bits_defined_no_masks!(Serial128Io, 8);
+    }
+
     #[test]
     fn serial_ports_128_work() {
         // println!("SerialKeypad<Ula128VidFrame> {}", core::mem::size_of::<SerialKeypad<Ula128VidFrame>>());

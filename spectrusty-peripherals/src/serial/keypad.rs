@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020-2022  Rafal Michalski
+    Copyright (C) 2020-2023  Rafal Michalski
 
     This file is part of SPECTRUSTY, a Rust library for building emulators.
 
@@ -13,50 +13,30 @@ use serde::{Serialize, Deserialize};
 use rand::{Rng, SeedableRng};
 use rand::rngs::SmallRng;
 
-use spectrusty_core::clock::{FTs, TimestampOps};
+use spectrusty_core::{bitflags_masks, clock::{FTs, TimestampOps}};
 use super::{SerialPortDevice, DataState, ControlState};
 
 bitflags! {
     /// Every key's state is encoded as a single bit on this 20-bit flag type.
     /// * Bit = 1 a key is being pressed.
     /// * Bit = 0 a key is not being pressed.
-    #[derive(Default)]
     #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
     #[cfg_attr(feature = "snapshot", serde(from = "u32", into = "u32"))]
+    #[derive(Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
     pub struct KeypadKeys: u32 {
-        /// The 1st (top) physical keypad row's mask.
-        const ROW1_MASK = 0b0000_0000_1111_0000_0000;
-        /// The 2nd physical keypad row's mask.
-        const ROW2_MASK = 0b0000_1111_0000_0000_0000;
-        /// The 3rd physical keypad row's mask.
-        const ROW3_MASK = 0b1111_0000_0000_0000_0000;
-        /// The 4th physical keypad row's mask.
-        const ROW4_MASK = 0b0000_0000_0000_1111_0000;
-        /// The 5th (bottom) physical keypad row's mask.
-        const ROW5_MASK = 0b0000_0000_0000_0000_1111;
+        const RESERVED0 = 0b0000_0000_0000_0000_0001;
         const DOT       = 0b0000_0000_0000_0000_0010;
-        /// An alias of `DOT`.
-        const PERIOD    = Self::DOT.bits();
+        const RESERVED2 = 0b0000_0000_0000_0000_0100;
         const N0        = 0b0000_0000_0000_0000_1000;
-        /// An alias of `N0`.
-        const SHIFT     = Self::N0.bits();
         const ENTER     = 0b0000_0000_0000_0001_0000;
         const N3        = 0b0000_0000_0000_0010_0000;
         const N2        = 0b0000_0000_0000_0100_0000;
         const N1        = 0b0000_0000_0000_1000_0000;
         const RPAREN    = 0b0000_0000_0001_0000_0000;
-        /// An alias of `RPAREN`
-        const TOGGLE    = Self::RPAREN.bits();
         const LPAREN    = 0b0000_0000_0010_0000_0000;
         const ASTERISK  = 0b0000_0000_0100_0000_0000;
-        /// An alias of `ASTERISK`
-        const MULTIPLY  = Self::ASTERISK.bits();
         const SLASH     = 0b0000_0000_1000_0000_0000;
-        /// An alias of `SLASH`
-        const DIVIDE    = Self::SLASH.bits();
         const MINUS     = 0b0000_0001_0000_0000_0000;
-        /// An alias of `MINUS`
-        const CMND      = Self::MINUS.bits();
         const N9        = 0b0000_0010_0000_0000_0000;
         const N8        = 0b0000_0100_0000_0000_0000;
         const N7        = 0b0000_1000_0000_0000_0000;
@@ -64,8 +44,37 @@ bitflags! {
         const N6        = 0b0010_0000_0000_0000_0000;
         const N5        = 0b0100_0000_0000_0000_0000;
         const N4        = 0b1000_0000_0000_0000_0000;
+     // const ROW1_MASK = 0b0000_0000_1111_0000_0000;
+     // const ROW2_MASK = 0b0000_1111_0000_0000_0000;
+     // const ROW3_MASK = 0b1111_0000_0000_0000_0000;
+     // const ROW4_MASK = 0b0000_0000_0000_1111_0000;
+     // const ROW5_MASK = 0b0000_0000_0000_0000_1111;
     }
 }
+bitflags_masks!(KeypadKeys {
+    /// The 1st (top) physical keypad row's mask.
+    pub const ROW1_MASK = SLASH|ASTERISK|LPAREN|RPAREN;
+    /// The 2nd physical keypad row's mask.
+    pub const ROW2_MASK = N7|N8|N9|MINUS;
+    /// The 3rd physical keypad row's mask.
+    pub const ROW3_MASK = N4|N5|N6|PLUS;
+    /// The 4th physical keypad row's mask.
+    pub const ROW4_MASK = N1|N2|N3|ENTER;
+    /// The 5th (bottom) physical keypad row's mask.
+    pub const ROW5_MASK = N0|RESERVED2|DOT|RESERVED0;
+    /// An alias of `DOT`.
+    pub const PERIOD    = DOT;
+    /// An alias of `N0`.
+    pub const SHIFT     = N0;
+    /// An alias of `RPAREN`
+    pub const TOGGLE    = RPAREN;
+    /// An alias of `ASTERISK`
+    pub const MULTIPLY  = ASTERISK;
+    /// An alias of `SLASH`
+    pub const DIVIDE    = SLASH;
+    /// An alias of `MINUS`
+    pub const CMND      = MINUS;
+});
 
 mod intervals {
     use super::FTs;
@@ -397,5 +406,16 @@ impl From<u32> for KeypadKeys {
 impl From<KeypadKeys> for u32 {
     fn from(keys: KeypadKeys) -> Self {
         keys.bits()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use spectrusty_core::test_bitflags_all_bits_defined_no_masks;
+
+    #[test]
+    fn flags_all_bits_defined() {
+        test_bitflags_all_bits_defined_no_masks!(KeypadKeys, 20);
     }
 }

@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020-2022  Rafal Michalski
+    Copyright (C) 2020-2023  Rafal Michalski
 
     This file is part of SPECTRUSTY, a Rust library for building emulators.
 
@@ -122,7 +122,7 @@ impl<'a, I, V> Iterator for MicPulseIter<I, V>
         loop {
             if let Some(&vtsd) = self.iter.next() {
                 let (vts, data):(VFrameTs<V>, u8) = vtsd.into();
-                if !(EarMic::from_bits_truncate(self.last_data ^ data) & EarMic::MIC).is_empty() {
+                if !(EarMic::from_bits_retain(self.last_data ^ data) & EarMic::MIC).is_empty() {
                     let ts = vts.into_tstates();
                     let maybe_delta = ts.checked_sub(self.last_pulse_ts);
 

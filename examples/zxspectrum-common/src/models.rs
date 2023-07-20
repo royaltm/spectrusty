@@ -1,6 +1,6 @@
 /*
     zxspectrum-common: High-level ZX Spectrum emulator library example.
-    Copyright (C) 2020-2022  Rafal Michalski
+    Copyright (C) 2020-2023  Rafal Michalski
 
     For the full copyright notice, see the lib.rs file.
 */
@@ -994,8 +994,8 @@ impl<C: Cpu, U, F> ZxSpectrum<C, U, F>
         self.reset(true);
         use ModelRequest::*;
         type Zk = spectrusty::peripherals::ZXKeyboardMap;
-        const LOAD_SE: Zk = Zk::from_bits_truncate(Zk::SS.bits()|Zk::Q.bits());
-        const QUOTE: Zk = Zk::from_bits_truncate(Zk::SS.bits()|Zk::P.bits());
+        const LOAD_SE: Zk = Zk::from_bits_retain(Zk::SS.bits()|Zk::Q.bits());
+        const QUOTE: Zk = Zk::from_bits_retain(Zk::SS.bits()|Zk::P.bits());
         const LOAD_QQ_EN: &[(Zk, u32)] = &[(Zk::J, 1), (QUOTE, 1), (Zk::SS, 4), (QUOTE, 1), (Zk::EN, 1)];
         const LOAD_QQ_EN_SE: &[(Zk, u32)] = &[(Zk::EN, 1), (Zk::empty(), 17), (LOAD_SE, 1), (QUOTE, 1), (Zk::SS, 4), (QUOTE, 1), (Zk::EN, 1)];
         match model {

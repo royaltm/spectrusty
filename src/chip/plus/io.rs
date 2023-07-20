@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020-2022  Rafal Michalski
+    Copyright (C) 2020-2023  Rafal Michalski
 
     This file is part of SPECTRUSTY, a Rust library for building emulators.
 
@@ -61,15 +61,15 @@ impl<'a, U> Io for UlaPlus<U>
 
     fn write_io(&mut self, port: u16, data: u8, ts: VideoTs) -> (Option<()>, Option<NonZeroU16>) {
         if U::is_ula_port(port) {
-            let border = BorderColor::from_bits_truncate(data);
+            let border = BorderColor::from_data(data);
             self.change_border_color(border, ts);
-            self.ula.ula_write_earmic(UlaPortFlags::from_bits_truncate(data), ts);
+            self.ula.ula_write_earmic(UlaPortFlags::from_data(data), ts);
         }
         else if ScldCtrlPortAddress::match_port(port) && !self.ulaplus_disabled {
-            self.write_scld_ctrl_port(ScldCtrlFlags::from(data), ts);
+            self.write_scld_ctrl_port(ScldCtrlFlags::from_data(data), ts);
         }
         else if PlusRegisterPortAddress::match_port(port) && !self.ulaplus_disabled {
-            self.write_plus_regs_port(UlaPlusRegFlags::from(data), ts);
+            self.write_plus_regs_port(UlaPlusRegFlags::from_data(data), ts);
         }
         else if PlusDataPortAddress::match_port(port) && !self.ulaplus_disabled {
             self.write_plus_data_port(data, ts);

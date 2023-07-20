@@ -1,11 +1,11 @@
-#![allow(clippy::unusual_byte_groupings)]
 /*
-    Copyright (C) 2020-2022  Rafal Michalski
+    Copyright (C) 2020-2023  Rafal Michalski
 
     This file is part of SPECTRUSTY, a Rust library for building emulators.
 
     For the full copyright notice, see the lib.rs file.
 */
+#![allow(clippy::unusual_byte_groupings)]
 use core::convert::TryFrom;
 use core::fmt;
 use core::marker::PhantomData;
@@ -29,6 +29,7 @@ use super::render_pixels::{
     INK_MASK,
     PAPER_MASK,
 };
+use spectrusty_core::{bitflags_from_data, bitflags_masks};
 
 const CLUT_MASK: u8 = 0b1100_0000;
 
@@ -58,21 +59,34 @@ bitflags! {
     /// ```
     #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
     #[cfg_attr(feature = "snapshot", serde(try_from = "u8", into = "u8"))]
-    #[derive(Default)]
+    #[derive(Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
     pub struct RenderMode: u8 {
-        const MODE_MASK      = 0b111000;
-        const COLOR_MASK     = 0b000111;
+        const INDEX_MODE     = 0b000000;
+        const COLOR0         = 0b000001;
+        const COLOR1         = 0b000010;
+        const COLOR2         = 0b000100;
+     // const COLOR_MASK     = 0b000111;
         const HI_RESOLUTION  = 0b001000;
-        const COLOR_MODE     = 0b110000;
         const PALETTE        = 0b010000;
         const GRAYSCALE      = 0b100000;
-        const GRAY_PALETTE   = 0b110000;
-        const GRAY_HI_RES    = 0b101000;
-        const PALETTE_HI_RES = 0b011000;
-        const GRAYPAL_HI_RES = 0b111000;
-        const INDEX_MODE     = 0b000000;
+     // const GRAY_PALETTE   = 0b110000;
+     // const COLOR_MODE     = 0b110000;
+     // const GRAY_HI_RES    = 0b101000;
+     // const PALETTE_HI_RES = 0b011000;
+     // const GRAYPAL_HI_RES = 0b111000;
+     // const MODE_MASK      = 0b111000;
     }
 }
+bitflags_from_data!(RenderMode);
+bitflags_masks!(RenderMode {
+    pub const COLOR_MASK     = COLOR2|COLOR1|COLOR0;
+    pub const GRAY_PALETTE   = GRAYSCALE|PALETTE;
+    pub const COLOR_MODE     = GRAY_PALETTE;
+    pub const GRAY_HI_RES    = GRAYSCALE|HI_RESOLUTION;
+    pub const PALETTE_HI_RES = PALETTE|HI_RESOLUTION;
+    pub const GRAYPAL_HI_RES = GRAYSCALE|PALETTE|HI_RESOLUTION;
+    pub const MODE_MASK      = COLOR_MODE|HI_RESOLUTION;
+});
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TryFromU8RenderModeError(pub u8);
@@ -115,12 +129,12 @@ impl RenderMode {
     /// Extracts color mode as `ColorMode` from `self`.
     #[inline]
     pub fn into_color_mode(self) -> ColorMode {
-        ColorMode::from_bits_truncate((self & RenderMode::COLOR_MODE).bits() >> 4)
+        ColorMode::from_bits_retain((self & RenderMode::COLOR_MODE).bits() >> 4)
     }
     /// Creates a new `RenderMode` from border color. The screen mode is set to default.
     #[inline]
     pub fn from_border_color(border: BorderColor) -> RenderMode {
-        RenderMode::from_bits_truncate(border.into())
+        RenderMode::from_bits_retain(border.bits()) & RenderMode::COLOR_MASK
     }
     /// Creates a new `RenderMode` with a given color `mode` replacing the previous one.
     ///
@@ -128,7 +142,7 @@ impl RenderMode {
     #[inline]
     pub fn with_color_mode(self, mode: ColorMode) -> Self {
         (self - RenderMode::COLOR_MODE)
-        | (RenderMode::from_bits_truncate(mode.bits() << 4) & RenderMode::COLOR_MODE)
+        | (RenderMode::from_bits_retain(mode.bits() << 4) & RenderMode::COLOR_MODE)
     }
     /// Creates a new `RenderMode` with a given `color` in range: [0, 7].
     ///
@@ -136,7 +150,7 @@ impl RenderMode {
     #[inline]
     pub fn with_color(self, color: u8) -> Self {
         (self - RenderMode::COLOR_MASK)
-        | (RenderMode::from_bits_truncate(color) & RenderMode::COLOR_MASK)
+        | (RenderMode::from_bits_retain(color) & RenderMode::COLOR_MASK)
     }
     /// Returns the border or ink bits ORed with hi resolution bit.
     ///
@@ -190,7 +204,7 @@ impl From<RenderMode> for u8 {
 impl From<VideoTsData6> for RenderMode {
     #[inline]
     fn from(vtsr: VideoTsData6) -> Self {
-        RenderMode::from_bits_truncate(vtsr.into_data())
+        RenderMode::from_data(vtsr.into_data())
     }
 }
 
@@ -536,6 +550,12 @@ fn is_border_palette_index(index: u8) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use spectrusty_core::test_bitflags_all_bits_defined_no_masks;
+
+    #[test]
+    fn flags_all_bits_defined() {
+        test_bitflags_all_bits_defined_no_masks!(RenderMode, 6);
+    }
 
     #[test]
     fn render_pixels_plus_is_border_palette_index_works() {

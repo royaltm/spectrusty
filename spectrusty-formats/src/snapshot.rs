@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020-2022  Rafal Michalski
+    Copyright (C) 2020-2023  Rafal Michalski
 
     This file is part of SPECTRUSTY, a Rust library for building emulators.
 
@@ -39,7 +39,7 @@ pub enum ComputerModel {
 }
 
 bitflags! {
-    #[derive(Default)]
+    #[derive(Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
     pub struct Extensions: u64 {
         const NONE       = 0x0000_0000_0000_0000;
         const IF1        = 0x0000_0000_0000_0001;
@@ -48,7 +48,6 @@ bitflags! {
         const SAM_RAM    = 0x0000_0000_0000_0008;
         const ULA_PLUS   = 0x0000_0000_0000_0010;
         const TR_DOS     = 0x0000_0000_0000_0020;
-        const RESERVED   = 0xFFFF_FFFF_FFFF_FFC0;
     }
 }
 
@@ -161,15 +160,15 @@ pub trait SnapshotCreator {
 }
 
 bitflags! {
-    #[derive(Default)]
+    #[derive(Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
     pub struct SnapshotResult: u64 {
         const OK              = 0x0000_0000_0000_0000;
         const MODEL_NSUP      = 0x0000_0000_0000_0001;
-        const EXTENSTION_NSUP = 0x0000_0000_0000_0010;
-        const CPU_MODEL_NSUP  = 0x0000_0000_0000_0100;
-        const JOYSTICK_NSUP   = 0x0000_0000_0000_1000;
-        const SOUND_CHIP_NSUP = 0x0000_0000_0001_0000;
-        const KEYB_ISSUE_NSUP = 0x0000_0000_0010_0000;
+        const EXTENSTION_NSUP = 0x0000_0000_0000_0002;
+        const CPU_MODEL_NSUP  = 0x0000_0000_0000_0004;
+        const JOYSTICK_NSUP   = 0x0000_0000_0000_0008;
+        const SOUND_CHIP_NSUP = 0x0000_0000_0000_0010;
+        const KEYB_ISSUE_NSUP = 0x0000_0000_0000_0020;
     }
 }
 
@@ -181,7 +180,7 @@ bitflags! {
 /// Some methods are not called when it makes no sense in the context of the loaded snapshot.
 pub trait SnapshotLoader {
     /// The error type returned by the [SnapshotLoader::select_model] method.
-    type Error: Into<Box<(dyn std::error::Error + Send + Sync + 'static)>>;
+    type Error: Into<Box<(dyn std::error::Error + Send + Sync)>>;
     /// Should create an instance of an emulated model from the given `model` and other arguments.
     ///
     /// If the model can not be emulated this method should return an `Err(Self::Error)`.
@@ -385,5 +384,17 @@ impl fmt::Display for Extensions {
             f.write_str(" + SamRam")?;
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use spectrusty_core::test_bitflags_all_bits_defined_no_masks;
+
+    #[test]
+    fn flags_all_bits_defined() {
+        test_bitflags_all_bits_defined_no_masks!(Extensions, 6);
+        test_bitflags_all_bits_defined_no_masks!(SnapshotResult, 6);
     }
 }

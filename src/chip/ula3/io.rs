@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020-2022  Rafal Michalski
+    Copyright (C) 2020-2023  Rafal Michalski
 
     This file is part of SPECTRUSTY, a Rust library for building emulators.
 
@@ -71,7 +71,7 @@ impl<B, X> Io for Ula3<B, X>
     fn write_io(&mut self, port: u16, data: u8, ts: VideoTs) -> (Option<()>, Option<NonZeroU16>) {
         if Ula3Mem1PortAddress::match_port(port) {
             if !self.mem_locked {
-                let flags = Ula128MemFlags::from_bits_truncate(data);
+                let flags = Ula128MemFlags::from_data(data);
                 if self.set_mem1_port_value(flags, ts) {
                     return (Some(()), None)
                 }
@@ -81,7 +81,7 @@ impl<B, X> Io for Ula3<B, X>
         else {
             let (mut res, ws) = self.ula.write_io(port, data, ts);
             if Ula3Mem2PortAddress::match_port(port) && !self.mem_locked {
-                let flags = Ula3CtrlFlags::from_bits_truncate(data);
+                let flags = Ula3CtrlFlags::from_data(data);
                 if self.set_mem2_port_value(flags) {
                     res = Some(());
                 }

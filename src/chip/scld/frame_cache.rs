@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020-2022  Rafal Michalski
+    Copyright (C) 2020-2023  Rafal Michalski
 
     This file is part of SPECTRUSTY, a Rust library for building emulators.
 
@@ -26,6 +26,7 @@ use crate::video::{
         PlusVidFrameDataIterator
     }
 };
+use spectrusty_core::{bitflags_from_data, bitflags_masks};
 
 #[cfg(feature = "snapshot")]
 use serde::{Serialize, Deserialize};
@@ -43,17 +44,21 @@ bitflags! {
     /// ```
     #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
     #[cfg_attr(feature = "snapshot", serde(try_from = "u8", into = "u8"))]
-    #[derive(Default)]
+    #[derive(Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
     pub struct SourceMode: u8 {
         /// Determines the source of INK/PAPER masks.
         const SECOND_SCREEN = 0b001;
         /// Determines the source of attributes together with [SourceMode::SECOND_SCREEN].
         const ATTR_HI_COLOR = 0b010;
-        const SOURCE_MASK   = 0b011;
+     // const SOURCE_MASK   = 0b011;
         /// Determines the screen bank the data is read from.
         const SHADOW_BANK   = 0b100;
     }
 }
+bitflags_from_data!(SourceMode);
+bitflags_masks!(SourceMode {
+    pub const SOURCE_MASK = SECOND_SCREEN|ATTR_HI_COLOR;
+});
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TryFromU8SourceModeError(pub u8);
@@ -94,7 +99,7 @@ const EMPTY_LINE_ITER: UlaFrameLineIter<'_> = UlaFrameLineIter {
 impl SourceMode {
     #[inline]
     pub fn from_scld_flags(flags: ScldCtrlFlags) -> SourceMode {
-        SourceMode::from_bits_truncate(
+        SourceMode::from_bits_retain(
             (flags & ScldCtrlFlags::SCREEN_SOURCE_MASK).bits()
         )
     }
@@ -115,7 +120,7 @@ impl SourceMode {
             0b110 => SourceMode::ATTR_HI_COLOR, // 0b010
             0b011|
             0b111 => SourceMode::SHADOW_BANK|SourceMode::ATTR_HI_COLOR, // 0b110
-            bits  => SourceMode::from_bits_truncate(bits)
+            bits  => SourceMode::from_data(bits)
         }
     }
     #[inline]
@@ -142,7 +147,7 @@ impl From<SourceMode> for u8 {
 impl From<VideoTsData2> for SourceMode {
     #[inline]
     fn from(vtsm: VideoTsData2) -> Self {
-        SourceMode::from_bits_truncate(vtsm.into_data())
+        SourceMode::from_data(vtsm.into_data())
     }
 }
 
@@ -309,10 +314,21 @@ impl<'a, V, I> Iterator for ScldFrameProducer<'a, V, I>
 fn vtm_next<V: VideoFrame>(vtm: VideoTsData2, line: Ts) -> (VFrameTs<V>, SourceMode) {
     let (mut vts, data): (VFrameTs<V>, u8) = vtm.into();
     vts.vc -= V::VSL_PIXELS.start + line;
-    (vts, SourceMode::from_bits_truncate(data))
+    (vts, SourceMode::from_data(data))
 }
 
 #[inline]
 fn col_hts(x: i16) -> i16 {
     ((x >> 1) << 3) + ((x & 1) << 1) + 3
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use spectrusty_core::test_bitflags_all_bits_defined_no_masks;
+
+    #[test]
+    fn flags_all_bits_defined() {
+        test_bitflags_all_bits_defined_no_masks!(SourceMode, 3);
+    }
 }
