@@ -1,9 +1,19 @@
 ...
-* spectrusty-audio: synth: trait BandLimitedExt, enum BandLimitedAny, implemented Debug for BandLimited.
+* edition: 2021
+* rustc version requirement was raised to 1.65.
+* examples: simple_logger (audio examples) upgraded to 4.
+* examples: updated for the cpal and audio API changes.
+* spectrusty-audio: cpal upgraded to 0.15.2, changes to AudioHandle and AudioHandleAnyFormat API.
+* spectrusty-audio: AyAmps and AyFuseAmps implemented for f64 and i32 SampleDelta types.
+* spectrusty-audio: synth.ext: trait BandLimitedExt, enum BandLimitedAny, implemented Debug for BandLimited.
 * spectrusty-audio: synth: removed mut from BandLimited::is_frame_ended.
+* spectrusty-core: implement sample traits for more types.
 * spectrusty-core: implement Blep for mutable references of unsized Blep, implemented Debug for BlepStereo and BlepAmpFilter.
 * spectrusty-formats: Fix Header::with_name failing unless length is 10.
 * spectrusty-peripherals: implement fmt::Display for MultiJoystickBusDevice.
+* bitflags upgraded to 2.3.3, added missing flags
+* upgraded minifb, winit and other example dependencies
+* spectrusty-core: z80emu bumped to 0.9.
 
 v0.4.0
 * all workspace library crates versions leveled to 0.4.0.
