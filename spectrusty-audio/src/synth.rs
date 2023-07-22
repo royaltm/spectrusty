@@ -105,6 +105,14 @@ impl<T: Copy + Default, O> BandLimited<T, O> {
     pub fn is_frame_ended(&self) -> bool {
         self.last_nsamples.is_some()
     }
+    /// Returns a number of samples of the last frame if [BandLimited::end_frame_at] or
+    /// [Blep::end_frame] has been called before the call to [BandLimited::next_frame].
+    ///
+    /// The returned `Some(..)` indicates that audio samples can be produced from the last frame data.
+    #[inline]
+    pub fn num_samples_ended_frame(&self) -> Option<usize> {
+        self.last_nsamples
+    }
     /// Ensures the frame buffer length is large enough to fit data for the specified `frame_time`
     /// with additional `margin_time`.
     ///

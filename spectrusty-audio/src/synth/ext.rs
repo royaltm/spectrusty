@@ -23,6 +23,8 @@ pub trait BandLimitedExt<T, S>: Blep<SampleDelta=T> {
     fn shrink_to_fit_ext(&mut self);
     /// Forwards to [BandLimited::is_frame_ended].
     fn is_frame_ended_ext(&self) -> bool;
+    /// Forwards to [BandLimited::num_samples_ended_frame].
+    fn num_samples_ended_frame_ext(&self) -> Option<usize>;
     /// Forwards to [BandLimited::next_frame].
     fn next_frame_ext(&mut self);
     /// A helper method for producing audio samples from a specific channel.
@@ -118,6 +120,10 @@ impl<D, B, T, S> BandLimitedExt<T, S> for D
         (**self).is_frame_ended_ext()
     }
     #[inline]
+    fn num_samples_ended_frame_ext(&self) -> Option<usize> {
+        (**self).num_samples_ended_frame_ext()
+    }
+    #[inline]
     fn next_frame_ext(&mut self) {
         (**self).next_frame_ext()
     }
@@ -159,6 +165,11 @@ impl<T, O, S> BandLimitedExt<T, S> for BandLimited<T, O>
     }
 
     #[inline]
+    fn num_samples_ended_frame_ext(&self) -> Option<usize> {
+        (*self).num_samples_ended_frame()
+    }
+
+    #[inline]
     fn next_frame_ext(&mut self) {
         (*self).next_frame()
     }
@@ -177,6 +188,9 @@ impl<T, O, S> BandLimitedExt<T, S> for BandLimited<T, O>
         where S: FromSample<T>
     {
         for (nchan, ochan) in channel_map.into_iter().copied().enumerate() {
+            if ochan >= output_nchannels {
+                continue;
+            }
             for (p, sample) in output[ochan..].iter_mut()
                                .step_by(output_nchannels)
                                .zip(self.sum_iter::<S>(nchan))
@@ -232,6 +246,10 @@ impl<T, S> BandLimitedExt<T, S> for BandLimitedAny<T>
     #[inline]
     fn is_frame_ended_ext(&self) -> bool {
         implement_any! { self, b, b.is_frame_ended() }
+    }
+    #[inline]
+    fn num_samples_ended_frame_ext(&self) -> Option<usize> {
+        implement_any! { self, b, b.num_samples_ended_frame() }
     }
     #[inline]
     fn next_frame_ext(&mut self) {
