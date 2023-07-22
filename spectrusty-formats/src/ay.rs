@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020-2022  Rafal Michalski
+    Copyright (C) 2020-2023  Rafal Michalski
 
     This file is part of SPECTRUSTY, a Rust library for building emulators.
 
@@ -277,7 +277,7 @@ impl AyFile {
         cpu.set_reg(Reg8::C, None, song.lo_reg);
         cpu.exx();
         cpu.set_acc(song.hi_reg);
-        cpu.set_flags(CpuFlags::from_bits_truncate(song.lo_reg));
+        cpu.set_flags(CpuFlags::from_bits_retain(song.lo_reg));
         cpu.ex_af_af();
         cpu.set_reg(Reg8::H, None, song.hi_reg);
         cpu.set_reg(Reg8::L, None, song.lo_reg);
@@ -290,7 +290,7 @@ impl AyFile {
         cpu.set_reg(Reg8::H, Some(Prefix::Xdd), song.hi_reg);
         cpu.set_reg(Reg8::L, Some(Prefix::Xdd), song.lo_reg);
         cpu.set_acc(song.hi_reg);
-        cpu.set_flags(CpuFlags::from_bits_truncate(song.lo_reg));
+        cpu.set_flags(CpuFlags::from_bits_retain(song.lo_reg));
         cpu.disable_interrupts();
         cpu.set_sp(song.stack);
         cpu.set_im(InterruptMode::Mode0);

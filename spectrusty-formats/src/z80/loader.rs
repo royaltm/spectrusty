@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020-2022  Rafal Michalski
+    Copyright (C) 2020-2023  Rafal Michalski
 
     This file is part of SPECTRUSTY, a Rust library for building emulators.
 
@@ -123,7 +123,7 @@ fn create_cpu(head: &Header) -> Result<Z80NMOS> {
     cpu.set_reg16(StkReg16::BC, u16::from_le_bytes(head.bc_alt));
     cpu.exx();
     cpu.set_acc(head.a_alt);
-    cpu.set_flags(CpuFlags::from_bits_truncate(head.f_alt));
+    cpu.set_flags(CpuFlags::from_bits_retain(head.f_alt));
     cpu.ex_af_af();
     cpu.set_reg16(StkReg16::HL, u16::from_le_bytes(head.hl));
     cpu.set_reg16(StkReg16::DE, u16::from_le_bytes(head.de));
@@ -133,7 +133,7 @@ fn create_cpu(head: &Header) -> Result<Z80NMOS> {
     cpu.set_iffs(head.iff1 != 0, head.iff2 != 0);
     cpu.set_r(Flags1::from(head.flags1).mix_r(head.r7));
     cpu.set_acc(head.a);
-    cpu.set_flags(CpuFlags::from_bits_truncate(head.f));
+    cpu.set_flags(CpuFlags::from_bits_retain(head.f));
     cpu.set_sp(u16::from_le_bytes(head.sp));
     cpu.set_im(Flags2::from(head.flags2).interrupt_mode()?);
     cpu.set_pc(u16::from_le_bytes(head.pc));

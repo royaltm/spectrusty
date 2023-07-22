@@ -23,7 +23,7 @@ version = "0.21"
 optional = true
 
 [dependencies.z80emu]
-version = "0.8"
+version = "0.9"
 default-features = false
 features = ["std"]
 # path = "../../z80emu"

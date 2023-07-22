@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2020-2022  Rafal Michalski
+    Copyright (C) 2020-2023  Rafal Michalski
 
     This file is part of SPECTRUSTY, a Rust library for building emulators.
 
@@ -231,7 +231,7 @@ fn is_rom_loading<C: Cpu, M: ZxMemory>(cpu: &C, mem: &M) -> Option<(u16, u16, u8
     }
 
     let (head_match, flags) = cpu.get_alt_reg2(StkReg16::AF);
-    let flags = CpuFlags::from_bits_truncate(flags);
+    let flags = CpuFlags::from_bits_retain(flags);
     if flags.zf() {
         return None;
     }

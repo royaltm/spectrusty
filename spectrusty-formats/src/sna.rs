@@ -111,7 +111,7 @@ fn read_header<R: Read, C: Cpu>(rd: R, cpu: &mut C) -> Result<BorderColor> {
     cpu.set_reg16(StkReg16::BC, u16::from_le_bytes(sna.bc_alt));
     cpu.exx();
     cpu.set_acc(sna.a_alt);
-    cpu.set_flags(CpuFlags::from_bits_truncate(sna.f_alt));
+    cpu.set_flags(CpuFlags::from_bits_retain(sna.f_alt));
     cpu.ex_af_af();
     cpu.set_reg16(StkReg16::HL, u16::from_le_bytes(sna.hl));
     cpu.set_reg16(StkReg16::DE, u16::from_le_bytes(sna.de));
@@ -122,7 +122,7 @@ fn read_header<R: Read, C: Cpu>(rd: R, cpu: &mut C) -> Result<BorderColor> {
     cpu.set_iffs(iff, iff);
     cpu.set_r(sna.r);
     cpu.set_acc(sna.a);
-    cpu.set_flags(CpuFlags::from_bits_truncate(sna.f));
+    cpu.set_flags(CpuFlags::from_bits_retain(sna.f));
     cpu.set_sp(u16::from_le_bytes(sna.sp));
     cpu.set_im(sna.im.try_into().map_err(|_| {
        Error::new(ErrorKind::InvalidData, "Not a proper SNA block: invalid interrupt mode")
