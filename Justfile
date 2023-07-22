@@ -4,6 +4,7 @@ llvm_profdata_exe := replace(clean(`rustc --print target-libdir` / ".." / "bin" 
 target := replace_regex(trim_end_match(`rustup default`, ' (default)'), '^[^-]+-', '')
 optimizations := '-Zno-parallel-llvm -Ccodegen-units=1'
 features := env_var_or_default('SPECTRUSTY_FEATURES', "bundled,compact")
+rustcwrap := if os_family() == "windows" { "rustcwrap.exe" } else { "rustcwrap" }
 
 # run all benchmarks
 bench:
@@ -58,7 +59,7 @@ run-prof args="":
 
 # build rustcwrap for MIR builds
 rustcwrap:
-    rustc rustcwrap.rs -o rustcwrap.exe
+    rustc rustcwrap.rs -o {{ rustcwrap }}
 
 # build all docs
 doc:
