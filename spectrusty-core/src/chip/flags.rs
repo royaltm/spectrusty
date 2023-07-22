@@ -95,6 +95,8 @@ pub struct ParseReadEarModeError;
 
 bitflags! {
     /// This type represents packed EAR and MIC output data.
+    ///
+    /// Bits `b3-b4` of the [UlaPortFlags] at the position of `b0-b1`.
     #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
     #[cfg_attr(feature = "snapshot", serde(try_from = "u8", into = "u8"))]
     #[derive(Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
@@ -113,7 +115,31 @@ bitflags_masks!(EarMic {
 pub struct TryFromU8EarMicError(pub u8);
 
 bitflags! {
-    /// ZX Spectrum's ULA port flags.
+    /// ZX Spectrum's [ULA] port flags.
+    ///
+    /// Any even-numbered I/O port:
+    ///
+    /// | Dir | b7  | b6  | b5  | b4  | b3  | b2  | b1  | b0  |
+    /// |-----|-----|-----|-----|-----|-----|-----|-----|-----|
+    /// | IN  |     | EAR |     | KB4 | KB3 | KB2 | KB1 | KB0 |
+    /// | OUT |     |     |     | EAR | MIC | BO2 | BO1 | BO0 |
+    ///
+    ///
+    /// Border color: `BO2 * 4 + BO1 * 2 + BO0`.
+    ///
+    /// The keyboard line is determined by the upper 8 bits of the I/O port:
+    ///
+    /// | Port | 7f | bf | df | ef | f7 | fb | fd | fe |
+    /// |------|----|----|----|----|----|----|----|----|
+    /// | KB4  |  B |  H |  Y |  6 |  5 |  T |  G |  V |
+    /// | KB3  |  N |  J |  U |  7 |  4 |  R |  F |  C |
+    /// | KB2  |  M |  K |  I |  8 |  3 |  E |  D |  X |
+    /// | KB1  | SS |  L |  O |  9 |  2 |  W |  S |  Z |
+    /// | KB0  | BR | EN |  P |  0 |  1 |  Q |  A | CS |
+    ///
+    /// 0 - key pressed, 1 - key not pressed.
+    ///
+    /// [ULA]: https://sinclair.wiki.zxnet.co.uk/wiki/ZX_Spectrum_ULA#ULA_Functions
     #[derive(Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
     pub struct UlaPortFlags: u8 {
         const BORDER0       = 0b0000_0001;
@@ -138,7 +164,26 @@ bitflags_masks!(UlaPortFlags {
 });
 
 bitflags! {
-    /// ZX Spectrum 128K / +2 memory control flags and +2A / +3 primary control flags.
+    /// ZX Spectrum [128K] / +2 memory control flags and +2A / +3 primary control flags.
+    ///
+    /// Any I/O port matching: `0xxx xxxx  xxxx xx0x` (`0x7ffd`).
+    ///
+    /// | Dir | b7  | b6  | b5  | b4  | b3  | b2  | b1  | b0  |
+    /// |-----|-----|-----|-----|-----|-----|-----|-----|-----|
+    /// | OUT |     |     | LCK | ROM | SCR | RB2 | RB1 | RB0 |
+    ///
+    /// RAM bank: `RB2 * 4 + RB1 * 2 + RB0`.
+    ///
+    /// SCR bank: `0 in RAM5, 1 in RAM7`.
+    ///
+    /// | Start  | Top    | Memory Bank |
+    /// |--------|--------|-------------|
+    /// | 0x0000 | 0x3FFF | ROM0, ROM1  |
+    /// | 0x4000 | 0x7FFF | RAM5        |
+    /// | 0x8000 | 0xBFFF | RAM2        |
+    /// | 0xC000 | 0XFFFF | RAM0 - RAM7 |
+    ///
+    /// [128K]: https://sinclair.wiki.zxnet.co.uk/wiki/ZX_Spectrum_128#Paging
     #[derive(Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
     pub struct Ula128MemFlags: u8 {
         const RAM_BANK0     = 0b00_0001;
@@ -156,7 +201,46 @@ bitflags_masks!(Ula128MemFlags {
 });
 
 bitflags! {
-    /// ZX Spectrum +2A / +3 secondary control flags.
+    /// ZX Spectrum [+2A / +3] secondary control flags.
+    ///
+    /// Any I/O port matching: `0001_xxxx_xxxx_xx0x` (`0x1ffd`).
+    ///
+    /// | Dir | b7  | b6  | b5  | b4  | b3  | b2  | b1  | b0  |
+    /// |-----|-----|-----|-----|-----|-----|-----|-----|-----|
+    /// | OUT |     |     |     | PRT | DSK | ROH |     |  0  |
+    /// | OUT |     |     |     | PRT | DSK | PL1 | PL0 |  1  |
+    ///
+    /// In pair with [Ula128MemFlags] I/O port matching: `01xx_xxxx_xxxx_xx0x` (`0x7ffd`).
+    ///
+    /// | Dir | b7  | b6  | b5  | b4  | b3  | b2  | b1  | b0  |
+    /// |-----|-----|-----|-----|-----|-----|-----|-----|-----|
+    /// | OUT |     |     | LCK | ROL | SCR | RB2 | RB1 | RB0 |
+    ///
+    /// RAM bank: `RB2 * 4 + RB1 * 2 + RB0`.
+    ///
+    /// SCR bank: `0 in RAM5, 1 in RAM7`.
+    ///
+    /// ROM bank: `ROH * 2 + ROL`.
+    ///
+    /// Standard paging: `b0 = 0`.
+    ///
+    /// | Bottom | Top    | Memory Bank |
+    /// |--------|--------|-------------|
+    /// | 0x0000 | 0x3FFF | ROM0 - ROM3 |
+    /// | 0x4000 | 0x7FFF | RAM5        |
+    /// | 0x8000 | 0xBFFF | RAM2        |
+    /// | 0xC000 | 0XFFFF | RAM0 - RAM7 |
+    ///
+    /// Special [paging][Ula3Paging]: `b0 = 1`, page layout: `PL1 * 2 + PL0`.
+    ///
+    /// | Bottom | Top    | PL 0 | PL 1 | PL 2 | PL 3 |
+    /// |--------|--------|------|------|------|------|
+    /// | 0x0000 | 0x3FFF | RAM0 | RAM4 | RAM4 | RAM4 |
+    /// | 0x4000 | 0x7FFF | RAM1 | RAM5 | RAM5 | RAM7 |
+    /// | 0x8000 | 0xBFFF | RAM2 | RAM6 | RAM6 | RAM6 |
+    /// | 0xC000 | 0XFFFF | RAM3 | RAM7 | RAM3 | RAM3 |
+    ///
+    /// [+2A / +3]: https://sinclair.wiki.zxnet.co.uk/wiki/ZX_Spectrum_%2B2A/2B,_%2B3/3B#Paging.
     #[derive(Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
     pub struct Ula3CtrlFlags: u8 {
         const PAGE_LAYOUT0     = 0b0_0000;
@@ -176,14 +260,19 @@ bitflags_masks!(Ula3CtrlFlags {
     pub const PAGE_LAYOUT_MASK = PAGE_LAYOUT2|PAGE_LAYOUT1;
 });
 
+/// A selection enum for [Ula3CtrlFlags] special paging mode.
 #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "snapshot", serde(try_from = "u8", into = "u8"))]
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
 #[repr(u8)]
 pub enum Ula3Paging {
+    /// RAM0, RAM1, RAM2, RAM3
     Banks0123 = 0,
+    /// RAM4, RAM5, RAM6, RAM7
     Banks4567 = 1,
+    /// RAM4, RAM5, RAM6, RAM3
     Banks4563 = 2,
+    /// RAM4, RAM7, RAM6, RAM3
     Banks4763 = 3,
 }
 
@@ -191,7 +280,54 @@ pub enum Ula3Paging {
 pub struct TryFromU8Ula3PagingError(pub u8);
 
 bitflags! {
-    /// Timex TC2048/TC2068/TS2068 screen and memory control flags.
+    /// Timex [TC2048/TC2068/TS2068] screen and memory control flags.
+    ///
+    /// I/O port `0xff`:
+    ///
+    /// | Dir     | b7  | b6  | b5  | b4  | b3  | b2  | b1  | b0  |
+    /// |---------|-----|-----|-----|-----|-----|-----|-----|-----|
+    /// | IN/OUT  | ROM | INT | CL2 | CL1 | CL0 | HIR | ATR | SCR |
+    ///
+    /// Bits `b0-b2` control the screen mode:
+    ///
+    /// * `SCR` selects the primary screen data offset: `0: 0x0000, 1: 0x2000`.
+    /// * `ATR` controls whether normal `8x8` or hi-res `8x1` attributes are in use: `0: 8x8, 1: 8x1`.
+    ///   This also affects where the attributes/even-columns data is read from.
+    /// * `HIR` controls whether high resolution `512x192` mode is enabled.
+    ///
+    /// Only some combinations of those bits give proper modes:
+    ///
+    /// | HIR | ATR | SCR | Mode | Resol.  | Attr | Pixels | Colors | Mode |
+    /// |-----|-----|-----|------|---------|------|--------|--------|------|
+    /// |  0  |  0  |  0  |  OK  | 256x192 | 8x8  | 0x0000 | 0x1800 |  0   |
+    /// |  0  |  0  |  1  |  OK  | 256x192 | 8x8  | 0x2000 | 0x3800 |  1   |
+    /// |  0  |  1  |  0  |  OK  | 256x192 | 8x1  | 0x0000 | 0x2000 |  2   |
+    /// |  0  |  1  |  1  | Bad  | 256x192 | 8x1  | 0x2000 | 0x2000 |  3   |
+    ///
+    /// | HIR | ATR | SCR | Mode | Resol.  | Data | Odd    | Even   | Mode |
+    /// |-----|-----|-----|------|---------|------|--------|--------|------|
+    /// |  1  |  0  |  0  | Bad  | 512x192 | 8x8  | 0x0000 | 0x1800 |  4   |
+    /// |  1  |  0  |  1  | Bad  | 512x192 | 8x8  | 0x2000 | 0x3800 |  5   |
+    /// |  1  |  1  |  0  |  OK  | 512x192 | 8x1  | 0x0000 | 0x2000 |  6   |
+    /// |  1  |  1  |  1  | Bad  | 512x192 | 8x1  | 0x2000 | 0x2000 |  7   |
+    ///
+    /// `Pixels` and `Colors` columns show offsets in memory from the start of the screen bank
+    /// (e.g. `0x4000`), so are `Odd` and `Even`.
+    /// `Data` determines how many pixels are affected by each byte read from memory of the even column.
+    /// E.g. in very bizzare modes 4 and 5 the even columns of high resolution mode are composed
+    /// of normal Spectrum attributes, each byte affecting `8x8` pixels - the pixel line is repeated 8 times.
+    ///
+    /// The screen `INK` color in hi-res mode is: `CL2 * 4 + CL1 + 2 + CL0`.
+    /// The `PAPER` color in hi-res mode is the binary NOT of the `INK` value.
+    /// The hi-res color selected is as it was always using the `BRIGHT=1` bit.
+    ///
+    /// `INT` disables the generation of the timer interrupt if set to `1`.
+    ///
+    /// `ROM` selects which bank the horizontal MMU should use: `0=DOCK, 1=EX-ROM`.
+    /// The memory mapping is affected by I/O `0xf4`, where 8 bits represent each 8KB memory bank:
+    /// `0: normal ROM and RAM, 1: DOCK/EX-ROM`.
+    ///
+    /// [TC2048/TC2068/TS2068]: https://sinclair.wiki.zxnet.co.uk/wiki/Timex_2000_series
     #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
     #[cfg_attr(feature = "snapshot", serde(from = "u8", into = "u8"))]
     #[derive(Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
@@ -217,7 +353,45 @@ bitflags_masks!(ScldCtrlFlags {
 });
 
 bitflags! {
-    /// ULAplus register port flags.
+    /// [ULAplus] register port flags.
+    ///
+    /// I/O port `0xbf3b`:
+    ///
+    /// | Dir | b7  | b6  | b5  | b4  | b3  | b2  | b1  | b0  |
+    /// |-----|-----|-----|-----|-----|-----|-----|-----|-----|
+    /// | OUT | 0   | 0   | PA5 | PA4 | PA3 | PA2 | PA1 | PA0 |
+    /// | OUT | 0   | 1   | CL2 | CL1 | CL0 | HIR | ATR | SCR |
+    ///
+    /// `b6-b7` determine whether a `PALETTE: 0b00` or a `MODE: 0b01` group is selected.
+    ///
+    /// `b0-b5` in `PALETTE GROUP` selects the palette register. Reading to or writing from 
+    /// data I/O `0xff3b` accesses the palette color value: `0bGGG_RRR_BB`.
+    /// The blue color component has the lowest phantom bit which is `1` when any of the
+    /// `BB` bits is `1` and `0` when `BB=0`.
+    /// 
+    /// `b0-b5` in `MODE GROUP` (almost) mirror the [ScldCtrlFlags] `b0-b5` bits.
+    /// Reading to or writing from data I/O `0xff3b` enables palette or grayscale [ColorMode].
+    ///
+    /// There is a subtle difference how bits `SCR`, `ATR` and `HIR` select screen modes
+    /// via this register:
+    ///
+    /// | HIR | ATR | SCR | Bank | Resol.  | Attr | Pixels | Colors | Mode |
+    /// |-----|-----|-----|------|---------|------|--------|--------|------|
+    /// |  0  |  0  |  0  |  5   | 256x192 | 8x8  | 0x0000 | 0x1800 |  0   |
+    /// |  0  |  0  |  1  |  5   | 256x192 | 8x8  | 0x2000 | 0x3800 |  1   |
+    /// |  0  |  1  |  0  |  5   | 256x192 | 8x1  | 0x0000 | 0x2000 |  2   |
+    /// |  0  |  1  |  1  |  7   | 256x192 | 8x1  | 0x0000 | 0x2000 |  3   |
+    /// |  1  |  0  |  0  |  7   | 256x192 | 8x8  | 0x0000 | 0x1800 |  4   |
+    /// |  1  |  0  |  1  |  7   | 256x192 | 8x8  | 0x2000 | 0x3800 |  5   |
+    ///
+    /// | HIR | ATR | SCR | Bank | Resol.  | Data | Odd    | Even   | Mode |
+    /// |-----|-----|-----|------|---------|------|--------|--------|------|
+    /// |  1  |  1  |  0  |  5   | 512x192 | 8x1  | 0x0000 | 0x2000 |  6   |
+    /// |  1  |  1  |  1  |  7   | 512x192 | 8x1  | 0x0000 | 0x2000 |  7   |
+    ///
+    /// Unlike with [ScldCtrlFlags], all combinations give proper screen modes.
+    ///
+    /// [ULAplus]: https://sinclair.wiki.zxnet.co.uk/wiki/ULAplus
     #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
     #[cfg_attr(feature = "snapshot", serde(from = "u8", into = "u8"))]
     #[derive(Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
@@ -247,6 +421,15 @@ bitflags_masks!(UlaPlusRegFlags {
 
 bitflags! {
     /// ULAplus data port flags when register port is set to [UlaPlusRegFlags::MODE_GROUP].
+    ///
+    /// Accessing I/O port `0xff3b` when in `MODE GROUP` determines the current color mode:
+    ///
+    /// | Dir    | b7 - b2  | b1   | b0  |
+    /// |--------|----------|------|-----|
+    /// | IN/OUT | RESERVED | GRAY | PAL |
+    ///
+    /// `PAL`: 1 - palette mode, 0 - legacy color mode.
+    /// `GRAY`: 1 - grayscale mode, 0 - color mode.
     #[cfg_attr(feature = "snapshot", derive(Serialize, Deserialize))]
     #[cfg_attr(feature = "snapshot", serde(try_from = "u8", into = "u8"))]
     #[derive(Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
