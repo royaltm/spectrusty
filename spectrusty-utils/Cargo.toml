@@ -36,7 +36,7 @@ path = ".."
 
 [dependencies.minifb]
 # version = "0.24"
-git = "https://github.com/royaltm/rust_minifb.git"
+git = "https://github.com/emoon/rust_minifb.git"
 optional = true
 
 [dependencies.sdl2]
