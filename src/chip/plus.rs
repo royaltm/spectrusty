@@ -24,9 +24,8 @@ Implementation specifics (may change in the future releases):
 * [SCLD][super::scld] (Timex) modes are also supported: secondary screen, hi-color, hi-res, and shadow screen bank.
 * Port `0xFF` has priority over the register port. Bits 0 to 5 written to port `0xBF3B` with mode group set
   are bitwise ORed with the bits written previously to port `0xFF`. When in palette mode, bits are not modified.
-* Reading of the value previously written to port previously written to port `0xFF` is disabled by default,
-  to not confuse some programs (BBC BASIC), that the chipset supports SCLD MMU paging. This can be enabled
-  with [UlaPlus::enable_reading_scld_mode].
+* Reading of the value previously written to port `0xFF` is disabled by default, to not confuse some programs
+  (BBC BASIC), that the chipset supports SCLD MMU paging. This can be enabled with [UlaPlus::enable_reading_scld_mode].
 * The ULAplus capabilities can be disabled or enabled in run time with [UlaPlus::enable_ulaplus_modes].
 * Hard reset sets the screen and color mode to the default and sets all palette entries to 0, but doesn't change
   the ULAplus capabilities disable flag.
