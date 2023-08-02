@@ -35,8 +35,7 @@ features = ["formats", "peripherals"]
 path = ".."
 
 [dependencies.minifb]
-# version = "0.24"
-git = "https://github.com/emoon/rust_minifb.git"
+version = "0.25"
 optional = true
 
 [dependencies.sdl2]
